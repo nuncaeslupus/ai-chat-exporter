@@ -1,0 +1,60 @@
+/**
+ * ConfirmationModal Component Styles
+ */
+
+.ace-confirmation-modal {
+  width: 90vw;
+  max-width: 28rem;
+}
+
+.ace-confirmation-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ace-spacing-lg);
+}
+
+.ace-confirmation-message {
+  margin: 0;
+  font-size: var(--ace-font-size-base);
+  color: var(--ace-text-primary);
+  line-height: 1.5;
+}
+
+.ace-confirmation-option {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ace-spacing-sm);
+}
+
+.ace-confirmation-label {
+  font-size: var(--ace-font-size-sm);
+  font-weight: var(--ace-font-weight-medium);
+  color: var(--ace-text-primary);
+}
+
+.ace-confirmation-select {
+  width: 100%;
+  padding: var(--ace-spacing-sm) var(--ace-spacing-md);
+  font-size: var(--ace-font-size-sm);
+  font-family: var(--ace-font-family);
+  color: var(--ace-text-primary);
+  background-color: var(--ace-bg-primary);
+  border: 1px solid var(--ace-border);
+  border-radius: var(--ace-radius-md);
+  cursor: pointer;
+  transition: all var(--ace-transition-fast);
+}
+
+.ace-confirmation-select:hover {
+  border-color: var(--ace-border-hover);
+}
+
+.ace-confirmation-select:focus {
+  outline: none;
+  border-color: var(--ace-primary);
+  box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.1);
+}
+
+.ace-confirmation-select option {
+  padding: var(--ace-spacing-sm);
+}

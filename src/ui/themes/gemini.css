@@ -1,0 +1,55 @@
+/**
+ * Gemini Theme (Placeholder)
+ * Color scheme for Google Gemini - to be customized based on actual UI
+ */
+
+:root {
+  /* Gemini brand colors - placeholder values based on Google colors */
+  --ace-primary: #4285f4;
+  --ace-primary-hover: #3b78e7;
+  --ace-primary-active: #2f66d1;
+  --ace-secondary: #5f6368;
+  --ace-secondary-hover: #3c4043;
+  --ace-danger: #ea4335;
+  --ace-danger-hover: #d33b2c;
+
+  /* Background colors */
+  --ace-bg-primary: #ffffff;
+  --ace-bg-secondary: #f8f9fa;
+  --ace-bg-tertiary: #e8eaed;
+  --ace-bg-overlay: rgba(0, 0, 0, 0.5);
+
+  /* Text colors */
+  --ace-text-primary: #202124;
+  --ace-text-secondary: #5f6368;
+  --ace-text-on-primary: #ffffff;
+
+  /* Border colors */
+  --ace-border: #dadce0;
+  --ace-border-hover: #bdc1c6;
+}
+
+/* Dark mode support for Gemini */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ace-primary: #8ab4f8;
+    --ace-primary-hover: #aecbfa;
+    --ace-primary-active: #669df6;
+    --ace-secondary: #9aa0a6;
+    --ace-secondary-hover: #bdc1c6;
+    --ace-danger: #f28b82;
+    --ace-danger-hover: #ea4335;
+
+    --ace-bg-primary: #202124;
+    --ace-bg-secondary: #292a2d;
+    --ace-bg-tertiary: #35363a;
+    --ace-bg-overlay: rgba(0, 0, 0, 0.7);
+
+    --ace-text-primary: #e8eaed;
+    --ace-text-secondary: #9aa0a6;
+    --ace-text-on-primary: #202124;
+
+    --ace-border: #5f6368;
+    --ace-border-hover: #80868b;
+  }
+}

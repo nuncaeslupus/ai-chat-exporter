@@ -1,0 +1,119 @@
+/**
+ * Base exporter with common functionality for all format exporters
+ */
+
+import type {
+  IExporter,
+  ExportFormat,
+  ExportOptions,
+  ExportResult,
+  Conversation,
+  QAPair,
+} from '../types';
+import { getMessage, getPlatformName } from '../../shared/i18n';
+
+/**
+ * Abstract base class for format-specific exporters
+ */
+export abstract class BaseExporter implements IExporter {
+  abstract readonly format: ExportFormat;
+  abstract readonly extension: string;
+  abstract readonly mimeType: string;
+
+  /**
+   * Export selected Q&A pairs from a conversation
+   */
+  abstract export(
+    conversation: Conversation,
+    selectedPairs: QAPair[],
+    options: ExportOptions
+  ): Promise<ExportResult>;
+
+  /**
+   * Validate options for this exporter
+   */
+  validateOptions(options: ExportOptions): boolean {
+    if (options.format !== this.format) {
+      return false;
+    }
+    if (!options.filename || options.filename.trim() === '') {
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Create a successful export result
+   */
+  protected createSuccessResult(
+    content: string | Blob,
+    filename: string
+  ): ExportResult {
+    const blob =
+      content instanceof Blob
+        ? content
+        : new Blob([content], { type: this.mimeType });
+
+    return {
+      success: true,
+      blob,
+      filename: `${filename}.${this.extension}`,
+      mimeType: this.mimeType,
+    };
+  }
+
+  /**
+   * Create an error export result
+   */
+  protected createErrorResult(error: string): ExportResult {
+    return {
+      success: false,
+      error,
+    };
+  }
+
+  /**
+   * Format a timestamp for display
+   */
+  protected formatTimestamp(date?: Date): string {
+    if (!date) return '';
+    return date.toISOString().replace('T', ' ').substring(0, 19);
+  }
+
+  /**
+   * Format platform name for display
+   */
+  protected formatPlatformName(platform: string): string {
+    return getPlatformName(platform);
+  }
+
+  /**
+   * Get metadata field label
+   */
+  protected getMetadataLabel(field: 'platform' | 'model' | 'exported' | 'url'): string {
+    const keyMap = {
+      platform: 'metadataFieldPlatform',
+      model: 'metadataFieldModel',
+      exported: 'metadataFieldExported',
+      url: 'metadataFieldURL',
+    };
+    return getMessage(keyMap[field]);
+  }
+
+  /**
+   * Get role name for display
+   */
+  protected getRoleName(role: 'user' | 'assistant' | string, platform?: string): string {
+    // If platform is specified, try to get platform-specific assistant name
+    if (role === 'assistant' && platform) {
+      const key = `role${platform.charAt(0).toUpperCase()}${platform.slice(1)}`;
+      const message = getMessage(key);
+      if (message !== key) return message;
+    }
+
+    // Fallback to generic role name
+    const key = `role${role.charAt(0).toUpperCase()}${role.slice(1)}`;
+    const message = getMessage(key);
+    return message !== key ? message : role.charAt(0).toUpperCase() + role.slice(1);
+  }
+}

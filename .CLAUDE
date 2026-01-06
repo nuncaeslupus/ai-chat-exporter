@@ -1,0 +1,404 @@
+# AI Chat Exporter - Developer Guide
+
+Welcome to the AI Chat Exporter development environment! This file helps you (and Claude) navigate the codebase.
+
+## Quick Start
+
+```bash
+# Install dependencies
+pnpm install
+
+# Run tests
+pnpm test
+
+# Build extension
+pnpm build
+
+# Development mode (watch)
+pnpm dev:chrome
+```
+
+## Project Structure
+
+```
+ai-chat-exporter/
+├── src/                          # Source code
+│   ├── core/                     # Core functionality
+│   │   ├── parsers/             # Platform-specific parsers
+│   │   ├── exporters/           # Export format handlers
+│   │   ├── services/            # Core services
+│   │   └── types/               # TypeScript types
+│   ├── extension/               # Extension-specific code
+│   │   ├── background/          # Service worker
+│   │   ├── content/             # Content scripts
+│   │   └── popup/               # Extension popup UI
+│   ├── ui/                      # UI components
+│   └── shared/                  # Shared utilities
+├── tests/                       # Test files
+│   ├── unit/                    # Unit tests
+│   ├── integration/             # Integration tests
+│   └── fixtures/                # Test fixtures
+├── docs/                        # Documentation
+│   ├── README.md               # User documentation
+│   ├── INSTALLATION.md         # Installation guide
+│   ├── USAGE.md                # Usage guide
+│   ├── RELEASING.md            # Release process
+│   └── development/            # Developer documentation
+│       ├── ADDING_PARSERS.md   # Parser development guide
+│       ├── ADDING_EXPORTERS.md # Exporter development guide
+│       ├── ARCHITECTURE.md     # System architecture
+│       ├── BUILDING.md         # Build instructions
+│       ├── TESTING_GUIDE.md    # Testing strategies
+│       ├── DEVELOPMENT_PLAN.md # Development roadmap
+│       ├── GITHUB_SETUP.md     # GitHub setup instructions
+│       ├── PROJECT_STRUCTURE.md # Project organization
+│       └── store-listings/     # Store submission materials
+├── tmp/                         # Temporary files (gitignored)
+│   ├── docs/                   # Working documentation
+│   └── scripts/                # One-time scripts
+├── .claude/                     # Claude AI workspace
+│   ├── skills/                 # Claude skills for development
+│   │   ├── parser-generator/   # Parser generation skill
+│   │   └── exporter-generator/ # Exporter generation skill
+│   └── settings.local.json     # Local settings (gitignored)
+├── build/                       # Build configuration
+├── manifests/                   # Extension manifests
+└── _locales/                    # Internationalization
+
+```
+
+## Common Tasks
+
+### Adding a New Parser
+
+For platforms like Claude, Gemini, etc.:
+
+1. **Read the guide**: `docs/development/ADDING_PARSERS.md`
+2. **Use Claude skill**: `.claude/skills/parser-generator/skill.md`
+3. **Quick workflow**:
+   ```bash
+   # 1. Capture DOM from target platform
+   # 2. Use analyze-chatbot.md prompt
+   # 3. Use generate-parser.md prompt
+   # 4. Implement generated code
+   # 5. Run tests
+   pnpm test -- [platform-name]
+   ```
+
+**Key files to update:**
+- `src/core/parsers/[platform]/` - Create parser implementation
+- `src/core/parsers/index.ts` - Register parser
+- `manifests/manifest.base.json` - Add URL pattern
+- `tests/unit/core/parsers/` - Add tests
+
+### Adding a New Export Format
+
+For formats like EPUB, LaTeX, etc.:
+
+1. **Read the guide**: `docs/development/ADDING_EXPORTERS.md`
+2. **Use Claude skill**: `.claude/skills/exporter-generator/skill.md`
+3. **Quick workflow**:
+   ```bash
+   # 1. Research format requirements
+   # 2. Use analyze-format.md prompt
+   # 3. Use generate-exporter.md prompt
+   # 4. Install dependencies
+   pnpm add [library-name]
+   # 5. Implement generated code
+   # 6. Run tests
+   pnpm test -- [format-name]
+   ```
+
+**Key files to update:**
+- `src/core/exporters/[format]-exporter.ts` - Create exporter
+- `src/core/exporters/index.ts` - Register exporter
+- `src/core/types/exporter.ts` - Add format type
+- `src/extension/popup/popup.html` - Add to UI
+- `_locales/en/messages.json` - Add i18n strings
+
+### Running Tests
+
+```bash
+# All tests
+pnpm test
+
+# Specific test file
+pnpm test -- parsers
+
+# Watch mode
+pnpm test --watch
+
+# Coverage
+pnpm test:coverage
+```
+
+### Building
+
+```bash
+# Build for Chrome
+pnpm build:chrome
+
+# Build for Firefox
+pnpm build:firefox
+
+# Build both
+pnpm build
+
+# Development build (watch mode)
+pnpm dev:chrome
+```
+
+### Code Quality
+
+```bash
+# Type checking
+pnpm typecheck
+
+# Linting
+pnpm lint
+pnpm lint:fix
+
+# Formatting
+pnpm format
+pnpm format:check
+
+# Run all checks
+pnpm validate
+```
+
+## Architecture Overview
+
+### Data Flow
+
+```
+1. Platform DOM (ChatGPT/Claude/Gemini)
+   ↓
+2. Parser (extracts conversation)
+   ↓
+3. Conversation (basic types)
+   ↓
+4. ConversationStructureService (converts to structured)
+   ↓
+5. StructuredConversation (rich content types)
+   ↓
+6. Exporter (generates file)
+   ↓
+7. Download
+```
+
+### Key Concepts
+
+**Parser**: Extracts conversation data from platform-specific DOM
+- Implements: `IParser` interface
+- Extends: `BaseParser` class
+- Output: `Conversation` object
+
+**Exporter**: Converts conversation to file format
+- Implements: `export()` method
+- Extends: `BaseExporter` class
+- Input: `StructuredConversation` object
+- Output: `Blob` (file data)
+
+**Structured Content**: Normalized content representation
+- Block types: paragraph, heading, code, list, table, etc.
+- Inline types: text, bold, italic, code, link, etc.
+- Benefits: Format-agnostic, consistent rendering
+
+## Finding Things
+
+### I need to...
+
+**Add support for a new chatbot platform:**
+→ `docs/development/ADDING_PARSERS.md`
+→ `.claude/skills/parser-generator/skill.md`
+
+**Add a new export format:**
+→ `docs/development/ADDING_EXPORTERS.md`
+→ `.claude/skills/exporter-generator/skill.md`
+
+**Understand the architecture:**
+→ `docs/development/ARCHITECTURE.md`
+
+**Fix a bug in ChatGPT parser:**
+→ `src/core/parsers/chatgpt/parser.ts`
+
+**Modify PDF export:**
+→ `src/core/exporters/pdf-exporter.ts`
+
+**Change the popup UI:**
+→ `src/extension/popup/popup.html`
+→ `src/extension/popup/popup.ts`
+
+**Add internationalization:**
+→ `_locales/en/messages.json` (and other languages)
+
+**Understand the types:**
+→ `src/core/types/` (all TypeScript types)
+
+**Run specific tests:**
+→ `tests/unit/` or `tests/integration/`
+
+## Using Claude Skills
+
+### Parser Generator
+
+When adding support for a new platform:
+
+```markdown
+I need to add support for [Platform Name].
+
+@.claude/skills/parser-generator/prompts/analyze-chatbot.md
+
+Platform: [Platform Name]
+DOM Capture: [paste HTML or provide file path]
+```
+
+Then generate the implementation:
+
+```markdown
+@.claude/skills/parser-generator/prompts/generate-parser.md
+
+Platform: [platform-id]
+URL Pattern: [domain]
+Selectors: [from analysis]
+```
+
+### Exporter Generator
+
+When adding a new export format:
+
+```markdown
+I need to add [Format] export support.
+
+@.claude/skills/exporter-generator/prompts/analyze-format.md
+
+Format: [Format Name]
+Requirements: [list requirements]
+```
+
+Then generate the implementation:
+
+```markdown
+@.claude/skills/exporter-generator/prompts/generate-exporter.md
+
+Format: [format-id]
+Format Name: [Display Name]
+MIME Type: [mime/type]
+Dependencies: [libraries]
+```
+
+## Troubleshooting
+
+### Build fails
+
+```bash
+# Clear caches
+rm -rf dist/ node_modules/.vite/
+
+# Reinstall
+pnpm install
+
+# Rebuild
+pnpm build
+```
+
+### Tests fail
+
+```bash
+# Run in watch mode to debug
+pnpm test --watch
+
+# Check specific test
+pnpm test -- [test-name]
+
+# Update snapshots if needed
+pnpm test -- -u
+```
+
+### Extension not working
+
+```bash
+# Rebuild
+pnpm build:chrome
+
+# Check for errors in browser console
+# Reload extension in chrome://extensions
+
+# Check content script is injected
+# Open DevTools on target page
+```
+
+### Types not working
+
+```bash
+# Run type check
+pnpm typecheck
+
+# Check for missing types
+pnpm add -D @types/[package]
+```
+
+## Contributing
+
+1. Create a feature branch
+2. Make your changes
+3. Run validation: `pnpm validate`
+4. Commit with clear message
+5. Push and create PR
+
+### Commit Message Format
+
+```
+type(scope): description
+
+Examples:
+- feat(parser): add Claude parser support
+- fix(exporter): handle empty code blocks
+- docs(readme): update installation instructions
+- test(parser): add ChatGPT canvas tests
+```
+
+## Resources
+
+### Documentation
+- User docs: `docs/README.md`
+- Developer docs: `docs/development/`
+- API reference: See TypeScript types in `src/core/types/`
+
+### External Links
+- [GitHub Repository](https://github.com/nuncaeslupus/ai-chat-exporter)
+- [Chrome Extension API](https://developer.chrome.com/docs/extensions/)
+- [Firefox Extension API](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions)
+
+### Libraries Used
+- **jsPDF**: PDF generation
+- **docx**: Word document generation
+- **marked**: Markdown parsing
+- **html2canvas**: HTML to image conversion
+- **Vitest**: Testing framework
+- **Vite**: Build tool
+
+## Getting Help
+
+1. Check relevant documentation in `docs/development/`
+2. Look at existing implementations (e.g., ChatGPT parser, PDF exporter)
+3. Use Claude skills for guided implementation
+4. Search issues on GitHub
+5. Create new issue if needed
+
+## Development Philosophy
+
+- **Follow existing patterns**: Check similar implementations
+- **Test thoroughly**: Write tests for new features
+- **Document changes**: Update docs and comments
+- **Keep it simple**: Don't over-engineer
+- **Type everything**: Use TypeScript properly
+- **Error handling**: Graceful failures with helpful messages
+- **Performance**: Consider large conversations
+- **Accessibility**: Maintain extension usability
+
+---
+
+**Welcome to the project! Start with `docs/development/ADDING_PARSERS.md` or `docs/development/ADDING_EXPORTERS.md` based on what you want to build.**
+
+For questions or issues: https://github.com/nuncaeslupus/ai-chat-exporter/issues

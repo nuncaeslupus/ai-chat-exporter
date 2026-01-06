@@ -1,0 +1,70 @@
+# Chrome Web Store Listing - AI Chat Exporter
+
+## Extension Name
+AI Chat Exporter
+
+## Short Description (132 characters max)
+Export ChatGPT conversations to PDF, Markdown, DOCX, HTML, TXT, and JSON. Print and save your AI chats easily.
+
+## Detailed Description
+
+Save your ChatGPT conversations in multiple formats with AI Chat Exporter.
+
+**Features:**
+- Export to PDF, Markdown, DOCX, HTML, TXT, and JSON
+- Print conversations directly from ChatGPT
+- Preserves code blocks and formatting
+- Custom filename templates
+- No account required
+- No data collection - everything stays local
+
+**Supported Platforms:**
+- ChatGPT (chat.openai.com, chatgpt.com)
+- More coming...
+
+**How to Use:**
+1. Open a ChatGPT conversation
+2. Click the extension icon in your browser toolbar
+3. Choose your preferred export format
+4. Click Export or Print
+
+**Privacy:**
+This extension runs entirely in your browser. No conversation data is sent to external servers or collected by the extension.
+
+**Open Source:**
+AI Chat Exporter is open source on GitHub: https://github.com/nuncaeslupus/ai-chat-exporter
+
+**Support:**
+Report issues or request features at https://github.com/nuncaeslupus/ai-chat-exporter/issues
+
+## Category
+Productivity
+
+## Language
+English, Spanish (Español)
+
+## Screenshots Needed
+1. Extension popup showing export options
+2. ChatGPT conversation with extension ready
+3. Exported PDF example
+4. Format selection dropdown
+
+## Privacy Practice Disclosures
+
+**Data Usage:**
+- No user data is collected
+- No user data is used
+- No user data is sold
+
+**Data Handling:**
+- The extension does not collect, store, or transmit any user data
+- All processing happens locally in your browser
+- Exported files are saved directly to your computer
+
+## Permissions Justification
+
+**activeTab**: Required to access the current ChatGPT page and extract conversation content for export
+
+**storage**: Used to save user preferences (like last selected export format) locally in the browser
+
+**contextMenus**: (Optional) For future right-click menu integration

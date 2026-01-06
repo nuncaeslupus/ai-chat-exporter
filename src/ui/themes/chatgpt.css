@@ -1,0 +1,55 @@
+/**
+ * ChatGPT Theme
+ * Color scheme matching ChatGPT's UI
+ */
+
+:root {
+  /* ChatGPT brand colors */
+  --ace-primary: #10a37f;
+  --ace-primary-hover: #0e8c6f;
+  --ace-primary-active: #0c7a5f;
+  --ace-secondary: #6b7280;
+  --ace-secondary-hover: #4b5563;
+  --ace-danger: #ef4444;
+  --ace-danger-hover: #dc2626;
+
+  /* Background colors */
+  --ace-bg-primary: #ffffff;
+  --ace-bg-secondary: #f7f7f8;
+  --ace-bg-tertiary: #ececf1;
+  --ace-bg-overlay: rgba(0, 0, 0, 0.5);
+
+  /* Text colors */
+  --ace-text-primary: #374151;
+  --ace-text-secondary: #6b7280;
+  --ace-text-on-primary: #ffffff;
+
+  /* Border colors */
+  --ace-border: #d1d5db;
+  --ace-border-hover: #9ca3af;
+}
+
+/* Dark mode support for ChatGPT */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ace-primary: #10a37f;
+    --ace-primary-hover: #1ab88d;
+    --ace-primary-active: #0e8c6f;
+    --ace-secondary: #9ca3af;
+    --ace-secondary-hover: #d1d5db;
+    --ace-danger: #f87171;
+    --ace-danger-hover: #ef4444;
+
+    --ace-bg-primary: #212121;
+    --ace-bg-secondary: #2f2f2f;
+    --ace-bg-tertiary: #3f3f3f;
+    --ace-bg-overlay: rgba(0, 0, 0, 0.7);
+
+    --ace-text-primary: #ececf1;
+    --ace-text-secondary: #9ca3af;
+    --ace-text-on-primary: #ffffff;
+
+    --ace-border: #4b5563;
+    --ace-border-hover: #6b7280;
+  }
+}
