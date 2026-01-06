@@ -1,0 +1,258 @@
+{
+  "extensionName": {
+    "message": "Exportateur de Chats IA",
+    "description": "Nom de l'extension"
+  },
+  "extensionDescription": {
+    "message": "Exporter des conversations de chatbots IA vers PDF, Markdown, DOCX et plus",
+    "description": "Description de l'extension"
+  },
+
+  "statusDetecting": {
+    "message": "Détection...",
+    "description": "Message d'état pendant la détection du chatbot"
+  },
+  "statusReady": {
+    "message": "Prêt",
+    "description": "Message d'état quand prêt à exporter"
+  },
+  "statusNoConversation": {
+    "message": "Aucune conversation",
+    "description": "Message d'état quand aucune conversation trouvée"
+  },
+  "statusReloadNeeded": {
+    "message": "Rechargement nécessaire",
+    "description": "Message d'état quand rechargement de page requis"
+  },
+  "statusNotSupported": {
+    "message": "Non pris en charge",
+    "description": "Message d'état pour pages non prises en charge"
+  },
+
+  "noChatbotDetectedTitle": {
+    "message": "Aucun Chatbot Détecté",
+    "description": "Titre du message aucun chatbot détecté"
+  },
+  "noChatbotDetectedMessage": {
+    "message": "Cette page ne semble pas avoir de conversation de chatbot prise en charge.",
+    "description": "Message quand aucun chatbot n'est détecté"
+  },
+  "supportedPlatforms": {
+    "message": "Plateformes prises en charge :",
+    "description": "Libellé pour la liste des plateformes prises en charge"
+  },
+
+  "reloadRequiredTitle": {
+    "message": "Rechargement de Page Requis",
+    "description": "Titre du message rechargement requis"
+  },
+  "reloadRequiredMessage": {
+    "message": "Veuillez recharger cette page pour activer l'extension Exportateur de Chats IA.",
+    "description": "Message quand rechargement de page requis"
+  },
+  "howToReload": {
+    "message": "Comment recharger :",
+    "description": "Libellé pour les instructions de rechargement"
+  },
+  "reloadInstructionKeyboard": {
+    "message": "Appuyez sur Ctrl+R (Windows/Linux) ou ⌘+R (Mac)",
+    "description": "Instruction de raccourci clavier pour recharger"
+  },
+  "reloadInstructionButton": {
+    "message": "Ou cliquez sur le bouton de rechargement de votre navigateur",
+    "description": "Instruction de bouton pour recharger"
+  },
+
+  "actionsTitle": {
+    "message": "Actions",
+    "description": "Titre de la section actions"
+  },
+  "exportButton": {
+    "message": "Exporter",
+    "description": "Libellé du bouton exporter"
+  },
+  "printButton": {
+    "message": "Imprimer",
+    "description": "Libellé du bouton imprimer"
+  },
+
+  "formatPDF": {
+    "message": "Document PDF",
+    "description": "Option de format PDF"
+  },
+  "formatMarkdown": {
+    "message": "Markdown",
+    "description": "Option de format Markdown"
+  },
+  "formatHTML": {
+    "message": "Document HTML",
+    "description": "Option de format HTML"
+  },
+  "formatDOCX": {
+    "message": "Document Word",
+    "description": "Option de format Word/DOCX"
+  },
+  "formatTXT": {
+    "message": "Texte Brut",
+    "description": "Option de format texte brut"
+  },
+  "formatJSON": {
+    "message": "Données JSON",
+    "description": "Option de format JSON"
+  },
+
+  "qaPairSingular": {
+    "message": "paire Q&R",
+    "description": "Forme singulière de paire question-réponse"
+  },
+  "qaPairPlural": {
+    "message": "paires Q&R",
+    "description": "Forme plurielle de paires question-réponse"
+  },
+  "wordCount": {
+    "message": "mots",
+    "description": "Libellé du nombre de mots"
+  },
+  "badgeCode": {
+    "message": "Code",
+    "description": "Badge pour contenu de code"
+  },
+  "badgeImages": {
+    "message": "Images",
+    "description": "Badge pour contenu d'images"
+  },
+
+  "metadataFieldPlatform": {
+    "message": "Plateforme",
+    "description": "Champ de métadonnées : Plateforme"
+  },
+  "metadataFieldModel": {
+    "message": "Modèle",
+    "description": "Champ de métadonnées : Modèle"
+  },
+  "metadataFieldExported": {
+    "message": "Exporté",
+    "description": "Champ de métadonnées : Date d'exportation"
+  },
+  "metadataFieldURL": {
+    "message": "URL",
+    "description": "Champ de métadonnées : URL"
+  },
+  "metadataTableHeaderField": {
+    "message": "Champ",
+    "description": "En-tête de tableau pour colonne de champ de métadonnées"
+  },
+  "metadataTableHeaderValue": {
+    "message": "Valeur",
+    "description": "En-tête de tableau pour colonne de valeur de métadonnées"
+  },
+
+  "roleUser": {
+    "message": "Utilisateur",
+    "description": "Libellé du rôle utilisateur"
+  },
+  "roleAssistant": {
+    "message": "Assistant",
+    "description": "Libellé du rôle assistant (générique)"
+  },
+  "roleChatGPT": {
+    "message": "ChatGPT",
+    "description": "Nom de l'assistant ChatGPT"
+  },
+  "roleClaude": {
+    "message": "Claude",
+    "description": "Nom de l'assistant Claude"
+  },
+  "roleGemini": {
+    "message": "Gemini",
+    "description": "Nom de l'assistant Gemini"
+  },
+
+  "platformChatGPT": {
+    "message": "ChatGPT",
+    "description": "Nom de la plateforme ChatGPT"
+  },
+  "platformClaude": {
+    "message": "Claude",
+    "description": "Nom de la plateforme Claude"
+  },
+  "platformGemini": {
+    "message": "Gemini",
+    "description": "Nom de la plateforme Gemini"
+  },
+  "platformMistral": {
+    "message": "Mistral",
+    "description": "Nom de la plateforme Mistral"
+  },
+  "platformGrok": {
+    "message": "Grok",
+    "description": "Nom de la plateforme Grok"
+  },
+
+  "contentTagCode": {
+    "message": "Code",
+    "description": "Étiquette pour blocs de code"
+  },
+  "contentTagImage": {
+    "message": "Image",
+    "description": "Étiquette pour une seule image"
+  },
+  "contentTagImages": {
+    "message": "$1 Images",
+    "description": "Étiquette pour plusieurs images. $1 = nombre d'images",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "contentTagCanvas": {
+    "message": "Canevas",
+    "description": "Étiquette pour contenu de canevas/document"
+  },
+  "contentTagDeepResearch": {
+    "message": "Recherche Approfondie",
+    "description": "Étiquette pour réponses de recherche approfondie"
+  },
+
+  "pageNumberFormat": {
+    "message": "Page $1 sur $2",
+    "description": "Format du numéro de page pour exports PDF. $1 = page actuelle, $2 = total de pages",
+    "placeholders": {
+      "current": {
+        "content": "$1",
+        "example": "1"
+      },
+      "total": {
+        "content": "$2",
+        "example": "10"
+      }
+    }
+  },
+
+  "exportedWithChatExporter": {
+    "message": "Exporté avec Exportateur de Chats IA",
+    "description": "Message de pied de page dans les exports HTML"
+  },
+
+  "imageAltText": {
+    "message": "Image : $1",
+    "description": "Texte alternatif pour images dans exports. $1 = description de l'image",
+    "placeholders": {
+      "description": {
+        "content": "$1",
+        "example": "capture d'écran"
+      }
+    }
+  },
+
+  "footerGitHub": {
+    "message": "GitHub",
+    "description": "Lien de pied de page vers GitHub"
+  },
+  "footerReportIssue": {
+    "message": "Signaler un Problème",
+    "description": "Lien de pied de page pour signaler un problème"
+  }
+}

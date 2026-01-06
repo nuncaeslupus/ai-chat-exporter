@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Temporary files
+tmp/
+*.tmp
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Package archives
+*.zip
+*.crx
+*.xpi
+
+# Extension build artifacts
+web-ext-artifacts/
+
+# Testing
+tests/tmp/
+tests/output/
+
+# Local development
+.claude/settings.local.json

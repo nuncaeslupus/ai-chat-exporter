@@ -1,0 +1,258 @@
+{
+  "extensionName": {
+    "message": "AI Chat Exporter",
+    "description": "Extension name"
+  },
+  "extensionDescription": {
+    "message": "Exporte conversas de chatbot de IA para PDF, Markdown, DOCX e mais",
+    "description": "Extension description"
+  },
+
+  "statusDetecting": {
+    "message": "A detetar...",
+    "description": "Status message while detecting chatbot"
+  },
+  "statusReady": {
+    "message": "Pronto",
+    "description": "Status message when ready to export"
+  },
+  "statusNoConversation": {
+    "message": "Sem conversa",
+    "description": "Status message when no conversation found"
+  },
+  "statusReloadNeeded": {
+    "message": "Recarregamento necessário",
+    "description": "Status message when page reload is required"
+  },
+  "statusNotSupported": {
+    "message": "Não suportado",
+    "description": "Status message for unsupported pages"
+  },
+
+  "noChatbotDetectedTitle": {
+    "message": "Nenhum Chatbot Detetado",
+    "description": "Title for no chatbot detected message"
+  },
+  "noChatbotDetectedMessage": {
+    "message": "Esta página não parece ter uma conversa de chatbot suportada.",
+    "description": "Message when no chatbot is detected"
+  },
+  "supportedPlatforms": {
+    "message": "Plataformas suportadas:",
+    "description": "Label for supported platforms list"
+  },
+
+  "reloadRequiredTitle": {
+    "message": "Recarregamento da Página Necessário",
+    "description": "Title for reload required message"
+  },
+  "reloadRequiredMessage": {
+    "message": "Por favor, recarregue esta página para ativar a extensão AI Chat Exporter.",
+    "description": "Message when page reload is required"
+  },
+  "howToReload": {
+    "message": "Como recarregar:",
+    "description": "Label for reload instructions"
+  },
+  "reloadInstructionKeyboard": {
+    "message": "Prima Ctrl+R (Windows/Linux) ou ⌘+R (Mac)",
+    "description": "Keyboard shortcut instruction for reloading"
+  },
+  "reloadInstructionButton": {
+    "message": "Ou clique no botão de recarregar no seu navegador",
+    "description": "Button instruction for reloading"
+  },
+
+  "actionsTitle": {
+    "message": "Ações",
+    "description": "Title for actions section"
+  },
+  "exportButton": {
+    "message": "Exportar",
+    "description": "Export button label"
+  },
+  "printButton": {
+    "message": "Imprimir",
+    "description": "Print button label"
+  },
+
+  "formatPDF": {
+    "message": "Documento PDF",
+    "description": "PDF format option"
+  },
+  "formatMarkdown": {
+    "message": "Markdown",
+    "description": "Markdown format option"
+  },
+  "formatHTML": {
+    "message": "Documento HTML",
+    "description": "HTML format option"
+  },
+  "formatDOCX": {
+    "message": "Documento Word",
+    "description": "Word/DOCX format option"
+  },
+  "formatTXT": {
+    "message": "Texto Simples",
+    "description": "Plain text format option"
+  },
+  "formatJSON": {
+    "message": "Dados JSON",
+    "description": "JSON format option"
+  },
+
+  "qaPairSingular": {
+    "message": "par P&R",
+    "description": "Singular form of Q&A pair"
+  },
+  "qaPairPlural": {
+    "message": "pares P&R",
+    "description": "Plural form of Q&A pairs"
+  },
+  "wordCount": {
+    "message": "palavras",
+    "description": "Word count label"
+  },
+  "badgeCode": {
+    "message": "Código",
+    "description": "Badge for code content"
+  },
+  "badgeImages": {
+    "message": "Imagens",
+    "description": "Badge for image content"
+  },
+
+  "metadataFieldPlatform": {
+    "message": "Plataforma",
+    "description": "Metadata field: Platform"
+  },
+  "metadataFieldModel": {
+    "message": "Modelo",
+    "description": "Metadata field: Model"
+  },
+  "metadataFieldExported": {
+    "message": "Exportado",
+    "description": "Metadata field: Exported date"
+  },
+  "metadataFieldURL": {
+    "message": "URL",
+    "description": "Metadata field: URL"
+  },
+  "metadataTableHeaderField": {
+    "message": "Campo",
+    "description": "Table header for metadata field column"
+  },
+  "metadataTableHeaderValue": {
+    "message": "Valor",
+    "description": "Table header for metadata value column"
+  },
+
+  "roleUser": {
+    "message": "Utilizador",
+    "description": "User role label"
+  },
+  "roleAssistant": {
+    "message": "Assistente",
+    "description": "Assistant role label (generic)"
+  },
+  "roleChatGPT": {
+    "message": "ChatGPT",
+    "description": "ChatGPT assistant name"
+  },
+  "roleClaude": {
+    "message": "Claude",
+    "description": "Claude assistant name"
+  },
+  "roleGemini": {
+    "message": "Gemini",
+    "description": "Gemini assistant name"
+  },
+
+  "platformChatGPT": {
+    "message": "ChatGPT",
+    "description": "ChatGPT platform name"
+  },
+  "platformClaude": {
+    "message": "Claude",
+    "description": "Claude platform name"
+  },
+  "platformGemini": {
+    "message": "Gemini",
+    "description": "Gemini platform name"
+  },
+  "platformMistral": {
+    "message": "Mistral",
+    "description": "Mistral platform name"
+  },
+  "platformGrok": {
+    "message": "Grok",
+    "description": "Grok platform name"
+  },
+
+  "contentTagCode": {
+    "message": "Código",
+    "description": "Etiqueta para blocos de código"
+  },
+  "contentTagImage": {
+    "message": "Imagem",
+    "description": "Etiqueta para imagem única"
+  },
+  "contentTagImages": {
+    "message": "$1 Imagens",
+    "description": "Etiqueta para múltiplas imagens. $1 = número de imagens",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "contentTagCanvas": {
+    "message": "Tela",
+    "description": "Etiqueta para conteúdo de tela/documento"
+  },
+  "contentTagDeepResearch": {
+    "message": "Pesquisa Profunda",
+    "description": "Etiqueta para respostas de pesquisa profunda"
+  },
+
+  "pageNumberFormat": {
+    "message": "Página $1 de $2",
+    "description": "Page number format for PDF exports. $1 = current page, $2 = total pages",
+    "placeholders": {
+      "current": {
+        "content": "$1",
+        "example": "1"
+      },
+      "total": {
+        "content": "$2",
+        "example": "10"
+      }
+    }
+  },
+
+  "exportedWithChatExporter": {
+    "message": "Exportado com AI Chat Exporter",
+    "description": "Footer message in HTML exports"
+  },
+
+  "imageAltText": {
+    "message": "Imagem: $1",
+    "description": "Alt text for images in exports. $1 = image description",
+    "placeholders": {
+      "description": {
+        "content": "$1",
+        "example": "screenshot"
+      }
+    }
+  },
+
+  "footerGitHub": {
+    "message": "GitHub",
+    "description": "GitHub footer link"
+  },
+  "footerReportIssue": {
+    "message": "Reportar Problema",
+    "description": "Report issue footer link"
+  }
+}

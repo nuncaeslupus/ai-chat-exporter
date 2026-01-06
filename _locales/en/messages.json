@@ -1,0 +1,258 @@
+{
+  "extensionName": {
+    "message": "AI Chat Exporter",
+    "description": "Extension name"
+  },
+  "extensionDescription": {
+    "message": "Export AI chatbot conversations to PDF, Markdown, DOCX, and more",
+    "description": "Extension description"
+  },
+
+  "statusDetecting": {
+    "message": "Detecting...",
+    "description": "Status message while detecting chatbot"
+  },
+  "statusReady": {
+    "message": "Ready",
+    "description": "Status message when ready to export"
+  },
+  "statusNoConversation": {
+    "message": "No conversation",
+    "description": "Status message when no conversation found"
+  },
+  "statusReloadNeeded": {
+    "message": "Reload needed",
+    "description": "Status message when page reload is required"
+  },
+  "statusNotSupported": {
+    "message": "Not supported",
+    "description": "Status message for unsupported pages"
+  },
+
+  "noChatbotDetectedTitle": {
+    "message": "No Chatbot Detected",
+    "description": "Title for no chatbot detected message"
+  },
+  "noChatbotDetectedMessage": {
+    "message": "This page doesn't appear to have a supported chatbot conversation.",
+    "description": "Message when no chatbot is detected"
+  },
+  "supportedPlatforms": {
+    "message": "Supported platforms:",
+    "description": "Label for supported platforms list"
+  },
+
+  "reloadRequiredTitle": {
+    "message": "Page Reload Required",
+    "description": "Title for reload required message"
+  },
+  "reloadRequiredMessage": {
+    "message": "Please reload this page to enable the AI Chat Exporter extension.",
+    "description": "Message when page reload is required"
+  },
+  "howToReload": {
+    "message": "How to reload:",
+    "description": "Label for reload instructions"
+  },
+  "reloadInstructionKeyboard": {
+    "message": "Press Ctrl+R (Windows/Linux) or ⌘+R (Mac)",
+    "description": "Keyboard shortcut instruction for reloading"
+  },
+  "reloadInstructionButton": {
+    "message": "Or click the reload button in your browser",
+    "description": "Button instruction for reloading"
+  },
+
+  "actionsTitle": {
+    "message": "Actions",
+    "description": "Title for actions section"
+  },
+  "exportButton": {
+    "message": "Export",
+    "description": "Export button label"
+  },
+  "printButton": {
+    "message": "Print",
+    "description": "Print button label"
+  },
+
+  "formatPDF": {
+    "message": "PDF Document",
+    "description": "PDF format option"
+  },
+  "formatMarkdown": {
+    "message": "Markdown",
+    "description": "Markdown format option"
+  },
+  "formatHTML": {
+    "message": "HTML Document",
+    "description": "HTML format option"
+  },
+  "formatDOCX": {
+    "message": "Word Document",
+    "description": "Word/DOCX format option"
+  },
+  "formatTXT": {
+    "message": "Plain Text",
+    "description": "Plain text format option"
+  },
+  "formatJSON": {
+    "message": "JSON Data",
+    "description": "JSON format option"
+  },
+
+  "qaPairSingular": {
+    "message": "Q&A pair",
+    "description": "Singular form of Q&A pair"
+  },
+  "qaPairPlural": {
+    "message": "Q&A pairs",
+    "description": "Plural form of Q&A pairs"
+  },
+  "wordCount": {
+    "message": "words",
+    "description": "Word count label"
+  },
+  "badgeCode": {
+    "message": "Code",
+    "description": "Badge for code content"
+  },
+  "badgeImages": {
+    "message": "Images",
+    "description": "Badge for image content"
+  },
+
+  "metadataFieldPlatform": {
+    "message": "Platform",
+    "description": "Metadata field: Platform"
+  },
+  "metadataFieldModel": {
+    "message": "Model",
+    "description": "Metadata field: Model"
+  },
+  "metadataFieldExported": {
+    "message": "Exported",
+    "description": "Metadata field: Exported date"
+  },
+  "metadataFieldURL": {
+    "message": "URL",
+    "description": "Metadata field: URL"
+  },
+  "metadataTableHeaderField": {
+    "message": "Field",
+    "description": "Table header for metadata field column"
+  },
+  "metadataTableHeaderValue": {
+    "message": "Value",
+    "description": "Table header for metadata value column"
+  },
+
+  "roleUser": {
+    "message": "User",
+    "description": "User role label"
+  },
+  "roleAssistant": {
+    "message": "Assistant",
+    "description": "Assistant role label (generic)"
+  },
+  "roleChatGPT": {
+    "message": "ChatGPT",
+    "description": "ChatGPT assistant name"
+  },
+  "roleClaude": {
+    "message": "Claude",
+    "description": "Claude assistant name"
+  },
+  "roleGemini": {
+    "message": "Gemini",
+    "description": "Gemini assistant name"
+  },
+
+  "platformChatGPT": {
+    "message": "ChatGPT",
+    "description": "ChatGPT platform name"
+  },
+  "platformClaude": {
+    "message": "Claude",
+    "description": "Claude platform name"
+  },
+  "platformGemini": {
+    "message": "Gemini",
+    "description": "Gemini platform name"
+  },
+  "platformMistral": {
+    "message": "Mistral",
+    "description": "Mistral platform name"
+  },
+  "platformGrok": {
+    "message": "Grok",
+    "description": "Grok platform name"
+  },
+
+  "contentTagCode": {
+    "message": "Code",
+    "description": "Tag label for code blocks"
+  },
+  "contentTagImage": {
+    "message": "Image",
+    "description": "Tag label for single image"
+  },
+  "contentTagImages": {
+    "message": "$1 Images",
+    "description": "Tag label for multiple images. $1 = number of images",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "contentTagCanvas": {
+    "message": "Canvas",
+    "description": "Tag label for canvas/document content"
+  },
+  "contentTagDeepResearch": {
+    "message": "Deep Research",
+    "description": "Tag label for deep research responses"
+  },
+
+  "pageNumberFormat": {
+    "message": "Page $1 of $2",
+    "description": "Page number format for PDF exports. $1 = current page, $2 = total pages",
+    "placeholders": {
+      "current": {
+        "content": "$1",
+        "example": "1"
+      },
+      "total": {
+        "content": "$2",
+        "example": "10"
+      }
+    }
+  },
+
+  "exportedWithChatExporter": {
+    "message": "Exported with AI Chat Exporter",
+    "description": "Footer message in HTML exports"
+  },
+
+  "imageAltText": {
+    "message": "Image: $1",
+    "description": "Alt text for images in exports. $1 = image description",
+    "placeholders": {
+      "description": {
+        "content": "$1",
+        "example": "screenshot"
+      }
+    }
+  },
+
+  "footerGitHub": {
+    "message": "GitHub",
+    "description": "GitHub footer link"
+  },
+  "footerReportIssue": {
+    "message": "Report Issue",
+    "description": "Report issue footer link"
+  }
+}

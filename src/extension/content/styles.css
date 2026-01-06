@@ -1,0 +1,7 @@
+/**
+ * Global styles injected by content script
+ * Loads the appropriate theme CSS based on platform
+ */
+
+/* This file serves as the entry point for content script styles */
+/* The actual theme CSS is loaded dynamically based on the detected platform */

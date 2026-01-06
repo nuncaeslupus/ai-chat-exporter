@@ -1,0 +1,15 @@
+{
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/*"],
+      "matches": [
+        "https://chat.openai.com/*",
+        "https://chatgpt.com/*"
+      ]
+    }
+  ]
+}

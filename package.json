@@ -1,0 +1,65 @@
+{
+  "name": "ai-chat-exporter",
+  "version": "1.0.0",
+  "description": "Browser extension to export AI chatbot conversations to PDF, Markdown, DOCX, and more",
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch --mode development",
+    "dev:chrome": "vite build --watch --config build/vite.chrome.ts --mode development",
+    "dev:firefox": "vite build --watch --config build/vite.firefox.ts --mode development",
+    "build": "pnpm build:chrome && pnpm build:firefox",
+    "build:content": "vite build --config build/vite.content.ts --mode production --outDir dist/chrome/content && vite build --config build/vite.content.ts --mode production --outDir dist/firefox/content",
+    "build:chrome": "pnpm build:content && vite build --config build/vite.chrome.ts --mode production",
+    "build:firefox": "pnpm build:content && vite build --config build/vite.firefox.ts --mode production",
+    "build:test": "pnpm build && pnpm package:all",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src tests --ext .ts,.tsx",
+    "lint:fix": "eslint src tests --ext .ts,.tsx --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\"",
+    "typecheck": "tsc --noEmit",
+    "validate": "pnpm lint && pnpm typecheck && pnpm test:run",
+    "package:chrome": "cd dist/chrome && zip -r ../ai-chat-exporter-chrome.zip .",
+    "package:firefox": "cd dist/firefox && zip -r ../ai-chat-exporter-firefox.zip .",
+    "package:source": "zip -r dist/ai-chat-exporter-source.zip . -x 'node_modules/*' -x 'dist/*' -x '.git/*' -x '*.log' -x '.vscode/*' -x '.idea/*' -x '*.zip' -x 'tmp/*' -x 'coverage/*' -x '.nyc_output/*'",
+    "package:all": "node build/package-all.cjs"
+  },
+  "keywords": [
+    "browser-extension",
+    "chatgpt",
+    "ai",
+    "export",
+    "pdf",
+    "markdown"
+  ],
+  "author": "",
+  "license": "MIT",
+  "packageManager": "pnpm@10.27.0",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "@types/jsdom": "^27.0.0",
+    "@types/node": "^22.15.21",
+    "@typescript-eslint/eslint-plugin": "^8.33.1",
+    "@typescript-eslint/parser": "^8.33.1",
+    "@vitest/coverage-v8": "^3.2.4",
+    "eslint": "^9.28.0",
+    "eslint-config-prettier": "^10.1.5",
+    "jsdom": "^26.1.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "docx": "^9.5.1",
+    "highlight.js": "^11.11.1",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^3.0.1",
+    "marked": "^17.0.1"
+  }
+}

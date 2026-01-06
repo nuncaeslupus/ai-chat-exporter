@@ -1,0 +1,85 @@
+/**
+ * FormatDropdown Component Styles
+ */
+
+.ace-format-dropdown {
+  min-width: 14rem;
+}
+
+.ace-format-item {
+  padding: var(--ace-spacing-md) var(--ace-spacing-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--ace-spacing-md);
+}
+
+.ace-format-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--ace-radius-sm);
+  background-color: var(--ace-bg-tertiary);
+  color: var(--ace-text-secondary);
+  font-size: var(--ace-font-size-xs);
+  font-weight: var(--ace-font-weight-semibold);
+}
+
+/* Format-specific icons using emoji/text */
+.ace-format-icon-pdf::before {
+  content: '📄';
+}
+
+.ace-format-icon-markdown::before {
+  content: '📝';
+}
+
+.ace-format-icon-text::before {
+  content: '📃';
+}
+
+.ace-format-icon-json::before {
+  content: '{}';
+  font-size: 0.625rem;
+}
+
+.ace-format-icon-word::before {
+  content: '📘';
+}
+
+.ace-format-details {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.ace-format-label {
+  font-size: var(--ace-font-size-sm);
+  font-weight: var(--ace-font-weight-medium);
+  color: var(--ace-text-primary);
+  line-height: 1.25;
+}
+
+.ace-format-description {
+  font-size: var(--ace-font-size-xs);
+  color: var(--ace-text-secondary);
+  line-height: 1.25;
+  margin-top: 0.125rem;
+}
+
+.ace-format-check {
+  flex-shrink: 0;
+  color: var(--ace-primary);
+  font-weight: var(--ace-font-weight-bold);
+  font-size: var(--ace-font-size-base);
+}
+
+.ace-format-item-selected {
+  background-color: var(--ace-bg-secondary);
+}
+
+.ace-format-item-selected .ace-format-label {
+  color: var(--ace-primary);
+}
