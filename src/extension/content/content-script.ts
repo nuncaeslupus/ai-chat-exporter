@@ -6,9 +6,11 @@
 import { detectParser } from '../../core/parsers';
 import { getExporter } from '../../core/exporters';
 import { FilenameService } from '../../core/services/filename-service';
+import { ClaudeApiService } from '../../core/services/claude-api-service';
 import { StorageService } from '../../shared/storage';
 import type { Conversation, ExportFormat } from '../../core/types';
 import { marked } from 'marked';
+import hljs from 'highlight.js';
 
 /**
  * Main content script controller
@@ -66,8 +68,23 @@ class ContentScript {
         return;
       }
 
+      // Enrich Claude conversations with API data (artifacts content)
+      if (this.conversation.platform === 'claude') {
+        this.conversation = await this.enrichClaudeConversation(this.conversation);
+      }
+
       // Use all pairs for export
       const pairsToExport = this.conversation.pairs;
+
+      // Debug: Check if artifacts have content before export
+      console.log('[AI Chat Exporter] Pairs to export:', pairsToExport.length);
+      pairsToExport.forEach((pair, i) => {
+        const artifacts = pair.answer.metadata?.artifacts || [];
+        console.log(`[AI Chat Exporter] Pair ${i}: ${artifacts.length} artifacts`);
+        artifacts.forEach((a, j) => {
+          console.log(`[AI Chat Exporter] Pair ${i}, Artifact ${j}: "${a.title}", hasContent:`, !!a.content, 'length:', a.content?.length || 0);
+        });
+      });
 
       // Get exporter for format
       const exporter = getExporter(format);
@@ -111,6 +128,38 @@ class ContentScript {
     }
   }
 
+  /**
+   * Enrich Claude conversation with artifact content from API
+   */
+  private async enrichClaudeConversation(conversation: Conversation): Promise<Conversation> {
+    try {
+      console.log('[AI Chat Exporter] Enriching Claude conversation with API data...');
+
+      const ids = ClaudeApiService.extractIdsFromPage(conversation.url, document);
+
+      if (!ids) {
+        console.log('[AI Chat Exporter] Could not extract IDs for API enrichment');
+        return conversation;
+      }
+
+      const apiData = await ClaudeApiService.fetchConversationData(ids);
+
+      if (!apiData) {
+        console.log('[AI Chat Exporter] API data not available');
+        return conversation;
+      }
+
+      const enriched = ClaudeApiService.enrichConversationWithArtifacts(conversation, apiData);
+      console.log('[AI Chat Exporter] Claude conversation enriched successfully');
+
+      return enriched;
+    } catch (error) {
+      console.warn('[AI Chat Exporter] Failed to enrich Claude conversation:', error);
+      // Return original conversation if enrichment fails
+      return conversation;
+    }
+  }
+
   private downloadFile(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -138,6 +187,11 @@ class ContentScript {
       if (this.conversation.pairs.length === 0) {
         console.warn('[AI Chat Exporter] No conversation pairs found');
         return;
+      }
+
+      // Enrich Claude conversations with API data (artifacts content)
+      if (this.conversation.platform === 'claude') {
+        this.conversation = await this.enrichClaudeConversation(this.conversation);
       }
 
       const pairsToExport = this.conversation.pairs;
@@ -267,10 +321,20 @@ class ContentScript {
    * Uses marked.js library for proper markdown parsing
    */
   private async renderMarkdownToCleanHtml(markdown: string, title: string): Promise<string> {
-    // Configure marked for GitHub Flavored Markdown
+    // Configure marked for GitHub Flavored Markdown with syntax highlighting
     marked.setOptions({
       gfm: true,
       breaks: false,
+      highlight: function(code, lang) {
+        if (lang && hljs.getLanguage(lang)) {
+          try {
+            return hljs.highlight(code, { language: lang }).value;
+          } catch (err) {
+            console.error('Highlight.js error:', err);
+          }
+        }
+        return hljs.highlightAuto(code).value;
+      }
     });
 
     // Parse markdown to HTML

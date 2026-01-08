@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Image research and SVG recreation with AI generation</title>
+</head>
+<body>
+  <!-- Claude conversation container -->
+  <div class="flex flex-1 h-full w-full overflow-hidden relative">
+    <div class="h-full flex flex-col overflow-hidden" style="flex: 50 1 0%;">
+      <!-- Header with title -->
+      <header class="flex w-full bg-bg-100 sticky top-0 z-header h-12 -mb-3" aria-hidden="false" data-testid="page-header" style="height: 48px;">
+        <div class="flex w-full items-center justify-between gap-4 pl-11 lg:px-8 gap-6 p-3 lg:pl-4 lg:pr-3 pr-3">
+          <div class="flex min-w-0 flex-1 shrink md:items-center font-base-bold pr-[100px]">
+            <div class="flex min-w-0 shrink-1 items-center group">
+              <div class="flex items-center group">
+                <button class="inline-flex items-center" type="button" data-testid="chat-title-button">
+                  <div class="min-w-0 flex-1">
+                    <div class="truncate font-base-bold">Image research and SVG recreation with AI generation</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="right-3 flex gap-2">
+            <button data-testid="model-selector-dropdown" type="button">
+              <div class="whitespace-nowrap">Sonnet 4.5</div>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Messages container -->
+      <div class="overflow-y-scroll overflow-x-hidden pt-6 flex-1">
+        <div class="relative w-full min-h-full">
+          <div class="mx-auto flex size-full max-w-3xl flex-col md:px-2">
+            <div class="flex-1 flex flex-col px-4 max-w-3xl mx-auto w-full pt-1">
+
+              <!-- User Message -->
+              <div data-test-render-count="2">
+                <div class="mb-1 mt-6 group">
+                  <!-- User uploaded image -->
+                  <div class="gap-2 mx-0.5 mb-3 flex flex-wrap justify-end">
+                    <div class="relative group/thumbnail">
+                      <div data-testid="Bernard_Bernoulli_facebiggest.png" class="rounded-lg overflow-hidden" style="width: 120px; height: 120px;">
+                        <button class="relative bg-bg-000" style="width: 120px; height: 120px;">
+                          <img class="w-full h-full object-cover" alt="Bernard_Bernoulli_facebiggest.png" src="/api/84011667-46b9-4899-b618-c98437c8b55f/files/671b1d46-910b-42b7-af69-b41543305db1/preview">
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- User message text -->
+                  <div class="flex flex-col items-end gap-1">
+                    <div class="group relative inline-flex gap-2 bg-bg-300 rounded-xl pl-2.5 py-2.5">
+                      <div class="flex flex-row gap-2 relative">
+                        <div class="flex-1">
+                          <div data-testid="user-message" class="font-large">
+                            <p class="whitespace-pre-wrap break-words">I want you to find info about this image. I want you to research the web for it, to create a canvas or similar with SVG code for the image and to generate a real-world person image from it. I want you to use all the tools you have and all kind of formats to show it. I want a complete conversation with all widgets, images, code... Everything you can generate. Thank you!</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <!-- Timestamp -->
+                    <div class="flex justify-start opacity-0 group-hover:opacity-100">
+                      <span class="text-text-500 text-xs">18:40</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Assistant Message -->
+              <div data-test-render-count="1">
+                <div class="group" style="height: auto; opacity: 1;">
+                  <div data-is-streaming="false" class="group relative relative pb-3" style="opacity: 1;">
+                    <div class="font-claude-response relative">
+
+                      <!-- Text content -->
+                      <div class="standard-markdown grid-cols-1 grid gap-4">
+                        <p class="font-claude-response-body break-words whitespace-normal">I'll help you explore this pixel art image in multiple ways! Let me start by analyzing what I can see and then research it.</p>
+                        <p class="font-claude-response-body break-words whitespace-normal">This appears to be pixel art of a character with black hair, large eyes with white highlights, peachy/tan skin tone, and what looks like colorful clothing at the bottom (red, blue, orange). The style is reminiscent of classic video game sprites.</p>
+                        <p class="font-claude-response-body break-words whitespace-normal">Let me search for information about this image:</p>
+                      </div>
+
+                      <!-- Web Search Widget -->
+                      <div class="ease-out transition-all flex flex-col font-ui leading-normal my-3 min-h-[2.625rem] overflow-hidden border-0.5 border-border-300 rounded-lg mt-3 mb-3 bg-bg-000 shadow-sm" style="opacity: 1;">
+                        <button class="group/row flex flex-row items-center justify-between gap-4 rounded-lg text-text-300 h-[2.625rem] py-2 px-3">
+                          <div class="flex flex-row items-center gap-2 min-w-0">
+                            <div class="flex gap-2 relative bottom-[0.5px] font-base text-left">pixel art character black hair big eyes peachy skin</div>
+                          </div>
+                          <div class="flex flex-row items-center gap-1.5">
+                            <p class="relative bottom-[0.5px] pl-1 text-text-500 font-small">10 resultados</p>
+                          </div>
+                        </button>
+                        <div class="overflow-hidden shrink-0" style="opacity: 1; height: auto;">
+                          <div class="flex flex-nowrap p-2 pt-0 flex-col">
+                            <div>
+                              <a target="_blank" href="https://www.sandromaglione.com/articles/pixel-art-eyes-techniques-and-styles">
+                                <button class="flex flex-row gap-4">
+                                  <p class="relative text-[0.875rem]">Pixel art eyes design - Techniques and styles | Sandro Maglione</p>
+                                  <p class="relative bottom-[1px] text-[0.75rem] text-text-500">sandromaglione.com</p>
+                                </button>
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- More text content -->
+                      <div class="standard-markdown grid-cols-1 grid gap-4">
+                        <p class="font-claude-response-body break-words whitespace-normal">This appears to be anime/chibi-style pixel art! The character has the distinctive large expressive eyes common in anime pixel art, black hair, and peachy skin tones. Let me now create an SVG recreation of this pixel art:</p>
+                      </div>
+
+                      <!-- Artifact: SVG Image -->
+                      <div class="pt-3 pb-3">
+                        <div class="flex text-left font-ui rounded-lg overflow-hidden border-0.5 px-4 border-accent-secondary-200">
+                          <div class="artifact-block-cell group/artifact-block flex flex-1 align-start justify-between w-full">
+                            <div class="flex flex-1 gap-2 min-w-0">
+                              <div class="flex flex-col gap-1 py-4 min-w-0 flex-1">
+                                <div class="leading-tight text-sm line-clamp-1">Pixel Art Character Recreation</div>
+                                <div class="text-xs line-clamp-1 text-text-400">Imagen&nbsp;</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- More text -->
+                      <div class="standard-markdown grid-cols-1 grid gap-4">
+                        <p class="font-claude-response-body break-words whitespace-normal">Now let me create an interactive HTML canvas version where you can explore the pixel art:</p>
+                      </div>
+
+                      <!-- Artifact: Interactive React -->
+                      <div class="pt-3 pb-3">
+                        <div class="flex text-left font-ui rounded-lg overflow-hidden border-0.5 px-4">
+                          <div class="artifact-block-cell group/artifact-block flex flex-1">
+                            <div class="flex flex-1 gap-2 min-w-0">
+                              <div class="flex flex-col gap-1 py-4 min-w-0 flex-1">
+                                <div class="leading-tight text-sm line-clamp-1">Interactive Pixel Art Canvas</div>
+                                <div class="text-xs line-clamp-1 text-text-400">Artefacto interactivo&nbsp;</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- More artifacts and content following similar pattern -->
+
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

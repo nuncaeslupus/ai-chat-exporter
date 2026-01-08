@@ -1,0 +1,119 @@
+/**
+ * Image loading utilities for PDF export
+ */
+
+/**
+ * Loaded image data for PDF embedding
+ */
+export interface LoadedImage {
+  dataUrl: string;
+  format: 'PNG' | 'JPEG' | 'WEBP' | 'GIF';
+  width: number;
+  height: number;
+}
+
+/**
+ * Load an image from a URL and convert it to a base64 data URL
+ * @param url - The image URL to load
+ * @param maxWidth - Maximum width to scale the image (default: 800)
+ * @returns Promise with loaded image data or null if loading fails
+ */
+export async function loadImageAsDataUrl(
+  url: string,
+  maxWidth: number = 800
+): Promise<LoadedImage | null> {
+  try {
+    // Create an image element to load the image
+    const img = new Image();
+    img.crossOrigin = 'anonymous'; // Enable CORS if needed
+
+    // Load the image
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = url;
+    });
+
+    // Calculate scaled dimensions
+    let width = img.naturalWidth;
+    let height = img.naturalHeight;
+
+    if (width > maxWidth) {
+      const scale = maxWidth / width;
+      width = maxWidth;
+      height = height * scale;
+    }
+
+    // Create a canvas to convert the image to base64
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      console.error('Failed to get canvas context');
+      return null;
+    }
+
+    // Draw the image on the canvas
+    ctx.drawImage(img, 0, 0, width, height);
+
+    // Determine image format from URL or use PNG as default
+    let format: LoadedImage['format'] = 'PNG';
+    const urlLower = url.toLowerCase();
+    if (urlLower.includes('.jpg') || urlLower.includes('.jpeg')) {
+      format = 'JPEG';
+    } else if (urlLower.includes('.webp')) {
+      format = 'WEBP';
+    } else if (urlLower.includes('.gif')) {
+      format = 'GIF';
+    }
+
+    // Convert to data URL
+    const mimeType = `image/${format.toLowerCase()}`;
+    const dataUrl = canvas.toDataURL(mimeType, 0.9);
+
+    return {
+      dataUrl,
+      format,
+      width,
+      height,
+    };
+  } catch (error) {
+    console.error('Failed to load image:', url, error);
+    return null;
+  }
+}
+
+/**
+ * Load multiple images in parallel with a concurrency limit
+ * @param urls - Array of image URLs to load
+ * @param maxWidth - Maximum width to scale images
+ * @param concurrency - Number of images to load in parallel (default: 3)
+ * @returns Map of URL to loaded image data (null for failed loads)
+ */
+export async function loadImagesParallel(
+  urls: string[],
+  maxWidth: number = 800,
+  concurrency: number = 3
+): Promise<Map<string, LoadedImage | null>> {
+  const results = new Map<string, LoadedImage | null>();
+
+  // Process URLs in batches
+  for (let i = 0; i < urls.length; i += concurrency) {
+    const batch = urls.slice(i, i + concurrency);
+    const batchResults = await Promise.all(
+      batch.map(async (url) => {
+        const image = await loadImageAsDataUrl(url, maxWidth);
+        return { url, image };
+      })
+    );
+
+    // Store results in map
+    for (const { url, image } of batchResults) {
+      results.set(url, image);
+    }
+  }
+
+  return results;
+}
