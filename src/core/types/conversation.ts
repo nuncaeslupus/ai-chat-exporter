@@ -22,6 +22,64 @@ export interface PlatformInfo {
 }
 
 /**
+ * Artifact/Canvas content (Claude-specific)
+ */
+export interface Artifact {
+  /** Artifact type (e.g., 'image', 'react', 'document', 'diagram', 'code') */
+  type: string;
+  /** Artifact title */
+  title: string;
+  /** Artifact content type label (e.g., 'Imagen', 'Artefacto interactivo') */
+  typeLabel?: string;
+  /** Artifact language/format (e.g., 'svg', 'react', 'markdown', 'mermaid') */
+  language?: string;
+  /** Artifact content (code, SVG, markdown, etc.) */
+  content?: string;
+}
+
+/**
+ * Web search results (Claude-specific)
+ */
+export interface WebSearchResult {
+  /** Search query */
+  query: string;
+  /** Number of results */
+  resultCount?: number;
+  /** Individual search results */
+  results?: Array<{
+    title: string;
+    url: string;
+    favicon?: string;
+    domain?: string;
+  }>;
+}
+
+/**
+ * Message metadata with typed fields for platform-specific features
+ */
+export interface MessageMetadata {
+  /** Images in the message */
+  images?: Array<{
+    src: string;
+    alt?: string;
+    width?: number;
+    height?: number;
+  }>;
+  /** Artifacts/Canvases (Claude) */
+  artifacts?: Artifact[];
+  /** Web search results (Claude) */
+  webSearches?: WebSearchResult[];
+  /** Deep research info (ChatGPT) */
+  research?: {
+    duration: string;
+    sources: number;
+    searches: number;
+  };
+  /** Other platform-specific metadata */
+  [key: string]: unknown;
+}
+
+/**
  * Represents a single message in a conversation
  */
 export interface Message {
@@ -36,7 +94,7 @@ export interface Message {
   /** Timestamp of the message */
   timestamp?: Date;
   /** Additional metadata (model info, tokens, etc.) */
-  metadata?: Record<string, unknown>;
+  metadata?: MessageMetadata;
 }
 
 /**

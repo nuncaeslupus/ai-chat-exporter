@@ -1,40 +1,70 @@
 /**
- * Claude DOM selectors (PLACEHOLDER)
- * TODO: Capture real DOM from claude.ai and update selectors
+ * Claude DOM selectors
+ * Captured from claude.ai conversation interface
  */
 
 import type { SelectorSet } from '../../types';
 
 /**
  * Claude-specific CSS selectors for DOM parsing
- * NOTE: These are placeholders and need to be updated with real selectors
  */
 export const CLAUDE_SELECTORS: SelectorSet = {
   // Main conversation container
-  conversationContainer: 'main',
+  conversationContainer: 'div.overflow-y-scroll.overflow-x-hidden.pt-6.flex-1',
 
   // Individual message elements (both user and assistant)
-  messageElement: '[data-message], .message',
+  // User messages: div.mb-1.mt-6.group
+  // Assistant messages: div[data-test-render-count]
+  messageElement: 'div[data-test-render-count], div.mb-1.mt-6.group',
 
   // User messages specifically
-  userMessage: '[data-sender="user"], .user-message',
+  userMessage: 'div[data-testid="user-message"]',
 
   // Assistant messages specifically
-  assistantMessage: '[data-sender="assistant"], .assistant-message',
+  assistantMessage: 'div[data-is-streaming="false"]',
 
   // Content within messages
-  messageContent: '.message-content, .prose',
+  messageContent: 'p.whitespace-pre-wrap.break-words, div.standard-markdown, div.progressive-markdown',
 
   // Conversation title
-  conversationTitle: 'header h1, .conversation-title',
+  conversationTitle: 'button[data-testid="chat-title-button"] div.truncate',
 
   // Model indicator
-  modelIndicator: '[data-model], .model-indicator',
+  modelIndicator: 'button[data-testid="model-selector-dropdown"] div.whitespace-nowrap',
 
   // Custom selectors for Claude-specific elements
   custom: {
-    // Button injection area (near header)
-    buttonArea: 'main header, main > div:first-child',
+    // Button injection area (page header)
+    buttonArea: 'header[data-testid="page-header"] div.right-3.flex.gap-2',
+
+    // User message specific selectors
+    userMessageContent: 'div[data-testid="user-message"] p.whitespace-pre-wrap',
+    userUploadedImages: 'div.relative.group\\/thumbnail img',
+    userImageContainer: 'div.relative.group\\/thumbnail',
+
+    // Assistant message specific selectors
+    assistantMessageContent: 'div.standard-markdown, div.progressive-markdown',
+    assistantResponseBody: 'p.font-claude-response-body',
+
+    // Artifacts/Canvases selectors
+    artifactContainer: 'div.pt-3.pb-3 div.artifact-block-cell',
+    artifactTitle: 'div.leading-tight.text-sm.line-clamp-1',
+    artifactType: 'div.text-xs.line-clamp-1.text-text-400',
+
+    // Web search selectors
+    webSearchContainer: 'div.ease-out.transition-all.flex.flex-col.font-ui.leading-normal',
+    webSearchButton: 'button.group\\/row',
+    webSearchQuery: '.flex.gap-2.relative.font-base.text-left',
+    webSearchResultCount: 'p.relative.bottom-\\[0\\.5px\\].pl-1.text-text-500',
+    webSearchResults: 'div.flex.flex-nowrap.p-2.pt-0.flex-col a',
+    webSearchResultTitle: 'p.relative.text-\\[0\\.875rem\\]',
+    webSearchResultDomain: 'p.relative.bottom-\\[1px\\].text-\\[0\\.75rem\\].text-text-500',
+
+    // Timestamp
+    timestamp: 'span.text-text-500.text-xs',
+
+    // Message actions (to exclude)
+    messageActions: 'div[role="group"][aria-label="Message actions"]',
   },
 };
 

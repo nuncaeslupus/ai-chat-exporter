@@ -103,6 +103,27 @@ export class TextExporter extends BaseExporter {
     lines.push(`${assistantName}:`);
     lines.push(...this.renderBlocks(pair.answer.blocks));
 
+    // Add artifacts if present
+    if (pair.answer.metadata?.artifacts && Array.isArray(pair.answer.metadata.artifacts)) {
+      const artifactsWithContent = pair.answer.metadata.artifacts.filter((a: any) => a.content);
+
+      if (artifactsWithContent.length > 0) {
+        lines.push('');
+        lines.push('Artifacts:');
+        lines.push('');
+
+        for (const artifact of artifactsWithContent) {
+          lines.push(`--- ${artifact.title} ---`);
+          if (artifact.typeLabel) {
+            lines.push(`Type: ${artifact.typeLabel}`);
+          }
+          lines.push('');
+          lines.push(artifact.content || '');
+          lines.push('');
+        }
+      }
+    }
+
     return lines;
   }
 

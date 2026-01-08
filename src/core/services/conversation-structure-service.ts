@@ -44,8 +44,19 @@ export class ConversationStructureService {
    * Convert a message to structured format
    */
   private static convertMessage(message: any): StructuredMessage {
-    // Parse HTML content if available, otherwise use plain text
-    const blocks = message.htmlContent
+    // Check if message has special content (web searches, artifacts) that need markers
+    const hasSpecialContent = message.metadata?.webSearches || message.metadata?.artifacts;
+
+    // If message has web searches or artifacts, use plain content (which includes markers like [Web Search:])
+    // Otherwise, parse HTML content for rich formatting if available
+    const blocks = hasSpecialContent
+      ? [
+          {
+            type: 'paragraph' as const,
+            content: [{ type: 'text' as const, text: message.content }],
+          },
+        ]
+      : message.htmlContent
       ? HtmlContentParser.parse(message.htmlContent)
       : [
           {
@@ -77,11 +88,18 @@ export class ConversationStructureService {
       }
     }
 
-    return {
+    const structuredMessage: StructuredMessage = {
       id: message.id,
       role: message.role,
       timestamp: message.timestamp,
       blocks,
     };
+
+    // Preserve metadata if it exists
+    if (message.metadata) {
+      structuredMessage.metadata = message.metadata;
+    }
+
+    return structuredMessage;
   }
 }

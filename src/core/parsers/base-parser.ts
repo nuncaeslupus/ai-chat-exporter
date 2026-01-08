@@ -151,6 +151,12 @@ export abstract class BaseParser implements IParser {
     answer: Message,
     id?: string
   ): QAPair {
+    console.log(`[BaseParser] Creating QAPair ${index}:`);
+    console.log(`[BaseParser] Answer content preview (first 500 chars):`, answer.content.substring(0, 500));
+    console.log(`[BaseParser] Answer content includes [Web Search:`, answer.content.includes('[Web Search:'));
+    console.log(`[BaseParser] Answer content includes [Imagen:`, answer.content.includes('[Imagen:'));
+    console.log(`[BaseParser] Answer metadata:`, answer.metadata);
+
     return {
       id: id ?? this.generateId(),
       index,

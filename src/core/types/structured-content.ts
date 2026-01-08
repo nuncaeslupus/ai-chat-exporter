@@ -119,6 +119,12 @@ export interface StructuredMessage {
   role: 'user' | 'assistant' | 'system';
   timestamp: Date;
   blocks: StructuredContentBlock[];
+  metadata?: {
+    artifacts?: any[];
+    webSearches?: any[];
+    images?: any[];
+    [key: string]: any;
+  };
 }
 
 /**

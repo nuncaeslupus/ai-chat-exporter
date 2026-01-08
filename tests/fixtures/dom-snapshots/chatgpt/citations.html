@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ChatGPT Web Citations Test</title>
+</head>
+<body>
+<main id="main">
+  <!-- User message -->
+  <article data-turn="user" data-testid="conversation-turn-1">
+    <div data-message-author-role="user" data-message-id="msg-1">
+      <div class="user-message-bubble-color">
+        <div class="whitespace-pre-wrap">Tell me about the latest developments in quantum computing</div>
+      </div>
+    </div>
+  </article>
+
+  <!-- Assistant message with citations -->
+  <article data-turn="assistant" data-testid="conversation-turn-2">
+    <div data-message-author-role="assistant" data-message-id="msg-2" data-message-model-slug="gpt-4o">
+      <div class="markdown prose">
+        <p>Quantum computing has seen significant progress recently
+          <span data-testid="webpage-citation-pill">
+            <a href="https://www.nature.com/articles/quantum-computing-2024" target="_blank" rel="noopener">
+              <span class="max-w-[15ch] overflow-hidden text-ellipsis whitespace-nowrap truncate">Nature</span>
+            </a>
+          </span>.
+          Major tech companies are investing heavily in quantum research
+          <span data-testid="webpage-citation-pill">
+            <a href="https://www.ibm.com/quantum-computing" target="_blank" rel="noopener">
+              <span class="max-w-[15ch] overflow-hidden text-ellipsis whitespace-nowrap truncate">IBM Quantum</span>
+            </a>
+          </span>
+          <span data-testid="webpage-citation-pill">
+            <a href="https://quantumai.google/" target="_blank" rel="noopener">
+              <span class="max-w-[15ch] overflow-hidden text-ellipsis whitespace-nowrap truncate">Google Quantum AI</span>
+            </a>
+          </span>.
+        </p>
+        <p>Key developments include:</p>
+        <ul>
+          <li>Error correction advances
+            <span data-testid="webpage-citation-pill">
+              <a href="https://arxiv.org/abs/2024.quantum.error" target="_blank" rel="noopener">
+                <span class="max-w-[15ch] overflow-hidden text-ellipsis whitespace-nowrap truncate">arXiv</span>
+              </a>
+            </span>
+          </li>
+          <li>Increased qubit counts in commercial systems
+            <span data-testid="webpage-citation-pill">
+              <a href="https://www.scientificamerican.com/article/quantum-breakthrough-2024/" target="_blank" rel="noopener">
+                <span class="max-w-[15ch] overflow-hidden text-ellipsis whitespace-nowrap truncate">Scientific American</span>
+              </a>
+            </span>
+          </li>
+          <li>New quantum algorithms for optimization problems
+            <span data-testid="webpage-citation-pill">
+              <a href="https://github.com/quantum/algorithms" target="_blank" rel="noopener">
+                <span class="max-w-[15ch] overflow-hidden text-ellipsis whitespace-nowrap truncate">GitHub</span>
+              </a>
+            </span>
+          </li>
+        </ul>
+        <p>Research institutions continue to push boundaries
+          <span data-testid="webpage-citation-pill">
+            <a href="https://www.mit.edu/quantum-lab" target="_blank" rel="noopener">
+              <span class="max-w-[15ch] overflow-hidden text-ellipsis whitespace-nowrap truncate">MIT Quantum</span>
+            </a>
+          </span>
+          <span data-testid="webpage-citation-pill">
+            <a href="https://www.caltech.edu/research/quantum" target="_blank" rel="noopener">
+              <span class="max-w-[15ch] overflow-hidden text-ellipsis whitespace-nowrap truncate">Caltech</span>
+            </a>
+          </span>.
+        </p>
+      </div>
+    </div>
+  </article>
+</main>
+</body>
+</html>

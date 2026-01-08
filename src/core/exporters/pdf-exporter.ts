@@ -13,12 +13,14 @@ import type {
   InlineContent,
   ListBlock,
   TableBlock,
+  ImageBlock,
 } from '../types';
 import { DEFAULT_PDF_OPTIONS } from '../types';
 import { BaseExporter } from './base-exporter';
 import { ConversationStructureService } from '../services';
 import { getMessageWithValues } from '../../shared/i18n';
 import { sanitizeTextForPDF } from '../utils/pdf-characters';
+import { loadImagesParallel, type LoadedImage } from '../utils/image-loader';
 
 /**
  * Exports conversations to PDF format
@@ -27,6 +29,8 @@ export class PdfExporter extends BaseExporter {
   readonly format: ExportFormat = 'pdf';
   readonly extension = 'pdf';
   readonly mimeType = 'application/pdf';
+
+  private imageCache: Map<string, LoadedImage | null> = new Map();
 
   /**
    * Export selected Q&A pairs to PDF
@@ -39,6 +43,13 @@ export class PdfExporter extends BaseExporter {
     try {
       // Convert to structured format
       const structured = ConversationStructureService.toStructured(conversation);
+
+      // Extract and load all images before rendering
+      const imageUrls = this.extractImageUrls(structured);
+      if (imageUrls.length > 0) {
+        // Load at 300px max width to match display size (~200px) with some quality margin
+        this.imageCache = await loadImagesParallel(imageUrls, 300, 3);
+      }
 
       // Dynamic import for jsPDF
       const jspdfModule = await import('jspdf');
@@ -59,6 +70,35 @@ export class PdfExporter extends BaseExporter {
       return this.createErrorResult(
         error instanceof Error ? error.message : 'Failed to export to PDF'
       );
+    }
+  }
+
+  /**
+   * Extract all image URLs from the structured conversation
+   */
+  private extractImageUrls(conversation: any): string[] {
+    const urls: string[] = [];
+
+    for (const pair of conversation.pairs) {
+      // Extract from question blocks
+      this.extractImageUrlsFromBlocks(pair.question.blocks, urls);
+      // Extract from answer blocks
+      this.extractImageUrlsFromBlocks(pair.answer.blocks, urls);
+    }
+
+    return urls;
+  }
+
+  /**
+   * Recursively extract image URLs from content blocks
+   */
+  private extractImageUrlsFromBlocks(blocks: StructuredContentBlock[], urls: string[]): void {
+    for (const block of blocks) {
+      if (block.type === 'image') {
+        urls.push(block.url);
+      } else if (block.type === 'blockquote') {
+        this.extractImageUrlsFromBlocks(block.content, urls);
+      }
     }
   }
 
@@ -138,6 +178,24 @@ export class PdfExporter extends BaseExporter {
 
       // Assistant message (platform-specific color and name)
       y = this.renderMessage(doc, assistantInfo.name, pair.answer.blocks, y, margins, contentWidth, lineHeight, pageHeight, assistantInfo.color);
+
+      // Render artifacts if present
+      if (pair.answer.metadata?.artifacts && Array.isArray(pair.answer.metadata.artifacts)) {
+        const artifactsWithContent = pair.answer.metadata.artifacts.filter((a: any) => a.content);
+        if (artifactsWithContent.length > 0) {
+          y += lineHeight * 0.5;
+          y = this.renderArtifacts(doc, artifactsWithContent, y, margins, contentWidth, lineHeight, pageHeight);
+        }
+      }
+
+      // Render web search results if present
+      if (pair.answer.metadata?.webSearches && Array.isArray(pair.answer.metadata.webSearches)) {
+        const webSearches = pair.answer.metadata.webSearches;
+        if (webSearches.length > 0) {
+          y += lineHeight * 0.5;
+          y = this.renderWebSearches(doc, webSearches, y, margins, contentWidth, lineHeight, pageHeight);
+        }
+      }
 
       // Add spacing between pairs
       y += lineHeight * 1.5;
@@ -242,10 +300,174 @@ export class PdfExporter extends BaseExporter {
           break;
 
         case 'image':
-          // For now, just note that there's an image (jsPDF doesn't easily support images from URLs)
-          y = this.renderText(doc, `[Image: ${block.alt || 'image'}]`, y, margins, contentWidth, lineHeight, pageHeight, true);
+          y = this.renderImage(doc, block, y, margins, contentWidth, lineHeight, pageHeight);
           break;
       }
+    }
+
+    return y;
+  }
+
+  /**
+   * Render artifacts section
+   */
+  private renderArtifacts(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    doc: any,
+    artifacts: any[],
+    startY: number,
+    margins: { top: number; right: number; bottom: number; left: number },
+    contentWidth: number,
+    lineHeight: number,
+    pageHeight: number
+  ): number {
+    let y = startY;
+
+    // "Artifacts" label
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(55, 65, 81);
+    doc.text('Artifacts:', margins.left, y);
+    y += lineHeight * 1.2;
+
+    // Render each artifact
+    for (const artifact of artifacts) {
+      // Check if we need a new page
+      if (y > pageHeight - margins.bottom - lineHeight * 5) {
+        doc.addPage();
+        y = margins.top;
+      }
+
+      // Artifact title
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(17, 24, 39);
+      const titleLines = doc.splitTextToSize(sanitizeTextForPDF(artifact.title), contentWidth);
+      for (const line of titleLines) {
+        doc.text(line, margins.left, y);
+        y += lineHeight;
+      }
+
+      // Artifact type
+      if (artifact.typeLabel) {
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(9);
+        doc.setTextColor(107, 114, 128);
+        doc.text(`Type: ${sanitizeTextForPDF(artifact.typeLabel)}`, margins.left, y);
+        y += lineHeight;
+      }
+
+      y += lineHeight * 0.3;
+
+      // Artifact content (code block)
+      doc.setFont('courier', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(51, 51, 51);
+
+      const contentLines = (artifact.content || '').split('\n');
+      for (const line of contentLines) {
+        if (y > pageHeight - margins.bottom) {
+          doc.addPage();
+          y = margins.top;
+        }
+        const wrappedLines = doc.splitTextToSize(sanitizeTextForPDF(line || ' '), contentWidth);
+        for (const wrappedLine of wrappedLines) {
+          doc.text(wrappedLine, margins.left + 5, y);
+          y += lineHeight * 0.8;
+        }
+      }
+
+      // Reset font
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+
+      y += lineHeight;
+    }
+
+    return y;
+  }
+
+  /**
+   * Render web search results
+   */
+  private renderWebSearches(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    doc: any,
+    webSearches: any[],
+    startY: number,
+    margins: { top: number; right: number; bottom: number; left: number },
+    contentWidth: number,
+    lineHeight: number,
+    pageHeight: number
+  ): number {
+    let y = startY;
+
+    // "Web Search Results" label
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(55, 65, 81);
+    doc.text('Web Search Results:', margins.left, y);
+    y += lineHeight * 1.2;
+
+    // Render each search
+    for (const search of webSearches) {
+      // Check if we need a new page
+      if (y > pageHeight - margins.bottom - lineHeight * 5) {
+        doc.addPage();
+        y = margins.top;
+      }
+
+      // Search query
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(17, 24, 39);
+      doc.text(sanitizeTextForPDF(search.query || 'References'), margins.left, y);
+      y += lineHeight;
+
+      // Result count
+      if (search.resultCount) {
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(9);
+        doc.setTextColor(107, 114, 128);
+        doc.text(`${search.resultCount} results found`, margins.left, y);
+        y += lineHeight;
+      }
+
+      y += lineHeight * 0.3;
+
+      // Render results
+      if (search.results && Array.isArray(search.results)) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+
+        for (const result of search.results) {
+          if (y > pageHeight - margins.bottom - lineHeight * 3) {
+            doc.addPage();
+            y = margins.top;
+          }
+
+          // Result title (as link)
+          doc.setTextColor(37, 99, 235); // Blue
+          const titleLines = doc.splitTextToSize(sanitizeTextForPDF(result.title), contentWidth - 10);
+          for (const line of titleLines) {
+            doc.text('• ' + line, margins.left + 5, y);
+            y += lineHeight * 0.9;
+          }
+
+          // Result domain
+          if (result.domain) {
+            doc.setFont('helvetica', 'italic');
+            doc.setTextColor(107, 114, 128);
+            doc.text(`  ${sanitizeTextForPDF(result.domain)}`, margins.left + 7, y);
+            y += lineHeight * 0.9;
+            doc.setFont('helvetica', 'normal');
+          }
+
+          y += lineHeight * 0.3;
+        }
+      }
+
+      y += lineHeight * 0.5;
     }
 
     return y;
@@ -464,6 +686,124 @@ export class PdfExporter extends BaseExporter {
     doc.line(margins.left, y, margins.left + contentWidth, y);
 
     y += lineHeight * 0.5;
+
+    return y;
+  }
+
+  /**
+   * Render an image block
+   */
+  private renderImage(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    doc: any,
+    block: ImageBlock,
+    startY: number,
+    margins: { top: number; right: number; bottom: number; left: number },
+    contentWidth: number,
+    lineHeight: number,
+    pageHeight: number
+  ): number {
+    let y = startY;
+
+    // Try to get the loaded image from cache
+    const loadedImage = this.imageCache.get(block.url);
+
+    if (!loadedImage) {
+      // Image failed to load, show placeholder text
+      y += lineHeight * 0.3;
+      y = this.renderText(
+        doc,
+        `[Image: ${block.alt || block.url}]`,
+        y,
+        margins,
+        contentWidth,
+        lineHeight,
+        pageHeight,
+        true
+      );
+      return y;
+    }
+
+    // Calculate image dimensions to fit within content width
+    // Use original pixel size, converting to mm (assuming 96 DPI: 1 inch = 25.4mm, 96px = 1 inch)
+    // So: pixels * 25.4 / 96 = mm
+    const maxImageWidth = Math.min(60, contentWidth); // Max 60mm (~227px at 96 DPI), similar to MD's 200px limit
+    const maxImageHeight = 150; // Max height in mm
+
+    let imgWidth = (loadedImage.width * 25.4) / 96; // Convert pixels to mm
+    let imgHeight = (loadedImage.height * 25.4) / 96;
+
+    // Only scale down if larger than max, otherwise use original size
+    if (imgWidth > maxImageWidth) {
+      const scale = maxImageWidth / imgWidth;
+      imgWidth = maxImageWidth;
+      imgHeight = imgHeight * scale;
+    }
+
+    // Also check height constraint
+    if (imgHeight > maxImageHeight) {
+      const scale = maxImageHeight / imgHeight;
+      imgHeight = maxImageHeight;
+      imgWidth = imgWidth * scale;
+    }
+
+    // Check if we need a new page
+    if (y + imgHeight + lineHeight * 2 > pageHeight - margins.bottom) {
+      doc.addPage();
+      y = margins.top;
+    }
+
+    y += lineHeight * 0.5; // Spacing before image
+
+    try {
+      // Add the image to the PDF
+      doc.addImage(
+        loadedImage.dataUrl,
+        loadedImage.format,
+        margins.left,
+        y,
+        imgWidth,
+        imgHeight
+      );
+
+      y += imgHeight + lineHeight * 0.3; // Move past the image
+
+      // Add alt text below image if available
+      if (block.alt) {
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(107, 114, 128);
+        const altText = sanitizeTextForPDF(block.alt);
+        const altLines = doc.splitTextToSize(altText, contentWidth);
+        for (const line of altLines) {
+          if (y > pageHeight - margins.bottom) {
+            doc.addPage();
+            y = margins.top;
+          }
+          doc.text(line, margins.left, y);
+          y += lineHeight * 0.8;
+        }
+        // Reset font
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(55, 65, 81);
+      }
+
+      y += lineHeight * 0.3; // Spacing after image
+    } catch (error) {
+      console.error('Failed to add image to PDF:', error);
+      // Fall back to showing placeholder text
+      y = this.renderText(
+        doc,
+        `[Image: ${block.alt || block.url}]`,
+        y,
+        margins,
+        contentWidth,
+        lineHeight,
+        pageHeight,
+        true
+      );
+    }
 
     return y;
   }
