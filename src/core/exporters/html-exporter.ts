@@ -121,9 +121,60 @@ export class HtmlExporter extends BaseExporter {
                     </div>
                     <div class="message-content">
                         ${this.renderBlocks(pair.answer.blocks)}
+                        ${this.renderArtifacts(pair.answer.metadata?.artifacts)}
+                        ${this.renderWebSearches(pair.answer.metadata?.webSearches)}
                     </div>
                 </div>
             </div>`).join('\n');
+  }
+
+  private renderArtifacts(artifacts?: any[]): string {
+    if (!artifacts || !Array.isArray(artifacts)) {
+      return '';
+    }
+
+    const artifactsWithContent = artifacts.filter(a => a.content);
+    if (artifactsWithContent.length === 0) {
+      return '';
+    }
+
+    return `
+                        <div class="artifacts-section">
+                            <h3>Artifacts</h3>
+                            ${artifactsWithContent.map(artifact => `
+                            <div class="artifact">
+                                <h4>${this.escapeHtml(artifact.title)}</h4>
+                                ${artifact.typeLabel ? `<p class="artifact-type"><em>Type: ${this.escapeHtml(artifact.typeLabel)}</em></p>` : ''}
+                                <pre><code class="language-${this.escapeHtml(artifact.language || '')}">${this.escapeHtml(artifact.content || '')}</code></pre>
+                            </div>`).join('\n')}
+                        </div>`;
+  }
+
+  private renderWebSearches(webSearches?: any[]): string {
+    if (!webSearches || !Array.isArray(webSearches) || webSearches.length === 0) {
+      return '';
+    }
+
+    return `
+                        <div class="web-searches-section">
+                            <h3>Web Search Results</h3>
+                            ${webSearches.map(search => `
+                            <div class="web-search">
+                                <h4>${this.escapeHtml(search.query || 'References')}</h4>
+                                ${search.resultCount ? `<p class="search-count"><em>${search.resultCount} results found</em></p>` : ''}
+                                ${search.results && search.results.length > 0 ? `
+                                <ul class="search-results">
+                                    ${search.results.map((result: any) => `
+                                    <li class="search-result">
+                                        ${result.favicon ? `<img src="${this.escapeHtml(result.favicon)}" alt="" class="result-favicon">` : ''}
+                                        <div class="result-content">
+                                            <a href="${this.escapeHtml(result.url)}" target="_blank" rel="noopener noreferrer" class="result-title">${this.escapeHtml(result.title)}</a>
+                                            ${result.domain ? `<span class="result-domain">${this.escapeHtml(result.domain)}</span>` : ''}
+                                        </div>
+                                    </li>`).join('\n')}
+                                </ul>` : ''}
+                            </div>`).join('\n')}
+                        </div>`;
   }
 
   private renderBlocks(blocks: StructuredContentBlock[]): string {
@@ -476,7 +527,7 @@ export class HtmlExporter extends BaseExporter {
         }
 
         .message-content img {
-            max-width: 100%;
+            max-width: 200px;
             height: auto;
             border-radius: 0.5rem;
             margin: 1rem 0;
@@ -525,6 +576,139 @@ export class HtmlExporter extends BaseExporter {
         .message-content del {
             text-decoration: line-through;
             opacity: 0.7;
+        }
+
+        .artifacts-section {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 2px solid #e5e7eb;
+        }
+
+        .artifacts-section h3 {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #374151;
+        }
+
+        .artifact {
+            margin-bottom: 1.5rem;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+
+        .user-message .artifact {
+            background: #f9fafb;
+        }
+
+        .artifact h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #111827;
+        }
+
+        .artifact-type {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-bottom: 0.75rem;
+        }
+
+        .artifact pre {
+            margin: 0;
+        }
+
+        .web-searches-section {
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 2px solid #e5e7eb;
+        }
+
+        .web-searches-section h3 {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #374151;
+        }
+
+        .web-search {
+            margin-bottom: 1.5rem;
+        }
+
+        .web-search h4 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #111827;
+        }
+
+        .search-count {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-bottom: 0.75rem;
+        }
+
+        .search-results {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .search-result {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.375rem;
+            transition: background-color 0.2s;
+        }
+
+        .user-message .search-result {
+            background: #f9fafb;
+        }
+
+        .search-result:hover {
+            background: #f9fafb;
+        }
+
+        .user-message .search-result:hover {
+            background: #f3f4f6;
+        }
+
+        .result-favicon {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+            margin-top: 0.25rem;
+        }
+
+        .result-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .result-title {
+            display: block;
+            font-weight: 500;
+            color: #2563eb;
+            text-decoration: none;
+            word-break: break-word;
+        }
+
+        .result-title:hover {
+            text-decoration: underline;
+        }
+
+        .result-domain {
+            display: block;
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
         }
 
         .footer {
