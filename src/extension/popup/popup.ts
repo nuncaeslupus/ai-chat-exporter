@@ -72,7 +72,7 @@ function localizeHtmlPage(): void {
 }
 
 class PopupController {
-  private selectedFormat: ExportFormat = 'pdf';
+  private selectedFormat: ExportFormat = 'md';
 
   async initialize(): Promise<void> {
     // Localize all static text in the HTML
@@ -100,10 +100,11 @@ class PopupController {
       if (formatSelect) {
         formatSelect.value = lastFormat;
       }
-      // Update icon and print button state
-      this.updateFormatIcon(lastFormat);
-      this.handleFormatChange(lastFormat);
     }
+
+    // Always update icon and print button state to match current format
+    this.updateFormatIcon(this.selectedFormat);
+    this.handleFormatChange(this.selectedFormat);
   }
 
   private setupEventListeners(): void {
@@ -167,8 +168,8 @@ class PopupController {
       const supportedDomains = [
         'chat.openai.com',
         'chatgpt.com',
-        // TODO: Add when parsers are implemented
-        // 'claude.ai',
+        'claude.ai',
+        // TODO: Add when parser is implemented
         // 'gemini.google.com',
       ];
 

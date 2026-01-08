@@ -7,8 +7,11 @@ export type {
   Platform,
   PlatformInfo,
   Message,
+  MessageMetadata,
   QAPair,
   Conversation,
+  Artifact,
+  WebSearchResult,
 } from './conversation';
 
 // Structured content types
@@ -72,3 +75,18 @@ export {
   DEFAULT_PREFERENCES,
   DEFAULT_PRINT_OPTIONS,
 } from './config';
+
+// Claude API types
+export type {
+  ClaudeApiArtifactInput,
+  ClaudeApiToolUseContent,
+  ClaudeApiTextContent,
+  ClaudeApiContent,
+  ClaudeApiChatMessage,
+  ClaudeApiConversationResponse,
+  ClaudeApiRequest,
+} from './claude-api';
+export {
+  isToolUseContent,
+  isArtifactContent,
+} from './claude-api';

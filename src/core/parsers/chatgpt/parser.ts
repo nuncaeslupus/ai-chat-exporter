@@ -7,6 +7,8 @@ import type {
   ParserConfig,
   QAPair,
   Message,
+  Artifact,
+  WebSearchResult,
 } from '../../types';
 import { BaseParser } from '../base-parser';
 import { CHATGPT_SELECTORS, isChatGPTUrl } from './selectors';
@@ -291,6 +293,12 @@ export class ChatGPTParser extends BaseParser {
     // Extract deep research metadata from the turn
     const researchInfo = this.extractDeepResearchInfo(turn);
 
+    // Extract code artifacts
+    const artifacts = this.extractArtifacts(turn);
+
+    // Extract web search citations
+    const webSearches = this.extractWebSearches(turn);
+
     const message = this.createMessage('assistant', combinedContent, combinedHtml, messageId);
 
     // Add images to metadata
@@ -301,6 +309,16 @@ export class ChatGPTParser extends BaseParser {
     // Add research info to metadata
     if (researchInfo) {
       message.metadata = { ...message.metadata, research: researchInfo };
+    }
+
+    // Add artifacts to metadata
+    if (artifacts.length > 0) {
+      message.metadata = { ...message.metadata, artifacts };
+    }
+
+    // Add web searches to metadata
+    if (webSearches.length > 0) {
+      message.metadata = { ...message.metadata, webSearches };
     }
 
     return message;
@@ -351,6 +369,12 @@ export class ChatGPTParser extends BaseParser {
     // Extract deep research metadata
     const researchInfo = this.extractDeepResearchInfo(element);
 
+    // Extract code artifacts
+    const artifacts = this.extractArtifacts(element);
+
+    // Extract web search citations
+    const webSearches = this.extractWebSearches(element);
+
     if (!content) {
       return null;
     }
@@ -365,6 +389,16 @@ export class ChatGPTParser extends BaseParser {
     // Add research info to metadata
     if (researchInfo) {
       message.metadata = { ...message.metadata, research: researchInfo };
+    }
+
+    // Add artifacts to metadata
+    if (artifacts.length > 0) {
+      message.metadata = { ...message.metadata, artifacts };
+    }
+
+    // Add web searches to metadata
+    if (webSearches.length > 0) {
+      message.metadata = { ...message.metadata, webSearches };
     }
 
     return message;
@@ -545,6 +579,138 @@ export class ChatGPTParser extends BaseParser {
     }
 
     return null;
+  }
+
+  /**
+   * Extract code artifacts from assistant message
+   */
+  private extractArtifacts(element: Element): Artifact[] {
+    const artifacts: Artifact[] = [];
+
+    // Find all code artifact containers (escape the ! in the class name)
+    const codeBlocks = element.querySelectorAll('pre.overflow-visible\\!');
+
+    codeBlocks.forEach((block) => {
+      // Extract language from the header
+      const languageElement = block.querySelector('.h-9');
+      const language = languageElement?.textContent?.trim().toLowerCase() || 'code';
+
+      // Extract code content
+      const codeElement = block.querySelector('code.whitespace-pre\\!, code[class*="language-"]');
+      if (!codeElement) {
+        return;
+      }
+
+      // Check if there's a rendered image (SVG preview)
+      const imgElement = codeElement.querySelector('img');
+      let content = '';
+      let type = 'code';
+
+      if (imgElement) {
+        // For SVG artifacts with rendered preview, extract both image and code
+        const imgSrc = imgElement.getAttribute('src');
+        if (imgSrc) {
+          type = 'image';
+        }
+        // Get the text content (actual SVG code) excluding the img tag
+        const clonedCode = codeElement.cloneNode(true) as Element;
+        const clonedImg = clonedCode.querySelector('img');
+        if (clonedImg) {
+          clonedImg.remove();
+        }
+        content = clonedCode.textContent?.trim() || '';
+      } else {
+        // Regular code block
+        content = codeElement.textContent?.trim() || '';
+      }
+
+      if (!content) {
+        return;
+      }
+
+      // Create artifact
+      const artifact: Artifact = {
+        type: language === 'svg' ? 'image' : type,
+        title: language.charAt(0).toUpperCase() + language.slice(1),
+        language,
+        content,
+      };
+
+      artifacts.push(artifact);
+    });
+
+    return artifacts;
+  }
+
+  /**
+   * Extract web search citations from assistant message
+   */
+  private extractWebSearches(element: Element): WebSearchResult[] {
+    // Find all citation pills
+    const citationLinks = element.querySelectorAll('[data-testid="webpage-citation-pill"] a');
+
+    if (citationLinks.length === 0) {
+      return [];
+    }
+
+    const results: Array<{
+      title: string;
+      url: string;
+      favicon?: string;
+      domain?: string;
+    }> = [];
+
+    citationLinks.forEach((link) => {
+      const url = link.getAttribute('href');
+      const title = link.textContent?.trim();
+
+      if (url && title) {
+        // Extract domain from URL
+        let domain: string | undefined;
+        try {
+          const urlObj = new URL(url);
+          domain = urlObj.hostname.replace(/^www\./, '');
+        } catch {
+          // Invalid URL, skip domain
+        }
+
+        // Generate favicon URL
+        const favicon = domain
+          ? `https://www.google.com/s2/favicons?domain=${domain}&sz=32`
+          : undefined;
+
+        const result: {
+          title: string;
+          url: string;
+          favicon?: string;
+          domain?: string;
+        } = {
+          title,
+          url,
+        };
+
+        if (domain) {
+          result.domain = domain;
+        }
+
+        if (favicon) {
+          result.favicon = favicon;
+        }
+
+        results.push(result);
+      }
+    });
+
+    if (results.length === 0) {
+      return [];
+    }
+
+    // Return a single WebSearchResult with all citations
+    return [{
+      query: 'Web Search',
+      resultCount: results.length,
+      results,
+    }];
   }
 
   /**

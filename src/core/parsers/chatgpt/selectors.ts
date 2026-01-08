@@ -48,6 +48,16 @@ export const CHATGPT_SELECTORS: SelectorSet = {
     modelSlugAttr: 'data-message-model-slug',
     // Button injection area (near header)
     buttonArea: 'main header, main > div:first-child',
+    // Code artifact container (escape ! in class name)
+    codeArtifactContainer: 'pre.overflow-visible\\!',
+    // Code artifact language label
+    codeArtifactLanguage: 'div.h-9',
+    // Code artifact content
+    codeArtifactContent: 'code.whitespace-pre\\!, code[class*="language-"]',
+    // Web citation pill container
+    citationPill: '[data-testid="webpage-citation-pill"]',
+    // Web citation link
+    citationLink: '[data-testid="webpage-citation-pill"] a',
   },
 };
 

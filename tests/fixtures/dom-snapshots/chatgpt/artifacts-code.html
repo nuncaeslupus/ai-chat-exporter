@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ChatGPT Code Artifact Test</title>
+</head>
+<body>
+<main id="main">
+  <!-- User message -->
+  <article data-turn="user" data-testid="conversation-turn-1">
+    <div data-message-author-role="user" data-message-id="msg-1">
+      <div class="user-message-bubble-color">
+        <div class="whitespace-pre-wrap">Write a React component for a todo list</div>
+      </div>
+    </div>
+  </article>
+
+  <!-- Assistant message with code artifacts -->
+  <article data-turn="assistant" data-testid="conversation-turn-2">
+    <div data-message-author-role="assistant" data-message-id="msg-2" data-message-model-slug="gpt-4o">
+      <div class="markdown prose">
+        <p>Here's a React component for a todo list:</p>
+      </div>
+
+      <!-- Code Artifact 1: React/JSX -->
+      <pre class="overflow-visible!" data-start="1564" data-end="2361">
+        <div class="contain-inline-size rounded-md border-[0.5px]">
+          <div class="flex items-center h-9">react</div>
+          <div class="overflow-y-auto p-4">
+            <code class="whitespace-pre! language-react">import React, { useState } from 'react';
+
+function TodoList() {
+  const [todos, setTodos] = useState([]);
+  const [input, setInput] = useState('');
+
+  const addTodo = () => {
+    if (input.trim()) {
+      setTodos([...todos, { id: Date.now(), text: input, completed: false }]);
+      setInput('');
+    }
+  };
+
+  const toggleTodo = (id) => {
+    setTodos(todos.map(todo =>
+      todo.id === id ? { ...todo, completed: !todo.completed } : todo
+    ));
+  };
+
+  return (
+    &lt;div className="todo-list"&gt;
+      &lt;input
+        value={input}
+        onChange={(e) =&gt; setInput(e.target.value)}
+        placeholder="Add a todo..."
+      /&gt;
+      &lt;button onClick={addTodo}&gt;Add&lt;/button&gt;
+      &lt;ul&gt;
+        {todos.map(todo =&gt; (
+          &lt;li
+            key={todo.id}
+            onClick={() =&gt; toggleTodo(todo.id)}
+            style={{ textDecoration: todo.completed ? 'line-through' : 'none' }}
+          &gt;
+            {todo.text}
+          &lt;/li&gt;
+        ))}
+      &lt;/ul&gt;
+    &lt;/div&gt;
+  );
+}
+
+export default TodoList;</code>
+          </div>
+        </div>
+      </pre>
+
+      <div class="markdown prose">
+        <p>Here's the CSS to style it:</p>
+      </div>
+
+      <!-- Code Artifact 2: CSS -->
+      <pre class="overflow-visible!" data-start="2500" data-end="2850">
+        <div class="contain-inline-size rounded-md">
+          <div class="flex items-center h-9">css</div>
+          <div class="overflow-y-auto p-4">
+            <code class="whitespace-pre! language-css">.todo-list {
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.todo-list input {
+  width: 70%;
+  padding: 10px;
+  margin-right: 10px;
+}
+
+.todo-list button {
+  padding: 10px 20px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.todo-list ul {
+  list-style: none;
+  padding: 0;
+}
+
+.todo-list li {
+  padding: 10px;
+  margin: 5px 0;
+  background-color: #f8f9fa;
+  cursor: pointer;
+  border-radius: 4px;
+}</code>
+          </div>
+        </div>
+      </pre>
+    </div>
+  </article>
+</main>
+</body>
+</html>

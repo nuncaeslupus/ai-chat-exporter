@@ -36,6 +36,22 @@ chrome.runtime.onStartup.addListener(() => {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   console.log(`[${EXTENSION_NAME}] Background received message:`, message);
 
+  // Handle Claude API data fetch
+  if (message.type === 'fetch_claude_api_data') {
+    handleClaudeApiFetch(message.data)
+      .then((data) => {
+        sendResponse({ success: true, data });
+      })
+      .catch((error) => {
+        console.error(`[${EXTENSION_NAME}] Claude API fetch failed:`, error);
+        sendResponse({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      });
+    return true; // Keep channel open for async response
+  }
+
   // Forward messages to active tab if needed
   if (message.type === 'export_conversation' || message.type === 'print_conversation') {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -55,6 +71,42 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   sendResponse({ success: true });
   return false;
 });
+
+/**
+ * Fetch Claude conversation data from API
+ */
+async function handleClaudeApiFetch(request: {
+  organizationId: string;
+  conversationId: string;
+}): Promise<unknown> {
+  const { organizationId, conversationId } = request;
+
+  const apiUrl = `https://claude.ai/api/organizations/${organizationId}/chat_conversations/${conversationId}?tree=True&rendering_mode=messages&render_all_tools=true&consistency=strong`;
+
+  console.log(`[${EXTENSION_NAME}] Fetching Claude API:`, apiUrl);
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      credentials: 'include', // Include cookies for authentication
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log(`[${EXTENSION_NAME}] Claude API response received`);
+
+    return data;
+  } catch (error) {
+    console.error(`[${EXTENSION_NAME}] Claude API fetch error:`, error);
+    throw error;
+  }
+}
 
 /**
  * Tab update handler - inject content script into supported pages

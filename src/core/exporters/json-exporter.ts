@@ -35,6 +35,7 @@ interface JsonMessage {
   content: string;
   htmlContent?: string;
   timestamp?: string;
+  metadata?: any; // Include images, artifacts, web searches, etc.
 }
 
 /**
@@ -112,6 +113,14 @@ export class JsonExporter extends BaseExporter {
     }
     if (pair.answer.htmlContent) {
       jsonPair.answer.htmlContent = pair.answer.htmlContent;
+    }
+
+    // Include metadata (images, artifacts, web searches, etc.)
+    if (pair.question.metadata) {
+      jsonPair.question.metadata = pair.question.metadata;
+    }
+    if (pair.answer.metadata) {
+      jsonPair.answer.metadata = pair.answer.metadata;
     }
 
     if (options.includeTimestamps) {
