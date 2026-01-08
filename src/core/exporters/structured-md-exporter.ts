@@ -79,6 +79,56 @@ export class StructuredMarkdownExporter extends BaseExporter {
       lines.push('');
       lines.push(...this.renderBlocks(pair.answer.blocks));
 
+      // Add artifacts if present
+      if (pair.answer.metadata?.artifacts && Array.isArray(pair.answer.metadata.artifacts)) {
+        const artifactsWithContent = pair.answer.metadata.artifacts.filter((a: any) => a.content);
+
+        if (artifactsWithContent.length > 0) {
+          lines.push('');
+          lines.push('### Artifacts');
+          lines.push('');
+
+          for (const artifact of artifactsWithContent) {
+            // Add artifact header
+            lines.push(`#### ${artifact.title}`);
+
+            if (artifact.typeLabel) {
+              lines.push(`*Type: ${artifact.typeLabel}*`);
+            }
+
+            lines.push('');
+
+            // Handle different artifact types appropriately
+            if (artifact.type === 'image' && artifact.language === 'svg' && artifact.content) {
+              // SVG artifacts: embed as data URL image
+              const svgDataUrl = `data:image/svg+xml;base64,${btoa(artifact.content)}`;
+              lines.push(`<img src="${svgDataUrl}" alt="${artifact.title}" style="max-width: 100%; height: auto;">`);
+              lines.push('');
+
+              // Also include the SVG code in a collapsible section
+              lines.push('<details>');
+              lines.push('<summary>View SVG Code</summary>');
+              lines.push('');
+              lines.push('```svg');
+              lines.push(artifact.content);
+              lines.push('```');
+              lines.push('</details>');
+            } else if (artifact.type === 'document' || artifact.language === 'markdown') {
+              // Markdown documents: render directly as markdown
+              lines.push(artifact.content || '');
+            } else {
+              // For code artifacts (HTML, React, SVG, etc.), use code blocks
+              const language = artifact.language || this.inferLanguageFromType(artifact.type);
+              lines.push(`\`\`\`${language}`);
+              lines.push(artifact.content || '');
+              lines.push('```');
+            }
+
+            lines.push('');
+          }
+        }
+      }
+
       // Add separator between pairs (but not after the last one)
       if (i < conversation.pairs.length - 1) {
         lines.push('---');
@@ -139,14 +189,29 @@ export class StructuredMarkdownExporter extends BaseExporter {
 
         case 'image':
           const alt = block.alt || 'image';
-          const title = block.title ? ` "${block.title}"` : '';
-          // Use HTML img tag if we have dimensions, otherwise use Markdown syntax
-          if (block.width || block.height) {
-            const width = block.width ? ` width="${block.width}"` : '';
-            const height = block.height ? ` height="${block.height}"` : '';
-            lines.push(`<img src="${block.url}" alt="${alt}"${width}${height}>`);
+
+          // Match Claude's webchat thumbnail size (typically ~200px)
+          const webChatThumbnailSize = 200;
+          let width = block.width;
+          let height = block.height;
+
+          // If we have dimensions and they exceed webchat size, scale proportionally
+          if (width && width > webChatThumbnailSize) {
+            const scale = webChatThumbnailSize / width;
+            width = webChatThumbnailSize;
+            height = height ? Math.round(height * scale) : undefined;
+          }
+
+          // Use HTML img tag for better size control
+          if (width && height) {
+            lines.push(`<img src="${block.url}" alt="${alt}" width="${width}" height="${height}">`);
+          } else if (width || height) {
+            const widthAttr = width ? ` width="${width}"` : '';
+            const heightAttr = height ? ` height="${height}"` : '';
+            lines.push(`<img src="${block.url}" alt="${alt}"${widthAttr}${heightAttr}>`);
           } else {
-            lines.push(`![${alt}](${block.url}${title})`);
+            // No dimensions - constrain with CSS to match webchat
+            lines.push(`<img src="${block.url}" alt="${alt}" style="max-width: 200px; height: auto;">`);
           }
           lines.push('');
           break;
@@ -246,5 +311,20 @@ export class StructuredMarkdownExporter extends BaseExporter {
         }
       })
       .join('');
+  }
+
+  /**
+   * Infer code block language from artifact type
+   */
+  private inferLanguageFromType(type: string): string {
+    const languageMap: Record<string, string> = {
+      image: 'svg',
+      react: 'tsx',
+      document: 'markdown',
+      diagram: 'mermaid',
+      code: 'javascript',
+    };
+
+    return languageMap[type] || '';
   }
 }

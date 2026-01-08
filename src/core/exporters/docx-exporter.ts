@@ -196,6 +196,89 @@ export class DocxExporter extends BaseExporter {
     // Assistant content
     paragraphs.push(...this.renderBlocks(pair.answer.blocks));
 
+    // Add artifacts if present
+    if (pair.answer.metadata?.artifacts && Array.isArray(pair.answer.metadata.artifacts)) {
+      const artifactsWithContent = pair.answer.metadata.artifacts.filter((a: any) => a.content);
+
+      if (artifactsWithContent.length > 0) {
+        paragraphs.push(
+          new Paragraph({
+            text: 'Artifacts',
+            heading: HeadingLevel.HEADING_3,
+            spacing: { before: 200, after: 100 },
+          })
+        );
+
+        for (const artifact of artifactsWithContent) {
+          // Artifact title
+          paragraphs.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: artifact.title,
+                  bold: true,
+                  size: 26,
+                }),
+              ],
+              spacing: { before: 150, after: 50 },
+            })
+          );
+
+          // Artifact type
+          if (artifact.typeLabel) {
+            paragraphs.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: `Type: ${artifact.typeLabel}`,
+                    italics: true,
+                    size: 22,
+                  }),
+                ],
+                spacing: { after: 100 },
+              })
+            );
+          }
+
+          // Artifact content
+          // For markdown artifacts, try to render; for others, show as code
+          if (artifact.type === 'document' || artifact.language === 'markdown') {
+            // Note: Full markdown parsing for DOCX would be complex
+            // For now, just render as formatted text
+            paragraphs.push(
+              new Paragraph({
+                children: [
+                  new TextRun({
+                    text: artifact.content || '',
+                    size: 22,
+                  }),
+                ],
+                spacing: { after: 150 },
+              })
+            );
+          } else {
+            // Show as monospace code
+            const contentLines = (artifact.content || '').split('\n');
+            for (const line of contentLines) {
+              paragraphs.push(
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: line,
+                      font: 'Courier New',
+                      size: 20,
+                    }),
+                  ],
+                  spacing: { after: 0 },
+                })
+              );
+            }
+            paragraphs.push(new Paragraph({ text: '', spacing: { after: 150 } }));
+          }
+        }
+      }
+    }
+
     return paragraphs;
   }
 

@@ -21,8 +21,8 @@ export { GEMINI_SELECTORS, isGeminiUrl } from './gemini';
  */
 export const parserRegistry: ParserRegistry = new Map<Platform, ParserFactory>([
   ['chatgpt', () => new ChatGPTParser(document)],
-  // TODO: Uncomment when parsers are implemented
-  // ['claude', () => new ClaudeParser(document)],
+  ['claude', () => new ClaudeParser(document)],
+  // TODO: Uncomment when parser is implemented
   // ['gemini', () => new GeminiParser(document)],
 ]);
 
