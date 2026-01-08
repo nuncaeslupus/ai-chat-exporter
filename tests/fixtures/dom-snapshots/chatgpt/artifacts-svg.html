@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ChatGPT SVG Artifact Test</title>
+</head>
+<body>
+<main id="main">
+  <!-- User message -->
+  <article data-turn="user" data-testid="conversation-turn-1">
+    <div data-message-author-role="user" data-message-id="msg-1">
+      <div class="user-message-bubble-color">
+        <div class="whitespace-pre-wrap">Create a circular progress indicator in SVG</div>
+      </div>
+    </div>
+  </article>
+
+  <!-- Assistant message with SVG artifact -->
+  <article data-turn="assistant" data-testid="conversation-turn-2">
+    <div data-message-author-role="assistant" data-message-id="msg-2" data-message-model-slug="gpt-4o">
+      <div class="markdown prose">
+        <p>Here's an SVG circular progress indicator:</p>
+      </div>
+
+      <!-- SVG Artifact with rendered image -->
+      <pre class="overflow-visible!" data-start="800" data-end="1950">
+        <div class="contain-inline-size rounded-md">
+          <div class="flex items-center h-9">svg</div>
+          <div class="overflow-y-auto p-4">
+            <code class="whitespace-pre! language-svg"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200' width='200' height='200'%3E%3Ccircle cx='100' cy='100' r='80' fill='none' stroke='%23e0e0e0' stroke-width='20'/%3E%3Ccircle cx='100' cy='100' r='80' fill='none' stroke='%234CAF50' stroke-width='20' stroke-dasharray='502.4' stroke-dashoffset='125.6' transform='rotate(-90 100 100)' stroke-linecap='round'/%3E%3Ctext x='100' y='110' text-anchor='middle' font-size='32' font-family='Arial' fill='%23333'%3E75%25%3C/text%3E%3C/svg%3E" alt="SVG Preview" />&lt;svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200"&gt;
+  &lt;!-- Background circle --&gt;
+  &lt;circle
+    cx="100"
+    cy="100"
+    r="80"
+    fill="none"
+    stroke="#e0e0e0"
+    stroke-width="20"
+  /&gt;
+
+  &lt;!-- Progress circle (75% complete) --&gt;
+  &lt;circle
+    cx="100"
+    cy="100"
+    r="80"
+    fill="none"
+    stroke="#4CAF50"
+    stroke-width="20"
+    stroke-dasharray="502.4"
+    stroke-dashoffset="125.6"
+    transform="rotate(-90 100 100)"
+    stroke-linecap="round"
+  /&gt;
+
+  &lt;!-- Percentage text --&gt;
+  &lt;text
+    x="100"
+    y="110"
+    text-anchor="middle"
+    font-size="32"
+    font-family="Arial"
+    fill="#333"
+  &gt;
+    75%
+  &lt;/text&gt;
+&lt;/svg&gt;</code>
+          </div>
+        </div>
+      </pre>
+
+      <div class="markdown prose">
+        <p>You can customize the progress by changing the stroke-dashoffset value.</p>
+      </div>
+
+      <!-- Another SVG without rendered preview -->
+      <pre class="overflow-visible!" data-start="2100" data-end="2450">
+        <div class="contain-inline-size rounded-md">
+          <div class="flex items-center h-9">svg</div>
+          <div class="overflow-y-auto p-4">
+            <code class="language-svg">&lt;svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"&gt;
+  &lt;circle cx="50" cy="50" r="40" fill="blue" /&gt;
+&lt;/svg&gt;</code>
+          </div>
+        </div>
+      </pre>
+    </div>
+  </article>
+</main>
+</body>
+</html>

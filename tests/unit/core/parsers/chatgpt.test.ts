@@ -52,6 +52,17 @@ describe('ChatGPT Selectors', () => {
       expect(CHATGPT_SELECTORS.custom?.userMessageContent).toBeDefined();
       expect(CHATGPT_SELECTORS.custom?.assistantMessageContent).toBeDefined();
     });
+
+    it('has code artifact selectors', () => {
+      expect(CHATGPT_SELECTORS.custom?.codeArtifactContainer).toBeDefined();
+      expect(CHATGPT_SELECTORS.custom?.codeArtifactLanguage).toBeDefined();
+      expect(CHATGPT_SELECTORS.custom?.codeArtifactContent).toBeDefined();
+    });
+
+    it('has web citation selectors', () => {
+      expect(CHATGPT_SELECTORS.custom?.citationPill).toBeDefined();
+      expect(CHATGPT_SELECTORS.custom?.citationLink).toBeDefined();
+    });
   });
 });
 
@@ -300,5 +311,201 @@ describe('ChatGPTParser implementation', () => {
       expect(result.success).toBe(true);
       expect(result.conversation?.pairs.length).toBe(0);
     });
+  });
+});
+
+describe('ChatGPT Parser - Code Artifacts', () => {
+  let parser: ChatGPTParser;
+  let dom: JSDOM;
+
+  beforeEach(() => {
+    const fixturePath = join(__dirname, '../../../fixtures/dom-snapshots/chatgpt/artifacts-code.html');
+    const html = readFileSync(fixturePath, 'utf-8');
+    dom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-artifacts' });
+    parser = new ChatGPTParser(dom.window.document);
+  });
+
+  it('extracts code artifacts from assistant messages', () => {
+    const result = parser.parse();
+    const firstAnswer = result.conversation?.pairs[0]?.answer;
+    expect(firstAnswer?.metadata?.artifacts).toBeDefined();
+    expect(firstAnswer?.metadata?.artifacts?.length).toBeGreaterThan(0);
+  });
+
+  it('extracts React code artifact with correct metadata', () => {
+    const result = parser.parse();
+    const artifacts = result.conversation?.pairs[0]?.answer.metadata?.artifacts;
+    const reactArtifact = artifacts?.find((a) => a.language === 'react');
+    expect(reactArtifact).toBeDefined();
+    expect(reactArtifact?.type).toBe('code');
+    expect(reactArtifact?.title).toBe('React');
+    expect(reactArtifact?.content).toContain('useState');
+  });
+
+  it('extracts CSS code artifact with correct metadata', () => {
+    const result = parser.parse();
+    const artifacts = result.conversation?.pairs[0]?.answer.metadata?.artifacts;
+    const cssArtifact = artifacts?.find((a) => a.language === 'css');
+    expect(cssArtifact).toBeDefined();
+    expect(cssArtifact?.type).toBe('code');
+    expect(cssArtifact?.title).toBe('Css');
+    expect(cssArtifact?.content).toContain('.todo-list');
+  });
+
+  it('extracts multiple code artifacts from single message', () => {
+    const result = parser.parse();
+    const artifacts = result.conversation?.pairs[0]?.answer.metadata?.artifacts;
+    expect(artifacts?.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('ChatGPT Parser - SVG Artifacts', () => {
+  let parser: ChatGPTParser;
+  let dom: JSDOM;
+
+  beforeEach(() => {
+    const fixturePath = join(__dirname, '../../../fixtures/dom-snapshots/chatgpt/artifacts-svg.html');
+    const html = readFileSync(fixturePath, 'utf-8');
+    dom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-svg' });
+    parser = new ChatGPTParser(dom.window.document);
+  });
+
+  it('extracts SVG artifacts with image type', () => {
+    const result = parser.parse();
+    const artifacts = result.conversation?.pairs[0]?.answer.metadata?.artifacts;
+    const svgArtifact = artifacts?.find((a) => a.language === 'svg');
+    expect(svgArtifact).toBeDefined();
+    expect(svgArtifact?.type).toBe('image');
+  });
+
+  it('extracts SVG code content excluding img tag', () => {
+    const result = parser.parse();
+    const artifacts = result.conversation?.pairs[0]?.answer.metadata?.artifacts;
+    const svgArtifact = artifacts?.find((a) => a.language === 'svg');
+    expect(svgArtifact?.content).toContain('<svg');
+    expect(svgArtifact?.content).toContain('</svg>');
+    expect(svgArtifact?.content).not.toContain('<img');
+  });
+
+  it('extracts multiple SVG artifacts', () => {
+    const result = parser.parse();
+    const artifacts = result.conversation?.pairs[0]?.answer.metadata?.artifacts;
+    const svgArtifacts = artifacts?.filter((a) => a.language === 'svg');
+    expect(svgArtifacts?.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('ChatGPT Parser - Web Citations', () => {
+  let parser: ChatGPTParser;
+  let dom: JSDOM;
+
+  beforeEach(() => {
+    const fixturePath = join(__dirname, '../../../fixtures/dom-snapshots/chatgpt/citations.html');
+    const html = readFileSync(fixturePath, 'utf-8');
+    dom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-citations' });
+    parser = new ChatGPTParser(dom.window.document);
+  });
+
+  it('extracts web search citations from assistant messages', () => {
+    const result = parser.parse();
+    const firstAnswer = result.conversation?.pairs[0]?.answer;
+    expect(firstAnswer?.metadata?.webSearches).toBeDefined();
+    expect(firstAnswer?.metadata?.webSearches?.length).toBeGreaterThan(0);
+  });
+
+  it('extracts citation URLs and titles correctly', () => {
+    const result = parser.parse();
+    const webSearches = result.conversation?.pairs[0]?.answer.metadata?.webSearches;
+    const search = webSearches?.[0];
+    expect(search?.results).toBeDefined();
+    expect(search?.results?.length).toBeGreaterThan(0);
+
+    const firstResult = search?.results?.[0];
+    expect(firstResult?.url).toMatch(/^https?:\/\//);
+    expect(firstResult?.title).toBeDefined();
+    expect(firstResult?.title?.length).toBeGreaterThan(0);
+  });
+
+  it('extracts domain from citation URLs', () => {
+    const result = parser.parse();
+    const webSearches = result.conversation?.pairs[0]?.answer.metadata?.webSearches;
+    const results = webSearches?.[0]?.results;
+    const githubResult = results?.find((r) => r.url.includes('github.com'));
+    expect(githubResult?.domain).toBe('github.com');
+  });
+
+  it('generates favicon URLs for citations', () => {
+    const result = parser.parse();
+    const webSearches = result.conversation?.pairs[0]?.answer.metadata?.webSearches;
+    const results = webSearches?.[0]?.results;
+    const firstResult = results?.[0];
+    expect(firstResult?.favicon).toContain('google.com/s2/favicons');
+    expect(firstResult?.favicon).toContain('domain=');
+  });
+
+  it('sets result count correctly', () => {
+    const result = parser.parse();
+    const webSearches = result.conversation?.pairs[0]?.answer.metadata?.webSearches;
+    const search = webSearches?.[0];
+    expect(search?.resultCount).toBe(search?.results?.length);
+  });
+
+  it('uses "Web Search" as default query', () => {
+    const result = parser.parse();
+    const webSearches = result.conversation?.pairs[0]?.answer.metadata?.webSearches;
+    const search = webSearches?.[0];
+    expect(search?.query).toBe('Web Search');
+  });
+});
+
+describe('ChatGPT Parser - Comprehensive Features', () => {
+  let parser: ChatGPTParser;
+  let dom: JSDOM;
+
+  beforeEach(() => {
+    const fixturePath = join(__dirname, '../../../fixtures/dom-snapshots/chatgpt/comprehensive.html');
+    const html = readFileSync(fixturePath, 'utf-8');
+    dom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-comprehensive' });
+    parser = new ChatGPTParser(dom.window.document);
+  });
+
+  it('extracts all features from a comprehensive message', () => {
+    const result = parser.parse();
+    const firstAnswer = result.conversation?.pairs[0]?.answer;
+    expect(firstAnswer?.metadata?.artifacts).toBeDefined();
+    expect(firstAnswer?.metadata?.webSearches).toBeDefined();
+  });
+
+  it('extracts multiple code artifacts of different types', () => {
+    const result = parser.parse();
+    const artifacts = result.conversation?.pairs[0]?.answer.metadata?.artifacts;
+    const languages = new Set(artifacts?.map((a) => a.language));
+    expect(languages.size).toBeGreaterThan(1);
+    expect(languages.has('javascript')).toBe(true);
+    expect(languages.has('css')).toBe(true);
+  });
+
+  it('extracts both SVG and code artifacts', () => {
+    const result = parser.parse();
+    const artifacts = result.conversation?.pairs[0]?.answer.metadata?.artifacts;
+    const svgArtifacts = artifacts?.filter((a) => a.language === 'svg');
+    const codeArtifacts = artifacts?.filter((a) => a.type === 'code');
+    expect(svgArtifacts?.length).toBeGreaterThan(0);
+    expect(codeArtifacts?.length).toBeGreaterThan(0);
+  });
+
+  it('extracts multiple web citations', () => {
+    const result = parser.parse();
+    const webSearches = result.conversation?.pairs[0]?.answer.metadata?.webSearches;
+    const totalResults = webSearches?.[0]?.results?.length || 0;
+    expect(totalResults).toBeGreaterThan(3);
+  });
+
+  it('preserves message content alongside metadata', () => {
+    const result = parser.parse();
+    const firstAnswer = result.conversation?.pairs[0]?.answer;
+    expect(firstAnswer?.content.length).toBeGreaterThan(0);
+    expect(firstAnswer?.metadata?.artifacts?.length).toBeGreaterThan(0);
+    expect(firstAnswer?.metadata?.webSearches?.length).toBeGreaterThan(0);
   });
 });
