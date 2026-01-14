@@ -27,6 +27,7 @@ class ContentScript {
     const parser = detectParser();
     if (!parser) {
       console.log('[AI Chat Exporter] No parser found for current page');
+      this.notifyPageReadyState(false);
       return;
     }
 
@@ -40,6 +41,7 @@ class ContentScript {
     const parseResult = parser.parse();
     if (!parseResult.success || !parseResult.conversation) {
       console.error('[AI Chat Exporter] Failed to parse conversation:', parseResult.error);
+      this.notifyPageReadyState(false);
       return;
     }
 
@@ -48,6 +50,20 @@ class ContentScript {
     console.log('[AI Chat Exporter] Successfully initialized');
     console.log(`[AI Chat Exporter] Found ${this.conversation.pairs.length} conversation pairs`);
     this.initialized = true;
+    this.notifyPageReadyState(true);
+  }
+
+  /**
+   * Notify background script about page readiness state
+   */
+  private notifyPageReadyState(ready: boolean): void {
+    chrome.runtime.sendMessage({
+      type: 'page_ready_state',
+      ready: ready,
+    }).catch((error) => {
+      // Ignore errors if background script is not available
+      console.log('[AI Chat Exporter] Could not notify background script:', error);
+    });
   }
 
   async handleExport(format: ExportFormat): Promise<void> {

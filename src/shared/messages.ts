@@ -36,6 +36,14 @@ export interface GetConversationMessage extends BaseMessage<'get_conversation'> 
 }
 
 /**
+ * Page ready state message
+ * Sent from content script to background to indicate if page is ready for export/print
+ */
+export interface PageReadyStateMessage extends BaseMessage<'page_ready_state'> {
+  ready: boolean;
+}
+
+/**
  * Update preferences message
  */
 export interface UpdatePreferencesMessage extends BaseMessage<'update_preferences'> {
