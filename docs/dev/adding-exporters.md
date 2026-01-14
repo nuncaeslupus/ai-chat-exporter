@@ -1,3 +1,11 @@
+---
+name: adding-exporters
+description: Guide for implementing exporters for new file formats
+metadata:
+  category: development
+  audience: developers
+---
+
 # Adding New Exporters
 
 Guide for implementing exporters for new file formats.

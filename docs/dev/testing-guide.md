@@ -1,3 +1,11 @@
+---
+name: testing-guide
+description: Testing strategies and practices for AI Chat Exporter
+metadata:
+  category: development
+  audience: developers
+---
+
 # Testing Guide
 
 Comprehensive guide to testing strategies and practices for the AI Chat Exporter project.

@@ -1,3 +1,11 @@
+---
+name: usage
+description: Complete guide to using AI Chat Exporter features
+metadata:
+  category: user
+  audience: end-users
+---
+
 # Usage Guide
 
 Complete guide to using the AI Chat Exporter extension.
