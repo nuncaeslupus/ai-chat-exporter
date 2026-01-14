@@ -1,3 +1,11 @@
+---
+name: adding-parsers
+description: Guide for implementing parsers for new AI chat platforms
+metadata:
+  category: development
+  audience: developers
+---
+
 # Adding New Parsers
 
 Guide for implementing parsers for new AI chat platforms.

@@ -10,7 +10,7 @@ AI Chat Exporter and Printer
 SHORT DESCRIPTION (132 characters max)
 ========================================
 
-Export and print ChatGPT, Claude, and Gemini conversations to PDF, Markdown, HTML, DOCX, JSON, and TXT with advanced formatting.
+Export and print ChatGPT, Claude, and Gemini conversations to PDF, Markdown, Word and other formats with advanced formatting.
 
 ========================================
 DETAILED DESCRIPTION
@@ -33,10 +33,8 @@ Multiple Export Formats:
 
 • PDF - Professional documents with proper pagination and formatting
 • Markdown - Clean, readable text with full formatting support
-• HTML - Standalone web pages with beautiful styling
-• DOCX - Microsoft Word documents with proper structure
-• JSON - Structured data for programmatic access
-• TXT - Plain text for maximum compatibility
+• Word - Microsoft Word documents with proper structure
+• HTML, JSON, Plain text and more
 
 Smart Selection:
 
