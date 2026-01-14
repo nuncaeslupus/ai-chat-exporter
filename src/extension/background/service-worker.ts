@@ -28,6 +28,8 @@ chrome.runtime.onInstalled.addListener((details) => {
  */
 chrome.runtime.onStartup.addListener(() => {
   console.log(`[${EXTENSION_NAME}] Extension started`);
+  // Recreate context menus on startup
+  createContextMenus();
 });
 
 /**
@@ -132,30 +134,149 @@ chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
 });
 
 /**
- * Context menu setup (optional - for right-click export)
+ * Format information for context menus
+ */
+const EXPORT_FORMATS = [
+  { id: 'pdf', labelKey: 'formatPDF' },
+  { id: 'docx', labelKey: 'formatDOCX' },
+  { id: 'md', labelKey: 'formatMarkdown' },
+  { id: 'html', labelKey: 'formatHTML' },
+  { id: 'txt', labelKey: 'formatTXT' },
+  { id: 'json', labelKey: 'formatJSON' },
+] as const;
+
+/**
+ * Printable formats (DOCX cannot be printed)
+ */
+const PRINT_FORMATS = [
+  { id: 'pdf', labelKey: 'formatPDF' },
+  { id: 'md', labelKey: 'formatMarkdown' },
+  { id: 'html', labelKey: 'formatHTML' },
+  { id: 'txt', labelKey: 'formatTXT' },
+  { id: 'json', labelKey: 'formatJSON' },
+] as const;
+
+/**
+ * URL patterns for supported chat platforms
+ */
+const SUPPORTED_URL_PATTERNS = [
+  'https://chat.openai.com/*',
+  'https://chatgpt.com/*',
+  'https://claude.ai/*',
+  'https://gemini.google.com/*',
+];
+
+/**
+ * Context menu setup with hierarchical structure
  */
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: 'export-conversation',
-    title: 'Export Conversation',
-    contexts: ['page'],
-    documentUrlPatterns: [
-      'https://chat.openai.com/*',
-      'https://chatgpt.com/*',
-      'https://claude.ai/*',
-      'https://gemini.google.com/*',
-    ],
-  });
+  createContextMenus();
 });
+
+/**
+ * Create all context menus
+ */
+function createContextMenus(): void {
+  // Remove all existing menus first to ensure clean state
+  chrome.contextMenus.removeAll(() => {
+    console.log(`[${EXTENSION_NAME}] Creating context menus...`);
+
+    // Create Export parent menu
+    chrome.contextMenus.create({
+      id: 'export',
+      title: chrome.i18n.getMessage('exportButton'),
+      contexts: ['page'],
+      documentUrlPatterns: SUPPORTED_URL_PATTERNS,
+    }, () => {
+      if (chrome.runtime.lastError) {
+        console.error(`[${EXTENSION_NAME}] Error creating Export menu:`, chrome.runtime.lastError);
+      } else {
+        console.log(`[${EXTENSION_NAME}] Created Export parent menu`);
+      }
+    });
+
+    // Create Export submenus for each format
+    EXPORT_FORMATS.forEach((format) => {
+      chrome.contextMenus.create({
+        id: `export-${format.id}`,
+        parentId: 'export',
+        title: chrome.i18n.getMessage(format.labelKey),
+        contexts: ['page'],
+        documentUrlPatterns: SUPPORTED_URL_PATTERNS,
+      }, () => {
+        if (chrome.runtime.lastError) {
+          console.error(`[${EXTENSION_NAME}] Error creating Export submenu ${format.id}:`, chrome.runtime.lastError);
+        } else {
+          console.log(`[${EXTENSION_NAME}] Created Export submenu: ${format.id}`);
+        }
+      });
+    });
+
+    // Create Print parent menu
+    chrome.contextMenus.create({
+      id: 'print',
+      title: chrome.i18n.getMessage('printButton'),
+      contexts: ['page'],
+      documentUrlPatterns: SUPPORTED_URL_PATTERNS,
+    }, () => {
+      if (chrome.runtime.lastError) {
+        console.error(`[${EXTENSION_NAME}] Error creating Print menu:`, chrome.runtime.lastError);
+      } else {
+        console.log(`[${EXTENSION_NAME}] Created Print parent menu`);
+      }
+    });
+
+    // Create Print submenus for each format (excluding DOCX)
+    PRINT_FORMATS.forEach((format) => {
+      chrome.contextMenus.create({
+        id: `print-${format.id}`,
+        parentId: 'print',
+        title: chrome.i18n.getMessage(format.labelKey),
+        contexts: ['page'],
+        documentUrlPatterns: SUPPORTED_URL_PATTERNS,
+      }, () => {
+        if (chrome.runtime.lastError) {
+          console.error(`[${EXTENSION_NAME}] Error creating Print submenu ${format.id}:`, chrome.runtime.lastError);
+        } else {
+          console.log(`[${EXTENSION_NAME}] Created Print submenu: ${format.id}`);
+        }
+      });
+    });
+
+    console.log(`[${EXTENSION_NAME}] Context menu creation initiated`);
+  });
+}
 
 /**
  * Context menu click handler
  */
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId === 'export-conversation' && tab?.id) {
-    // Send message to content script to show export dialog
+  const menuId = info.menuItemId as string;
+
+  if (!tab?.id) {
+    console.error(`[${EXTENSION_NAME}] No tab ID available`);
+    return;
+  }
+
+  // Handle Export actions
+  if (menuId.startsWith('export-')) {
+    const format = menuId.replace('export-', '');
+    console.log(`[${EXTENSION_NAME}] Export requested: ${format}`);
+
     chrome.tabs.sendMessage(tab.id, {
-      type: 'show_export_dialog',
+      type: 'export_conversation',
+      format: format,
+      timestamp: Date.now(),
+    });
+  }
+  // Handle Print actions
+  else if (menuId.startsWith('print-')) {
+    const format = menuId.replace('print-', '');
+    console.log(`[${EXTENSION_NAME}] Print requested: ${format}`);
+
+    chrome.tabs.sendMessage(tab.id, {
+      type: 'print_conversation',
+      format: format,
       timestamp: Date.now(),
     });
   }
