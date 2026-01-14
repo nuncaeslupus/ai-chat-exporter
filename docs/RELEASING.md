@@ -2,52 +2,105 @@
 
 This guide documents the complete process for releasing a new version of AI Chat Exporter.
 
-## Pre-Release Checklist
+## Automated Release Workflow (For AI Assistants)
 
-- [ ] All tests passing: `pnpm test:run`
-- [ ] Code validated: `pnpm validate`
-- [ ] Version bumped in:
-  - [ ] `package.json`
-  - [ ] `manifests/manifest.base.json`
-- [ ] CHANGELOG.md updated (if exists)
-- [ ] All features documented
+When the user says: **"Let's release next version with current changes"**
 
-## Build and Package
+Follow these steps automatically:
 
-### 1. Build Production Versions
+1. **Analyze changes**:
+   - Review git status and recent commits
+   - Review modified files to understand what changed
+   - Determine version bump type (patch for bug fixes/minor features, minor for new features, major for breaking changes)
+
+2. **Update version numbers**:
+   - Bump version in `package.json` (e.g., 1.1.1 → 1.1.2 for patch)
+   - Bump version in `manifests/manifest.base.json` (must match package.json)
+
+3. **Build and package**:
+   - Run `pnpm package:all`
+   - This creates 3 zip files with the new version number
+
+4. **Generate store listings**:
+   - Create `docs/development/store-listings/chrome-web-store-v{VERSION}.txt`
+   - Create `docs/development/store-listings/firefox-addons-v{VERSION}.txt`
+   - Use previous version's listings as templates
+   - Update the "What's New" section based on the changes found in step 1
+   - Keep as plain text format (emojis allowed, no Markdown)
+
+5. **Confirm completion**:
+   - List the generated zip files and their sizes
+   - List the store listing files created
+   - Summarize what changed in this version
+
+## Quick Release Steps
+
+### 1. Update Version Numbers
+
+Update the version in **two files**:
+
+1. **`package.json`** - Change the `"version"` field:
+   ```json
+   "version": "1.1.2"
+   ```
+
+2. **`manifests/manifest.base.json`** - Change the `"version"` field:
+   ```json
+   "version": "1.1.2"
+   ```
+
+### 2. Build and Package Everything
+
+Run a single command that does everything:
 
 ```bash
-pnpm build
-```
-
-This builds both Chrome and Firefox versions.
-
-### 2. Run Final Validation
-
-```bash
-pnpm validate
-```
-
-### 3. Package Extensions
-
-```bash
-# Package all with version numbers
 pnpm package:all
 ```
 
-**Output files in `dist/`:**
-- `ai-chat-exporter-chrome-v{VERSION}.zip` - Chrome extension
-- `ai-chat-exporter-firefox-v{VERSION}.zip` - Firefox extension
-- `ai-chat-exporter-source-v{VERSION}.zip` - Source code for Firefox review
+This command automatically:
+- Builds both Chrome and Firefox extensions
+- Creates all 3 zip packages
+- Adds version numbers to filenames
 
-**Note**: The version is automatically read from `package.json` and added to filenames.
+**Output files in `dist/`:**
+- `ai-chat-exporter-chrome-v{VERSION}.zip` - Chrome extension (for Chrome Web Store)
+- `ai-chat-exporter-firefox-v{VERSION}.zip` - Firefox extension (for Firefox Add-ons)
+- `ai-chat-exporter-source-v{VERSION}.zip` - Source code (required for Firefox Add-ons review)
+
+### 3. Create Store Listing Files
+
+Create new listing files in `docs/development/store-listings/`:
+
+1. **Chrome Web Store listing**: `chrome-web-store-v{VERSION}.txt`
+   - Use previous version as template
+   - Update the "What's New" section with changes
+   - Keep format as plain text (emojis allowed)
+
+2. **Firefox Add-ons listing**: `firefox-addons-v{VERSION}.txt`
+   - Use previous version as template
+   - Update the "What's New" section with changes
+   - Keep format as plain text (emojis allowed)
+
+**Note**: Store listings must be plain text format (.txt), not Markdown (.md)
+
+## Pre-Release Checklist
+
+Before running `pnpm package:all`:
+
+- [ ] All tests passing: `pnpm test:run`
+- [ ] Code validated: `pnpm validate`
+- [ ] Version bumped in both files:
+  - [ ] `package.json`
+  - [ ] `manifests/manifest.base.json`
+- [ ] All features documented
+- [ ] Store listing files created in `docs/development/store-listings/`
 
 ## Publishing to Chrome Web Store
 
 1. Go to [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devcenter/dashboard)
 2. Click on your extension (or "New Item" for first release)
 3. Upload `dist/ai-chat-exporter-chrome-v{VERSION}.zip`
-4. Update store listing from `docs/store-listings/chrome-web-store-v{VERSION}.md`
+4. Update store listing from `docs/development/store-listings/chrome-web-store-v{VERSION}.txt`
 5. Upload screenshots (3-5 recommended)
 6. Submit for review
 
@@ -60,7 +113,7 @@ pnpm package:all
 1. Go to [Firefox Add-on Developer Hub](https://addons.mozilla.org/developers/)
 2. Click "Submit a New Add-on" or update existing
 3. Upload `dist/ai-chat-exporter-firefox-v{VERSION}.zip`
-4. Fill in metadata from `docs/store-listings/firefox-addons-v{VERSION}.md`
+4. Fill in metadata from `docs/development/store-listings/firefox-addons-v{VERSION}.txt`
 5. Upload screenshots (3-5 recommended)
 
 ### Step 2: Upload Source Code
@@ -132,12 +185,17 @@ If Firefox rejects source code:
 - Chrome Web Store listing must be under 132 characters for short description
 - Firefox requires `data_collection_permissions` in manifest
 - Both stores require clear privacy policy if data is collected
+- **Store listing files must be plain text (.txt), not Markdown (.md)** - emojis are allowed
 
 ## Quick Reference Commands
 
 ```bash
-# Complete release flow
-pnpm validate && pnpm build && pnpm package:all
+# 1. Update version in package.json and manifests/manifest.base.json
+# 2. Build and package everything
+pnpm package:all
+
+# 3. Optional: Validate before packaging
+pnpm validate && pnpm package:all
 
 # Git tag
 VERSION=$(node -p "require('./package.json').version")
