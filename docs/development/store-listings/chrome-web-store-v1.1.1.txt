@@ -1,0 +1,180 @@
+Chrome Web Store Listing - v1.1.1
+
+========================================
+EXTENSION NAME
+========================================
+
+AI Chat Exporter and Printer
+
+========================================
+SHORT DESCRIPTION (132 characters max)
+========================================
+
+Export and print ChatGPT, Claude, and Gemini conversations to PDF, Markdown, HTML, DOCX, JSON, and TXT with advanced formatting.
+
+========================================
+DETAILED DESCRIPTION
+========================================
+
+Export your AI conversations with professional formatting - AI Chat Exporter makes it easy to save and share your conversations with ChatGPT, Claude, and Gemini in multiple formats.
+
+✨ What's New in v1.1.1
+
+Right-Click Context Menu:
+
+• Quick Export Access - Right-click anywhere on the page to export directly to multiple formats
+• Quick Print Access - Right-click to print conversations in any format with a single click
+• Hierarchical Menus - Organized Export and Print menus with format submenus for easy access
+• Faster Workflow - No need to open the extension popup for common export and print operations
+
+🎯 Key Features
+
+Multiple Export Formats:
+
+• PDF - Professional documents with proper pagination and formatting
+• Markdown - Clean, readable text with full formatting support
+• HTML - Standalone web pages with beautiful styling
+• DOCX - Microsoft Word documents with proper structure
+• JSON - Structured data for programmatic access
+• TXT - Plain text for maximum compatibility
+
+Smart Selection:
+
+• Export entire conversations or select specific messages
+• Interactive selection mode with visual feedback
+• Batch export multiple conversations
+
+Multiple Access Methods:
+
+• Extension toolbar icon with popup interface
+• In-page export buttons
+• Right-click context menus for quick access ⚡ NEW!
+• Keyboard shortcuts (Ctrl+Shift+E / Cmd+Shift+E)
+
+Print Support:
+
+• Direct printing with optimized layouts
+• Page break control
+• Print-friendly formatting
+• Quick access via context menu ⚡ NEW!
+
+Rich Content Preservation:
+
+• Code blocks with syntax highlighting
+• Mathematical formulas and equations
+• Images and visual content
+• Tables and lists
+• Web citations and references (ChatGPT)
+• File attachments (Claude Projects)
+• Code artifacts (ChatGPT)
+
+Multi-Language Support:
+
+• English, Spanish, French, German, Italian, Portuguese, Catalan
+• Automatic language detection
+• Localized user interface
+
+🌐 Supported Platforms
+
+• ChatGPT (chat.openai.com, chatgpt.com) - Including code artifacts and web search results
+• Claude (claude.ai) - Including artifacts and project files
+• Gemini (gemini.google.com) - Soon!
+
+🔒 Privacy & Security
+
+• 100% Local Processing - All data processing happens in your browser
+• No Data Collection - We never see or store your conversations
+• No External Servers - No data leaves your computer
+• Open Source - Full transparency with public source code
+
+📋 How to Use
+
+Method 1: Extension Popup
+1. Open any supported AI chat platform
+2. Click the extension icon in your toolbar
+3. Choose your export format
+4. Select which messages to export (or export all)
+5. Download your formatted conversation
+
+Method 2: Right-Click Menu ⚡ NEW!
+1. Open any supported AI chat platform
+2. Right-click anywhere on the page
+3. Select "Export" or "Print" from the context menu
+4. Choose your desired format
+5. Your conversation is instantly exported or printed
+
+Method 3: Keyboard Shortcut
+• Press Ctrl+Shift+E (Windows/Linux) or Cmd+Shift+E (Mac) to open the export dialog
+
+🎨 Professional Output
+
+All exports include:
+
+• Conversation title and metadata
+• Timestamps for each message
+• Proper formatting and structure
+• Code syntax highlighting
+• Preserved images and attachments
+• Web search results and citations
+
+🚀 Perfect For
+
+• Developers - Save code examples and technical discussions
+• Researchers - Archive research conversations with citations
+• Students - Keep learning materials and study notes
+• Content Creators - Export content for blogs and articles
+• Teams - Share conversations and knowledge
+• Documentation - Create guides and tutorials
+
+🆓 Completely Free
+
+No subscriptions, no hidden costs, no limitations. All features are available to everyone.
+
+💡 Support & Feedback
+
+Having issues or suggestions? Visit our GitHub repository (https://github.com/ivansaul/ai-chat-exporter) to report bugs or request features.
+
+📝 Version History
+
+v1.1.1 - Added right-click context menus for quick export and print access
+v1.1.0 - Enhanced ChatGPT support with code artifacts, web citations, and improved formatting
+v1.0.0 - Initial release with multi-format export support
+
+========================================
+CATEGORY
+========================================
+
+Productivity
+
+========================================
+PRIVACY POLICY
+========================================
+
+This extension does not collect, store, or transmit any user data. All processing happens locally in your browser. For more details, see: https://github.com/ivansaul/ai-chat-exporter/blob/main/docs/PRIVACY.md
+
+========================================
+PERMISSIONS JUSTIFICATION
+========================================
+
+• activeTab: Required to access the conversation content on ChatGPT, Claude, and Gemini pages
+• storage: Used to save user preferences (language, default format) locally in your browser
+• contextMenus: Provides right-click menu options for quick export and print access
+
+========================================
+SCREENSHOTS
+========================================
+
+1. Main export interface with format selection
+2. Right-click context menu showing Export and Print options ⚡ NEW!
+3. Selection mode showing message picker
+4. PDF export example with professional formatting
+5. Markdown export with code highlighting
+6. ChatGPT code artifacts in exported document
+7. Web search citations in export
+8. Multi-language support interface
+
+========================================
+TAGS
+========================================
+
+chatgpt, claude, gemini, ai, export, pdf, markdown, conversation, chat, download, print, save, backup, archive, productivity
