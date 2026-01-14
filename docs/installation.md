@@ -1,3 +1,11 @@
+---
+name: installation
+description: How to install AI Chat Exporter on Chrome and Firefox
+metadata:
+  category: user
+  audience: end-users
+---
+
 # Installation Guide
 
 This guide will help you install the AI Chat Exporter extension on Chrome or Firefox.
