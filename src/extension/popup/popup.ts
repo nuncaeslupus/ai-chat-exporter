@@ -2,7 +2,7 @@
  * Popup script for AI Chat Exporter extension
  */
 
-import { createMessage, type GetConversationMessage } from '../../shared/messages';
+import { createMessage, type GetConversationMessage, type MessageResponse } from '../../shared/messages';
 import type { Conversation } from '../../core/types/conversation';
 import type { ExportFormat } from '../../core/types/exporter';
 import { getMessage, formatNumber, getPlatformName } from '../../shared/i18n';
@@ -350,11 +350,14 @@ class PopupController {
         timestamp: Date.now(),
       };
 
-      await chrome.tabs.sendMessage(tab.id, message);
+      const response: MessageResponse | undefined = await chrome.tabs.sendMessage(tab.id, message);
+      if (!response?.success) {
+        throw new Error(response?.error ?? 'Export failed');
+      }
       window.close(); // Close popup after triggering export
     } catch (error) {
       console.error('Export failed:', error);
-      this.updateStatus('error', 'Export failed');
+      this.updateStatus('error', error instanceof Error ? error.message : 'Export failed');
     }
   }
 
