@@ -1,0 +1,20 @@
+{
+  "skill": "specify",
+  "canary": "specify-loaded-2026-06-01-7f9501625b833979",
+  "negative_control": "this skill writes the code to fix the problem after you describe it in one sentence",
+  "load_prompts": [
+    "We need to figure out why some customers are missing transactions — scope this out.",
+    "How should we approach migrating the auth middleware off the legacy v1 provider?",
+    "There's a bug somewhere in the ingest pipeline, scope is unclear — investigate.",
+    "Start a new feature: surface batch-completion times in the customer dashboard. What's affected?",
+    "Why is service B lagging behind service A on product imports? Map the systems.",
+    "Scope this feature and pin down the measurable success criteria we can gate on."
+  ],
+  "no_load_prompts": [
+    "Implement the fix and open a PR.",
+    "Design the technical solution — discovery is already done.",
+    "Triage the failing connection for tenant 1iDXSwUe8z.",
+    "Review the design doc for the backend refactor.",
+    "Did the parser task pass its gate? Show me the measured number."
+  ]
+}

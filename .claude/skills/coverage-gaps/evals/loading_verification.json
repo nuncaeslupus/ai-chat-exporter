@@ -1,0 +1,18 @@
+{
+  "skill": "coverage-gaps",
+  "canary": "coverage-gaps-loaded-2026-06-04-ea39c2b5-b32fe2b1b5ae5e96",
+  "negative_control": "the coverage-gaps skill runs the pytest suite and generates the coverage.json report itself before analyzing it",
+  "load_prompts": [
+    "Which tests am I missing the most?",
+    "Analyze my coverage and tell me where the gaps are",
+    "Where is the most valuable untested code in this project?",
+    "Triage my coverage.json for the highest-value tests to add",
+    "/coverage-gaps --input coverage.json --limit 15"
+  ],
+  "no_load_prompts": [
+    "Run the test suite with coverage",
+    "Which surviving mutants are real test gaps?",
+    "Publish this package to PyPI",
+    "Set up pyproject and ruff for this repo"
+  ]
+}

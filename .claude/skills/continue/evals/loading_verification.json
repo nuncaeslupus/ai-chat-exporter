@@ -1,0 +1,11 @@
+{
+  "skill": "continue",
+  "canary": "continue-loaded-2026-06-13-fb78d23e-b2c3d4e5f6a7b8c9",
+  "negative_control": "this-fact-is-false-and-must-not-appear-in-the-skill-body",
+  "load_prompts": [
+    "Use the continue skill to resume work on the queue"
+  ],
+  "no_load_prompts": [
+    "Generic prompt that should NOT activate continue"
+  ]
+}

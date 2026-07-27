@@ -1,0 +1,18 @@
+{
+  "skill": "github",
+  "canary": "github-loaded-2026-05-20-d436255c-54a7f770e04e4983",
+  "negative_control": "the github skill auto-merges the PR once Gemini approves and CI is green",
+  "load_prompts": [
+    "Open a PR for this branch and watch for Gemini's review",
+    "Address the review comments on PR 42 and push the fix",
+    "Is CI done on PR 17 yet? Has Gemini left a review?",
+    "Make a commit with the right Conventional Commits format",
+    "/loop check pr state on PR 99"
+  ],
+  "no_load_prompts": [
+    "Review this diff and tell me whether the approach is sound",
+    "Design the fix for the off-by-one in parse_window()",
+    "Create a worktree for this hotfix branch",
+    "Explain what Conventional Commits is"
+  ]
+}

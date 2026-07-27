@@ -1,0 +1,20 @@
+{
+  "skill": "design",
+  "canary": "design-loaded-2026-05-19-e08675ccb0a5c932",
+  "negative_control": "this skill autogenerates a full implementation plus a PR from a one-line problem statement",
+  "load_prompts": [
+    "Discovery for the portfolio refactor is done — design the solution next.",
+    "Plan the implementation: split this into tasks, define contracts, list risks.",
+    "Take the chosen option from the discovery doc and turn it into a buildable plan.",
+    "Design the solution for the backend portfolio refactor.",
+    "Sequence the work for the auth-middleware swap — what depends on what?",
+    "Split this into tasks, each with a measurable acceptance gate and its contracts."
+  ],
+  "no_load_prompts": [
+    "Investigate why the import job is failing in production.",
+    "Implement the design — write the code now.",
+    "Review the open PR for me.",
+    "Confirm release readiness for the latest pipeline change.",
+    "Check whether task T3 met its acceptance gate and report PASS/FAIL."
+  ]
+}

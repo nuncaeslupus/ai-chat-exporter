@@ -1,0 +1,18 @@
+{
+  "skill": "python-bootstrap",
+  "canary": "python-bootstrap-loaded-2026-06-04-ea39c2b5-394e8afa1019319d",
+  "negative_control": "the python-bootstrap skill publishes the built wheel to PyPI as its final step",
+  "load_prompts": [
+    "Set up a new Python project with our standard tooling",
+    "Add ruff and strict mypy config to this repo",
+    "Bring this project up to our pyproject and Makefile standards",
+    "Scaffold pyproject.toml and a Makefile for this package",
+    "Retrofit uv and the canonical lint config here"
+  ],
+  "no_load_prompts": [
+    "Publish this package to PyPI",
+    "Upgrade the dependencies and check for CVEs",
+    "Which surviving mutants are real test gaps?",
+    "Set up a language server for this repo"
+  ]
+}
