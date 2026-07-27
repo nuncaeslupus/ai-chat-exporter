@@ -426,19 +426,19 @@ export class HtmlExporter extends BaseExporter {
         }
 
         .assistant-message .message-role {
-            color: #6b7280;
+            color: #686f7d;
         }
 
         .assistant-message[data-platform="chatgpt"] .message-role {
-            color: #10a37f;
+            color: #0c7e62;
         }
 
         .assistant-message[data-platform="claude"] .message-role {
-            color: #cc7b58;
+            color: #ab5834;
         }
 
         .assistant-message[data-platform="gemini"] .message-role {
-            color: #4285f4;
+            color: #1165f1;
         }
 
         .message-content > *:first-child {
@@ -516,7 +516,7 @@ export class HtmlExporter extends BaseExporter {
             border-left: 4px solid #d1d5db;
             padding-left: 1rem;
             margin: 1rem 0;
-            color: #6b7280;
+            color: #686f7d;
             font-style: italic;
         }
 
@@ -646,7 +646,7 @@ export class HtmlExporter extends BaseExporter {
 
         .search-count {
             font-size: 0.875rem;
-            color: #6b7280;
+            color: #686f7d;
             margin-bottom: 0.75rem;
         }
 
@@ -716,7 +716,7 @@ export class HtmlExporter extends BaseExporter {
             padding: 1.5rem;
             text-align: center;
             font-size: 0.875rem;
-            color: #9ca3af;
+            color: #6a7383;
         }
 
         @media (max-width: 640px) {
