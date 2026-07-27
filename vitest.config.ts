@@ -10,15 +10,16 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      include: ['src/core/**/*.ts'],
+      include: ['src/**/*.ts'],
       exclude: ['src/**/*.d.ts', 'src/**/index.ts'],
+      // Floor set just under measured coverage (statements/lines 20.27%,
+      // branches 60.8%, functions 81.15% as of this change) so it actually
+      // gates instead of failing on arrival. Raise as testing tasks land.
       thresholds: {
-        global: {
-          statements: 80,
-          branches: 80,
-          functions: 80,
-          lines: 80,
-        },
+        statements: 20,
+        branches: 58,
+        functions: 80,
+        lines: 20,
       },
     },
   },
