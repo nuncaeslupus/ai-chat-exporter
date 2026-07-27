@@ -120,7 +120,7 @@ Productivity
 
 Privacy Policy
 
-This extension does not collect, store, or transmit any user data. All processing happens locally in your browser. For more details, see: https://github.com/ivansaul/ai-chat-exporter/blob/main/docs/PRIVACY.md
+This extension does not collect, store, or transmit any user data. All processing happens locally in your browser. For more details, see: https://github.com/nuncaeslupus/ai-chat-exporter/blob/main/docs/PRIVACY.md
 
 Permissions Justification
 

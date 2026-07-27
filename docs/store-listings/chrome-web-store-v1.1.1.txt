@@ -10,13 +10,13 @@ AI Chat Exporter and Printer
 SHORT DESCRIPTION (132 characters max)
 ========================================
 
-Export and print ChatGPT, Claude, and Gemini conversations to PDF, Markdown, Word and other formats with advanced formatting.
+Export and print ChatGPT and Claude conversations to PDF, Markdown, Word and other formats with advanced formatting.
 
 ========================================
 DETAILED DESCRIPTION
 ========================================
 
-Export your AI conversations with professional formatting - AI Chat Exporter makes it easy to save and share your conversations with ChatGPT, Claude, and Gemini in multiple formats.
+Export your AI conversations with professional formatting - AI Chat Exporter makes it easy to save and share your conversations with ChatGPT and Claude in multiple formats. Gemini support is coming soon.
 
 ✨ What's New in v1.1.1
 
@@ -80,9 +80,9 @@ Multi-Language Support:
 
 🔒 Privacy & Security
 
-• 100% Local Processing - All data processing happens in your browser
-• No Data Collection - We never see or store your conversations
-• No External Servers - No data leaves your computer
+• Local Processing - Export formatting happens in your browser
+• No Data Collection - We never see, store, or receive your conversations
+• Limited Network Use - The extension contacts claude.ai (with your own session) to fetch Claude conversation data, and Google's favicon service to show icons for ChatGPT web search citations. See our Privacy Policy for details.
 • Open Source - Full transparency with public source code
 
 📋 How to Use
@@ -148,13 +148,13 @@ Productivity
 PRIVACY POLICY
 ========================================
 
-This extension does not collect, store, or transmit any user data. All processing happens locally in your browser. For more details, see: https://github.com/ivansaul/ai-chat-exporter/blob/main/docs/PRIVACY.md
+We never collect, store, or receive your conversations. Export formatting happens locally in your browser; the extension does contact claude.ai and Google's favicon service for the reasons described in our Privacy Policy: https://github.com/nuncaeslupus/ai-chat-exporter/blob/main/docs/PRIVACY.md
 
 ========================================
 PERMISSIONS JUSTIFICATION
 ========================================
 
-• activeTab: Required to access the conversation content on ChatGPT, Claude, and Gemini pages
+• activeTab: Required to access the conversation content on ChatGPT and Claude pages
 • storage: Used to save user preferences (language, default format) locally in your browser
 • contextMenus: Provides right-click menu options for quick export and print access
 
