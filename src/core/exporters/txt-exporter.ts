@@ -27,12 +27,15 @@ export class TextExporter extends BaseExporter {
    */
   async export(
     conversation: Conversation,
-    _selectedPairs: QAPair[],
+    selectedPairs: QAPair[],
     options: ExportOptions
   ): Promise<ExportResult> {
     try {
-      // Convert to structured format
-      const structured = ConversationStructureService.toStructured(conversation);
+      // Convert to structured format (only the selected pairs)
+      const structured = ConversationStructureService.toStructured({
+        ...conversation,
+        pairs: selectedPairs,
+      });
       const content = this.generateText(structured, options);
       return this.createSuccessResult(content, options.filename);
     } catch (error) {
