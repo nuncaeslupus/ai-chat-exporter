@@ -15,11 +15,17 @@ export default defineConfig({
       // Floor set just under measured coverage (statements/lines 20.27%,
       // branches 60.8%, functions 81.15% as of this change) so it actually
       // gates instead of failing on arrival. Raise as testing tasks land.
+      // Floors are set just under the measured value on main and ratcheted up as
+      // tests land. Re-measure before raising: because coverage only counts files
+      // the suite actually imports, adding a test file can *lower* a percentage by
+      // pulling more uncovered source into the denominator.
+      // Measured on main at 2026-07-28: statements 41.99, branches 59.59,
+      // functions 75.00, lines 41.99.
       thresholds: {
-        statements: 20,
+        statements: 40,
         branches: 58,
-        functions: 80,
-        lines: 20,
+        functions: 73,
+        lines: 40,
       },
     },
   },
