@@ -2,6 +2,8 @@
  * Test utilities for exporters
  */
 
+import type { QAPair } from '../../src/core/types';
+
 /**
  * Convert a Blob to text for testing purposes
  * Works with both browser Blob and Node.js Buffer-based blobs
@@ -64,7 +66,7 @@ export function createTestQAPair(
 /**
  * Create a test conversation
  */
-export function createTestConversation(pairs: ReturnType<typeof createTestQAPair>[]) {
+export function createTestConversation(pairs: QAPair[]) {
   return {
     id: 'test-conversation',
     title: 'Test Conversation',
