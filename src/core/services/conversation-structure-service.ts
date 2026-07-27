@@ -8,6 +8,9 @@ import type {
   StructuredConversation,
   StructuredQAPair,
   StructuredMessage,
+  StructuredContentBlock,
+  Artifact,
+  WebSearchResult,
 } from '../types';
 import { HtmlContentParser } from './html-content-parser';
 
@@ -44,19 +47,8 @@ export class ConversationStructureService {
    * Convert a message to structured format
    */
   private static convertMessage(message: any): StructuredMessage {
-    // Check if message has special content (web searches, artifacts) that need markers
-    const hasSpecialContent = message.metadata?.webSearches || message.metadata?.artifacts;
-
-    // If message has web searches or artifacts, use plain content (which includes markers like [Web Search:])
-    // Otherwise, parse HTML content for rich formatting if available
-    const blocks = hasSpecialContent
-      ? [
-          {
-            type: 'paragraph' as const,
-            content: [{ type: 'text' as const, text: message.content }],
-          },
-        ]
-      : message.htmlContent
+    // Parse HTML content for rich formatting when available; fall back to plain text.
+    const blocks: StructuredContentBlock[] = message.htmlContent
       ? HtmlContentParser.parse(message.htmlContent)
       : [
           {
@@ -64,6 +56,33 @@ export class ConversationStructureService {
             content: [{ type: 'text' as const, text: message.content }],
           },
         ];
+
+    // Web searches and artifacts don't live in htmlContent (they're rendered from
+    // separate DOM elements), so append them as marker paragraphs rather than
+    // letting them replace the parsed rich content.
+    const webSearches: WebSearchResult[] | undefined = message.metadata?.webSearches;
+    if (Array.isArray(webSearches)) {
+      for (const search of webSearches) {
+        blocks.push({
+          type: 'paragraph' as const,
+          content: [{ type: 'text' as const, text: `[Web Search: ${search.query}]` }],
+        });
+      }
+    }
+    const artifacts: Artifact[] | undefined = message.metadata?.artifacts;
+    if (Array.isArray(artifacts)) {
+      for (const artifact of artifacts) {
+        blocks.push({
+          type: 'paragraph' as const,
+          content: [
+            {
+              type: 'text' as const,
+              text: `[${artifact.typeLabel ?? artifact.type}: ${artifact.title}]`,
+            },
+          ],
+        });
+      }
+    }
 
     // Add images from metadata if present
     if (message.metadata?.images && Array.isArray(message.metadata.images)) {
