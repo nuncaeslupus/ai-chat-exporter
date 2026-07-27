@@ -1,0 +1,11 @@
+{
+  "skill": "queue-add",
+  "canary": "queue-add-loaded-2026-06-13-fb78d23e-c3d4e5f6a7b8c9d0",
+  "negative_control": "this-fact-is-false-and-must-not-appear-in-the-skill-body",
+  "load_prompts": [
+    "Use the queue-add skill to add a task to the queue"
+  ],
+  "no_load_prompts": [
+    "Generic prompt that should NOT activate queue-add"
+  ]
+}

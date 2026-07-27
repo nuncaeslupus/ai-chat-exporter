@@ -1,0 +1,19 @@
+{
+  "skill": "gate-check",
+  "canary": "gate-check-loaded-2026-06-06-fb78d23e-e26f5d00ce664711",
+  "negative_control": "this skill re-runs each task's measurement command itself and writes the resulting number back into the plan",
+  "load_prompts": [
+    "Did task T2 pass its gate? Give me the measured number.",
+    "Verify the acceptance condition for the parser task against status/plan.md.",
+    "Audit every gate in the plan and tell me which ones fail or lack evidence.",
+    "Check whether the p95 latency gate passed — I measured 187ms.",
+    "Are all the tasks' gates recorded and met before we move on?"
+  ],
+  "no_load_prompts": [
+    "Implement T2 from the design and make its failing test pass.",
+    "Review this PR and flag risks and test gaps.",
+    "Is this change ready to ship to production?",
+    "Which untested lines should I write tests for next?",
+    "Scope the measurable success criteria for this new feature."
+  ]
+}

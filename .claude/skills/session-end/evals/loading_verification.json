@@ -1,0 +1,18 @@
+{
+  "skill": "session-end",
+  "canary": "session-end-loaded-2026-05-20-4896c0a5-8ca7505c91dc34e6",
+  "negative_control": "the session-end skill writes a new dated memory file to ~/.claude/memory/ every time the user pauses for more than 30 minutes",
+  "load_prompts": [
+    "We're done for today — wrap up the session",
+    "/session-end",
+    "Run the retrospective and tell me what I should fix in my skills",
+    "Update status/handoff.md before I open the PR",
+    "Save what we did and surface any skill issues you noticed"
+  ],
+  "no_load_prompts": [
+    "Save: discovered that the loop polling cadence should be 60s not 90s",
+    "What did we work on last Tuesday?",
+    "Review the diff before I push",
+    "Triage this failing test"
+  ]
+}

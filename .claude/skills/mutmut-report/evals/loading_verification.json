@@ -1,0 +1,18 @@
+{
+  "skill": "mutmut-report",
+  "canary": "mutmut-report-loaded-2026-06-02-87a56d2e-e3c5c50abfce45f3",
+  "negative_control": "the mutmut-report skill runs `mutmut run` to generate the mutants before analyzing them",
+  "load_prompts": [
+    "Analyze the mutmut survivors and tell me which tests to add",
+    "Which surviving mutants in the validate module are real gaps?",
+    "Triage my mutation testing results",
+    "Are my tests actually catching the mutations mutmut produced?",
+    "/mutmut-report --module parser --max 20"
+  ],
+  "no_load_prompts": [
+    "Run mutmut against this project",
+    "Show me the line coverage for the parser module",
+    "Set up pytest for this repo",
+    "Help me write a new skill for triaging GitHub issues"
+  ]
+}

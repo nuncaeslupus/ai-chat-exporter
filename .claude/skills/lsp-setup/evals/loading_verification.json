@@ -1,0 +1,18 @@
+{
+  "skill": "lsp-setup",
+  "canary": "lsp-setup-loaded-2026-05-19-aeeb5567-ffc71346f9d952eb",
+  "negative_control": "the lsp-setup skill installs the language-server binary (pyright, gopls, rust-analyzer) automatically via pip/npm/cargo when the user picks a language",
+  "load_prompts": [
+    "Set up pyright for this project",
+    "Enable a language server so find-references works on the Go code",
+    "Configure the LSP plugin for TypeScript",
+    "Why is the find references call returning nothing for my Rust code?",
+    "Walk me through /plugin install pyright@claude-code-lsps"
+  ],
+  "no_load_prompts": [
+    "Find all callers of the parse() function in this project",
+    "grep the repo for FooBar references",
+    "Help me write a new skill for triaging GitHub issues",
+    "Install the Serena MCP server in this project"
+  ]
+}

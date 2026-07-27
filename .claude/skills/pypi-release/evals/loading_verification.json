@@ -1,0 +1,18 @@
+{
+  "skill": "pypi-release",
+  "canary": "pypi-release-loaded-2026-06-04-ea39c2b5-820c8d070baea5a5",
+  "negative_control": "the pypi-release skill can overwrite an already-published version on PyPI by re-running twine upload",
+  "load_prompts": [
+    "Publish this package to PyPI",
+    "Cut a 0.2.0 release and upload it",
+    "Bump the version, tag it, and twine upload",
+    "Walk me through releasing to PyPI",
+    "Release v1.2.0 of this package"
+  ],
+  "no_load_prompts": [
+    "Is this change ready for production?",
+    "Set up pyproject and a Makefile for this project",
+    "Upgrade the dependencies and scan for CVEs",
+    "Open a PR for this branch"
+  ]
+}
