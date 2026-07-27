@@ -434,13 +434,17 @@ describe('ChatGPT Parser - Web Citations', () => {
     expect(githubResult?.domain).toBe('github.com');
   });
 
-  it('generates favicon URLs for citations', () => {
+  it('does not generate third-party favicon URLs for citations', () => {
+    // Fetching favicons from Google at export/view time would leak the
+    // cited domains (and referring context) to a third party every time
+    // the exported file is opened. Citations must not carry a favicon URL.
     const result = parser.parse();
     const webSearches = result.conversation?.pairs[0]?.answer.metadata?.webSearches;
     const results = webSearches?.[0]?.results;
-    const firstResult = results?.[0];
-    expect(firstResult?.favicon).toContain('google.com/s2/favicons');
-    expect(firstResult?.favicon).toContain('domain=');
+    expect(results?.length).toBeGreaterThan(0);
+    for (const citationResult of results ?? []) {
+      expect(citationResult.favicon).toBeUndefined();
+    }
   });
 
   it('sets result count correctly', () => {
