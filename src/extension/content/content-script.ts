@@ -11,6 +11,7 @@ import { StorageService } from '../../shared/storage';
 import type { Conversation, ExportFormat } from '../../core/types';
 import { marked } from 'marked';
 import hljs from 'highlight.js';
+import { sanitizeHtml } from '../../core/utils/sanitize-html';
 
 /**
  * Main content script controller
@@ -560,7 +561,7 @@ class ContentScript {
 </head>
 <body>
   <div class="markdown-body">
-${htmlContent}
+${sanitizeHtml(htmlContent)}
   </div>
 </body>
 </html>`;
