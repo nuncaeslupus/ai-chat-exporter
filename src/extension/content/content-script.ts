@@ -338,19 +338,17 @@ class ContentScript {
    */
   private async renderMarkdownToCleanHtml(markdown: string, title: string): Promise<string> {
     // Configure marked for GitHub Flavored Markdown with syntax highlighting
-    marked.setOptions({
-      gfm: true,
-      breaks: false,
-      highlight: function(code, lang) {
-        if (lang && hljs.getLanguage(lang)) {
-          try {
-            return hljs.highlight(code, { language: lang }).value;
-          } catch (err) {
-            console.error('Highlight.js error:', err);
-          }
-        }
-        return hljs.highlightAuto(code).value;
-      }
+    marked.setOptions({ gfm: true, breaks: false });
+    marked.use({
+      renderer: {
+        code({ text, lang }) {
+          const language = lang && hljs.getLanguage(lang) ? lang : null;
+          const highlighted = language
+            ? hljs.highlight(text, { language }).value
+            : hljs.highlightAuto(text).value;
+          return `<pre><code class="hljs language-${language ?? 'plaintext'}">${highlighted}</code></pre>`;
+        },
+      },
     });
 
     // Parse markdown to HTML

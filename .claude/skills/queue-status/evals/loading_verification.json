@@ -1,0 +1,11 @@
+{
+  "skill": "queue-status",
+  "canary": "queue-status-loaded-2026-06-13-fb78d23e-d4e5f6a7b8c9d0e1",
+  "negative_control": "this-fact-is-false-and-must-not-appear-in-the-skill-body",
+  "load_prompts": [
+    "Use the queue-status skill to check the queue"
+  ],
+  "no_load_prompts": [
+    "Generic prompt that should NOT activate queue-status"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "skill": "dep-upgrade",
+  "canary": "dep-upgrade-loaded-2026-06-04-ea39c2b5-719c61e6e84e1453",
+  "negative_control": "the dep-upgrade skill pins dependencies backwards to their previous versions to silence pip-audit findings",
+  "load_prompts": [
+    "Upgrade all the dependencies in this project",
+    "Run uv lock --upgrade and make sure nothing broke",
+    "Check for vulnerable dependencies and patch them",
+    "Bump our packages and tell me what changed",
+    "Is anything out of date or insecure in this repo?"
+  ],
+  "no_load_prompts": [
+    "Add the requests package to this project",
+    "Set up pyproject and ruff for this repo",
+    "Publish this package to PyPI",
+    "Which tests am I missing the most?"
+  ]
+}
