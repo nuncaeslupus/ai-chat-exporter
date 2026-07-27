@@ -17,7 +17,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
-      - run: pnpm test:run
+      - run: pnpm test:coverage
       - run: pnpm build
       # pnpm lint is not gated yet: the config is strictTypeChecked and had never
       # run, so it reports 1151 pre-existing errors. See queue task for the cleanup.
