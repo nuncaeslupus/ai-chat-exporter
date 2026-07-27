@@ -13,6 +13,33 @@ import type {
 import { BaseParser } from '../base-parser';
 import { CLAUDE_SELECTORS, isClaudeUrl } from './selectors';
 
+// content-script.ts creates a fresh ClaudeParser per parse() call (see
+// detectParser()), so an instance-level cache would never hit. This module
+// stays loaded for the lifetime of the content script, so a module-level
+// cache survives across parser instances and avoids re-encoding the same
+// image on every export_conversation / print_conversation / get_conversation
+// message. Bounded (not a plain unbounded Map) so a long chat page with many
+// distinct images can't grow this without limit; oldest entries are evicted
+// first once the cap is hit.
+// ponytail: FIFO eviction via Map insertion order, not true LRU — good enough
+// for a bound, upgrade to LRU only if eviction order turns out to matter.
+const IMAGE_DATA_URL_CACHE_MAX_SIZE = 200;
+const imageDataUrlCache = new Map<string, string>();
+
+function getCachedImageDataUrl(src: string): string | undefined {
+  return imageDataUrlCache.get(src);
+}
+
+function setCachedImageDataUrl(src: string, dataUrl: string): void {
+  if (imageDataUrlCache.size >= IMAGE_DATA_URL_CACHE_MAX_SIZE) {
+    const oldestKey = imageDataUrlCache.keys().next().value;
+    if (oldestKey !== undefined) {
+      imageDataUrlCache.delete(oldestKey);
+    }
+  }
+  imageDataUrlCache.set(src, dataUrl);
+}
+
 /**
  * Parser for Claude conversations
  */
@@ -274,6 +301,13 @@ export class ClaudeParser extends BaseParser {
       return originalSrc;
     }
 
+    // Same image src encoded before (possibly by a prior ClaudeParser
+    // instance) — reuse it instead of re-running the canvas encode.
+    const cached = getCachedImageDataUrl(originalSrc);
+    if (cached) {
+      return cached;
+    }
+
     // For blob URLs or regular URLs, try to draw to canvas and get data URL
     try {
       const canvas = this.document.createElement('canvas');
@@ -291,7 +325,9 @@ export class ClaudeParser extends BaseParser {
       ctx.drawImage(imgElement, 0, 0);
 
       // Convert to data URL
-      return canvas.toDataURL('image/png');
+      const dataUrl = canvas.toDataURL('image/png');
+      setCachedImageDataUrl(originalSrc, dataUrl);
+      return dataUrl;
     } catch (error) {
       // If conversion fails (CORS, etc.), return original src
       console.warn('[Claude Parser] Could not convert image to data URL:', error);
