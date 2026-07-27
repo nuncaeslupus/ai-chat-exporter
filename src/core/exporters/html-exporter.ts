@@ -17,6 +17,7 @@ import type {
 } from '../types';
 import { BaseExporter } from './base-exporter';
 import { ConversationStructureService } from '../services';
+import { getMessage, getUILanguage } from '../../shared/i18n';
 
 export class HtmlExporter extends BaseExporter {
   readonly format: ExportFormat = 'html';
@@ -51,7 +52,7 @@ export class HtmlExporter extends BaseExporter {
     const url = this.escapeHtml(conversation.url);
 
     return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${this.escapeHtml(getUILanguage())}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -71,7 +72,7 @@ export class HtmlExporter extends BaseExporter {
         </main>
 
         <footer class="footer">
-            <p>Exported with AI Chat Exporter</p>
+            <p>${getMessage('exportedWithChatExporter')}</p>
         </footer>
     </div>
 </body>
@@ -82,33 +83,33 @@ export class HtmlExporter extends BaseExporter {
     return `
             <div class="metadata">
                 <div class="metadata-item">
-                    <span class="metadata-label">Platform:</span>
+                    <span class="metadata-label">${this.getMetadataLabel('platform')}:</span>
                     <span class="metadata-value">${platform}</span>
                 </div>
                 ${model ? `
                 <div class="metadata-item">
-                    <span class="metadata-label">Model:</span>
+                    <span class="metadata-label">${this.getMetadataLabel('model')}:</span>
                     <span class="metadata-value">${model}</span>
                 </div>` : ''}
                 <div class="metadata-item">
-                    <span class="metadata-label">Exported:</span>
+                    <span class="metadata-label">${this.getMetadataLabel('exported')}:</span>
                     <span class="metadata-value">${date}</span>
                 </div>
                 <div class="metadata-item">
-                    <span class="metadata-label">URL:</span>
+                    <span class="metadata-label">${this.getMetadataLabel('url')}:</span>
                     <span class="metadata-value"><a href="${url}" target="_blank">${url}</a></span>
                 </div>
             </div>`;
   }
 
   private generatePairs(pairs: any[], platform: string): string {
-    const assistantName = this.getAssistantName(platform);
+    const assistantName = this.getRoleName('assistant', platform);
 
     return pairs.map(pair => `
             <div class="qa-pair">
                 <div class="message user-message">
                     <div class="message-header">
-                        <span class="message-role">User</span>
+                        <span class="message-role">${this.getRoleName('user')}</span>
                     </div>
                     <div class="message-content">
                         ${this.renderBlocks(pair.question.blocks)}
@@ -882,13 +883,4 @@ export class HtmlExporter extends BaseExporter {
     </script>`;
   }
 
-  private getAssistantName(platform: string): string {
-    const platformNames: Record<string, string> = {
-      chatgpt: 'ChatGPT',
-      claude: 'Claude',
-      gemini: 'Gemini',
-    };
-
-    return platformNames[platform] || 'Assistant';
-  }
 }
