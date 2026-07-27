@@ -3,7 +3,8 @@
  * Handles background tasks and extension lifecycle events
  */
 
-import { EXTENSION_NAME } from '../../shared/constants';
+import { EXTENSION_NAME, DEFAULT_PREFERENCES } from '../../shared/constants';
+import { StorageService } from '../../shared/storage';
 
 /**
  * Extension installation handler
@@ -290,13 +291,22 @@ chrome.commands.onCommand.addListener((command) => {
 
   if (command === 'export-conversation') {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const activeTab = tabs[0];
-      if (activeTab?.id) {
-        chrome.tabs.sendMessage(activeTab.id, {
-          type: 'show_export_dialog',
-          timestamp: Date.now(),
-        });
+      const tabId = tabs[0]?.id;
+      if (!tabId) {
+        return;
       }
+      // No dialog exists to ask which format to use, so export in the last
+      // format the user picked (same format the content script persists
+      // after every export), falling back to the configured default.
+      StorageService.getLastExportFormat()
+        .then((format) => chrome.tabs.sendMessage(tabId, {
+          type: 'export_conversation',
+          format: format ?? DEFAULT_PREFERENCES.defaultFormat,
+          timestamp: Date.now(),
+        }))
+        .catch((error: unknown) => {
+          console.error(`[${EXTENSION_NAME}] Failed to send export command:`, error);
+        });
     });
   }
 });
