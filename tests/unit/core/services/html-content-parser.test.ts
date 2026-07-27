@@ -21,7 +21,7 @@ describe('HtmlContentParser', () => {
     it('treats pure inline content as a single paragraph', () => {
       const blocks = HtmlContentParser.parse('Hello world');
       expect(blocks).toHaveLength(1);
-      expect(blocks[0].type).toBe('paragraph');
+      expect(blocks[0]!.type).toBe('paragraph');
     });
   });
 
@@ -34,7 +34,7 @@ describe('HtmlContentParser', () => {
         expect(block.type).toBe('heading');
         expect(block.level).toBe(i + 1);
       });
-      expect(blocks[0].content).toEqual([{ type: 'text', text: 'Title' }]);
+      expect(blocks[0]!.content).toEqual([{ type: 'text', text: 'Title' }]);
     });
 
     it('drops empty headings', () => {
@@ -48,10 +48,10 @@ describe('HtmlContentParser', () => {
       const html = '<ul><li>One</li><li>Two</li></ul>';
       const blocks = HtmlContentParser.parse(html) as ListBlock[];
       expect(blocks).toHaveLength(1);
-      expect(blocks[0].type).toBe('list');
-      expect(blocks[0].ordered).toBe(false);
-      expect(blocks[0].items).toHaveLength(2);
-      expect(blocks[0].items[0]?.content).toEqual([{ type: 'text', text: 'One' }]);
+      expect(blocks[0]!.type).toBe('list');
+      expect(blocks[0]!.ordered).toBe(false);
+      expect(blocks[0]!.items).toHaveLength(2);
+      expect(blocks[0]!.items[0]?.content).toEqual([{ type: 'text', text: 'One' }]);
     });
 
     it('parses an ordered list', () => {
