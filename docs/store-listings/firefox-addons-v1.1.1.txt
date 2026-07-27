@@ -10,13 +10,13 @@ AI Chat Exporter and Printer
 SUMMARY (250 characters max)
 ========================================
 
-Export and print ChatGPT, Claude, and Gemini conversations to PDF, Markdown, Word and other formats. Preserve code artifacts, web citations, images, and formatting. 100% private - all processing happens locally in your browser.
+Export and print ChatGPT and Claude conversations to PDF, Markdown, Word and other formats. Preserve code artifacts, web citations, images, and formatting.
 
 ========================================
 DESCRIPTION
 ========================================
 
-Export your AI conversations with professional formatting and complete privacy. AI Chat Exporter makes it easy to save and share your conversations with ChatGPT, Claude, and Gemini in multiple formats.
+Export your AI conversations with professional formatting. AI Chat Exporter makes it easy to save and share your conversations with ChatGPT and Claude in multiple formats. Gemini support is coming soon.
 
 ✨ What's New in v1.1.1
 
@@ -91,30 +91,27 @@ Claude (claude.ai)
 • Extended context conversations
 
 Gemini (gemini.google.com)
-• Full conversation export
-• Multi-turn dialogue support
-• Image handling
+• Coming soon - not yet supported
 
 🔒 Privacy & Security
 
-• 100% Local Processing - All data processing happens in your browser, nothing is sent to external servers
-• No Data Collection - We never see, store, or transmit your conversations
-• No Tracking - No analytics, no telemetry, no cookies
-• No External Servers - Everything runs locally on your device
+• No Data Collection - We never see, store, or receive your conversations
+• No Tracking - No analytics, no telemetry
+• Limited Network Use - The extension contacts claude.ai (with your own session) to fetch Claude conversation data, and Google's favicon service to show icons for ChatGPT web search citations. See our Privacy Policy for details.
 • Open Source - Full transparency with publicly available source code
 • No Account Required - Works immediately, no sign-up needed
 
 📋 How to Use
 
 Method 1: Extension Popup
-1. Navigate to ChatGPT, Claude, or Gemini
+1. Navigate to ChatGPT or Claude
 2. Click the AI Chat Exporter icon in your toolbar
 3. Choose your preferred export format
 4. Select which messages to export (or export all)
 5. Click "Export" and your formatted conversation downloads immediately
 
 Method 2: Right-Click Context Menu ⚡ NEW!
-1. Navigate to ChatGPT, Claude, or Gemini
+1. Navigate to ChatGPT or Claude
 2. Right-click anywhere on the page
 3. Hover over "Export" or "Print" in the context menu
 4. Select your desired format from the submenu
@@ -233,7 +230,7 @@ https://github.com/ivansaul/ai-chat-exporter/issues
 PRIVACY POLICY
 ========================================
 
-This extension does not collect, store, or transmit any user data. All processing happens locally in your browser. For more details, see: https://github.com/ivansaul/ai-chat-exporter/blob/main/docs/PRIVACY.md
+We never collect, store, or receive your conversations. Export formatting happens locally in your browser; the extension does contact claude.ai and Google's favicon service for the reasons described in our Privacy Policy: https://github.com/nuncaeslupus/ai-chat-exporter/blob/main/docs/PRIVACY.md
 
 ========================================
 SCREENSHOTS
