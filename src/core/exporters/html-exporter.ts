@@ -25,12 +25,15 @@ export class HtmlExporter extends BaseExporter {
 
   async export(
     conversation: Conversation,
-    _selectedPairs: QAPair[],
+    selectedPairs: QAPair[],
     options: ExportOptions
   ): Promise<ExportResult> {
     try {
-      // Convert to structured format
-      const structured = ConversationStructureService.toStructured(conversation);
+      // Convert to structured format (only the selected pairs)
+      const structured = ConversationStructureService.toStructured({
+        ...conversation,
+        pairs: selectedPairs,
+      });
 
       // Generate HTML
       const html = this.generateHTML(structured, options);
