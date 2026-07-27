@@ -311,6 +311,57 @@ describe('ChatGPTParser implementation', () => {
       expect(result.success).toBe(true);
       expect(result.conversation?.pairs.length).toBe(0);
     });
+
+    it('keeps an image-only user turn so later Q&A pairs stay aligned', () => {
+      // U1(text)/A1, U2(image only, no text)/A2, U3(text)/A3
+      const html = `
+        <html><body><main>
+          <article data-turn="user">
+            <div data-message-author-role="user">
+              <div class="user-message-bubble-color"><div class="whitespace-pre-wrap">First question</div></div>
+            </div>
+          </article>
+          <article data-turn="assistant">
+            <div data-message-author-role="assistant">
+              <div class="markdown prose">First answer</div>
+            </div>
+          </article>
+          <article data-turn="user">
+            <div data-message-author-role="user">
+              <img src="https://example.com/upload.png" alt="photo.png" width="100" height="100" />
+            </div>
+          </article>
+          <article data-turn="assistant">
+            <div data-message-author-role="assistant">
+              <div class="markdown prose">Second answer</div>
+            </div>
+          </article>
+          <article data-turn="user">
+            <div data-message-author-role="user">
+              <div class="user-message-bubble-color"><div class="whitespace-pre-wrap">Third question</div></div>
+            </div>
+          </article>
+          <article data-turn="assistant">
+            <div data-message-author-role="assistant">
+              <div class="markdown prose">Third answer</div>
+            </div>
+          </article>
+        </main></body></html>
+      `;
+      const imgDom = new JSDOM(html, { url: 'https://chatgpt.com' });
+      const imgParser = new ChatGPTParser(imgDom.window.document);
+      const result = imgParser.parse();
+
+      expect(result.success).toBe(true);
+      const pairs = result.conversation?.pairs ?? [];
+      expect(pairs.length).toBe(3);
+      expect(pairs[0]?.question.content).toBe('First question');
+      expect(pairs[0]?.answer.content).toBe('First answer');
+      expect(pairs[1]?.question.content).toContain('Uploaded images');
+      expect(pairs[1]?.answer.content).toBe('Second answer');
+      expect(pairs[2]?.question.content).toBe('Third question');
+      expect(pairs[2]?.answer.content).toBe('Third answer');
+    });
   });
 });
 
