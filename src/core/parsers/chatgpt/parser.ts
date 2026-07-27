@@ -674,11 +674,10 @@ export class ChatGPTParser extends BaseParser {
           // Invalid URL, skip domain
         }
 
-        // Generate favicon URL
-        const favicon = domain
-          ? `https://www.google.com/s2/favicons?domain=${domain}&sz=32`
-          : undefined;
-
+        // ponytail: favicons were fetched from Google's favicon service,
+        // which leaks cited domains to a third party every time the export
+        // is opened. Favicons are decorative, so we just drop them instead
+        // of inlining as data URIs (which would still fetch at export time).
         const result: {
           title: string;
           url: string;
@@ -691,10 +690,6 @@ export class ChatGPTParser extends BaseParser {
 
         if (domain) {
           result.domain = domain;
-        }
-
-        if (favicon) {
-          result.favicon = favicon;
         }
 
         results.push(result);
