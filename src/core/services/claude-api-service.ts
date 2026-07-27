@@ -175,10 +175,11 @@ export class ClaudeApiService {
   }
 
   /**
-   * Extract all artifacts from Claude API response
+   * Extract all artifacts from Claude API response, keyed by the message's
+   * stable API uuid (never by array position or title).
    */
-  static extractArtifacts(apiData: ClaudeApiConversationResponse): Map<number, Artifact[]> {
-    const artifactsByMessageIndex = new Map<number, Artifact[]>();
+  static extractArtifacts(apiData: ClaudeApiConversationResponse): Map<string, Artifact[]> {
+    const artifactsByMessageUuid = new Map<string, Artifact[]>();
     console.log('[Claude API Service] extractArtifacts: Processing', apiData.chat_messages.length, 'messages');
 
     for (const message of apiData.chat_messages) {
@@ -240,13 +241,13 @@ export class ClaudeApiService {
       }
 
       if (artifacts.length > 0) {
-        console.log(`[Claude API Service] Message ${message.index}: Found ${artifacts.length} artifacts`);
-        artifactsByMessageIndex.set(message.index, artifacts);
+        console.log(`[Claude API Service] Message ${message.uuid}: Found ${artifacts.length} artifacts`);
+        artifactsByMessageUuid.set(message.uuid, artifacts);
       }
     }
 
-    console.log('[Claude API Service] Total messages with artifacts:', artifactsByMessageIndex.size);
-    return artifactsByMessageIndex;
+    console.log('[Claude API Service] Total messages with artifacts:', artifactsByMessageUuid.size);
+    return artifactsByMessageUuid;
   }
 
   /**
@@ -265,87 +266,79 @@ export class ClaudeApiService {
   }
 
   /**
-   * Enrich conversation with artifact content from API
+   * Enrich conversation with artifact content from API.
+   *
+   * The DOM scrape and the API response are independently sourced and share
+   * no common identifier: the API exposes a stable `uuid` per message, but
+   * the DOM-scraped `Message.id` is generated locally by the parser and has
+   * no relationship to it. So a Q&A pair can only be matched to its API
+   * message *positionally* — by assuming the Nth DOM pair corresponds to the
+   * Nth assistant message in the API response.
+   *
+   * That assumption breaks silently when the two disagree in shape (an
+   * edited or regenerated turn, a deleted message, ...). Rather than guess,
+   * this bails out of enrichment entirely when the counts don't match, and
+   * logs why. Once a pair IS matched to its API message, all further
+   * artifact data for that pair comes straight from the API's own artifact
+   * list (keyed by the API's own stable message uuid) — never from
+   * title-matching, which silently collides when two artifacts share a
+   * title.
    */
   static enrichConversationWithArtifacts(
     conversation: Conversation,
     apiData: ClaudeApiConversationResponse
   ): Conversation {
-    // Extract artifacts by message index
-    const artifactsByIndex = this.extractArtifacts(apiData);
+    const artifactsByMessageUuid = this.extractArtifacts(apiData);
 
-    if (artifactsByIndex.size === 0) {
+    if (artifactsByMessageUuid.size === 0) {
       console.log('[Claude API Service] No artifacts found in API response');
       return conversation;
     }
 
     console.log(
-      `[Claude API Service] Found artifacts in ${artifactsByIndex.size} messages`
+      `[Claude API Service] Found artifacts in ${artifactsByMessageUuid.size} messages`
     );
 
-    // Enrich conversation pairs with artifact content
-    const enrichedPairs = conversation.pairs.map((pair, pairIndex) => {
-      // Claude API uses absolute message indices: user=0, assistant=1, user=2, assistant=3, etc.
-      // For pair N, the assistant message is at index (N * 2 + 1)
-      const assistantMessageIndex = pairIndex * 2 + 1;
-      const apiArtifacts = artifactsByIndex.get(assistantMessageIndex);
+    const assistantMessages = apiData.chat_messages.filter(
+      (message) => message.sender === 'assistant'
+    );
 
-      console.log(`[Claude API Service] Pair ${pairIndex}: Looking for artifacts at message index ${assistantMessageIndex}`);
-      console.log(`[Claude API Service] Pair ${pairIndex}: API artifacts found:`, !!apiArtifacts);
-      console.log(`[Claude API Service] Pair ${pairIndex}: Existing artifacts:`, pair.answer.metadata?.artifacts?.length || 0);
+    if (assistantMessages.length !== conversation.pairs.length) {
+      console.warn(
+        '[Claude API Service] Assistant message count from the API ' +
+          `(${assistantMessages.length}) does not match the DOM pair count ` +
+          `(${conversation.pairs.length}). The API response has no id shared ` +
+          'with the DOM scrape, so pairs cannot be safely matched to API ' +
+          'messages (likely an edited or regenerated turn) — skipping artifact ' +
+          'enrichment rather than risk misattributing artifacts.'
+      );
+      return conversation;
+    }
+
+    // Enrich conversation pairs with artifact content, matching each pair to
+    // its API message by ordinal position (validated above) and its
+    // artifacts by the message's own stable uuid.
+    const enrichedPairs = conversation.pairs.map((pair, pairIndex) => {
+      const assistantMessage = assistantMessages[pairIndex];
+      const apiArtifacts = assistantMessage
+        ? artifactsByMessageUuid.get(assistantMessage.uuid)
+        : undefined;
 
       if (!apiArtifacts) {
-        console.log(`[Claude API Service] Pair ${pairIndex}: No API artifacts at index ${assistantMessageIndex}`);
         return pair;
       }
 
-      // Merge API artifacts with existing artifacts in metadata
-      const existingArtifacts = pair.answer.metadata?.artifacts || [];
-      console.log(`[Claude API Service] Pair ${pairIndex}: Merging ${apiArtifacts.length} API artifacts with ${existingArtifacts.length} existing artifacts`);
+      console.log(
+        `[Claude API Service] Pair ${pairIndex}: Replacing artifacts with ${apiArtifacts.length} from API message ${assistantMessage?.uuid}`
+      );
 
-      // Match artifacts by title and update content
-      const mergedArtifacts: Artifact[] = existingArtifacts.map((existing) => {
-        const apiArtifact = apiArtifacts.find((api) => api.title === existing.title);
-
-        if (apiArtifact && apiArtifact.content) {
-          console.log(
-            `[Claude API Service] Enriching artifact "${existing.title}" with content from API`
-          );
-
-          const enriched: Artifact = {
-            ...existing,
-            content: apiArtifact.content,
-          };
-
-          // Only update language if API provides one
-          if (apiArtifact.language) {
-            enriched.language = apiArtifact.language;
-          }
-
-          return enriched;
-        }
-
-        return existing;
-      });
-
-      // Add any API artifacts that weren't in the existing list
-      for (const apiArtifact of apiArtifacts) {
-        if (!mergedArtifacts.find((a) => a.title === apiArtifact.title)) {
-          console.log(
-            `[Claude API Service] Adding new artifact "${apiArtifact.title}" from API`
-          );
-          mergedArtifacts.push(apiArtifact);
-        }
-      }
-
-      // Update the answer metadata
       return {
         ...pair,
         answer: {
           ...pair.answer,
           metadata: {
             ...pair.answer.metadata,
-            artifacts: mergedArtifacts,
+            artifacts: apiArtifacts,
           },
         },
       };
