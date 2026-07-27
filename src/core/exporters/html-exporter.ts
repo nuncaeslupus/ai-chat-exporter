@@ -860,6 +860,15 @@ export class HtmlExporter extends BaseExporter {
                 let html = block.textContent;
                 if (!html) return;
 
+                // Re-escape before re-injecting as innerHTML: textContent decoded
+                // any entities the exporter escaped (e.g. code samples containing
+                // "<script>" or "<img onerror=...>" as literal text), so without
+                // this the markup below would execute instead of display as text.
+                html = html
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+
                 // Basic syntax patterns - covers most common cases
                 html = html
                     // Keywords

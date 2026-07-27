@@ -410,16 +410,21 @@ export class DocxExporter extends BaseExporter {
       );
     }
 
-    // Code block
+    // Code block — one TextRun per line, with an explicit break before all
+    // but the first, since a literal '\n' inside a run is not a line break
+    // in OOXML and Word collapses it.
+    const lines = code.split('\n');
     paragraphs.push(
       new Paragraph({
-        children: [
-          new TextRun({
-            text: code,
-            font: 'Courier New',
-            size: 20,
-          }),
-        ],
+        children: lines.map(
+          (line, i) =>
+            new TextRun({
+              text: line,
+              font: 'Courier New',
+              size: 20,
+              break: i > 0 ? 1 : 0,
+            })
+        ),
         spacing: { before: 50, after: 150 },
       })
     );
