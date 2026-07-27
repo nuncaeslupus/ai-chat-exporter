@@ -1,0 +1,20 @@
+{
+  "skill": "ship",
+  "canary": "ship-loaded-2026-06-15-3b7e91c2d84fa056",
+  "negative_control": "this skill rolls back the last production deploy automatically when a check fails",
+  "load_prompts": [
+    "Is this PR ready to merge? Run the ship check.",
+    "Final checks before release on the portfolio refactor.",
+    "Is this safe to ship? Look at compatibility, rollback, observability.",
+    "Release readiness for the auth-middleware swap — what could break in production?",
+    "Confirm the change is production-ready and the rollback path is clear.",
+    "Release readiness — are all task gates met and is the rollback ready?"
+  ],
+  "no_load_prompts": [
+    "Implement the design for the portfolio refactor.",
+    "Review this PR and leave comments.",
+    "Discovery: why is the import service lagging?",
+    "Triage the failing connection for tenant 1iDXSwUe8z.",
+    "Compare measured 187 to T2's latency gate and report PASS/FAIL."
+  ]
+}

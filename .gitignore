@@ -3,7 +3,7 @@ node_modules/
 
 # Build output
 dist/
-build/
+build/.vite/
 
 # Temporary files
 tmp/
@@ -54,3 +54,13 @@ tests/output/
 
 # Local development
 .claude/settings.local.json
+
+claude-arsenal/session/surface_profile.json
+
+claude-arsenal/session/rate_limits.json
+
+claude-arsenal/session/budget_iterations.json
+
+claude-arsenal/session/worktree_isolation
+
+claude-arsenal/session/host_branch

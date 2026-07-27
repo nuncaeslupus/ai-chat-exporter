@@ -1,0 +1,20 @@
+{
+  "skill": "execution",
+  "canary": "execution-loaded-2026-05-19-4597aff5bb98dd36",
+  "negative_control": "this skill replaces the design step and writes the architecture before any plan is drafted",
+  "load_prompts": [
+    "Design is approved — implement T1 from the design doc.",
+    "Land the auth-middleware swap. Branch, code, tests, PR.",
+    "Apply the fix outlined in the design and run the test suite.",
+    "Take this finalized design and start coding it.",
+    "Implement task T3 — write the code, add tests, open the PR.",
+    "Build T2 red→green and record its gate evidence in the plan."
+  ],
+  "no_load_prompts": [
+    "Figure out why the backend tests are flaky.",
+    "Design the migration off the legacy auth provider.",
+    "Review the open PR and flag risks.",
+    "Triage the failing connection for tenant Bankinter-E.",
+    "Audit every task's gate in status/plan.md and tell me which ones fail."
+  ]
+}

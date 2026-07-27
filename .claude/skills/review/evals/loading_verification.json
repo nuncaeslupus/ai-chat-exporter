@@ -1,0 +1,20 @@
+{
+  "skill": "review",
+  "canary": "review-loaded-2026-05-19-da60b2aa44b817de",
+  "negative_control": "this skill rewrites the PR for you when you decide the author's approach is wrong",
+  "load_prompts": [
+    "Review this PR — flag risks, tech debt, and test gaps.",
+    "Second opinion on this diff: am I missing a regression?",
+    "Critique the design doc for the auth-middleware swap.",
+    "Review the proposal: is the scope right? Is the risk register complete?",
+    "Look at the tests on this PR — are they covering the failure modes?",
+    "Review this PR — flag risks, test gaps, and any unrecorded or unmet task gates."
+  ],
+  "no_load_prompts": [
+    "Implement the change described in this ticket.",
+    "Design the solution for the portfolio refactor.",
+    "Investigate why the import job is failing in production.",
+    "Confirm release readiness before merging.",
+    "Just run the gate audit on status/plan.md and give me the numbers."
+  ]
+}
