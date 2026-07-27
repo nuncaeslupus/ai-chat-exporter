@@ -11,6 +11,7 @@ import { StorageService } from '../../shared/storage';
 import type { Conversation, ExportFormat } from '../../core/types';
 import { marked } from 'marked';
 import hljs from 'highlight.js';
+import { sanitizeHtml } from '../../core/utils/sanitize-html';
 
 /**
  * Main content script controller
@@ -80,8 +81,7 @@ class ContentScript {
     try {
       // Check if we have any pairs to export
       if (this.conversation.pairs.length === 0) {
-        console.warn('[AI Chat Exporter] No conversation pairs found');
-        return;
+        throw new Error('No conversation pairs found to export');
       }
 
       // Enrich Claude conversations with API data (artifacts content)
@@ -141,6 +141,7 @@ class ContentScript {
       console.log(`[AI Chat Exporter] Successfully exported to ${format.toUpperCase()}`);
     } catch (error) {
       console.error('[AI Chat Exporter] Export failed:', error);
+      throw error;
     }
   }
 
@@ -560,7 +561,7 @@ class ContentScript {
 </head>
 <body>
   <div class="markdown-body">
-${htmlContent}
+${sanitizeHtml(htmlContent)}
   </div>
 </body>
 </html>`;
