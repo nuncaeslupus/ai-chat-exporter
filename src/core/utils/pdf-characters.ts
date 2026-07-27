@@ -40,16 +40,16 @@ export const PDF_CHARACTER_REPLACEMENTS: Record<string, string> = {
   '₾': 'GEL',      // Georgian Lari (U+20BE)
 
   // Mathematical operators not in Windows-1252
-  '≈': '',         // Almost equal (U+2248) - removed to avoid jsPDF spacing issues
+  '≈': '~',        // Almost equal (U+2248) - not in Win-1252, visible tilde substitute
   '≠': '!=',       // Not equal (U+2260)
   '≤': '<=',       // Less than or equal (U+2264)
   '≥': '>=',       // Greater than or equal (U+2265)
   '≡': '==',       // Identical to (U+2261)
-  '∼': '',         // Tilde operator (U+223C) - removed
-  '˜': '',         // Small tilde (U+02DC) - removed
-  '∽': '',         // Reversed tilde (U+223D) - removed
-  '∾': '',         // Inverted lazy S (U+223E) - removed
-  '~': '',         // Regular tilde (U+007E) - removed, causes jsPDF spacing bug
+  '∼': '~',        // Tilde operator (U+223C) - not in Win-1252, visible tilde substitute
+  // '˜' Small tilde (U+02DC) - in Win-1252 (0x98), passes through unchanged
+  '∽': '~',        // Reversed tilde (U+223D) - not in Win-1252, visible tilde substitute
+  '∾': '~',        // Inverted lazy S (U+223E) - not in Win-1252, visible tilde substitute
+  // '~' Regular tilde (U+007E) - in Win-1252 (ASCII), passes through unchanged
   '∞': 'infinity', // Infinity (U+221E)
   '∫': 'integral', // Integral (U+222B)
   '∑': 'sum',      // N-ary summation (U+2211)
@@ -131,8 +131,8 @@ export const PDF_CHARACTER_REPLACEMENTS: Record<string, string> = {
   '₉': '_9',       // Subscript nine (U+2089)
 
   // Special punctuation and symbols
-  '°': '',         // Degree sign (U+00B0) - In Win-1252, may cause jsPDF spacing bug
-  '·': '',         // Middle dot (U+00B7) - In Win-1252, causes jsPDF spacing bug
+  // '°' Degree sign (U+00B0) - in Win-1252, passes through unchanged
+  // '·' Middle dot (U+00B7) - in Win-1252, passes through unchanged
   '…': '...',      // Horizontal ellipsis (U+2026)
   '•': '*',        // Bullet (U+2022) - In Win-1252 at 0x95
   '–': '-',        // En dash (U+2013) - In Win-1252

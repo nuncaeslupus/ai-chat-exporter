@@ -213,9 +213,15 @@ export abstract class BaseParser implements IParser {
     const srOnly = element.querySelectorAll('.sr-only, [class*="sr-only"], [style*="position: absolute"][style*="width: 1px"]');
     srOnly.forEach(el => el.remove());
 
-    // Remove any elements with aria-hidden="true"
+    // Remove any elements with aria-hidden="true", except rendered math (KaTeX/MathJax
+    // mark their visible glyphs aria-hidden, and often ship with no non-hidden sibling
+    // copy — stripping them unconditionally deletes the only copy of the formula).
     const ariaHidden = element.querySelectorAll('[aria-hidden="true"]');
-    ariaHidden.forEach(el => el.remove());
+    ariaHidden.forEach(el => {
+      if (!el.closest('.katex, [class*="katex"], mjx-container')) {
+        el.remove();
+      }
+    });
 
     // Remove common ChatGPT UI artifacts
     const uiElements = element.querySelectorAll(

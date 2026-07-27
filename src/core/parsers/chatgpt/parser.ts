@@ -178,28 +178,34 @@ export class ChatGPTParser extends BaseParser {
     // Get message ID from attribute
     const messageId = element.getAttribute('data-message-id') || this.generateId();
 
+    // Extract images first so an image-only turn still occupies its slot
+    const images = this.extractImages(element);
+
     // Find content element
     const contentSelector = this.selectors.custom?.userMessageContent || '.whitespace-pre-wrap';
     const contentElement = element.querySelector(contentSelector);
 
+    let content: string | undefined;
+    let htmlContent: string | undefined;
+
     if (!contentElement) {
       // Try to get content directly from the element
-      const text = element.textContent?.trim();
-      if (!text) {
-        return null;
-      }
-      return this.createMessage('user', text, undefined, messageId);
+      content = element.textContent?.trim();
+    } else {
+      ({ content, htmlContent } = this.extractContent(contentElement, config.preserveHtml));
     }
 
-    const { content, htmlContent } = this.extractContent(contentElement, config.preserveHtml);
-    if (!content) {
+    if (!content && images.length === 0) {
       return null;
     }
 
-    const message = this.createMessage('user', content, htmlContent, messageId);
+    const message = this.createMessage(
+      'user',
+      content || `[Uploaded images: ${images.map((img) => img.alt ?? 'image').join(', ')}]`,
+      htmlContent,
+      messageId
+    );
 
-    // Extract images from the user's message (uploaded images)
-    const images = this.extractImages(element);
     if (images.length > 0) {
       message.metadata = { ...message.metadata, images };
     }
@@ -674,11 +680,10 @@ export class ChatGPTParser extends BaseParser {
           // Invalid URL, skip domain
         }
 
-        // Generate favicon URL
-        const favicon = domain
-          ? `https://www.google.com/s2/favicons?domain=${domain}&sz=32`
-          : undefined;
-
+        // ponytail: favicons were fetched from Google's favicon service,
+        // which leaks cited domains to a third party every time the export
+        // is opened. Favicons are decorative, so we just drop them instead
+        // of inlining as data URIs (which would still fetch at export time).
         const result: {
           title: string;
           url: string;
@@ -691,10 +696,6 @@ export class ChatGPTParser extends BaseParser {
 
         if (domain) {
           result.domain = domain;
-        }
-
-        if (favicon) {
-          result.favicon = favicon;
         }
 
         results.push(result);
