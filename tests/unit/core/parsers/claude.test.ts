@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { ClaudeParser } from '../../../../src/core/parsers/claude/parser';
 import { readFileSync } from 'fs';
@@ -266,6 +266,42 @@ describe('ClaudeParser', () => {
 
       expect(result.success).toBe(true);
       expect(result.conversation!.pairs).toHaveLength(0);
+    });
+  });
+
+  describe('image encoding cache', () => {
+    it('draws each image to canvas at most once across repeated parses', () => {
+      // content-script.ts creates a fresh parser instance for every
+      // export_conversation / print_conversation / get_conversation message,
+      // so the cache must survive across ClaudeParser instances, not just
+      // across calls on the same instance.
+      // Spy on the JSDOM instance's own HTMLCanvasElement (dom.window), not the
+      // global one — this test's `document` comes from a standalone `new JSDOM(...)`,
+      // a separate realm from vitest's global jsdom environment.
+      const canvasElementCtor = dom.window.HTMLCanvasElement as unknown as {
+        prototype: HTMLCanvasElement;
+      };
+      const getContextSpy = vi
+        .spyOn(canvasElementCtor.prototype, 'getContext')
+        .mockReturnValue({ drawImage: vi.fn() } as unknown as CanvasRenderingContext2D);
+      const toDataURLSpy = vi
+        .spyOn(canvasElementCtor.prototype, 'toDataURL')
+        .mockReturnValue('data:image/png;base64,mockdata');
+
+      try {
+        const firstResult = new ClaudeParser(document).parse();
+        const secondResult = new ClaudeParser(document).parse();
+
+        expect(toDataURLSpy).toHaveBeenCalledTimes(1);
+
+        const firstImage = firstResult.conversation?.pairs[0]?.question.metadata?.images?.[0];
+        const secondImage = secondResult.conversation?.pairs[0]?.question.metadata?.images?.[0];
+        expect(firstImage?.src).toBe('data:image/png;base64,mockdata');
+        expect(secondImage?.src).toBe('data:image/png;base64,mockdata');
+      } finally {
+        getContextSpy.mockRestore();
+        toDataURLSpy.mockRestore();
+      }
     });
   });
 
