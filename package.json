@@ -4,7 +4,7 @@
   "description": "Browser extension to export AI chatbot conversations to PDF, Markdown, DOCX, and more",
   "type": "module",
   "scripts": {
-    "dev": "vite build --watch --mode development",
+    "dev": "vite build --watch --config build/vite.chrome.ts --mode development",
     "dev:chrome": "vite build --watch --config build/vite.chrome.ts --mode development",
     "dev:firefox": "vite build --watch --config build/vite.firefox.ts --mode development",
     "build": "pnpm build:chrome && pnpm build:firefox",
