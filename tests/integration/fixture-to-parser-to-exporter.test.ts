@@ -86,25 +86,15 @@ const EXPORT_OPTIONS = (format: ExportFormat) => ({
 });
 
 describe('fixture -> parser -> every exporter', () => {
-  // The pristine, unmodified real parser output. Used for every exporter
-  // except pdf, which hangs on it -- see the dedicated 'PDF export' block.
+  // The pristine, unmodified real parser output, used for every exporter
+  // including pdf (see the 'PDF export' block below for why that used to be
+  // notable).
   let conversation: Conversation;
   let selectedPairs: QAPair[];
-
-  // A second, independent parse of the *same* fixture, with one field
-  // stripped from the real output before exporting. Needed only to get PDF's
-  // own text-rendering paths (headings-as-text, artifact code, web search)
-  // under test despite the hang documented below -- see that block for why.
-  let pdfSafeConversation: Conversation;
-  let pdfSafeSelectedPairs: QAPair[];
 
   beforeAll(() => {
     conversation = parseComprehensiveFixture();
     selectedPairs = conversation.pairs.filter((pair) => pair.selected);
-
-    pdfSafeConversation = parseComprehensiveFixture();
-    delete pdfSafeConversation.pairs[0]?.answer.metadata?.images;
-    pdfSafeSelectedPairs = pdfSafeConversation.pairs.filter((pair) => pair.selected);
   });
 
   it('parsed real output actually carries the metadata this suite depends on', () => {
@@ -117,62 +107,27 @@ describe('fixture -> parser -> every exporter', () => {
   });
 
   describe('PDF export', () => {
-    // FINDING (new, not one of the pre-queued bugs): PdfExporter never
-    // resolves for this real, unmodified fixture.
-    //
-    // Root cause: the SVG artifact in comprehensive.html embeds an inline
-    // preview <img src="data:image/svg+xml,..."> inside its code panel.
-    // ChatGPTParser.extractImages() (src/core/parsers/chatgpt/parser.ts)
-    // scans the *entire* assistant turn for <img> tags, so it scoops up that
-    // decorative artifact-preview image and adds it to
-    // message.metadata.images as if it were a real conversation image. This
-    // is the same misclassification behind the already-queued lo-45b2
-    // ("artifacts rendered twice"): ConversationStructureService pushes an
-    // extra image block for it, so the artifact's picture is duplicated.
-    //
-    // For PDF specifically the symptom is worse than a duplicate: PdfExporter
-    // -> loadImagesParallel -> loadImageAsDataUrl (src/core/utils/image-
-    // loader.ts) does `new Image(); img.onload = ...; img.src = url` to
-    // actually decode the image before embedding it, and that promise never
-    // settles for this data URI in this environment -- export() never
-    // returns. Verified below with a bounded race instead of letting it hang
-    // the whole suite.
-    it('hangs indefinitely on the real, unmodified fixture (known bug, related to lo-45b2)', async () => {
-      const TIMED_OUT = Symbol('timed-out');
+    // Was: PdfExporter never resolved for this real, unmodified fixture
+    // (lo-4b7f). The SVG artifact in comprehensive.html embeds a decorative
+    // inline preview <img src="data:image/svg+xml,..."> inside its code
+    // panel; ChatGPTParser.extractImages() used to scoop it up as if it were
+    // a real conversation image (the same misclassification lo-45b2 tracks
+    // for the duplicate-rendering symptom), and PdfExporter's image loader
+    // would then hang forever trying to decode that data URI. Both are now
+    // fixed: extractImages() skips artifact-internal images, and
+    // loadImageAsDataUrl() times out rather than hanging on any future
+    // undecodable image.
+    it('exports the real, unmodified fixture without hanging', async () => {
       const exporter = exporterRegistry.get('pdf')!();
-
-      const raced = await Promise.race([
-        exporter.export(conversation, selectedPairs, EXPORT_OPTIONS('pdf')),
-        new Promise((resolve) => {
-          setTimeout(() => {
-            resolve(TIMED_OUT);
-          }, 1000);
-        }),
-      ]);
-
-      expect(raced).toBe(TIMED_OUT);
-    }, 3000);
-
-    it('exports fine once the misclassified artifact-preview image is removed', async () => {
-      const exporter = exporterRegistry.get('pdf')!();
-      const result = await exporter.export(
-        pdfSafeConversation,
-        pdfSafeSelectedPairs,
-        EXPORT_OPTIONS('pdf')
-      );
+      const result = await exporter.export(conversation, selectedPairs, EXPORT_OPTIONS('pdf'));
       expect(result.success, result.error).toBe(true);
     });
   });
 
   it('parses the ChatGPT capture and exports it to every format without throwing', async () => {
     for (const [format, factory] of exporterRegistry) {
-      // pdf uses the image-stripped copy; the unmodified-fixture hang is
-      // covered by the dedicated test above.
-      const conv = format === 'pdf' ? pdfSafeConversation : conversation;
-      const pairs = format === 'pdf' ? pdfSafeSelectedPairs : selectedPairs;
-
       const exporter = factory();
-      const result = await exporter.export(conv, pairs, EXPORT_OPTIONS(format));
+      const result = await exporter.export(conversation, selectedPairs, EXPORT_OPTIONS(format));
 
       expect(result.success, `${format} export failed: ${result.error ?? 'unknown error'}`).toBe(
         true
@@ -183,11 +138,8 @@ describe('fixture -> parser -> every exporter', () => {
 
   describe.each(Array.from(exporterRegistry.keys()))('%s exporter', (format) => {
     async function exportFixture() {
-      const conv = format === 'pdf' ? pdfSafeConversation : conversation;
-      const pairs = format === 'pdf' ? pdfSafeSelectedPairs : selectedPairs;
-
       const exporter = exporterRegistry.get(format)!();
-      const result = await exporter.export(conv, pairs, EXPORT_OPTIONS(format));
+      const result = await exporter.export(conversation, selectedPairs, EXPORT_OPTIONS(format));
       return extractSearchableText(format, result.blob!);
     }
 
