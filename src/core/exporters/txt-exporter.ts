@@ -230,9 +230,10 @@ export class TextExporter extends BaseExporter {
           lines.push('');
           break;
 
+        // Plain text can't show it; the URL is the only way back to the picture.
         case 'image':
           lines.push('');
-          lines.push(`[Image: ${block.alt || 'image'}]`);
+          lines.push(`[Image: ${block.alt || 'image'}] ${block.url}`);
           lines.push('');
           break;
 

@@ -4,6 +4,10 @@
  * did. `metadata.media` carries it now; this drives all six registered formats
  * end-to-end with a message carrying one generated video and one generated
  * audio clip and asserts each format represents both.
+ *
+ * lo-8e3d: the video also carries `duration: 8`, which `mediaLabel()` used to
+ * ignore, so it reached no format. Every label assertion below now pins the
+ * "(0:08)" suffix; the audio clip has no duration and must stay bare.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -120,7 +124,12 @@ describe('generated video and audio survive export in all six formats', () => {
     const blocks = ConversationStructureService.toStructured(conversation).pairs[0]!.answer.blocks;
     const media = blocks.filter((b) => b.type === 'media');
     expect(media).toHaveLength(2);
-    expect(media[0]).toMatchObject({ kind: 'video', url: VIDEO_URL, alt: 'Lighthouse timelapse' });
+    expect(media[0]).toMatchObject({
+      kind: 'video',
+      url: VIDEO_URL,
+      alt: 'Lighthouse timelapse',
+      duration: 8,
+    });
     expect(media[1]).toMatchObject({ kind: 'audio', url: AUDIO_URL, alt: 'Lighthouse song' });
   });
 
@@ -130,7 +139,7 @@ describe('generated video and audio survive export in all six formats', () => {
       format: 'md',
     });
     const text = await blobToText(result.blob!);
-    expect(text).toContain(`[Video: Lighthouse timelapse](${VIDEO_URL})`);
+    expect(text).toContain(`[Video: Lighthouse timelapse (0:08)](${VIDEO_URL})`);
     expect(text).toContain(`[Audio: Lighthouse song](${AUDIO_URL})`);
   });
 
@@ -140,7 +149,7 @@ describe('generated video and audio survive export in all six formats', () => {
       format: 'txt',
     });
     const text = await blobToText(result.blob!);
-    expect(text).toContain(`[Video: Lighthouse timelapse] ${VIDEO_URL}`);
+    expect(text).toContain(`[Video: Lighthouse timelapse (0:08)] ${VIDEO_URL}`);
     expect(text).toContain(`[Audio: Lighthouse song] ${AUDIO_URL}`);
   });
 
@@ -153,7 +162,7 @@ describe('generated video and audio survive export in all six formats', () => {
     expect(text).toContain(`<video controls src="${VIDEO_URL}"`);
     expect(text).toContain(`<audio controls src="${AUDIO_URL}"`);
     // Fallback link, so the clip is still reachable where playback fails.
-    expect(text).toContain(`<a href="${VIDEO_URL}">Video: Lighthouse timelapse</a>`);
+    expect(text).toContain(`<a href="${VIDEO_URL}">Video: Lighthouse timelapse (0:08)</a>`);
     expect(text).toContain(`<a href="${AUDIO_URL}">Audio: Lighthouse song</a>`);
   });
 
@@ -190,7 +199,7 @@ describe('generated video and audio survive export in all six formats', () => {
       .flatMap((doc) => doc.calls.filter((c) => c.method === 'text'))
       .map((c) => String(c.args[0]))
       .join('\n');
-    expect(combined).toContain(`[Video: Lighthouse timelapse] ${VIDEO_URL}`);
+    expect(combined).toContain(`[Video: Lighthouse timelapse (0:08)] ${VIDEO_URL}`);
     expect(combined).toContain(`[Audio: Lighthouse song] ${AUDIO_URL}`);
   });
 
@@ -202,7 +211,53 @@ describe('generated video and audio survive export in all six formats', () => {
     expect(result.success).toBe(true);
 
     const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
-    expect(xml).toContain(`[Video: Lighthouse timelapse] ${VIDEO_URL}`);
+    expect(xml).toContain(`[Video: Lighthouse timelapse (0:08)] ${VIDEO_URL}`);
     expect(xml).toContain(`[Audio: Lighthouse song] ${AUDIO_URL}`);
+  });
+});
+
+/**
+ * lo-8e3d: `mediaLabel()` is the single place all six formats derive the label
+ * from, so the seconds -> clock conversion only needs pinning once. Driven
+ * through txt because it renders the label verbatim.
+ */
+describe('media duration formatting', () => {
+  const labelFor = async (duration?: number): Promise<string> => {
+    const durationPairs = [
+      {
+        ...pairs[0],
+        answer: {
+          ...pairs[0]!.answer,
+          metadata: {
+            media: [
+              {
+                kind: 'audio',
+                src: AUDIO_URL,
+                alt: 'Clip',
+                ...(duration === undefined ? {} : { duration }),
+              },
+            ],
+          },
+        },
+      },
+    ] as unknown as QAPair[];
+    const result = await new TextExporter().export(
+      { ...conversation, pairs: durationPairs },
+      durationPairs,
+      { ...options, format: 'txt' }
+    );
+    const text = await blobToText(result.blob!);
+    return /\[(Audio[^\]]*)\]/.exec(text)?.[1] ?? '';
+  };
+
+  it.each([
+    [undefined, 'Audio: Clip'],
+    [0, 'Audio: Clip'], // 0 says nothing — stay bare rather than print "(0:00)"
+    [8, 'Audio: Clip (0:08)'],
+    [134, 'Audio: Clip (2:14)'],
+    [3600, 'Audio: Clip (1:00:00)'],
+    [3725, 'Audio: Clip (1:02:05)'],
+  ])('duration %s renders as %s', async (duration, expected) => {
+    expect(await labelFor(duration)).toBe(expected);
   });
 });
