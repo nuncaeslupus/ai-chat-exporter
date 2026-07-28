@@ -11,7 +11,7 @@ import {
 } from '../../shared/messages';
 import { sendTabMessage } from '../../shared/tab-messaging';
 import type { Conversation, QAPair } from '../../core/types/conversation';
-import type { ExportFormat } from '../../core/types/exporter';
+import { EXPORT_FORMATS, type ExportFormat } from '../../core/types/exporter';
 import {
   getMessage,
   getMessageWithValues,
@@ -181,6 +181,10 @@ function getFormatName(format: ExportFormat): string {
   return getMessage(FORMAT_NAME_KEYS[format]);
 }
 
+function isExportFormat(value: string): value is ExportFormat {
+  return (EXPORT_FORMATS as readonly string[]).includes(value);
+}
+
 /**
  * The span of days the conversation itself covers, e.g. `26–29 jul`.
  *
@@ -281,6 +285,32 @@ class PopupController {
   private setFormatMenuOpen(open: boolean): void {
     this.formatMenuOpen = open;
     this.bodyBox()?.setAttribute('data-format-menu-open', String(open));
+    if (open) this.revealSelectedFormatRow();
+  }
+
+  /**
+   * The menu scrolls; the format already in use has to be the one you see when
+   * it opens, not a row you have to hunt for. jsdom ships no `scrollIntoView`,
+   * hence the guard.
+   */
+  private revealSelectedFormatRow(): void {
+    const row = this.formatRow(this.selectedFormat);
+    if (row && typeof row.scrollIntoView === 'function') {
+      row.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  private formatRow(format: ExportFormat): HTMLElement | null {
+    return document.querySelector<HTMLElement>(`[data-format-menu] [data-format="${format}"]`);
+  }
+
+  /** Mark the chosen row. `aria-checked` is both the a11y state and the cue CSS paints. */
+  private syncFormatRows(): void {
+    document
+      .querySelectorAll<HTMLElement>('[data-format-menu] [data-format]')
+      .forEach((row) => {
+        row.setAttribute('aria-checked', String(row.dataset.format === this.selectedFormat));
+      });
   }
 
   /**
@@ -308,6 +338,15 @@ class PopupController {
 
     if (target.closest('[data-format-menu-toggle]')) {
       this.setFormatMenuOpen(!this.formatMenuOpen);
+      return;
+    }
+
+    // A format row: choose it and close. The menu is the only place
+    // `data-format` appears, so the closest match is unambiguous.
+    const format = target.closest<HTMLElement>('[data-format]')?.dataset.format;
+    if (format !== undefined && isExportFormat(format)) {
+      this.handleFormatChange(format);
+      this.setFormatMenuOpen(false);
       return;
     }
 
@@ -397,6 +436,7 @@ class PopupController {
     this.selectedFormat = format;
     localStorage.setItem('lastExportFormat', format);
     this.updateExportLabel(format);
+    this.syncFormatRows();
 
     // Disable print button for formats that can't be printed nicely
     const printButton = document.getElementById('print-button') as HTMLButtonElement;

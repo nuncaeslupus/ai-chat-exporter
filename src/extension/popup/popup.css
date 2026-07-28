@@ -460,6 +460,115 @@ body {
   transform: rotate(180deg);
 }
 
+/*
+ * ── Format menu ───────────────────────────────────────────────────────────
+ * Floats over the main view, anchored to the split button's chevron. It is
+ * positioned against `.popup-body`, so it lives entirely inside the 260px box
+ * and the popup never resizes. Visibility is this one attribute.
+ */
+.format-menu {
+  display: none;
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 76px;
+  max-height: 180px;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-menu);
+  overflow: hidden;
+}
+
+.popup-body[data-format-menu-open='true'] .format-menu {
+  display: flex;
+}
+
+/* Everything behind the menu steps back. The action bar keeps its colour —
+   the button it belongs to is what opened the menu. */
+.popup-body[data-format-menu-open='true'] .view-scroll,
+.popup-body[data-format-menu-open='true'] .setting-rows {
+  opacity: 0.35;
+}
+
+.format-menu-label {
+  flex: none;
+  padding: 7px 10px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  /* Spec paints this label #9AA5A1 — 2.35:1 on white, well under AA even as a
+     10px cap. Uses the secondary text token instead, which already clears
+     4.5:1 on every surface in this palette. */
+  color: var(--color-text-secondary);
+}
+
+.format-menu-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 6px 6px;
+}
+
+.format-row {
+  /* Without `flex:none` the six rows collapse inside the scrolling column —
+     the spec calls this out by name, and it is the whole reason the menu has
+     a fixed row height at all. */
+  flex: none;
+  height: 31px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-row);
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.format-row:hover {
+  background: var(--color-surface-hover);
+}
+
+.format-row-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.format-row-name {
+  flex: 1;
+  font-size: 12px;
+  color: var(--color-text-body);
+}
+
+.format-row-check {
+  display: none;
+  flex-shrink: 0;
+  color: var(--color-accent);
+}
+
+/* The chosen row. Tinted, bolder and checked — three cues, since the tint
+   alone is a colour-only signal. */
+.format-row[aria-checked='true'] {
+  background: var(--color-accent-tint);
+}
+
+.format-row[aria-checked='true'] .format-row-name {
+  font-weight: 700;
+  color: var(--color-accent-pressed);
+}
+
+.format-row[aria-checked='true'] .format-row-check {
+  display: block;
+}
+
 .print-button {
   flex: none;
   width: 50px;

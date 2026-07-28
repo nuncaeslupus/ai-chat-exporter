@@ -193,6 +193,22 @@ const popupPairs: Pair[] = [
     bg: popupColor(".popup-body[data-ui-state='noSelection'] .setting-row[data-nav='content'] {", 'background'),
     threshold: 4.5,
   },
+  // Format menu (R3). Its surface is the menu card, not the page background.
+  { label: 'format-menu label', fg: popupColor('.format-menu-label {', 'color'), bg: popupColor('.format-menu {', 'background'), threshold: 4.5 },
+  { label: 'format-row name', fg: popupColor('.format-row-name {', 'color'), bg: popupColor('.format-menu {', 'background'), threshold: 4.5 },
+  { label: 'format-row name (hover bg)', fg: popupColor('.format-row-name {', 'color'), bg: popupColor('.format-row:hover {', 'background'), threshold: 4.5 },
+  {
+    label: 'format-row name (selected)',
+    fg: popupColor(".format-row[aria-checked='true'] .format-row-name {", 'color'),
+    bg: popupColor(".format-row[aria-checked='true'] {", 'background'),
+    threshold: 4.5,
+  },
+  {
+    label: 'format-row check mark (selected)',
+    fg: popupColor('.format-row-check {', 'color'),
+    bg: popupColor(".format-row[aria-checked='true'] {", 'background'),
+    threshold: 3,
+  },
   // Unsupported page dims the header; the same text tokens ride on it.
   { label: 'popup-version (dimmed header)', fg: popupColor('.popup-version {', 'color'), bg: popupColor("body[data-ui-state='unsupported'] .popup-header {", 'background'), threshold: 4.5 },
   { label: 'status-text (dimmed header)', fg: popupColor('.status-text {', 'color'), bg: popupColor("body[data-ui-state='unsupported'] .popup-header {", 'background'), threshold: 4.5 },
