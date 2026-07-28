@@ -160,7 +160,7 @@ const popupPairs: Pair[] = [
   { label: 'badge-image', fg: popupColor('.badge-image {', 'color'), bg: popupColor('.badge-image {', 'background'), threshold: 4.5 },
   { label: 'format-select text', fg: popupColor('.format-select {', 'color'), bg: popupColor('.format-select {', 'background'), threshold: 4.5 },
   { label: 'action-button text/border', fg: popupColor('.action-button {', 'color'), bg: popupColor('.action-button {', 'background'), threshold: 4.5 },
-  { label: 'action-button hover text', fg: declValue(popupCss, '.action-button:hover:not(:disabled) {', 'color'), bg: popupColor('.action-button:hover:not(:disabled) {', 'background'), threshold: 4.5 },
+  { label: 'action-button hover text', fg: popupColor('.action-button:hover:not(:disabled) {', 'color'), bg: popupColor('.action-button:hover:not(:disabled) {', 'background'), threshold: 4.5 },
   { label: 'setting-item span (default bg)', fg: popupColor('.setting-item span {', 'color'), bg: popupColor('body {', 'background'), threshold: 4.5 },
   { label: 'setting-item span (hover bg)', fg: popupColor('.setting-item span {', 'color'), bg: popupColor('.setting-item:hover {', 'background'), threshold: 4.5 },
   { label: 'popup-footer text', fg: popupColor('.popup-footer {', 'color'), bg: popupColor('.popup-footer {', 'background'), threshold: 4.5 },
@@ -168,7 +168,7 @@ const popupPairs: Pair[] = [
   { label: 'not-supported-title', fg: popupColor('.not-supported-title {', 'color'), bg: popupColor('.not-supported-message {', 'background'), threshold: 4.5 },
   { label: 'not-supported-text', fg: popupColor('.not-supported-text {', 'color'), bg: popupColor('.not-supported-message {', 'background'), threshold: 4.5 },
   { label: 'not-supported-text strong', fg: popupColor('.not-supported-text strong {', 'color'), bg: popupColor('.not-supported-message {', 'background'), threshold: 4.5 },
-  { label: 'kbd text', fg: popupColor('kbd {', 'color'), bg: normalizeColor(declValue(popupCss, 'kbd {', 'background-color')), threshold: 4.5 },
+  { label: 'kbd text', fg: popupColor('kbd {', 'color'), bg: popupColor('kbd {', 'background-color'), threshold: 4.5 },
 ];
 
 const exporterPairs: Pair[] = [
