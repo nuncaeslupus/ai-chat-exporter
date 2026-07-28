@@ -209,11 +209,23 @@ class ContentScript {
   }
 
   async handlePrint(format: ExportFormat): Promise<string | undefined> {
+    // Open the print window synchronously, before any `await` — opening it
+    // after the re-parse/API/export awaits below loses the user-gesture
+    // context and gets popup-blocked.
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      throw new Error(
+        'Could not open the print window. Your browser blocked the popup — allow popups for this site and try again.'
+      );
+    }
+    printWindow.document.write('<p>Preparing document for printing…</p>');
+
     // Re-parse conversation to get latest content
     await this.initialize();
 
     if (!this.conversation) {
       console.error('[AI Chat Exporter] No conversation available');
+      printWindow.close();
       return undefined;
     }
 
@@ -223,8 +235,7 @@ class ContentScript {
     try {
       // Check if we have any pairs to print
       if (this.conversation.pairs.length === 0) {
-        console.warn('[AI Chat Exporter] No conversation pairs found');
-        return undefined;
+        throw new Error('No conversation pairs found to print');
       }
 
       // Enrich Claude conversations with API data (artifacts content)
@@ -268,40 +279,37 @@ class ContentScript {
           const markdown = reader.result as string;
           const cleanHtml = await this.renderMarkdownToCleanHtml(markdown, this.conversation!.title);
           const htmlBlob = new Blob([cleanHtml], { type: 'text/html' });
-          this.printBlob(htmlBlob, 'html', 'text/html');
+          this.printBlob(printWindow, htmlBlob, 'html');
         };
         reader.readAsText(result.blob);
       } else {
-        // Open in new window and trigger print
-        this.printBlob(result.blob, format, result.mimeType || exporter.mimeType);
+        // Fill the already-open window and trigger print
+        this.printBlob(printWindow, result.blob, format);
       }
 
       console.log(`[AI Chat Exporter] Successfully opened ${format.toUpperCase()} for printing`);
       return warning;
     } catch (error) {
       console.error('[AI Chat Exporter] Print failed:', error);
-      return undefined;
+      printWindow.close();
+      throw error;
     }
   }
 
-  private printBlob(blob: Blob, format: ExportFormat, _mimeType: string): void {
-    const url = URL.createObjectURL(blob);
-
-    // For HTML and PDF, we can open directly
+  private printBlob(printWindow: Window, blob: Blob, format: ExportFormat): void {
+    // For HTML and PDF, we can print directly
     if (format === 'html' || format === 'pdf') {
-      const printWindow = window.open(url, '_blank');
-      if (printWindow) {
-        // Wait for content to load, then trigger print
-        printWindow.addEventListener('load', () => {
-          setTimeout(() => {
-            printWindow.print();
-            // Clean up the URL after printing
-            printWindow.addEventListener('afterprint', () => {
-              URL.revokeObjectURL(url);
-            });
-          }, 500);
-        });
-      }
+      const url = URL.createObjectURL(blob);
+      printWindow.addEventListener('load', () => {
+        setTimeout(() => {
+          printWindow.print();
+          // Clean up the URL after printing
+          printWindow.addEventListener('afterprint', () => {
+            URL.revokeObjectURL(url);
+          });
+        }, 500);
+      });
+      printWindow.location.href = url;
     } else {
       // For text formats (MD, TXT, JSON), wrap in simple HTML for printing
       const reader = new FileReader();
@@ -311,17 +319,15 @@ class ContentScript {
         const printBlob = new Blob([printHtml], { type: 'text/html' });
         const printUrl = URL.createObjectURL(printBlob);
 
-        const printWindow = window.open(printUrl, '_blank');
-        if (printWindow) {
-          printWindow.addEventListener('load', () => {
-            setTimeout(() => {
-              printWindow.print();
-              printWindow.addEventListener('afterprint', () => {
-                URL.revokeObjectURL(printUrl);
-              });
-            }, 500);
-          });
-        }
+        printWindow.addEventListener('load', () => {
+          setTimeout(() => {
+            printWindow.print();
+            printWindow.addEventListener('afterprint', () => {
+              URL.revokeObjectURL(printUrl);
+            });
+          }, 500);
+        });
+        printWindow.location.href = printUrl;
       };
       reader.readAsText(blob);
     }

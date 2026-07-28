@@ -6,7 +6,7 @@
  * not silently swallowed and reported as success.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createTestQAPair, createTestConversation } from '../../../utils/exporter-helpers';
 
 const mockParse = vi.fn();
@@ -152,5 +152,98 @@ describe('content-script degraded-export reporting (lo-872a)', () => {
       expect(sendResponse).toHaveBeenCalled();
     });
     expect(sendResponse).toHaveBeenCalledWith({ success: true });
+  });
+});
+
+describe('content-script print failure reporting (lo-f854)', () => {
+  let printWindowStub: {
+    document: { write: ReturnType<typeof vi.fn> };
+    addEventListener: ReturnType<typeof vi.fn>;
+    location: { href: string };
+    close: ReturnType<typeof vi.fn>;
+    print: ReturnType<typeof vi.fn>;
+  };
+  const spyOnWindowOpen = () => vi.spyOn(window, 'open');
+  let openSpy: ReturnType<typeof spyOnWindowOpen>;
+
+  beforeEach(() => {
+    mockParse.mockReset();
+    mockExport.mockReset();
+    URL.createObjectURL = vi.fn(() => 'blob:mock');
+    URL.revokeObjectURL = vi.fn();
+
+    printWindowStub = {
+      document: { write: vi.fn() },
+      addEventListener: vi.fn(),
+      location: { href: '' },
+      close: vi.fn(),
+      print: vi.fn(),
+    };
+    openSpy = spyOnWindowOpen().mockReturnValue(printWindowStub as unknown as Window);
+  });
+
+  afterEach(() => {
+    openSpy.mockRestore();
+  });
+
+  it('reports success:false when printing fails', async () => {
+    mockParse.mockReturnValue({ success: true, conversation: createTestConversation([]) });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'print_conversation', format: 'md' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+    expect(sendResponse).toHaveBeenCalledWith({
+      success: false,
+      error: expect.stringContaining('No conversation pairs found') as string,
+    });
+    // The pre-opened print window must not be left dangling on failure.
+    expect(printWindowStub.close).toHaveBeenCalled();
+  });
+
+  it('reports success:false and never re-parses when the print popup is blocked', async () => {
+    openSpy.mockReturnValue(null);
+    mockParse.mockReturnValue({
+      success: true,
+      conversation: createTestConversation([createTestQAPair(0, 'Q', 'A')]),
+    });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'print_conversation', format: 'md' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+    expect(sendResponse).toHaveBeenCalledWith({
+      success: false,
+      error: expect.stringContaining('popup') as string,
+    });
+    // window.open() must be the very first thing handlePrint does, before any
+    // `await` — mockParse's only call is content-script's own module-load
+    // initialize(), proving handlePrint's re-parse never ran after the
+    // (blocked) open call.
+    expect(mockParse).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens the print window synchronously and fills it once content is ready', async () => {
+    const pairs = [createTestQAPair(0, 'Q', 'A')];
+    mockParse.mockReturnValue({ success: true, conversation: createTestConversation(pairs) });
+    mockExport.mockResolvedValue({ success: true, blob: new Blob(['# hi']), mimeType: 'text/markdown' });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'print_conversation', format: 'html' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+    expect(sendResponse).toHaveBeenCalledWith({ success: true });
+    expect(openSpy).toHaveBeenCalledWith('', '_blank');
+    expect(printWindowStub.location.href).toBe('blob:mock');
+    expect(printWindowStub.close).not.toHaveBeenCalled();
   });
 });
