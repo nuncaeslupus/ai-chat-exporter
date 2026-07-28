@@ -9,6 +9,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { CHATGPT_SELECTORS, isChatGPTUrl } from '../../../../src/core/parsers/chatgpt/selectors';
 import { ChatGPTParser } from '../../../../src/core/parsers/chatgpt/parser';
+import { HtmlContentParser } from '../../../../src/core/services/html-content-parser';
 
 describe('ChatGPT Selectors', () => {
   describe('isChatGPTUrl', () => {
@@ -608,5 +609,37 @@ describe('ChatGPT Parser - section-based turns (2026-07 DOM)', () => {
     expect(pair?.answer.role).toBe('assistant');
     expect(pair?.question.content.length).toBeGreaterThan(0);
     expect(pair?.answer.content.length).toBeGreaterThan(0);
+  });
+
+  // lo-5a16: ChatGPT now renders fenced code through an embedded CodeMirror 6
+  // viewer (nested <pre>, no language class on <code>). These lock in that
+  // each of the fixture's two code blocks (python, json) is extracted exactly
+  // once with its body intact -- no duplicate from the nested <pre>.
+  it('extracts each CodeMirror code block exactly once, with a real (not guessed) language', () => {
+    const result = parser.parse();
+    const artifacts = result.conversation?.pairs[0]?.answer.metadata?.artifacts;
+    expect(artifacts).toHaveLength(2);
+
+    const python = artifacts?.find((a) => a.language === 'python');
+    expect(python?.content).toBe(
+      'factory = "Fictional"\nwidgets = ["Alpha", "Beta"]\ncount = len(widgets)\nfor w in widgets:\n    print(w)\nready = count == 2\nprint(ready)'
+    );
+    expect(python?.title).toBe('Python');
+
+    const json = artifacts?.find((a) => a.language === 'json');
+    expect(json?.content).toBe('{\n  "factory": "Fictional"\n}');
+    expect(json?.title).toBe('Json');
+  });
+
+  it('parses htmlContent into exactly one structured code block per CodeMirror block, body intact', () => {
+    const result = parser.parse({ preserveHtml: true });
+    const htmlContent = result.conversation?.pairs[0]?.answer.htmlContent;
+    expect(htmlContent).toBeDefined();
+
+    const blocks = HtmlContentParser.parse(htmlContent ?? '');
+    const codeBlocks = blocks.filter((b) => b.type === 'code');
+    expect(codeBlocks).toHaveLength(2);
+    expect((codeBlocks[0] as { code: string }).code).toContain('factory = "Fictional"');
+    expect((codeBlocks[1] as { code: string }).code).toContain('"factory": "Fictional"');
   });
 });
