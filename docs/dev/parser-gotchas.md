@@ -65,7 +65,7 @@ then `.katex-html` text. Never let a generic aria-hidden rule decide.
 
 ## 4. Code blocks may not be `<pre><code>` any more
 
-ChatGPT now renders code in an embedded **CodeMirror 6** instance:
+ChatGPT renders code in an embedded **CodeMirror 6** instance:
 
 ```
 pre.overflow-visible!            <- markdown-level wrapper, has data-start/data-end
@@ -73,26 +73,40 @@ pre.overflow-visible!            <- markdown-level wrapper, has data-start/data-
     div.cm-scroller
       pre.cm-content             <- a SECOND <pre>
         code                     <- no class at all
-          span                   <- text, real newlines inside
+          span                   <- text
 ```
 
-Consequences:
+**What was actually wrong (measured, `lo-5a16`).** The first version of this note
+predicted duplicate extraction from the nested `<pre>`. That did not happen:
+`extractArtifacts()` selects `pre.overflow-visible\!`, which never matches the inner
+`pre.cm-content` (different class), and `HtmlContentParser` treats a top-level
+`<pre>` as one atomic code block without recursing. The real defect was the opposite
+of duplication — **silent data loss**: the content and language selectors
+(`div.h-9`, `code[class*="language-"]`, `code.whitespace-pre\!`) matched *zero*
+elements, so code blocks came out empty.
 
-- **Nested `<pre>`**: a naive `pre code` walk matches the outer wrapper *and* the
-  inner `cm-content`, producing duplicated code blocks.
-- **Language is gone from the DOM.** The old `code[class*="language-"]` and the
-  `div.h-9` label are both absent; `code` carries no class. If the language matters,
-  it has to come from somewhere else (markdown source offsets, or heuristics) — or
-  be dropped honestly rather than guessed.
-- **Virtualization risk**: CodeMirror only renders visible lines for large documents.
-  A long code block may be *partially present* in the DOM. Scraping it can silently
-  truncate. This was not reproduced on short blocks (a single `<span>` held the whole
-  body with real newlines), but any parser reading a `.cm-content` must be treated as
-  reading a possibly-windowed view.
+Predicting the failure mode from the shape of the DOM was wrong. Measure which
+selectors match zero before theorising about what matches twice.
 
-**Rule:** when a platform embeds an editor component, find the underlying source
-rather than scraping the rendered viewport, or detect and report truncation. Do not
-assume the DOM holds the whole document.
+**The language is not in the DOM as a class.** `code` carries no class. It is
+recoverable from the sticky header's text next to the language icon — clone and strip
+buttons first, or "Copy"/"Run" leak into it. Never infer the language from the code body.
+
+**Token spans vary with length.** A short block puts the whole body in a single
+`<span>` with real newlines. A longer, syntax-highlighted block splits into one span
+per token (`ͼg`, `ͼj`, … CodeMirror highlight classes). `textContent` reconstructs
+both correctly, but any logic that joins child nodes with a separator will mangle the
+highlighted case.
+
+**Virtualization: measured, not a problem at this size.** A deliberately generated
+160-line block was captured live: all 160 lines present in the DOM, first and last
+line intact. CodeMirror did not window it. The fixture
+`tests/fixtures/dom-snapshots/chatgpt/longcode-160-lines-2026-07.html` pins this.
+Unresolved: whether a *much* larger block (thousands of lines) is windowed. The outer
+wrapper's `data-start`/`data-end` are exact character offsets of the full fenced block
+and would make a good truncation signal — verified byte-exact on live captures — but
+they are **not** reliable on the repo's older hand-authored fixtures, which use
+round-number placeholders. Validate on real captures before building a detector on them.
 
 ## 5. Interactive chrome lives *inside* the scraped content
 
@@ -244,3 +258,20 @@ work took the function count from 138 to 224 and *dropped* functions coverage fr
 
 **Rule:** set floors from a measurement on the integration branch, not on your own; and
 re-measure before raising one. "Adding tests lowered coverage" is normal, not a bug.
+
+## 15. `querySelector` returns the *first* match, and the one you want is often the last
+
+Bit me twice in one session while probing a live page. `document.querySelector('.markdown')`
+returned an unrelated/empty node while the assistant's real content was the *last*
+`.markdown` on the page — producing "the content is not in `.markdown`!" twice, both
+times wrong.
+
+When probing a conversation, scope to the turn first
+(`[...document.querySelectorAll('[data-turn="assistant"]')].pop()`) and query within
+it. A page-wide `querySelector` in a multi-turn document is almost always a bug.
+
+Related timing trap: probing while the response is still streaming reports missing
+elements that appear seconds later. Wait for the stop-button to disappear **and** for
+text length to hold steady across several polls. And keep each in-page wait loop under
+the CDP call timeout (~45s) — a long `await` loop inside one evaluation kills the tab
+connection rather than returning.
