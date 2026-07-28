@@ -28,10 +28,34 @@ export interface EnrichmentResult {
  */
 export class ClaudeApiService {
   /**
+   * Resolved organization IDs, keyed by document instance. `extractIdsFromPage`
+   * runs on every export and print click in the same page session, so without
+   * this the full-document HTML fallback below (step 6) would re-serialize the
+   * whole page every time.
+   */
+  private static organizationIdCache = new WeakMap<Document, string | null>();
+
+  /**
    * Extract organization ID from DOM
    * Claude stores the org ID in various places in the page
    */
   static extractOrganizationId(document: Document): string | null {
+    if (this.organizationIdCache.has(document)) {
+      return this.organizationIdCache.get(document) ?? null;
+    }
+
+    const organizationId = this.findOrganizationId(document);
+    this.organizationIdCache.set(document, organizationId);
+    return organizationId;
+  }
+
+  /**
+   * Checks are ordered cheapest-first. Step 6 (full-document HTML scrape) is
+   * a last resort: it serializes the entire page, which is multi-MB and
+   * synchronous on a long conversation, so it must only run once every
+   * cheaper source below has failed.
+   */
+  private static findOrganizationId(document: Document): string | null {
     // Try multiple approaches to find the organization ID
     console.log('[Claude API Service] Starting organization ID extraction...');
 
@@ -71,28 +95,24 @@ export class ClaudeApiService {
       console.warn('[Claude API Service] localStorage not accessible:', error);
     }
 
-    // 3. Check for organization ID in page HTML (often in script tags or meta tags)
-    // Claude sends org ID in Statsig analytics - search for it in the page source
-    const htmlContent = document.documentElement.innerHTML;
-    console.log('[Claude API Service] Searching HTML content (length:', htmlContent.length, 'chars)');
-    console.log('[Claude API Service] HTML preview (first 1000 chars):', htmlContent.substring(0, 1000));
+    // 3. Check URL parameters (some Claude URLs include org ID)
+    const urlParams = new URLSearchParams(window.location.search);
+    const orgIdParam = urlParams.get('orgId') || urlParams.get('organizationId');
+    console.log('[Claude API Service] URL parameters check:', orgIdParam ? 'found' : 'not found');
+    if (orgIdParam) {
+      return orgIdParam;
+    }
 
-    const patterns = [
-      /"organizationID":"([a-f0-9-]{36})"/i,
-      /"organizationUUID":"([a-f0-9-]{36})"/i,
-      /"organization_id":"([a-f0-9-]{36})"/i
-    ];
-
-    for (const [index, pattern] of patterns.entries()) {
-      const match = htmlContent.match(pattern);
-      console.log(`[Claude API Service] Pattern ${index + 1} match:`, match ? match[1] : 'no match');
-      if (match && match[1]) {
-        console.log('[Claude API Service] Found organization ID in page content');
-        return match[1];
+    // 4. Check for React props in DOM elements
+    const allElements = document.querySelectorAll('[data-organization-id]');
+    for (const element of allElements) {
+      const orgId = element.getAttribute('data-organization-id');
+      if (orgId) {
+        return orgId;
       }
     }
 
-    // 4. Check for org ID in image/file URLs (Claude uses /api/{orgId}/files/... pattern)
+    // 5. Check for org ID in image/file URLs (Claude uses /api/{orgId}/files/... pattern)
     const images = document.querySelectorAll('img[src^="/api/"]');
     console.log('[Claude API Service] Found images with /api/ URLs:', images.length);
     for (const img of images) {
@@ -106,20 +126,25 @@ export class ClaudeApiService {
       }
     }
 
-    // 5. Check URL parameters (some Claude URLs include org ID)
-    const urlParams = new URLSearchParams(window.location.search);
-    const orgIdParam = urlParams.get('orgId') || urlParams.get('organizationId');
-    console.log('[Claude API Service] URL parameters check:', orgIdParam ? 'found' : 'not found');
-    if (orgIdParam) {
-      return orgIdParam;
-    }
+    // 6. Last resort: check for organization ID in page HTML (often in script
+    // tags or meta tags; Claude sends org ID in Statsig analytics). This
+    // serializes the entire document, so it only runs once every cheap
+    // source above has failed.
+    const htmlContent = document.documentElement.innerHTML;
+    console.log('[Claude API Service] Searching HTML content (length:', htmlContent.length, 'chars)');
 
-    // 6. Check for React props in DOM elements
-    const allElements = document.querySelectorAll('[data-organization-id]');
-    for (const element of allElements) {
-      const orgId = element.getAttribute('data-organization-id');
-      if (orgId) {
-        return orgId;
+    const patterns = [
+      /"organizationID":"([a-f0-9-]{36})"/i,
+      /"organizationUUID":"([a-f0-9-]{36})"/i,
+      /"organization_id":"([a-f0-9-]{36})"/i
+    ];
+
+    for (const [index, pattern] of patterns.entries()) {
+      const match = htmlContent.match(pattern);
+      console.log(`[Claude API Service] Pattern ${index + 1} match:`, match ? match[1] : 'no match');
+      if (match && match[1]) {
+        console.log('[Claude API Service] Found organization ID in page content');
+        return match[1];
       }
     }
 
