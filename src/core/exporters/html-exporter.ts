@@ -18,6 +18,7 @@ import type {
 import { BaseExporter } from './base-exporter';
 import { ConversationStructureService } from '../services';
 import { getMessage, getUILanguage } from '../../shared/i18n';
+import { COLOR, FONT_FAMILY, FONT_SIZE_PT, HTML_FONT_SIZE_PT, SPACING, mmToPx, ptToPx } from './style-tokens';
 
 export class HtmlExporter extends BaseExporter {
   readonly format: ExportFormat = 'html';
@@ -320,11 +321,11 @@ export class HtmlExporter extends BaseExporter {
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            font-family: ${FONT_FAMILY.body.css};
+            font-size: ${ptToPx(FONT_SIZE_PT.body)}px;
             line-height: 1.6;
-            color: #1f2937;
-            background-color: #f9fafb;
+            color: ${COLOR.textStrong};
+            background-color: ${COLOR.surfaceSubtle};
         }
 
         .container {
@@ -342,17 +343,17 @@ export class HtmlExporter extends BaseExporter {
         }
 
         .title {
-            font-size: 2rem;
+            font-size: ${ptToPx(HTML_FONT_SIZE_PT.title)}px;
             font-weight: 700;
-            color: #111827;
+            color: ${COLOR.textPrimary};
             margin-bottom: 1rem;
         }
 
         .metadata {
             display: grid;
             gap: 0.5rem;
-            font-size: 0.875rem;
-            color: #6b7280;
+            font-size: ${ptToPx(FONT_SIZE_PT.meta)}px;
+            color: ${COLOR.textMuted};
         }
 
         .metadata-item {
@@ -366,11 +367,11 @@ export class HtmlExporter extends BaseExporter {
         }
 
         .metadata-value {
-            color: #374151;
+            color: ${COLOR.textBody};
         }
 
         .metadata-value a {
-            color: #2563eb;
+            color: ${COLOR.link};
             text-decoration: none;
         }
 
@@ -398,24 +399,24 @@ export class HtmlExporter extends BaseExporter {
 
         .user-message {
             background: white;
-            border-left: 4px solid #2563eb;
+            border-left: 4px solid ${COLOR.link};
         }
 
         .assistant-message {
-            background: #f3f4f6;
-            border-left: 4px solid #6b7280;
+            background: ${COLOR.surfaceMuted};
+            border-left: 4px solid ${COLOR.brand.default};
         }
 
         .assistant-message[data-platform="chatgpt"] {
-            border-left-color: #10a37f;
+            border-left-color: ${COLOR.brand.chatgpt};
         }
 
         .assistant-message[data-platform="claude"] {
-            border-left-color: #cc7b58;
+            border-left-color: ${COLOR.brand.claude};
         }
 
         .assistant-message[data-platform="gemini"] {
-            border-left-color: #4285f4;
+            border-left-color: ${COLOR.brand.gemini};
         }
 
         .message-header {
@@ -424,38 +425,38 @@ export class HtmlExporter extends BaseExporter {
 
         .message-role {
             font-weight: 600;
-            font-size: 0.875rem;
+            font-size: ${ptToPx(HTML_FONT_SIZE_PT.roleLabel)}px;
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
 
         .user-message .message-role {
-            color: #2563eb;
+            color: ${COLOR.link};
         }
 
         .assistant-message .message-role {
-            color: #686f7d;
+            color: ${COLOR.brandTextOnLight.default};
         }
 
         .assistant-message[data-platform="chatgpt"] .message-role {
-            color: #0c7e62;
+            color: ${COLOR.brandTextOnLight.chatgpt};
         }
 
         .assistant-message[data-platform="claude"] .message-role {
-            color: #ab5834;
+            color: ${COLOR.brandTextOnLight.claude};
         }
 
         .assistant-message[data-platform="gemini"] .message-role {
-            color: #1165f1;
+            color: ${COLOR.brandTextOnLight.gemini};
         }
 
         .message-timestamp {
             margin-left: 0.5rem;
-            font-size: 0.8125rem;
+            font-size: ${ptToPx(HTML_FONT_SIZE_PT.timestamp)}px;
             font-weight: 400;
             text-transform: none;
             letter-spacing: normal;
-            color: #9ca3af;
+            color: ${COLOR.textFaint};
         }
 
         .message-content > *:first-child {
@@ -481,26 +482,26 @@ export class HtmlExporter extends BaseExporter {
             line-height: 1.3;
         }
 
-        .message-content h1 { font-size: 1.875rem; }
-        .message-content h2 { font-size: 1.5rem; }
-        .message-content h3 { font-size: 1.25rem; }
-        .message-content h4 { font-size: 1.125rem; }
-        .message-content h5 { font-size: 1rem; }
-        .message-content h6 { font-size: 0.875rem; }
+        .message-content h1 { font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[0])}px; }
+        .message-content h2 { font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[1])}px; }
+        .message-content h3 { font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[2])}px; }
+        .message-content h4 { font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[3])}px; }
+        .message-content h5 { font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[4])}px; }
+        .message-content h6 { font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[5])}px; }
 
         .message-content pre {
-            background: #1f2937;
-            color: #f3f4f6;
+            background: ${COLOR.textStrong};
+            color: ${COLOR.surfaceMuted};
             border-radius: 0.5rem;
             padding: 1rem;
             overflow-x: auto;
             margin: 1rem 0;
-            font-size: 0.875rem;
+            font-size: ${ptToPx(FONT_SIZE_PT.code)}px;
             line-height: 1.5;
         }
 
         .message-content code {
-            font-family: 'Courier New', Courier, monospace;
+            font-family: ${FONT_FAMILY.code.css};
         }
 
         .message-content .inline-code {
@@ -517,7 +518,7 @@ export class HtmlExporter extends BaseExporter {
         .message-content ul,
         .message-content ol {
             margin: 0.75rem 0;
-            padding-left: 2rem;
+            padding-left: ${mmToPx(SPACING.listIndentStepMm)}px;
         }
 
         .message-content li {
@@ -530,16 +531,16 @@ export class HtmlExporter extends BaseExporter {
         }
 
         .message-content blockquote {
-            border-left: 4px solid #d1d5db;
+            border-left: 4px solid ${COLOR.blockquoteBorder};
             padding-left: 1rem;
             margin: 1rem 0;
-            color: #686f7d;
+            color: ${COLOR.textMutedOnSurfaceMuted};
             font-style: italic;
         }
 
         .message-content hr {
             border: none;
-            border-top: 1px solid #e5e7eb;
+            border-top: 1px solid ${COLOR.border};
             margin: 1.5rem 0;
         }
 
@@ -551,7 +552,7 @@ export class HtmlExporter extends BaseExporter {
         }
 
         .message-content a {
-            color: #2563eb;
+            color: ${COLOR.link};
             text-decoration: none;
         }
 
@@ -563,23 +564,23 @@ export class HtmlExporter extends BaseExporter {
             border-collapse: collapse;
             width: 100%;
             margin: 1rem 0;
-            border: 1px solid #e5e7eb;
+            border: 1px solid ${COLOR.border};
         }
 
         .message-content th,
         .message-content td {
-            border: 1px solid #e5e7eb;
+            border: 1px solid ${COLOR.border};
             padding: 0.5rem 0.75rem;
             text-align: left;
         }
 
         .message-content th {
-            background: #f9fafb;
+            background: ${COLOR.surfaceSubtle};
             font-weight: 600;
         }
 
         .message-content tr:nth-child(even) {
-            background: #fafbfc;
+            background: ${COLOR.surfaceSubtle};
         }
 
         .message-content strong {
@@ -598,38 +599,38 @@ export class HtmlExporter extends BaseExporter {
         .artifacts-section {
             margin-top: 1.5rem;
             padding-top: 1.5rem;
-            border-top: 2px solid #e5e7eb;
+            border-top: 2px solid ${COLOR.border};
         }
 
         .artifacts-section h3 {
-            font-size: 1.125rem;
+            font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[3])}px;
             font-weight: 600;
             margin-bottom: 1rem;
-            color: #374151;
+            color: ${COLOR.textBody};
         }
 
         .artifact {
             margin-bottom: 1.5rem;
             background: white;
-            border: 1px solid #e5e7eb;
+            border: 1px solid ${COLOR.border};
             border-radius: 0.5rem;
             padding: 1rem;
         }
 
         .user-message .artifact {
-            background: #f9fafb;
+            background: ${COLOR.surfaceSubtle};
         }
 
         .artifact h4 {
-            font-size: 1rem;
+            font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[4])}px;
             font-weight: 600;
             margin-bottom: 0.5rem;
-            color: #111827;
+            color: ${COLOR.textPrimary};
         }
 
         .artifact-type {
-            font-size: 0.875rem;
-            color: #6b7280;
+            font-size: ${ptToPx(FONT_SIZE_PT.meta)}px;
+            color: ${COLOR.textMuted};
             margin-bottom: 0.75rem;
         }
 
@@ -640,14 +641,14 @@ export class HtmlExporter extends BaseExporter {
         .web-searches-section {
             margin-top: 1.5rem;
             padding-top: 1.5rem;
-            border-top: 2px solid #e5e7eb;
+            border-top: 2px solid ${COLOR.border};
         }
 
         .web-searches-section h3 {
-            font-size: 1.125rem;
+            font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[3])}px;
             font-weight: 600;
             margin-bottom: 1rem;
-            color: #374151;
+            color: ${COLOR.textBody};
         }
 
         .web-search {
@@ -655,15 +656,15 @@ export class HtmlExporter extends BaseExporter {
         }
 
         .web-search h4 {
-            font-size: 1rem;
+            font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[4])}px;
             font-weight: 600;
             margin-bottom: 0.5rem;
-            color: #111827;
+            color: ${COLOR.textPrimary};
         }
 
         .search-count {
-            font-size: 0.875rem;
-            color: #686f7d;
+            font-size: ${ptToPx(FONT_SIZE_PT.meta)}px;
+            color: ${COLOR.textMutedOnSurfaceMuted};
             margin-bottom: 0.75rem;
         }
 
@@ -680,21 +681,21 @@ export class HtmlExporter extends BaseExporter {
             padding: 0.75rem;
             margin-bottom: 0.5rem;
             background: white;
-            border: 1px solid #e5e7eb;
+            border: 1px solid ${COLOR.border};
             border-radius: 0.375rem;
             transition: background-color 0.2s;
         }
 
         .user-message .search-result {
-            background: #f9fafb;
+            background: ${COLOR.surfaceSubtle};
         }
 
         .search-result:hover {
-            background: #f9fafb;
+            background: ${COLOR.surfaceSubtle};
         }
 
         .user-message .search-result:hover {
-            background: #f3f4f6;
+            background: ${COLOR.surfaceMuted};
         }
 
         .result-content {
@@ -705,7 +706,7 @@ export class HtmlExporter extends BaseExporter {
         .result-title {
             display: block;
             font-weight: 500;
-            color: #2563eb;
+            color: ${COLOR.link};
             text-decoration: none;
             word-break: break-word;
         }
@@ -716,8 +717,8 @@ export class HtmlExporter extends BaseExporter {
 
         .result-domain {
             display: block;
-            font-size: 0.75rem;
-            color: #6b7280;
+            font-size: ${ptToPx(FONT_SIZE_PT.meta)}px;
+            color: ${COLOR.textMuted};
             margin-top: 0.25rem;
         }
 
@@ -725,8 +726,8 @@ export class HtmlExporter extends BaseExporter {
             margin-top: 3rem;
             padding: 1.5rem;
             text-align: center;
-            font-size: 0.875rem;
-            color: #6a7383;
+            font-size: ${ptToPx(FONT_SIZE_PT.meta)}px;
+            color: ${COLOR.textMuted};
         }
 
         @media (max-width: 640px) {

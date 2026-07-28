@@ -29,6 +29,16 @@ import type {
 } from '../types';
 import { BaseExporter } from './base-exporter';
 import { ConversationStructureService } from '../services';
+import {
+  COLOR,
+  DOCX_FONT_SIZE_PT,
+  FONT_FAMILY,
+  FONT_SIZE_PT,
+  SPACING,
+  hexToDocxColor,
+  mmToTwips,
+  ptToHalfPt,
+} from './style-tokens';
 
 /**
  * Exports conversations to DOCX (Word) format
@@ -80,7 +90,7 @@ export class DocxExporter extends BaseExporter {
           new TextRun({
             text: conversation.title,
             bold: true,
-            size: 32, // 16pt
+            size: ptToHalfPt(DOCX_FONT_SIZE_PT.title),
           }),
         ],
         spacing: { after: 300 },
@@ -94,7 +104,8 @@ export class DocxExporter extends BaseExporter {
           children: [
             new TextRun({
               text: `Platform: ${this.formatPlatformName(conversation.platform)}`,
-              size: 22,
+              size: ptToHalfPt(FONT_SIZE_PT.meta),
+              color: hexToDocxColor(COLOR.textMuted),
             }),
           ],
           spacing: { after: 100 },
@@ -107,7 +118,8 @@ export class DocxExporter extends BaseExporter {
             children: [
               new TextRun({
                 text: `Model: ${conversation.model}`,
-                size: 22,
+                size: ptToHalfPt(FONT_SIZE_PT.meta),
+                color: hexToDocxColor(COLOR.textMuted),
               }),
             ],
             spacing: { after: 100 },
@@ -121,7 +133,8 @@ export class DocxExporter extends BaseExporter {
             children: [
               new TextRun({
                 text: `Exported: ${this.formatTimestamp(conversation.createdAt)}`,
-                size: 22,
+                size: ptToHalfPt(FONT_SIZE_PT.meta),
+                color: hexToDocxColor(COLOR.textMuted),
               }),
             ],
             spacing: { after: 100 },
@@ -134,7 +147,8 @@ export class DocxExporter extends BaseExporter {
           children: [
             new TextRun({
               text: `URL: ${conversation.url}`,
-              size: 22,
+              size: ptToHalfPt(FONT_SIZE_PT.meta),
+              color: hexToDocxColor(COLOR.textMuted),
             }),
           ],
           spacing: { after: 300 },
@@ -155,8 +169,8 @@ export class DocxExporter extends BaseExporter {
         default: {
           document: {
             run: {
-              font: 'Arial',
-              size: 24, // 12pt
+              font: FONT_FAMILY.body.docx,
+              size: ptToHalfPt(FONT_SIZE_PT.body),
             },
           },
         },
@@ -175,7 +189,14 @@ export class DocxExporter extends BaseExporter {
   private renderRoleHeading(label: string, timestampSuffix: string): Paragraph {
     const children: TextRun[] = [new TextRun({ text: label })];
     if (timestampSuffix) {
-      children.push(new TextRun({ text: timestampSuffix, italics: true, size: 20, color: '6B7280' }));
+      children.push(
+        new TextRun({
+          text: timestampSuffix,
+          italics: true,
+          size: ptToHalfPt(FONT_SIZE_PT.meta),
+          color: hexToDocxColor(COLOR.textMuted),
+        })
+      );
     }
     return new Paragraph({
       children,
@@ -227,7 +248,7 @@ export class DocxExporter extends BaseExporter {
                 new TextRun({
                   text: artifact.title,
                   bold: true,
-                  size: 26,
+                  size: ptToHalfPt(DOCX_FONT_SIZE_PT.artifactTitle),
                 }),
               ],
               spacing: { before: 150, after: 50 },
@@ -242,7 +263,7 @@ export class DocxExporter extends BaseExporter {
                   new TextRun({
                     text: `Type: ${artifact.typeLabel}`,
                     italics: true,
-                    size: 22,
+                    size: ptToHalfPt(FONT_SIZE_PT.meta),
                   }),
                 ],
                 spacing: { after: 100 },
@@ -260,7 +281,7 @@ export class DocxExporter extends BaseExporter {
                 children: [
                   new TextRun({
                     text: artifact.content || '',
-                    size: 22,
+                    size: ptToHalfPt(FONT_SIZE_PT.body),
                   }),
                 ],
                 spacing: { after: 150 },
@@ -275,8 +296,8 @@ export class DocxExporter extends BaseExporter {
                   children: [
                     new TextRun({
                       text: line,
-                      font: 'Courier New',
-                      size: 20,
+                      font: FONT_FAMILY.code.docx,
+                      size: ptToHalfPt(FONT_SIZE_PT.code),
                     }),
                   ],
                   spacing: { after: 0 },
@@ -306,8 +327,12 @@ export class DocxExporter extends BaseExporter {
           paragraphs.push(
             new Paragraph({
               children: [
-                new TextRun({ text: result.title, size: 22 }),
-                new TextRun({ text: ` — ${result.url}`, size: 20, italics: true }),
+                new TextRun({ text: result.title, size: ptToHalfPt(FONT_SIZE_PT.body) }),
+                new TextRun({
+                  text: ` — ${result.url}`,
+                  size: ptToHalfPt(FONT_SIZE_PT.meta),
+                  italics: true,
+                }),
               ],
               spacing: { after: 50 },
             })
@@ -435,7 +460,7 @@ export class DocxExporter extends BaseExporter {
           children: [
             new TextRun({
               text: language.toUpperCase(),
-              size: 18,
+              size: ptToHalfPt(FONT_SIZE_PT.codeLabel),
               bold: true,
             }),
           ],
@@ -454,8 +479,8 @@ export class DocxExporter extends BaseExporter {
           (line, i) =>
             new TextRun({
               text: line,
-              font: 'Courier New',
-              size: 20,
+              font: FONT_FAMILY.code.docx,
+              size: ptToHalfPt(FONT_SIZE_PT.code),
               break: i > 0 ? 1 : 0,
             })
         ),
@@ -483,7 +508,7 @@ export class DocxExporter extends BaseExporter {
           new Paragraph({
             children: [bulletRun, ...textRuns],
             spacing: { after: 100 },
-            indent: { left: 360 + (depth * 360) }, // 0.25 inch base + 0.25 inch per level
+            indent: { left: mmToTwips(SPACING.listIndentStepMm) * (depth + 1) },
           })
         );
       }
@@ -506,15 +531,23 @@ export class DocxExporter extends BaseExporter {
     // Process each block in the blockquote
     for (const block of content) {
       if (block.type === 'paragraph') {
-        // Render paragraph with blockquote styling
-        const textRuns = this.renderInline(block.content);
+        // Render paragraph with blockquote styling — italic + muted colour +
+        // a coloured rule, matching pdf/html (docx previously had border only).
+        const textRuns = this.renderInline(block.content, {
+          italics: true,
+          color: hexToDocxColor(COLOR.textMuted),
+        });
         if (textRuns.length > 0) {
           elements.push(
             new Paragraph({
               children: textRuns,
-              indent: { left: 720 }, // Indent 0.5 inch
+              indent: { left: mmToTwips(SPACING.blockquoteIndentMm) },
               border: {
-                left: { style: BorderStyle.SINGLE, size: 6 },
+                left: {
+                  style: BorderStyle.SINGLE,
+                  size: 6,
+                  color: hexToDocxColor(COLOR.blockquoteBorder),
+                },
               },
               spacing: { after: 100 },
             })
@@ -537,7 +570,7 @@ export class DocxExporter extends BaseExporter {
       children: [new TextRun({ text: '' })],
       spacing: { before: 100, after: 100 },
       border: {
-        bottom: { style: BorderStyle.SINGLE, size: 6 },
+        bottom: { style: BorderStyle.SINGLE, size: 6, color: hexToDocxColor(COLOR.border) },
       },
     });
   }
@@ -559,7 +592,7 @@ export class DocxExporter extends BaseExporter {
                 ...{ bold: true },
               }),
             ],
-            shading: { fill: 'D9D9D9' }, // Light gray background for headers
+            shading: { fill: hexToDocxColor(COLOR.surfaceSubtle) }, // matches pdf/html table header background
           })
       );
       rows.push(new TableRow({ children: headerCells }));
@@ -589,9 +622,11 @@ export class DocxExporter extends BaseExporter {
   }
 
   /**
-   * Render inline content to TextRuns
+   * Render inline content to TextRuns.
+   * `overrides` layers extra run properties (e.g. blockquote's italic + muted
+   * colour) on top of each item's own styling, without disturbing it.
    */
-  private renderInline(content: InlineContent[]): TextRun[] {
+  private renderInline(content: InlineContent[], overrides?: { italics?: boolean; color?: string }): TextRun[] {
     return content.map((item) => {
       const options: any = {
         text: item.text,
@@ -607,8 +642,8 @@ export class DocxExporter extends BaseExporter {
           break;
 
         case 'code':
-          options.font = 'Courier New';
-          options.size = 20;
+          options.font = FONT_FAMILY.code.docx;
+          options.size = ptToHalfPt(FONT_SIZE_PT.code);
           break;
 
         case 'link':
@@ -623,6 +658,10 @@ export class DocxExporter extends BaseExporter {
         case 'strikethrough':
           options.strike = true;
           break;
+      }
+
+      if (overrides) {
+        Object.assign(options, overrides);
       }
 
       return new TextRun(options);
