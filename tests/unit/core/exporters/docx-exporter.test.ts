@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Conversation, QAPair } from '../../../../src/core/types';
 import { DocxExporter } from '../../../../src/core/exporters/docx-exporter';
-import { blobToBuffer, extractDocxEntry } from '../../../utils/docx-helpers';
+import { extractDocxEntry } from '../../../utils/docx-helpers';
 
 describe('DocxExporter', () => {
   describe('export() code blocks', () => {
@@ -51,8 +51,7 @@ describe('DocxExporter', () => {
       });
 
       expect(result.success).toBe(true);
-      const buffer = await blobToBuffer(result.blob!);
-      const documentXml = extractDocxEntry(buffer, 'word/document.xml');
+      const documentXml = await extractDocxEntry(result.blob!, 'word/document.xml');
       const breakCount = (documentXml.match(/<w:br\/>/g) ?? []).length;
 
       expect(breakCount).toBe(newlineCount);
