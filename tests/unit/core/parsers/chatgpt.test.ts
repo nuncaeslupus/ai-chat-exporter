@@ -486,20 +486,20 @@ describe('ChatGPTParser implementation', () => {
       const result = parser.parse();
       const pairs = result.conversation?.pairs ?? [];
 
-      // CURRENT (BAD) BEHAVIOR -- reported, not fixed, here: extractQAPairs
-      // zips userMessages[i] with assistantMessages[i] by array index.
-      // extractUserMessage returns null for the gutted turn (no content, no
-      // images), so it is dropped from the array instead of leaving a gap;
-      // every pair after it then shifts by one, silently mis-pairing an
-      // assistant answer with the WRONG question. collectWarnings only fires
-      // when pairs.length === 0, so this produces zero warnings despite the
-      // corruption -- exactly the "half-parsed and silent" failure mode this
-      // task is about.
+      // FIXED BEHAVIOR (lo-d0f0): extractQAPairs now walks conversation
+      // turns in DOM order and pairs each user turn with the assistant turn
+      // that immediately follows it, instead of zipping two independently-
+      // filtered arrays by index. The gutted turn still occupies its slot in
+      // that walk -- it becomes its own pair with an empty question plus a
+      // dedicated warning -- so every later pair keeps its original
+      // question, and no answer is silently reattached to the wrong one.
       expect(result.success).toBe(true);
-      expect(pairs.length).toBe(baseline.length - 1);
+      expect(pairs.length).toBe(baseline.length);
+      expect(pairs[4]?.question.content).toBe('');
       expect(pairs[4]?.answer.content).toBe(baseline[4]?.answer.content);
-      expect(pairs[4]?.question.content).toBe(baseline[5]?.question.content);
-      expect(pairs[4]?.question.content).not.toBe(baseline[4]?.question.content);
+      expect(pairs[5]?.question.content).toBe(baseline[5]?.question.content);
+      expect(pairs[5]?.answer.content).toBe(baseline[5]?.answer.content);
+      expect(result.warnings).toContain('Turn 5: the question could not be read');
     });
 
     it('returns success:false rather than an empty conversation when selectors match nothing', () => {
