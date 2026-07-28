@@ -14,13 +14,14 @@ Complete guide to using the AI Chat Exporter extension.
 
 - [Getting Started](#getting-started)
 - [Exporting Conversations](#exporting-conversations)
-  - [Quick Export](#quick-export)
-  - [Selective Export](#selective-export)
+  - [From the Popup](#from-the-popup)
+  - [From the Right-Click Menu](#from-the-right-click-menu)
   - [Export Formats](#export-formats)
 - [Printing Conversations](#printing-conversations)
 - [Extension Popup](#extension-popup)
-- [Keyboard Shortcuts](#keyboard-shortcuts)
-- [Settings & Preferences](#settings--preferences)
+- [Keyboard Shortcut](#keyboard-shortcut)
+- [Defaults](#defaults)
+- [What the Extension Does Not Do](#what-the-extension-does-not-do)
 - [Advanced Usage](#advanced-usage)
 - [Tips & Best Practices](#tips--best-practices)
 - [FAQ](#faq)
@@ -29,75 +30,61 @@ Complete guide to using the AI Chat Exporter extension.
 
 ## Getting Started
 
-After installing the extension (see [Installation Guide](INSTALLATION.md)):
+After installing the extension (see [Installation Guide](installation.md)):
 
 1. Navigate to a supported AI chat platform:
-   - ChatGPT: https://chat.openai.com
-   - Claude: https://claude.ai (coming soon)
-   - Gemini: https://gemini.google.com (coming soon)
+   - ChatGPT: https://chat.openai.com or https://chatgpt.com
+   - Claude: https://claude.ai
+   - Gemini: https://gemini.google.com
 
 2. Open or start a conversation
 
-3. Look for the export buttons that appear in the conversation interface
+3. Click the extension icon in your browser toolbar, or right-click on the page
+
+> The extension adds no buttons to the chat page itself. Everything is reached
+> from the toolbar popup, the right-click menu, or the keyboard shortcut.
 
 ---
 
 ## Exporting Conversations
 
-### Quick Export
+### From the Popup
 
-The fastest way to export the entire conversation:
+1. **Click the extension icon** in your browser toolbar
 
-1. **Locate the export button**
-   - Appears in the conversation header area
-   - Look for a download icon or "Export" button
+   The popup shows the detected platform, the conversation title, and the
+   number of Q&A pairs found.
 
-2. **Click the export button**
-   - A dropdown menu appears with format options
+2. **Pick a format** from the dropdown
 
-3. **Select your format**
-   - Choose from: PDF, Markdown, TXT, JSON, or DOCX
-   - See [Export Formats](#export-formats) for details
+   Markdown, HTML, PDF, Word (DOCX), Plain Text or JSON. See
+   [Export Formats](#export-formats).
 
-4. **Download**
-   - Your browser will download the file automatically
-   - Default filename: `{conversation-title}_{date}.{ext}`
+3. **Click "Export"**
 
-### Selective Export
+   Your browser downloads the file. Filename: `{conversation-title}_{date}.{ext}`.
 
-Export only specific Q&A pairs from a conversation:
+The whole conversation is always exported.
 
-1. **Open the selection panel**
-   - Click "Select Q&A Pairs" button
-   - The selection panel appears showing all Q&A pairs
+### From the Right-Click Menu
 
-2. **Choose pairs to export**
-   - Each Q&A pair has a checkbox
-   - Check the pairs you want to include
-   - Use "Select All" / "Deselect All" for quick selection
+1. Right-click anywhere on a supported chat page
+2. Hover **Export** (or **Print**)
+3. Pick a format from the submenu
 
-3. **Export selected**
-   - Click "Export Selected" button
-   - Choose your format
-   - Only selected pairs will be included
-
-4. **Close the selection panel**
-   - Click the "X" or click outside the panel
-
-**Use cases**:
-- Extract specific parts of a long conversation
-- Remove sensitive or irrelevant Q&A pairs
-- Create focused documentation from broader discussions
+The export starts immediately — no popup needed. **Print** offers every format
+except DOCX.
 
 ### Export Formats
 
 #### PDF
 **Best for**: Sharing, archiving, printing
 
-- Professional document layout
+- Paginated document layout
 - Preserves formatting and code blocks
-- Includes metadata header (optional)
+- Includes a metadata header (title, date, platform, model)
 - Page numbers and conversation info
+- Conversation images are embedded in the file
 - File size: Medium to large
 
 **Output example**:
@@ -138,6 +125,15 @@ import torch
 ```
 ```
 
+#### HTML (.html)
+**Best for**: Reading in a browser, printing, sharing a single self-contained file
+
+- Styling and code highlighting are inlined — no external stylesheet, script or
+  web font
+- Images are referenced by their original URL rather than embedded, so they load
+  only while you are still signed in to the chat provider
+- File size: Small to medium
+
 #### Plain Text (.txt)
 **Best for**: Maximum compatibility, minimal processing
 
@@ -160,15 +156,14 @@ A: A neural network is...
 **Best for**: Programmatic access, data analysis
 
 - Structured data format
-- Includes all metadata
+- Includes conversation metadata, roles, and the raw HTML of each message
+- Image, artifact and web-search metadata is preserved per message
 - Easy to parse with code
-- Contains timestamps and roles
 - File size: Medium
 
 **Structure**:
 ```json
 {
-  "id": "conv_123",
   "title": "Understanding Neural Networks",
   "platform": "chatgpt",
   "model": "gpt-4",
@@ -179,8 +174,7 @@ A: A neural network is...
       "index": 0,
       "question": {
         "role": "user",
-        "content": "What is a neural network?",
-        "timestamp": "2026-01-02T10:00:00Z"
+        "content": "What is a neural network?"
       },
       "answer": {
         "role": "assistant",
@@ -190,6 +184,8 @@ A: A neural network is...
   ]
 }
 ```
+
+Message timestamps are not written to the export.
 
 #### DOCX (.docx)
 **Best for**: Editing in Word, sharing with non-technical users
@@ -208,11 +204,15 @@ A: A neural network is...
 
 ## Printing Conversations
 
-Print directly from the browser with optimized formatting:
+Printing generates the conversation in the format you pick, opens it in a new
+tab and calls the browser's print dialog. Markdown is rendered to clean HTML
+first; plain-text formats are wrapped in a simple monospace page.
 
-1. **Click the print button**
-   - Located near the export button
-   - Opens browser print dialog
+1. **Start the print**
+   - Click **Print** in the popup, or right-click → **Print** → format
+   - Every format except DOCX can be printed
+   - Your browser must allow the extension to open a new tab; if a popup
+     blocker stops it, allow popups for the chat site
 
 2. **Adjust print settings**
    - Paper size (Letter, A4, etc.)
@@ -233,92 +233,66 @@ Print directly from the browser with optimized formatting:
 
 ## Extension Popup
 
-Click the extension icon in your browser toolbar to access:
+Click the extension icon in your browser toolbar. The popup contains:
 
 ### Status Display
-- Shows current platform (ChatGPT, Claude, etc.)
-- Displays conversation title
-- Shows Q&A pair count
+- The detected platform (ChatGPT, Claude or Gemini), with its logo
+- The conversation title
+- The number of Q&A pairs found
 
-### Quick Actions
-- **Export Current** - Quick export with default format
-- **Select & Export** - Open selection panel
-- **Print** - Quick print action
+If the page is not a supported conversation, the popup says so and lists the
+platforms it does support. If you installed or updated the extension while the
+page was already open, the popup asks you to reload the page first.
 
-### Settings Access
-- Click gear icon for preferences
-- Adjust default format
-- Configure filename template
-- Toggle metadata inclusion
+### Actions
+- **Format dropdown** - Markdown, HTML, PDF, Word, Plain Text, JSON
+- **Export** - Download the whole conversation in that format
+- **Print** - Open it in a new tab and raise the print dialog
+
+There are no other controls: no settings screen, no per-message selection.
 
 ---
 
-## Keyboard Shortcuts
-
-Speed up your workflow with keyboard shortcuts:
+## Keyboard Shortcut
 
 | Action | Windows/Linux | Mac |
 |--------|---------------|-----|
-| Quick Export | `Ctrl+Shift+E` | `Cmd+Shift+E` |
-| Open Selection Panel | `Ctrl+Shift+S` | `Cmd+Shift+S` |
-| Print | `Ctrl+Shift+P` | `Cmd+Shift+P` |
+| Export the conversation | `Ctrl+Shift+E` | `Cmd+Shift+E` |
 
-**Note**: Shortcuts only work when on a supported platform page.
+This is the only shortcut the extension registers. It exports immediately in the
+format you last used (PDF until you have exported once) — it does not open a
+dialog. It only works on a supported platform page.
 
-To customize shortcuts:
+To change it:
 - **Chrome**: `chrome://extensions/shortcuts`
 - **Firefox**: `about:addons` → Gear icon → "Manage Extension Shortcuts"
 
 ---
 
-## Settings & Preferences
+## Defaults
 
-### Accessing Settings
+The extension has no settings UI. These values are fixed:
 
-1. Click the extension icon
-2. Click the gear/settings icon
-3. Adjust preferences
+| Setting | Value |
+|---------|-------|
+| Format used by the keyboard shortcut | The last format you exported; PDF if you never have |
+| Conversation metadata (title, date, platform, model, URL) | Always included |
+| Message timestamps | Never included |
+| Filename | `{title}_{date}`, e.g. `Understanding-Neural-Networks_2026-01-02` |
 
-### Available Settings
+Special characters in the title are sanitized automatically, and the extension
+appends the format's own extension.
 
-#### Default Export Format
-Choose your preferred export format:
-- PDF (default)
-- Markdown
-- Plain Text
-- JSON
-- DOCX
+---
 
-**Effect**: When you click "Quick Export", this format is used automatically.
+## What the Extension Does Not Do
 
-#### Include Metadata
-Toggle whether exports include conversation metadata:
-- Title
-- Date
-- Platform
-- Model (if available)
-- URL
-
-**Recommendation**: Keep enabled for better organization.
-
-#### Filename Template
-Customize how exported files are named.
-
-**Available variables**:
-- `{title}` - Conversation title
-- `{date}` - Export date (YYYY-MM-DD)
-- `{time}` - Export time (HH-MM-SS)
-- `{platform}` - Platform name (chatgpt, claude, etc.)
-- `{model}` - AI model (if available)
-
-**Default**: `{title}_{date}`
-
-**Examples**:
-- `{platform}_{title}_{date}` → `chatgpt_Understanding-Neural-Networks_2026-01-02`
-- `{date}_{time}_{title}` → `2026-01-02_10-30-45_Understanding-Neural-Networks`
-- `{title}` → `Understanding-Neural-Networks`
-
-**Note**: Special characters are automatically sanitized.
+- **Choosing which Q&A pairs to export.** Exports always contain the entire
+  conversation.
+- **Settings / preferences UI.** See [Defaults](#defaults) above.
+- **Buttons inside the chat page.** Use the popup, the right-click menu, or the
+  keyboard shortcut.
+- **Batch export.** One conversation at a time.
 
 ---
 
@@ -328,15 +302,15 @@ Customize how exported files are named.
 
 Right-click anywhere on a supported platform page:
 1. Right-click on the page
-2. Select "AI Chat Exporter" from context menu
-3. Choose export action
+2. Hover **Export** (or **Print**)
+3. Pick a format from the submenu — the export starts right away
 
 ### Batch Exporting
 
-To export multiple conversations:
+There is no batch export. To export several conversations:
 1. Open each conversation in a separate tab
-2. Use quick export or keyboard shortcut on each
-3. All downloads will queue in your browser
+2. Export each one (popup, right-click menu or `Ctrl+Shift+E`)
+3. All downloads queue in your browser
 
 ### Integrating with Workflows
 
@@ -361,8 +335,8 @@ Use browser download management:
 ## Tips & Best Practices
 
 ### File Organization
-- Use descriptive conversation titles before exporting
-- Include date in filename template for chronological sorting
+- Use descriptive conversation titles before exporting — the title becomes the
+  filename
 - Create a dedicated folder for AI conversation exports
 
 ### Format Selection
@@ -373,15 +347,14 @@ Use browser download management:
 - **Documentation**: Use Markdown
 
 ### Performance
-- Large conversations (100+ Q&A pairs) may take a few seconds to export
-- PDF generation is slowest (due to rendering)
-- JSON/TXT are fastest
-- For very long conversations, consider selective export
+- Large conversations may take a few seconds to export
+- PDF generation is the slowest (it renders and embeds images)
+- JSON/TXT are the fastest
 
 ### Privacy
-- Review content before sharing exported files
-- Use selective export to exclude sensitive information
-- Remember that exports are saved locally on your device
+- Review content before sharing exported files — an export always contains the
+  whole conversation
+- Exports are saved locally on your device; see [PRIVACY.md](PRIVACY.md)
 
 ### Quality
 - For code-heavy conversations, use Markdown or JSON
@@ -393,7 +366,10 @@ Use browser download management:
 ## FAQ
 
 ### Can I export multiple conversations at once?
-Not currently. You must export each conversation individually. Use keyboard shortcuts or quick export for faster workflow.
+No. You must export each conversation individually. The keyboard shortcut makes this quicker.
+
+### Can I export only part of a conversation?
+No. Every export contains the whole conversation.
 
 ### What happens if I close the page during export?
 The export process completes almost instantly for most formats. If interrupted, simply retry the export.
@@ -417,28 +393,33 @@ The extension works if the conversation page is already loaded. However, you nee
 Currently, styling is preset for each format. Advanced customization may be added in future versions.
 
 ### What's the maximum conversation size?
-Tested with conversations up to 200 Q&A pairs. Larger conversations should work but may take longer to export.
+There is no built-in limit. Long conversations simply take longer to export, and PDF is the slowest format.
 
 ### Can I export conversation images?
-Currently, only text content is exported. Image support is planned for future versions.
+Yes. **PDF** embeds them in the file. **HTML** and **Markdown** link to them at their original URL, so they load only while you are still signed in to the chat provider. **DOCX** and **TXT** put a `[Image: ...]` placeholder in their place, and **JSON** records the URLs as data.
 
 ### Is my data sent to any servers?
-No. All processing happens locally in your browser. The extension does not send any data externally.
+Your conversations are never sent to us — the extension has no backend, no analytics and no telemetry, and it sends nothing to any third party.
+
+It does make two kinds of request, both to the chat provider whose page you are already on:
+
+- Exporting from **claude.ai** calls Claude's own API with your existing logged-in session, to fetch artifact content the page does not render in the DOM.
+- A **PDF** export downloads the conversation's own images from the provider so it can embed them.
+
+Full detail in [PRIVACY.md](PRIVACY.md).
 
 ---
 
 ## Getting Help
 
 - **Documentation**: Check [README](README.md) and this guide
-- **Installation Issues**: See [Installation Guide](INSTALLATION.md)
-- **Bug Reports**: [GitHub Issues](https://github.com/nuncaeslupus/ai-chat-exporter/issues)
-- **Feature Requests**: [GitHub Discussions](https://github.com/nuncaeslupus/ai-chat-exporter/discussions)
+- **Installation Issues**: See [Installation Guide](installation.md)
+- **Bug Reports / Feature Requests**: [GitHub Issues](https://github.com/nuncaeslupus/ai-chat-exporter/issues)
 
 ---
 
 ## Next Steps
 
 - Explore different export formats to find your preference
-- Set up keyboard shortcuts for your workflow
-- Configure default settings in the extension popup
+- Rebind the keyboard shortcut if `Ctrl+Shift+E` clashes with something else
 - Star the project on GitHub if you find it useful
