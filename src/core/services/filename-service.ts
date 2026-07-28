@@ -18,9 +18,21 @@ const PLATFORM_NAMES: Record<string, string> = {
 };
 
 /**
- * Maximum filename length (excluding extension)
+ * Filesystem filename byte ceiling (ext4/APFS/NTFS all cap at 255 bytes).
  */
-const MAX_FILENAME_LENGTH = 200;
+const MAX_FILENAME_BYTES = 255;
+
+/**
+ * Bytes reserved for the extension the caller appends via addExtension()
+ * (e.g. ".docx"). Longest current export extension is "docx" (4 chars);
+ * this leaves margin for a few more.
+ */
+const EXTENSION_BYTE_RESERVE = 10;
+
+/**
+ * Byte budget for the filename stem, before the extension is appended.
+ */
+const MAX_STEM_BYTES = MAX_FILENAME_BYTES - EXTENSION_BYTE_RESERVE;
 
 /**
  * Service for generating and sanitizing filenames
@@ -72,14 +84,36 @@ export class FilenameService {
     // Trim leading and trailing hyphens
     sanitized = sanitized.replace(/^-+|-+$/g, '');
 
-    // Truncate to max length
-    if (sanitized.length > MAX_FILENAME_LENGTH) {
-      sanitized = sanitized.substring(0, MAX_FILENAME_LENGTH);
+    // Truncate to the byte budget (filesystem limits are in bytes, not
+    // UTF-16 code units — a 200-char CJK title is ~600 bytes).
+    if (new TextEncoder().encode(sanitized).length > MAX_STEM_BYTES) {
+      sanitized = this.truncateToByteLength(sanitized, MAX_STEM_BYTES);
       // Trim trailing hyphen if truncation created one
       sanitized = sanitized.replace(/-+$/, '');
     }
 
     return sanitized;
+  }
+
+  /**
+   * Truncate a string so its UTF-8 encoding fits within maxBytes, cutting
+   * only on code-point boundaries (never splits a surrogate pair into a
+   * lone/invalid one). A multi-code-point grapheme cluster (e.g. a
+   * combining mark, or an emoji ZWJ sequence) can still be split at its
+   * boundary — that's a display quirk, not data corruption, and out of
+   * scope here (would need Intl.Segmenter for full correctness).
+   */
+  private static truncateToByteLength(str: string, maxBytes: number): string {
+    const encoder = new TextEncoder();
+    let result = '';
+    let byteLength = 0;
+    for (const codePoint of str) {
+      const codePointBytes = encoder.encode(codePoint).length;
+      if (byteLength + codePointBytes > maxBytes) break;
+      result += codePoint;
+      byteLength += codePointBytes;
+    }
+    return result;
   }
 
   /**

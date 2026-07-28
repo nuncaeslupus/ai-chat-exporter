@@ -143,7 +143,8 @@ describe('FilenameService', () => {
       };
       const template = '{title}';
       const result = FilenameService.generateFilename(template, variables);
-      expect(result.length).toBeLessThanOrEqual(200);
+      expect(new TextEncoder().encode(result).length).toBeLessThanOrEqual(255);
+      expect(result.length).toBeLessThan(300);
     });
 
     it('handles Unicode characters correctly', () => {
@@ -239,10 +240,43 @@ describe('FilenameService', () => {
       expect(result).toBe('');
     });
 
-    it('truncates to max length', () => {
+    it('truncates to max length (plain ASCII, no regression)', () => {
       const filename = 'A'.repeat(300);
       const result = FilenameService.sanitizeFilename(filename);
-      expect(result.length).toBeLessThanOrEqual(200);
+      expect(new TextEncoder().encode(result).length).toBeLessThanOrEqual(255);
+      expect(result.length).toBeLessThan(300);
+    });
+
+    it('truncates a long CJK title by UTF-8 byte length, not UTF-16 length', () => {
+      // Each CJK char is 1 UTF-16 code unit but 3 UTF-8 bytes.
+      const filename = '测'.repeat(200);
+      const result = FilenameService.sanitizeFilename(filename);
+      const byteLength = new TextEncoder().encode(result).length;
+      // Leaves room for a caller-appended extension within the 255-byte ceiling.
+      expect(byteLength).toBeLessThanOrEqual(255 - 10);
+      // Proves truncation actually happened on byte count, not code-unit count.
+      expect(result.length).toBeLessThan(200);
+    });
+
+    it('truncates an emoji title without splitting a surrogate pair', () => {
+      // Each emoji here is a single surrogate-pair code point (2 UTF-16 units, 4 UTF-8 bytes).
+      const filename = '😀'.repeat(150);
+      const result = FilenameService.sanitizeFilename(filename);
+      const byteLength = new TextEncoder().encode(result).length;
+      expect(byteLength).toBeLessThanOrEqual(255 - 10);
+      // No lone/unpaired surrogate anywhere in the result.
+      const loneHighSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])/;
+      const loneLowSurrogate = /(?:^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+      expect(loneHighSurrogate.test(result)).toBe(false);
+      expect(loneLowSurrogate.test(result)).toBe(false);
+    });
+
+    it('truncates a title with combining marks and stays within the byte ceiling', () => {
+      // Base letter + combining acute accent (U+0301), 3 UTF-8 bytes per pair.
+      const filename = 'á'.repeat(150);
+      const result = FilenameService.sanitizeFilename(filename);
+      const byteLength = new TextEncoder().encode(result).length;
+      expect(byteLength).toBeLessThanOrEqual(255 - 10);
     });
   });
 
