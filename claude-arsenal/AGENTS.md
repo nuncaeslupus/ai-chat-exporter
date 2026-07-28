@@ -1,6 +1,6 @@
 # Claude Arsenal
 
-<!-- claude-arsenal v0.20.5 — imported via @claude-arsenal/AGENTS.md -->
+<!-- claude-arsenal v0.21.0 — imported via @claude-arsenal/AGENTS.md -->
 
 This file is imported by the host repo's `CLAUDE.md` via the session-protocol block
 that `/init` injects. It provides the mechanics behind the proactive directives
@@ -267,6 +267,14 @@ laptop session records `done`; a cloud session is refused.
 One orchestrator claims up to `ARSENAL_MAX_WORKERS` independent tasks and
 dispatches that many workers at once. Run when the queue has open tasks:
 
+> **Precondition — the main working tree must be clean.** Run
+> `git status --porcelain` in the host's main tree before the first dispatch.
+> If it reports anything, **stop and tell the user**: commit it, move it to a
+> worktree, or explicitly accept the risk. The loop force-restores that tree
+> after every worker (step 6), and uncommitted work sitting in it is exactly
+> what gets caught. Keep it clean for the whole loop — do not cut branches or
+> start edits there while workers are running.
+
 0. **Establish worker isolation (once per session).** Parallel fan-out is only
    safe when each worker runs in its own `git worktree`; without it, concurrent
    workers share one tree and clobber each other, and any worker moves the
@@ -336,6 +344,22 @@ dispatches that many workers at once. Run when the queue has open tasks:
      if it prints `restored`, the worker ran in-place — clamp
      `ARSENAL_MAX_WORKERS=1` per step 0. Exit 2 (could not restore) → stop the
      loop and surface to the user.
+   - ⚠️ **`worker_postcheck.sh` is destructive by design.** A `restored` result
+     means it ran `git reset --hard` + `git clean -fd` in the tree it was
+     invoked from — the host's MAIN working tree, when the orchestrator runs it.
+     It restores whenever HEAD is off the recorded host branch, and it cannot
+     tell a worker's residue from your own uncommitted work. So:
+     - satisfy the loop precondition (step 0) — **the main working tree is
+       clean before the loop starts**, and stays that way;
+     - **never cut a branch in the main tree while the loop is running**
+       (a small docs PR is the classic trigger: the branch moves, the next
+       postcheck restores, and everything uncommitted goes with it). Do that
+       work in a separate worktree, or commit first.
+     - If a restore did catch uncommitted work, the tree was snapshotted first:
+       the ref is on `worker_postcheck.sh`'s stderr and in
+       `claude-arsenal/session/rescue_refs`. Recover with
+       `git checkout <ref> -- .`, and **surface it to the user** — do not
+       silently continue the loop over rescued work.
    - Then record the outcome on `arsenal-queue` yourself (the worker is on a
      feature branch and cannot run `release.sh` — see **Per-task PRs** below):
      - `done` + **PR URL** → `ARSENAL_QUEUE_DIR="${ARSENAL_QUEUE_DIR}" claude-arsenal/bin/release.sh <task_id> done --pr <pr-url>`.
@@ -682,6 +706,7 @@ claude-arsenal/
     release.sh        ← orchestrator-side; accepts --pr, stages the payload
     verify_claim.sh   ← post-compaction probe: checks pushed branch vs queue state
     worker_postcheck.sh ← orchestrator-side; restores HEAD→queue branch + clean tree post-worker
+    rescue_snapshot.sh ← snapshots a dirty tree to refs/arsenal-rescue/… before any forced restore
     reconcile_merged.sh ← done→merged flip via `gh` PR merge-state check
     queue_doctor.sh   ← read-only consistency audit (orphans, deps, false-done, secret-scan)
     open_task_pr.sh   ← worker-side; branch off default → commit → push → PR
