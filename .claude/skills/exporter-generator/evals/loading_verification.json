@@ -1,0 +1,17 @@
+{
+  "skill": "exporter-generator",
+  "canary": "exporter-generator-loaded-2026-07-28-ce53f101-e8b600fb2ea9c8c2",
+  "negative_control": "the exporter registry eagerly imports every format at content-script load",
+  "load_prompts": [
+    "Add EPUB export support to the extension",
+    "Images are missing from the DOCX export but they show up in the PDF",
+    "The exported PDF renders blank pages",
+    "Add a new export format to src/core/exporters/",
+    "Web search citations lose their URLs in the markdown export"
+  ],
+  "no_load_prompts": [
+    "Add a parser for a new chatbot platform",
+    "The popup shows the wrong version number",
+    "Update the README install instructions"
+  ]
+}
