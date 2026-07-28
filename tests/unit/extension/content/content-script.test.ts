@@ -247,3 +247,111 @@ describe('content-script print failure reporting (lo-f854)', () => {
     expect(printWindowStub.close).not.toHaveBeenCalled();
   });
 });
+
+describe('content-script concurrent export/print isolation (lo-08b0)', () => {
+  let printWindowStub: {
+    document: { write: ReturnType<typeof vi.fn> };
+    addEventListener: ReturnType<typeof vi.fn>;
+    location: { href: string };
+    close: ReturnType<typeof vi.fn>;
+    print: ReturnType<typeof vi.fn>;
+  };
+  const spyOnWindowOpen = () => vi.spyOn(window, 'open');
+  let openSpy: ReturnType<typeof spyOnWindowOpen>;
+
+  beforeEach(() => {
+    mockParse.mockReset();
+    mockExport.mockReset();
+    mockExtractIds.mockReset();
+    mockFetchApiData.mockReset();
+    mockEnrich.mockReset();
+    URL.createObjectURL = vi.fn(() => 'blob:mock');
+    URL.revokeObjectURL = vi.fn();
+
+    printWindowStub = {
+      document: { write: vi.fn() },
+      addEventListener: vi.fn(),
+      location: { href: '' },
+      close: vi.fn(),
+      print: vi.fn(),
+    };
+    openSpy = spyOnWindowOpen().mockReturnValue(printWindowStub as unknown as Window);
+  });
+
+  afterEach(() => {
+    openSpy.mockRestore();
+  });
+
+  it('does not let a second export overwrite the first export in-flight conversation', async () => {
+    const conversationA = {
+      ...createTestConversation([createTestQAPair(0, 'Q-A', 'Answer-A')]),
+      title: 'Conversation A',
+    };
+    const conversationB = {
+      ...createTestConversation([
+        createTestQAPair(0, 'Q-B1', 'Answer-B1'),
+        createTestQAPair(1, 'Q-B2', 'Answer-B2'),
+      ]),
+      title: 'Conversation B',
+    };
+    mockParse
+      .mockReturnValueOnce({ success: true, conversation: createTestConversation([]) }) // module-load initialize()
+      .mockReturnValueOnce({ success: true, conversation: conversationA })
+      .mockReturnValueOnce({ success: true, conversation: conversationB });
+    mockExport.mockResolvedValue({ success: true, blob: new Blob(['x']) });
+
+    const listener = await loadMessageListener();
+    const sendResponseA = vi.fn();
+    const sendResponseB = vi.fn();
+
+    // Fire both without awaiting the first — an impatient double-click on Export.
+    listener({ type: 'export_conversation', format: 'md' }, {}, sendResponseA);
+    listener({ type: 'export_conversation', format: 'md' }, {}, sendResponseB);
+
+    await vi.waitFor(() => {
+      expect(sendResponseA).toHaveBeenCalled();
+      expect(sendResponseB).toHaveBeenCalled();
+    });
+
+    expect(mockExport).toHaveBeenCalledTimes(2);
+    const exportedConversations = mockExport.mock.calls.map((call) => call[0] as unknown);
+    // Each export call must see its OWN parsed conversation — never the
+    // other call's, and never both calls exporting the same (wrong) one.
+    expect(exportedConversations).toContainEqual(conversationA);
+    expect(exportedConversations).toContainEqual(conversationB);
+  });
+
+  it('does not let a concurrent export corrupt an in-flight print', async () => {
+    const conversationPrint = {
+      ...createTestConversation([createTestQAPair(0, 'Print-Q', 'Print-A')]),
+      title: 'Print conversation',
+    };
+    const conversationExport = {
+      ...createTestConversation([createTestQAPair(0, 'Export-Q', 'Export-A')]),
+      title: 'Export conversation',
+    };
+    mockParse
+      .mockReturnValueOnce({ success: true, conversation: createTestConversation([]) }) // module-load initialize()
+      .mockReturnValueOnce({ success: true, conversation: conversationPrint })
+      .mockReturnValueOnce({ success: true, conversation: conversationExport });
+    mockExport.mockResolvedValue({ success: true, blob: new Blob(['x']), mimeType: 'text/html' });
+
+    const listener = await loadMessageListener();
+    const sendResponsePrint = vi.fn();
+    const sendResponseExport = vi.fn();
+
+    // Print starts first; Export fires while the print pipeline is mid-flight.
+    listener({ type: 'print_conversation', format: 'html' }, {}, sendResponsePrint);
+    listener({ type: 'export_conversation', format: 'md' }, {}, sendResponseExport);
+
+    await vi.waitFor(() => {
+      expect(sendResponsePrint).toHaveBeenCalled();
+      expect(sendResponseExport).toHaveBeenCalled();
+    });
+
+    expect(mockExport).toHaveBeenCalledTimes(2);
+    const exportedConversations = mockExport.mock.calls.map((call) => call[0] as unknown);
+    expect(exportedConversations).toContainEqual(conversationPrint);
+    expect(exportedConversations).toContainEqual(conversationExport);
+  });
+});
