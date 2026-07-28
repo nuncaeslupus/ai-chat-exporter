@@ -249,6 +249,30 @@ function createContextMenus(): void {
 }
 
 /**
+ * Send a message to a tab's content script and log a delivery failure
+ * instead of swallowing it. `chrome.tabs.sendMessage` fails silently (no
+ * callback invocation error, just a `chrome.runtime.lastError`) when the tab
+ * has no content script — e.g. it was loaded before install, the extension
+ * was reloaded, or the page is an unsupported one. There is no
+ * "notifications" permission and no badge API used anywhere in this
+ * extension to route the error through instead, so this reuses the
+ * console.error(`[${EXTENSION_NAME}] ...`) pattern already used above for
+ * chrome.contextMenus.create's own lastError checks — the established
+ * error-surfacing path for this service worker.
+ */
+function sendMessageToTab(tabId: number, message: unknown): void {
+  chrome.tabs.sendMessage(tabId, message, () => {
+    if (chrome.runtime.lastError) {
+      console.error(
+        `[${EXTENSION_NAME}] Failed to deliver message to tab (no content script?):`,
+        tabId,
+        chrome.runtime.lastError.message,
+      );
+    }
+  });
+}
+
+/**
  * Context menu click handler
  */
 chrome.contextMenus.onClicked.addListener((info, tab) => {
@@ -264,7 +288,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     const format = menuId.replace('export-', '');
     console.log(`[${EXTENSION_NAME}] Export requested: ${format}`);
 
-    chrome.tabs.sendMessage(tab.id, {
+    sendMessageToTab(tab.id, {
       type: 'export_conversation',
       format: format,
       timestamp: Date.now(),
@@ -275,7 +299,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     const format = menuId.replace('print-', '');
     console.log(`[${EXTENSION_NAME}] Print requested: ${format}`);
 
-    chrome.tabs.sendMessage(tab.id, {
+    sendMessageToTab(tab.id, {
       type: 'print_conversation',
       format: format,
       timestamp: Date.now(),
@@ -299,11 +323,13 @@ chrome.commands.onCommand.addListener((command) => {
       // format the user picked (same format the content script persists
       // after every export), falling back to the configured default.
       StorageService.getLastExportFormat()
-        .then((format) => chrome.tabs.sendMessage(tabId, {
-          type: 'export_conversation',
-          format: format ?? DEFAULT_PREFERENCES.defaultFormat,
-          timestamp: Date.now(),
-        }))
+        .then((format) => {
+          sendMessageToTab(tabId, {
+            type: 'export_conversation',
+            format: format ?? DEFAULT_PREFERENCES.defaultFormat,
+            timestamp: Date.now(),
+          });
+        })
         .catch((error: unknown) => {
           console.error(`[${EXTENSION_NAME}] Failed to send export command:`, error);
         });
