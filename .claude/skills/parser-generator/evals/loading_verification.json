@@ -5,7 +5,9 @@
   "load_prompts": [
     "Add a parser for Mistral's chat UI",
     "The ChatGPT parser stopped working, exports come out empty",
-    "Capture DOM selectors for a new chatbot platform"
+    "Capture DOM selectors for a new chatbot platform",
+    "Deep Research turns are missing from the Gemini export",
+    "The Gemini parser is registered but the popup says the page is not supported"
   ],
   "no_load_prompts": [
     "Add a CSV export format to the extension",
