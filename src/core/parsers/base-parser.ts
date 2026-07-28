@@ -201,23 +201,22 @@ export abstract class BaseParser implements IParser {
    * Clean up UI elements from a cloned element
    */
   private cleanupElement(element: Element): void {
-    // Remove copy buttons and their text
-    const copyButtons = element.querySelectorAll('button[class*="copy"], button[class*="Copy"]');
-    copyButtons.forEach(btn => btn.remove());
-
     // Remove ALL buttons (ChatGPT UI has many button artifacts), including
     // non-<button> elements exposed as buttons via ARIA role (e.g. a `<span
     // role="button">` copy-table/copy-code control whose SVG sprite icon would
-    // otherwise ship in htmlContent as a dead `/cdn/assets/sprites-...` reference).
-    const allButtons = element.querySelectorAll('button, [role="button"]');
-    allButtons.forEach(btn => btn.remove());
-
-    // Remove screenreader-only elements. Naming is per design system, not
-    // universal: ChatGPT ships `.sr-only`, Gemini (Angular CDK) ships
-    // `.cdk-visually-hidden` — which is how "You said" prefixed every Gemini
-    // question and "Opens in a new window" trailed every citation.
-    const srOnly = element.querySelectorAll('.sr-only, [class*="sr-only"], [class*="visually-hidden"], [style*="position: absolute"][style*="width: 1px"]');
-    srOnly.forEach(el => el.remove());
+    // otherwise ship in htmlContent as a dead `/cdn/assets/sprites-...`
+    // reference), plus screenreader-only elements. Naming is per design
+    // system, not universal: ChatGPT ships `.sr-only`, Gemini (Angular CDK)
+    // ships `.cdk-visually-hidden` — which is how "You said" prefixed every
+    // Gemini question and "Opens in a new window" trailed every citation.
+    // These two removals used to be four separate querySelectorAll passes
+    // (one of which -- button[class*="copy"] -- was already a strict subset
+    // of the plain `button` selector below and did nothing on its own);
+    // combined into one pass since neither depends on the other's ordering.
+    const chrome = element.querySelectorAll(
+      'button, [role="button"], .sr-only, [class*="sr-only"], [class*="visually-hidden"], [style*="position: absolute"][style*="width: 1px"]'
+    );
+    chrome.forEach(el => el.remove());
 
     // Collapse rendered math (KaTeX/MathJax) to a single representation before the
     // generic aria-hidden strip below runs. KaTeX emits up to three copies of the
