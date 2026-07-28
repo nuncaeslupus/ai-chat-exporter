@@ -877,23 +877,34 @@ export class HtmlExporter extends BaseExporter {
                     .replace(/</g, '&lt;')
                     .replace(/>/g, '&gt;');
 
-                // Basic syntax patterns - covers most common cases
-                html = html
-                    // Keywords
-                    .replace(/\\b(function|const|let|var|if|else|for|while|return|class|import|export|from|async|await|try|catch|throw|new|this|typeof|instanceof)\\b/g,
-                        '<span class="hljs-keyword">$1</span>')
-                    // Strings
-                    .replace(/("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*'|\`(?:[^\`\\\\]|\\\\.)*\`)/g,
-                        '<span class="hljs-string">$1</span>')
-                    // Numbers
-                    .replace(/\\b(\\d+\\.?\\d*)\\b/g,
-                        '<span class="hljs-number">$1</span>')
-                    // Comments (single-line)
-                    .replace(/(\\/{2,}.*$)/gm,
-                        '<span class="hljs-comment">$1</span>')
-                    // Comments (multi-line)
-                    .replace(/(\\/\\*[\\s\\S]*?\\*\\/)/g,
-                        '<span class="hljs-comment">$1</span>');
+                // Basic syntax patterns - covers most common cases.
+                // Single pass: a combined regex tokenizes the source left to
+                // right and each match is wrapped as it's found, so a later
+                // token class can never re-match markup an earlier one just
+                // emitted (the old chained .replace() calls had that bug --
+                // the "strings" pass re-matched the quoted class attribute
+                // the "keywords" pass had just written).
+                html = html.replace(
+                    /(\\/\\*[\\s\\S]*?\\*\\/)|(\\/{2,}.*)|("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*'|\`(?:[^\`\\\\]|\\\\.)*\`)|\\b(\\d+\\.?\\d*)\\b|\\b(function|const|let|var|if|else|for|while|return|class|import|export|from|async|await|try|catch|throw|new|this|typeof|instanceof)\\b/g,
+                    (match, blockComment, lineComment, str, number, keyword) => {
+                        // Capture groups are either the matched text or unset -- never an
+                        // empty string, since every alternative requires >=1 character --
+                        // so a plain truthy check picks the right token class.
+                        if (blockComment || lineComment) {
+                            return '<span class="hljs-comment">' + match + '</span>';
+                        }
+                        if (str) {
+                            return '<span class="hljs-string">' + match + '</span>';
+                        }
+                        if (number) {
+                            return '<span class="hljs-number">' + match + '</span>';
+                        }
+                        if (keyword) {
+                            return '<span class="hljs-keyword">' + match + '</span>';
+                        }
+                        return match;
+                    }
+                );
 
                 block.innerHTML = html;
                 block.classList.add('hljs');
