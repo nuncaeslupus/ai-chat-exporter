@@ -170,6 +170,90 @@ describe('PdfExporter', () => {
     expect(headingSize).toBeGreaterThan(paragraphSize!);
   });
 
+  it('renders both the anchor text and its destination URL for a link', async () => {
+    const pair: QAPair = {
+      id: 'pair-link',
+      index: 0,
+      selected: true,
+      question: {
+        id: 'q-link',
+        role: 'user',
+        content: 'question',
+        timestamp: new Date('2025-01-01T12:00:00Z'),
+      },
+      answer: {
+        id: 'a-link',
+        role: 'assistant',
+        content: 'fallback',
+        htmlContent: '<p>See <a href="https://example.com/source">the source</a> for details.</p>',
+        timestamp: new Date('2025-01-01T12:00:00Z'),
+      },
+    };
+    const conversation: Conversation = {
+      id: 'test-conversation-link',
+      title: 'Link Test',
+      platform: 'claude',
+      model: 'claude-3',
+      pairs: [pair],
+      url: 'https://claude.ai/chat/link-test',
+      createdAt: new Date('2025-01-01T12:00:00Z'),
+    };
+
+    await new PdfExporter().export(conversation, [pair], {
+      format: 'pdf',
+      filename: 'test',
+      includeMetadata: false,
+      includeTimestamps: false,
+    });
+
+    const instance = instances[0]!;
+    const combined = textCallsOf(instance).join(' ');
+    expect(combined).toContain('the source');
+    expect(combined).toContain('https://example.com/source');
+  });
+
+  it('omits the redundant URL suffix when the link text is the URL itself', async () => {
+    const pair: QAPair = {
+      id: 'pair-link-identical',
+      index: 0,
+      selected: true,
+      question: {
+        id: 'q-link-identical',
+        role: 'user',
+        content: 'question',
+        timestamp: new Date('2025-01-01T12:00:00Z'),
+      },
+      answer: {
+        id: 'a-link-identical',
+        role: 'assistant',
+        content: 'fallback',
+        htmlContent: '<p>See <a href="https://example.com/">https://example.com/</a> for details.</p>',
+        timestamp: new Date('2025-01-01T12:00:00Z'),
+      },
+    };
+    const conversation: Conversation = {
+      id: 'test-conversation-link-identical',
+      title: 'Link Test Identical',
+      platform: 'claude',
+      model: 'claude-3',
+      pairs: [pair],
+      url: 'https://claude.ai/chat/link-test-identical',
+      createdAt: new Date('2025-01-01T12:00:00Z'),
+    };
+
+    await new PdfExporter().export(conversation, [pair], {
+      format: 'pdf',
+      filename: 'test',
+      includeMetadata: false,
+      includeTimestamps: false,
+    });
+
+    const instance = instances[0]!;
+    const combined = textCallsOf(instance).join(' ');
+    expect(combined).toContain('https://example.com/');
+    expect(combined).not.toContain('https://example.com/ (https://example.com/)');
+  });
+
   it('switches to a monospace font for the code block', async () => {
     const { conversation, pairs } = buildConversation();
     await new PdfExporter().export(conversation, pairs, {

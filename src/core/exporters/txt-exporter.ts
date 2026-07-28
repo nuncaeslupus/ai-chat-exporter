@@ -301,7 +301,13 @@ export class TextExporter extends BaseExporter {
    * Convert inline content to plain text
    */
   private inlineToText(content: InlineContent[]): string {
-    return content.map(item => item.text).join('');
+    return content
+      .map(item =>
+        item.type === 'link' && item.url && item.url !== item.text
+          ? `${item.text} (${item.url})`
+          : item.text
+      )
+      .join('');
   }
 
   /**
