@@ -2,10 +2,6 @@
  * Configuration types for user preferences
  */
 
-import type { ExportFormat } from './exporter';
-import { DEFAULT_PDF_OPTIONS, DEFAULT_DOCX_OPTIONS } from './exporter';
-import type { PDFExportOptions, DOCXExportOptions } from './exporter';
-
 /**
  * Filename template variables
  */
@@ -29,36 +25,6 @@ export interface FilenameVariables {
  * Example: "{platform}_{title}_{datetime}" -> "ChatGPT_My-Conversation_2025-01-01_14-30"
  */
 export const DEFAULT_FILENAME_TEMPLATE = '{platform}_{title}_{datetime}';
-
-/**
- * User preferences stored in extension storage
- */
-export interface UserPreferences {
-  /** Default export format */
-  defaultFormat: ExportFormat;
-  /** Default filename template */
-  filenameTemplate: string;
-  /** Whether to remember selections between sessions */
-  rememberSelections: boolean;
-  /** PDF default options */
-  pdfDefaults: PDFExportOptions;
-  /** DOCX default options */
-  docxDefaults: DOCXExportOptions;
-  /** Show confirmation before export */
-  showConfirmation: boolean;
-}
-
-/**
- * Default user preferences
- */
-export const DEFAULT_PREFERENCES: UserPreferences = {
-  defaultFormat: 'md',
-  filenameTemplate: DEFAULT_FILENAME_TEMPLATE,
-  rememberSelections: false,
-  pdfDefaults: DEFAULT_PDF_OPTIONS,
-  docxDefaults: DEFAULT_DOCX_OPTIONS,
-  showConfirmation: true,
-};
 
 /**
  * Print options

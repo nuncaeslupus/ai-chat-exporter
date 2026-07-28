@@ -2,6 +2,8 @@
  * Shared constants for the AI Chat Exporter extension
  */
 
+import type { UserPreferences } from './messages';
+
 export const EXTENSION_NAME = 'AI Chat Exporter';
 
 /**
@@ -27,7 +29,7 @@ export const MESSAGE_TYPES = {
 /**
  * Default user preferences
  */
-export const DEFAULT_PREFERENCES = {
+export const DEFAULT_PREFERENCES: UserPreferences = {
   includeMetadata: true,
   includeTimestamps: true,
   includeCodeBlocks: true,
