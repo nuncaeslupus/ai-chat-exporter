@@ -34,7 +34,7 @@ function makeConversation(pairs: QAPair[]): Conversation {
     title: 'Test conversation',
     platform: 'claude',
     pairs,
-    url: 'https://claude.ai/chat/0ee665c3-eaa5-485b-83aa-184065da1977',
+    url: 'https://claude.ai/chat/00000000-0000-4000-8000-000000000000',
   };
 }
 
