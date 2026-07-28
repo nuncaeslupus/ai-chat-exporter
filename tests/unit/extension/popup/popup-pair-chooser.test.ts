@@ -289,6 +289,8 @@ describe('pair chooser — chrome', () => {
     await loadPopup([pairAt(0)]);
 
     expect(document.querySelector('.submenu-back')?.getAttribute('data-nav')).toBe('main');
-    expect(document.querySelector('.pair-chooser-done')?.getAttribute('data-nav')).toBe('main');
+    expect(document.querySelector('#view-content .submenu-done')?.getAttribute('data-nav')).toBe(
+      'main'
+    );
   });
 });

@@ -23,6 +23,7 @@ import { parserRegistry } from '../../core/parsers';
 import { StorageService } from '../../shared/storage';
 import { DEFAULT_PREFERENCES } from '../../shared/constants';
 import { SelectionService } from '../../core/services/selection-service';
+import { FilenameService } from '../../core/services/filename-service';
 
 /**
  * The popup's four views. Only one is visible at a time and they all render
@@ -80,11 +81,16 @@ const PLATFORM_ICONS: Record<string, string> = {
 /**
  * Render the version from the manifest, the single source of truth. Hardcoding
  * it here previously left the popup advertising v1.0.0 while shipping 1.1.1.
+ * It shows twice — header badge and Options footer — so every `data-version`
+ * slot is filled rather than one hardcoded id per place it appears.
  */
 function renderVersion(): void {
-  const el = document.getElementById('popup-version');
-  if (!el) return;
-  el.textContent = `v${chrome.runtime.getManifest().version}`;
+  const slots = document.querySelectorAll('[data-version]');
+  if (slots.length === 0) return;
+  const text = `v${chrome.runtime.getManifest().version}`;
+  slots.forEach((el) => {
+    el.textContent = text;
+  });
 }
 
 /**
@@ -258,6 +264,8 @@ function daySeparatorRow(label: string): HTMLElement {
 class PopupController {
   private selectedFormat: ExportFormat = 'md';
   private pairs: QAPair[] = [];
+  /** Kept for the filename preview, which needs title / model / created date. */
+  private conversation: Conversation | null = null;
   /** Rows showing their full question text (`more` / `less`). */
   private expandedPairIds = new Set<string>();
   private view: PopupView = 'main';
@@ -467,20 +475,13 @@ class PopupController {
     document.getElementById('option-include-timestamps')?.addEventListener('change', (e) => {
       void this.persistPreference({ includeTimestamps: (e.target as HTMLInputElement).checked });
     });
-
-    // Footer links
-    document.getElementById('report-issue')?.addEventListener('click', (e) => {
-      e.preventDefault();
-      void chrome.tabs.create({
-        url: 'https://github.com/nuncaeslupus/ai-chat-exporter/issues',
-      });
-    });
   }
 
   /** Every preference write goes through here so the Options dot stays honest. */
   private async persistPreference(patch: Parameters<typeof StorageService.setUserPreferences>[0]): Promise<void> {
     await StorageService.setUserPreferences(patch);
     await this.updateOptionsDot();
+    await this.updateFilenamePreview();
   }
 
   private handleFormatChange(format: ExportFormat): void {
@@ -488,6 +489,8 @@ class PopupController {
     localStorage.setItem('lastExportFormat', format);
     this.updateExportLabel(format);
     this.syncFormatRows();
+    // The preview carries the extension, so it moves with the format.
+    void this.updateFilenamePreview();
 
     // Disable print button for formats that can't be printed nicely
     const printButton = document.getElementById('print-button') as HTMLButtonElement;
@@ -615,8 +618,33 @@ class PopupController {
 
     // Own copy: toggling a checkbox must not mutate the conversation object
     // shared with the rest of the popup.
+    this.conversation = conversation;
     this.pairs = conversation.pairs.map((pair) => ({ ...pair }));
     this.renderSelectionList();
+    void this.updateFilenamePreview();
+  }
+
+  /**
+   * The name the export would really be saved as — same template, same
+   * service, same extension the content script would use, so the row can
+   * never advertise a name the download does not get.
+   *
+   * ponytail: the extension is the format id because every exporter's
+   * `extension` matches its format today. Read it off the exporter registry
+   * if that ever stops being true.
+   */
+  private async updateFilenamePreview(): Promise<void> {
+    const el = document.getElementById('options-filename-preview');
+    if (!el || !this.conversation) return;
+
+    const prefs = await StorageService.getUserPreferences();
+    const stem = FilenameService.generateFilename(
+      prefs.filenameTemplate,
+      FilenameService.getVariablesFromConversation(this.conversation)
+    );
+    const name = FilenameService.addExtension(stem, this.selectedFormat);
+    el.textContent = name;
+    el.title = name;
   }
 
   /**

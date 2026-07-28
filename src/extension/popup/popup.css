@@ -623,11 +623,13 @@ section {
 }
 
 /*
- * ── Pair chooser (Content submenu) ────────────────────────────────────────
+ * ── Submenus (Content, Options) ───────────────────────────────────────────
  * Three bands in the same 260px box: header and footer are `flex:none`, only
- * the list scrolls. Nothing here can grow the popup.
+ * the middle band scrolls. Nothing here can grow the popup. The header, the
+ * footer bar and the Done button are shared by every submenu; what differs
+ * is only the band between them.
  */
-.pair-chooser-header {
+.submenu-header {
   flex: none;
   display: flex;
   align-items: center;
@@ -804,8 +806,8 @@ section {
   color: var(--color-text-secondary);
 }
 
-/* Footer — the running count and the way out. */
-.pair-chooser-footer {
+/* Footer — whatever the submenu is tracking, and the way out. */
+.submenu-footer {
   flex: none;
   display: flex;
   align-items: center;
@@ -822,7 +824,7 @@ section {
   color: var(--color-text-secondary);
 }
 
-.pair-chooser-done {
+.submenu-done {
   flex: none;
   height: 30px;
   padding: 0 13px;
@@ -836,67 +838,129 @@ section {
   cursor: pointer;
 }
 
-.pair-chooser-done:hover {
+.submenu-done:hover {
   background: var(--color-accent-pressed);
 }
 
-/* Settings Section */
-.settings-grid {
+/*
+ * ── Options submenu ───────────────────────────────────────────────────────
+ * Three rows and nothing else — no examples, no explanatory paragraphs.
+ */
+.options-header {
+  padding-bottom: 6px;
+}
+
+.options-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding-bottom: 14px;
+  padding: 0 16px;
 }
 
-.setting-item {
+.option-row {
+  /* Same trap as the pair rows: without `flex:none` they collapse. */
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  padding: 10px 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  text-align: left;
   cursor: pointer;
-  padding: 4px;
-  border-radius: var(--radius-row);
-  transition: background 0.15s ease;
 }
 
-.setting-item:hover {
-  background: var(--color-surface-hover);
-}
-
-.setting-item input[type='checkbox'] {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  accent-color: var(--color-accent);
-}
-
-.setting-item span {
-  font-size: 13px;
-  color: var(--color-text-primary);
-}
-
-/* Footer — pinned inside the body box, never grows it. */
-.popup-footer {
+.option-row input[type='checkbox'] {
   flex: none;
-  padding: 9px 16px 11px;
-  border-top: 1px solid var(--color-border-hairline);
-  background: var(--color-surface-bar);
-  text-align: center;
-  font-size: 11px;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.option-row-label {
+  font-size: 12.5px;
+  color: var(--color-text-body);
+}
+
+/* Only the checkbox rows: inside the nav row's stack it must not stretch. */
+.option-row > .option-row-label {
+  flex: 1;
+}
+
+/* Navigation row: label over the filename, chevron aligned to the label. */
+.option-row--nav {
+  align-items: flex-start;
+  padding: 9px 0;
+}
+
+/* Keeps the label on the same left edge as the two checkbox rows above. */
+.option-row-gutter {
+  flex: none;
+  width: 15px;
+}
+
+.option-row-stack {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.option-row-filename {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.option-row-chevron {
+  flex: none;
+  margin-top: 3px;
+  color: var(--color-text-muted);
+}
+
+.option-row--nav:hover .option-row-chevron {
   color: var(--color-text-secondary);
 }
 
-.footer-link {
-  color: var(--color-accent);
+/* Footer: version, the two links, Done. */
+.options-footer {
+  gap: 8px;
+  font-size: 10.5px;
+  color: var(--color-text-secondary);
+}
+
+.options-footer-version {
+  font-variant-numeric: tabular-nums;
+}
+
+.options-footer-dot {
+  flex: none;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+
+.options-footer-link {
+  color: var(--color-text-secondary);
   text-decoration: none;
-  transition: opacity 0.15s ease;
 }
 
-.footer-link:hover {
-  opacity: 0.8;
+.options-footer-link:hover {
+  color: var(--color-accent);
 }
 
-.footer-separator {
-  margin: 0 8px;
+.options-footer .submenu-done {
+  margin-left: auto;
 }
 
 /* Scrollbar */

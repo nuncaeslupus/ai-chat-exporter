@@ -142,12 +142,16 @@
   },
 
   "optionIncludeMetadata": {
-    "message": "Metadaten einschließen",
+    "message": "Kopfzeile mit den Chat-Daten",
     "description": "Label for the toggle controlling whether exports include the metadata block"
   },
   "optionIncludeTimestamps": {
-    "message": "Zeitstempel einschließen",
+    "message": "Uhrzeit bei jeder Nachricht",
     "description": "Label for the toggle controlling whether exports include message timestamps"
+  },
+  "optionsFilenameRow": {
+    "message": "Dateiname",
+    "description": "Label of the file-name navigation row in the Options submenu"
   },
 
   "qaSelectionTitle": {
@@ -316,13 +320,13 @@
     }
   },
 
+  "footerPrivacy": {
+    "message": "Datenschutz",
+    "description": "Privacy policy link in the Options submenu footer"
+  },
   "footerGitHub": {
     "message": "GitHub",
     "description": "GitHub footer link"
-  },
-  "footerReportIssue": {
-    "message": "Problem Melden",
-    "description": "Report issue footer link"
   },
 
   "metaPairsSingular": {

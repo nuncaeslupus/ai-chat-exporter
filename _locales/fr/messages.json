@@ -142,12 +142,16 @@
   },
 
   "optionIncludeMetadata": {
-    "message": "Inclure les métadonnées",
+    "message": "En-tête avec les données du chat",
     "description": "Libellé du commutateur contrôlant l'inclusion du bloc de métadonnées dans les exports"
   },
   "optionIncludeTimestamps": {
-    "message": "Inclure les horodatages",
+    "message": "Heure sur chaque message",
     "description": "Libellé du commutateur contrôlant l'inclusion des horodatages dans les exports"
+  },
+  "optionsFilenameRow": {
+    "message": "Nom du fichier",
+    "description": "Label of the file-name navigation row in the Options submenu"
   },
 
   "qaSelectionTitle": {
@@ -316,13 +320,13 @@
     }
   },
 
+  "footerPrivacy": {
+    "message": "Confidentialité",
+    "description": "Privacy policy link in the Options submenu footer"
+  },
   "footerGitHub": {
     "message": "GitHub",
     "description": "Lien de pied de page vers GitHub"
-  },
-  "footerReportIssue": {
-    "message": "Signaler un Problème",
-    "description": "Lien de pied de page pour signaler un problème"
   },
 
   "metaPairsSingular": {
