@@ -170,7 +170,6 @@ export class HtmlExporter extends BaseExporter {
                                 <ul class="search-results">
                                     ${search.results.map((result: any) => `
                                     <li class="search-result">
-                                        ${result.favicon ? `<img src="${this.escapeHtml(result.favicon)}" alt="" class="result-favicon">` : ''}
                                         <div class="result-content">
                                             <a href="${this.escapeHtml(result.url)}" target="_blank" rel="noopener noreferrer" class="result-title">${this.escapeHtml(result.title)}</a>
                                             ${result.domain ? `<span class="result-domain">${this.escapeHtml(result.domain)}</span>` : ''}
@@ -682,13 +681,6 @@ export class HtmlExporter extends BaseExporter {
 
         .user-message .search-result:hover {
             background: #f3f4f6;
-        }
-
-        .result-favicon {
-            width: 16px;
-            height: 16px;
-            flex-shrink: 0;
-            margin-top: 0.25rem;
         }
 
         .result-content {

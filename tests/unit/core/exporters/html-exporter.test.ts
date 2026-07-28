@@ -90,3 +90,61 @@ describe('HtmlExporter security', () => {
     expect(codeBlock?.textContent).toContain('<img src=x onerror=alert(1)>');
   });
 });
+
+describe('exported HTML makes no third-party requests', () => {
+  /**
+   * PR #49 removed citation favicons at the parser, but the exporter's <img>
+   * sink survived — one repopulated field away from an exported file phoning a
+   * third-party icon service (and leaking the reader's IP) on every open.
+   * This asserts the property at the sink, so it holds whatever parsers do.
+   */
+  async function exportWithSearch(): Promise<string> {
+    const conversation = buildConversation('const x = 1;');
+    conversation.pairs[0]!.answer.metadata = {
+      webSearches: [
+        {
+          query: 'example query',
+          resultCount: 1,
+          results: [
+            {
+              title: 'Example result',
+              url: 'https://example.com/article',
+              domain: 'example.com',
+              favicon: 'https://logo.clearbit.com/example.com',
+            },
+          ],
+        },
+      ],
+    };
+    const exporter = new HtmlExporter();
+    const result = await exporter.export(conversation, conversation.pairs, {
+      format: 'html',
+      filename: 'test',
+      includeMetadata: true,
+      includeTimestamps: false,
+    });
+    expect(result.success).toBe(true);
+    return blobToText(result.blob!);
+  }
+
+  it('does not emit a favicon <img> even when a result carries one', async () => {
+    const html = await exportWithSearch();
+    expect(html).not.toContain('logo.clearbit.com');
+    expect(html).not.toContain('result-favicon');
+  });
+
+  it('embeds no remote subresource of any kind', async () => {
+    const html = await exportWithSearch();
+    const dom = new JSDOM(html);
+    const remote = [...dom.window.document.querySelectorAll('img[src], script[src], link[href], iframe[src]')]
+      .map(el => el.getAttribute('src') ?? el.getAttribute('href') ?? '')
+      .filter(u => /^https?:\/\//i.test(u));
+    expect(remote).toEqual([]);
+  });
+
+  it('still renders the result title and destination', async () => {
+    const html = await exportWithSearch();
+    expect(html).toContain('Example result');
+    expect(html).toContain('https://example.com/article');
+  });
+});
