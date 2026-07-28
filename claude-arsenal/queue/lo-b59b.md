@@ -1,11 +1,6 @@
 # Payload: lo-b59b — DOM-drift regression tests
 
-## Acceptance gate
-
 **Gate**: each parser has tests proving it degrades gracefully when the target site's DOM shifts.
-
-
-Prose-only gate — verified by worker judgment, no script to run.
 
 For a scraper, the likeliest real-world failure is the target site renaming a class or moving an attribute. Current edge-case tests (`tests/unit/core/parsers/chatgpt.test.ts:282-314`) cover empty and malformed HTML but not *plausible near-miss* HTML.
 
