@@ -33,6 +33,16 @@ function getUrlsForPlatform(platform: string): string[] {
 }
 
 /**
+ * Render the version from the manifest, the single source of truth. Hardcoding
+ * it here previously left the popup advertising v1.0.0 while shipping 1.1.1.
+ */
+function renderVersion(): void {
+  const el = document.getElementById('popup-version');
+  if (!el) return;
+  el.textContent = `v${chrome.runtime.getManifest().version}`;
+}
+
+/**
  * Populate the supported platforms list dynamically
  */
 function populateSupportedPlatforms(): void {
@@ -80,6 +90,9 @@ class PopupController {
 
     // Populate supported platforms list dynamically
     populateSupportedPlatforms();
+
+    // Show the shipped version
+    renderVersion();
 
     // Load user preferences
     await this.loadPreferences();
@@ -164,14 +177,10 @@ class PopupController {
         return;
       }
 
-      // Check if we're on a supported page
-      const supportedDomains = [
-        'chat.openai.com',
-        'chatgpt.com',
-        'claude.ai',
-        // TODO: Add when parser is implemented
-        // 'gemini.google.com',
-      ];
+      // Derived from the parser registry so a newly registered platform is
+      // supported here automatically — a second hardcoded list silently gated
+      // Gemini out long after its parser shipped.
+      const supportedDomains = [...parserRegistry.keys()].flatMap(getUrlsForPlatform);
 
       const url = tab.url ? new URL(tab.url) : null;
       if (!url || !supportedDomains.some((domain) => url.hostname.includes(domain))) {

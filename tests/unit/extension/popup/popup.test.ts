@@ -107,3 +107,36 @@ describe('popup degraded-export reporting', () => {
     expect(document.getElementById('status-text')?.textContent).not.toBe('Artifacts missing');
   });
 });
+
+describe('popup platform gate', () => {
+  beforeEach(() => {
+    mockTabsQuery.mockReset();
+    mockTabsSendMessage.mockReset();
+    Object.assign(chrome, {
+      tabs: { query: mockTabsQuery, sendMessage: mockTabsSendMessage, create: vi.fn() },
+      runtime: { getManifest: () => ({ version: '9.9.9' }) },
+    });
+  });
+
+  it('treats every registered platform as supported, including gemini', async () => {
+    mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://gemini.google.com/app/abc' }]);
+    mockTabsSendMessage.mockResolvedValue({
+      success: true,
+      data: { ...CONVERSATION, platform: 'gemini', url: 'https://gemini.google.com/app/abc' },
+    });
+    await loadPopup();
+    expect(document.getElementById('main-content')?.style.display).not.toBe('none');
+  });
+
+  it('renders the version from the manifest rather than a hardcoded string', async () => {
+    document.body.innerHTML = POPUP_DOM + '<span id="popup-version"></span>';
+    vi.resetModules();
+    mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://claude.ai/chat/abc' }]);
+    mockTabsSendMessage.mockResolvedValue({ success: true, data: CONVERSATION });
+    await import('../../../../src/extension/popup/popup');
+    document.dispatchEvent(new Event('DOMContentLoaded'));
+    await vi.waitFor(() => {
+      expect(document.getElementById('popup-version')?.textContent).toBe('v9.9.9');
+    });
+  });
+});

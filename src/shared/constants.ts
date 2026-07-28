@@ -3,7 +3,6 @@
  */
 
 export const EXTENSION_NAME = 'AI Chat Exporter';
-export const EXTENSION_VERSION = '1.0.0';
 
 /**
  * Storage keys
