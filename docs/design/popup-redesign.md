@@ -158,3 +158,15 @@ Para ver los diseños: abrir los `.dc.html` en un navegador. En el documento de 
 4. Nuevas claves de traducción en los siete `_locales`: título de submenús (`Elegir pares`, `Opciones`, `Nombre del archivo`, `Formato`), `Todos` / `Ninguno`, `Hecho`, `Por defecto`, `más` / `menos`, línea de privacidad, `Recargar la página`, `Guardado, pero incompleto`, `Reintentar`, `Ningún par seleccionado`, nombres de las piezas del nombre de archivo. Reutiliza las existentes cuando encajen.
 5. La cabecera del archivo exportado (opción “Cabecera con los datos del chat”) debe incluir **plataforma, modelo, rango de fechas de la conversación, fecha de exportación y URL**. El rango de fechas es nuevo respecto a hoy.
 6. Con marcas de tiempo activas, los exportadores emiten un **separador de fecha** al cambiar el día (`— 29 jul 2026 —`), no la fecha en cada mensaje.
+
+---
+
+## Estado de los assets (resuelto 2026-07-28)
+
+- **Logo de la extensión: candidato A** (elegido por el autor). Vive en
+  `src/assets/icons/icon.svg`; `icon-16/32/48/128.png` se generan de ahí.
+- **Logo de Claude: marca oficial**, el *Claude Spark* en Clay del kit de prensa
+  de Anthropic (`anthropic.com/press-kit`), guardado como
+  `src/assets/icons/claude-logo.svg`. Sustituye a la "A" de Anthropic.
+- **Maquetas**: `docs/design/popup-redesign/*.dc.html`. Ábrelas en un navegador;
+  la conversación que muestran es inventada, no es una captura real.
