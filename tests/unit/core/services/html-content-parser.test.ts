@@ -317,9 +317,7 @@ describe('HtmlContentParser', () => {
       expect(blocks).toEqual([{ type: 'hr' }]);
     });
 
-    it('parses an image with dimensions when a sibling block element forces block parsing', () => {
-      // The img has to share a parent with another recognized block element (here <hr>)
-      // to reach the image-parsing branch at all -- see the bug noted below.
+    it('parses an image with dimensions', () => {
       const html = '<img src="https://example.com/x.png" alt="alt text" width="100" height="50"><hr>';
       const blocks = HtmlContentParser.parse(html);
       expect(blocks[0]).toMatchObject({
@@ -331,26 +329,35 @@ describe('HtmlContentParser', () => {
       });
     });
 
-    // BUG: a standalone <img> (no other block-level sibling) is silently dropped.
-    // `parse()` and the `case 'p'/'div'` block in `parseElement()` both decide whether
-    // to route content through block parsing (which has the `case 'img'` handler) by
-    // checking for a fixed list of tags that does not include 'img'. When it's absent,
-    // content falls through to `parseInlineContent()`, whose default branch reads
-    // `el.textContent` -- always '' for an <img> -- so the image is discarded with no
-    // error. This means a lone image (or an image inside a lone <p>/<div>) never
-    // appears in exported output. Not fixed here -- test-only task; asserting the
-    // current (wrong) behavior explicitly so it doesn't get silently "fixed" by a
-    // future refactor without anyone noticing the semantic change.
-    it('BUG: silently drops a standalone image with no block-level sibling', () => {
+    // Regression: 'img' must stay in the block-tag lists that `parse()` and the
+    // `case 'p'/'div'` branch of `parseElement()` use to decide whether to route
+    // content through block parsing. Drop it and an image falls through to
+    // `parseInlineContent()`, whose default branch reads `el.textContent` -- always
+    // '' for an <img> -- silently discarding it from every export format.
+    it('keeps a standalone image with no block-level sibling', () => {
       const html = '<img src="https://example.com/x.png" alt="alt text">';
       const blocks = HtmlContentParser.parse(html);
-      expect(blocks).toEqual([]); // should contain an image block; it does not
+      expect(blocks).toEqual([
+        { type: 'image', url: 'https://example.com/x.png', alt: 'alt text' },
+      ]);
     });
 
-    it('BUG: silently drops an image that is the sole content of a <p>', () => {
+    it('keeps an image that is the sole content of a <p>', () => {
       const html = '<p><img src="https://example.com/x.png" alt="alt text"></p>';
       const blocks = HtmlContentParser.parse(html);
-      expect(blocks).toEqual([]); // should contain a paragraph/image block; it does not
+      expect(blocks).toEqual([
+        { type: 'image', url: 'https://example.com/x.png', alt: 'alt text' },
+      ]);
+    });
+
+    it('keeps an image alongside the text of its paragraph', () => {
+      const html = '<p>before<img src="https://example.com/x.png" alt="a">after</p>';
+      const blocks = HtmlContentParser.parse(html);
+      expect(blocks).toEqual([
+        { type: 'paragraph', content: [{ type: 'text', text: 'before' }] },
+        { type: 'image', url: 'https://example.com/x.png', alt: 'a' },
+        { type: 'paragraph', content: [{ type: 'text', text: 'after' }] },
+      ]);
     });
   });
 });
