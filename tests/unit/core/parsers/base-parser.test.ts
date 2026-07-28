@@ -145,4 +145,30 @@ describe('BaseParser cleanupElement (via GeminiParser.extractContent)', () => {
       expect(htmlContent).not.toMatch(/<button/i);
     });
   });
+
+  describe('Angular Material visually-hidden chrome (Gemini)', () => {
+    // Real shapes from tmp/examples/artifacts-gemini-rendered.html: Gemini is an
+    // Angular app, so its screenreader-only chrome uses .cdk-visually-hidden
+    // rather than .sr-only. Left in, these labels land in exported text.
+    it('strips .cdk-visually-hidden chrome from extracted content', () => {
+      const parser = buildParser(
+        `<div><span class="cdk-visually-hidden">Opens in a new window</span>` +
+          `<span class="cdk-visually-hidden">Expand menu</span>` +
+          `<p>Actual answer text.</p></div>`
+      );
+      const { content } = parser.extractContent(parser.document.body, false);
+      expect(content).toBe('Actual answer text.');
+      expect(content).not.toContain('Opens in a new window');
+      expect(content).not.toContain('Expand menu');
+    });
+
+    it('strips a visually-hidden speaker label from a user turn', () => {
+      const parser = buildParser(
+        `<div><span class="cdk-visually-hidden">You said</span><p>What is lift?</p></div>`
+      );
+      const { content } = parser.extractContent(parser.document.body, false);
+      expect(content).toBe('What is lift?');
+    });
+  });
+
 });

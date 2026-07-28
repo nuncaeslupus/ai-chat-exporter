@@ -212,8 +212,13 @@ export abstract class BaseParser implements IParser {
     const allButtons = element.querySelectorAll('button, [role="button"]');
     allButtons.forEach(btn => btn.remove());
 
-    // Remove screenreader-only elements
-    const srOnly = element.querySelectorAll('.sr-only, [class*="sr-only"], [style*="position: absolute"][style*="width: 1px"]');
+    // Remove screenreader-only elements. `.cdk-visually-hidden` is Angular
+    // Material's equivalent of `.sr-only` — Gemini is an Angular app, so its
+    // chrome labels ("Opens in a new window", "Expand menu", speaker labels)
+    // carry that class and would otherwise land in the extracted text.
+    const srOnly = element.querySelectorAll(
+      '.sr-only, [class*="sr-only"], .cdk-visually-hidden, [class*="visually-hidden"], [style*="position: absolute"][style*="width: 1px"]'
+    );
     srOnly.forEach(el => el.remove());
 
     // Collapse rendered math (KaTeX/MathJax) to a single representation before the
