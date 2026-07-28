@@ -1,22 +1,53 @@
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
+
+/** Chrome's "no content script in this tab" rejection, matched by tab-messaging. */
+const NO_RECEIVER = new Error(
+  'Could not establish connection. Receiving end does not exist.',
+);
+
+/** Let every pending microtask in the send/inject/retry chain settle. */
+const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe('export keyboard shortcut', () => {
   let sendMessageMock: ReturnType<typeof vi.fn>;
+  let executeScriptMock: ReturnType<typeof vi.fn>;
+  let insertCSSMock: ReturnType<typeof vi.fn>;
+  let setBadgeTextMock: ReturnType<typeof vi.fn>;
   let onCommandHandler: (command: string) => void;
   let onClickedHandler: (
     info: { menuItemId: string },
     tab: { id: number } | undefined,
   ) => void;
 
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   beforeAll(async () => {
     sendMessageMock = vi.fn();
+    executeScriptMock = vi.fn().mockResolvedValue(undefined);
+    insertCSSMock = vi.fn().mockResolvedValue(undefined);
+    setBadgeTextMock = vi.fn();
 
     const chromeMock = {
       runtime: {
         onInstalled: { addListener: vi.fn() },
         onStartup: { addListener: vi.fn() },
         onMessage: { addListener: vi.fn() },
-        getManifest: vi.fn(() => ({ version: '1.0.0' })),
+        getManifest: vi.fn(() => ({
+          version: '1.0.0',
+          content_scripts: [
+            { js: ['content/content-script.js'], css: ['content/styles.css'] },
+          ],
+        })),
+      },
+      action: {
+        setBadgeText: setBadgeTextMock,
+        setBadgeBackgroundColor: vi.fn(),
+      },
+      scripting: {
+        executeScript: executeScriptMock,
+        insertCSS: insertCSSMock,
       },
       tabs: {
         onUpdated: { addListener: vi.fn() },
@@ -84,33 +115,52 @@ describe('export keyboard shortcut', () => {
     expect(message.format).toBeTruthy();
   });
 
-  it('surfaces chrome.runtime.lastError when the content script is missing from a context-menu export', () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-
-    // Simulate the tab having no content script injected (tab loaded before
-    // install / extension reloaded / unsupported page): sendMessage's
-    // callback fires with chrome.runtime.lastError set and no response.
-    sendMessageMock.mockImplementationOnce(
-      (_tabId: number, _message: unknown, callback?: () => void) => {
-        (chrome.runtime as unknown as { lastError?: { message: string } }).lastError = {
-          message: 'Could not establish connection. Receiving end does not exist.',
-        };
-        callback?.();
-        delete (chrome.runtime as unknown as { lastError?: { message: string } }).lastError;
-      },
-    );
+  it('injects the content script and delivers the export when the tab has none', async () => {
+    // Tab loaded before install / extension reloaded: nothing is listening yet.
+    sendMessageMock.mockRejectedValueOnce(NO_RECEIVER).mockResolvedValueOnce({ success: true });
 
     onClickedHandler({ menuItemId: 'export-pdf' }, { id: 42 });
+    await flush();
 
-    expect(errorSpy).toHaveBeenCalled();
-    const loggedError = errorSpy.mock.calls.some((call) =>
-      call.some(
-        (arg) =>
-          typeof arg === 'string' &&
-          arg.includes('Could not establish connection'),
-      ),
+    expect(executeScriptMock).toHaveBeenCalledTimes(1);
+    // Retried after the injection, so the export actually reaches the page.
+    expect(sendMessageMock).toHaveBeenCalledTimes(2);
+    expect(sendMessageMock.mock.calls[1]?.[1]).toMatchObject({
+      type: 'export_conversation',
+      format: 'pdf',
+    });
+    expect(setBadgeTextMock).not.toHaveBeenCalledWith({ text: '!' });
+  });
+
+  it('surfaces exactly one failure on the badge when the injection fails', async () => {
+    sendMessageMock.mockRejectedValueOnce(NO_RECEIVER);
+    executeScriptMock.mockRejectedValueOnce(new Error('Cannot access contents of the page'));
+
+    onClickedHandler({ menuItemId: 'export-pdf' }, { id: 42 });
+    await flush();
+
+    // No point retrying a tab nothing can be injected into.
+    expect(sendMessageMock).toHaveBeenCalledTimes(1);
+    const flagged = setBadgeTextMock.mock.calls.filter(
+      ([details]) => (details as { text: string }).text === '!',
     );
-    expect(loggedError).toBe(true);
+    expect(flagged).toHaveLength(1);
+  });
+
+  it('reports a genuine messaging fault as an error without injecting', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    sendMessageMock.mockRejectedValueOnce(new Error('Tab was discarded'));
+
+    onClickedHandler({ menuItemId: 'export-pdf' }, { id: 42 });
+    await flush();
+
+    expect(executeScriptMock).not.toHaveBeenCalled();
+    expect(setBadgeTextMock).toHaveBeenCalledWith({ text: '!' });
+    expect(
+      errorSpy.mock.calls.some((call) =>
+        call.some((arg) => typeof arg === 'string' && arg.includes('Tab was discarded')),
+      ),
+    ).toBe(true);
 
     errorSpy.mockRestore();
   });
