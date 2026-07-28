@@ -24,13 +24,31 @@ class ContentScript {
   async initialize(): Promise<void> {
     // Always re-parse for ChatGPT since it's a dynamic SPA
     // Don't use the initialized flag to skip
+    const conversation = this.parseConversation();
+    if (!conversation) {
+      this.notifyPageReadyState(false);
+      return;
+    }
 
-    // Find matching parser for current page
+    this.conversation = conversation;
+    this.notifyPageReadyState(true);
+  }
+
+  /**
+   * Parse the conversation off the live page and return it directly, without
+   * touching instance state (`this.conversation`).
+   *
+   * `handleExport`/`handlePrint` each call this to get their own local
+   * snapshot rather than sharing `this.conversation` — a double-click on
+   * Export, or Export firing while a Print is mid-flight, runs two of these
+   * pipelines concurrently, and instance state shared between them would let
+   * one overwrite the other's in-flight conversation (lo-08b0).
+   */
+  private parseConversation(): Conversation | null {
     const parser = detectParser();
     if (!parser) {
       console.log('[AI Chat Exporter] No parser found for current page');
-      this.notifyPageReadyState(false);
-      return;
+      return null;
     }
 
     if (!this.initialized) {
@@ -39,20 +57,16 @@ class ContentScript {
       );
     }
 
-    // Parse the conversation
     const parseResult = parser.parse();
     if (!parseResult.success || !parseResult.conversation) {
       console.error('[AI Chat Exporter] Failed to parse conversation:', parseResult.error);
-      this.notifyPageReadyState(false);
-      return;
+      return null;
     }
 
-    this.conversation = parseResult.conversation;
-
     console.log('[AI Chat Exporter] Successfully initialized');
-    console.log(`[AI Chat Exporter] Found ${this.conversation.pairs.length} conversation pairs`);
+    console.log(`[AI Chat Exporter] Found ${parseResult.conversation.pairs.length} conversation pairs`);
     this.initialized = true;
-    this.notifyPageReadyState(true);
+    return parseResult.conversation;
   }
 
   /**
@@ -76,32 +90,34 @@ class ContentScript {
    * complete. Failures throw.
    */
   async handleExport(format: ExportFormat): Promise<string | undefined> {
-    // Re-parse conversation to get latest content (ChatGPT is dynamic SPA)
-    await this.initialize();
+    // Re-parse conversation to get latest content (ChatGPT is dynamic SPA).
+    // Operate on a local snapshot, not `this.conversation` — a concurrent
+    // export/print call must never see or clobber this call's data (lo-08b0).
+    let conversation = this.parseConversation();
 
-    if (!this.conversation) {
+    if (!conversation) {
       console.error('[AI Chat Exporter] No conversation available');
       return undefined;
     }
 
-    console.log(`[AI Chat Exporter] Attempting to export ${this.conversation.pairs.length} pairs to ${format}`);
+    console.log(`[AI Chat Exporter] Attempting to export ${conversation.pairs.length} pairs to ${format}`);
     let warning: string | undefined;
 
     try {
       // Check if we have any pairs to export
-      if (this.conversation.pairs.length === 0) {
+      if (conversation.pairs.length === 0) {
         throw new Error('No conversation pairs found to export');
       }
 
       // Enrich Claude conversations with API data (artifacts content)
-      if (this.conversation.platform === 'claude') {
-        const enrichment = await this.enrichClaudeConversation(this.conversation);
-        this.conversation = enrichment.conversation;
+      if (conversation.platform === 'claude') {
+        const enrichment = await this.enrichClaudeConversation(conversation);
+        conversation = enrichment.conversation;
         warning = enrichment.warning;
       }
 
       // Use all pairs for export
-      const pairsToExport = this.conversation.pairs;
+      const pairsToExport = conversation.pairs;
 
       // Debug: Check if artifacts have content before export
       console.log('[AI Chat Exporter] Pairs to export:', pairsToExport.length);
@@ -124,7 +140,7 @@ class ContentScript {
 
       // Export conversation (use all pairs)
       const result = await exporter.export(
-        this.conversation,
+        conversation,
         pairsToExport,
         {
           format,
@@ -139,7 +155,7 @@ class ContentScript {
       }
 
       // Generate filename
-      const variables = FilenameService.getVariablesFromConversation(this.conversation);
+      const variables = FilenameService.getVariablesFromConversation(conversation);
       const baseFilename = FilenameService.generateFilename(prefs.filenameTemplate, variables);
       const filename = FilenameService.addExtension(baseFilename, exporter.extension);
 
@@ -220,32 +236,37 @@ class ContentScript {
     }
     printWindow.document.write('<p>Preparing document for printing…</p>');
 
-    // Re-parse conversation to get latest content
-    await this.initialize();
+    // Re-parse conversation to get latest content. Operate on a local
+    // snapshot, not `this.conversation` — a concurrent export/print call
+    // must never see or clobber this call's data (lo-08b0).
+    let conversation = this.parseConversation();
 
-    if (!this.conversation) {
+    if (!conversation) {
       console.error('[AI Chat Exporter] No conversation available');
       printWindow.close();
       return undefined;
     }
 
-    console.log(`[AI Chat Exporter] Attempting to print ${this.conversation.pairs.length} pairs as ${format}`);
+    console.log(`[AI Chat Exporter] Attempting to print ${conversation.pairs.length} pairs as ${format}`);
     let warning: string | undefined;
 
     try {
       // Check if we have any pairs to print
-      if (this.conversation.pairs.length === 0) {
+      if (conversation.pairs.length === 0) {
         throw new Error('No conversation pairs found to print');
       }
 
       // Enrich Claude conversations with API data (artifacts content)
-      if (this.conversation.platform === 'claude') {
-        const enrichment = await this.enrichClaudeConversation(this.conversation);
-        this.conversation = enrichment.conversation;
+      if (conversation.platform === 'claude') {
+        const enrichment = await this.enrichClaudeConversation(conversation);
+        conversation = enrichment.conversation;
         warning = enrichment.warning;
       }
 
-      const pairsToExport = this.conversation.pairs;
+      // Freeze the final snapshot in a `const` so the closures below (which
+      // outlive this function's execution) keep a stable, non-null reference.
+      const finalConversation = conversation;
+      const pairsToExport = finalConversation.pairs;
 
       // Get exporter for format
       const exporter = await getExporter(format);
@@ -258,7 +279,7 @@ class ContentScript {
 
       // Export conversation
       const result = await exporter.export(
-        this.conversation,
+        finalConversation,
         pairsToExport,
         {
           format,
@@ -277,7 +298,7 @@ class ContentScript {
         const reader = new FileReader();
         reader.onload = async () => {
           const markdown = reader.result as string;
-          const cleanHtml = await this.renderMarkdownToCleanHtml(markdown, this.conversation!.title);
+          const cleanHtml = await this.renderMarkdownToCleanHtml(markdown, finalConversation.title);
           const htmlBlob = new Blob([cleanHtml], { type: 'text/html' });
           this.printBlob(printWindow, htmlBlob, 'html');
         };
