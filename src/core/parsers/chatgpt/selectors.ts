@@ -8,7 +8,12 @@ import type { SelectorSet } from '../../types';
 /**
  * ChatGPT-specific CSS selectors for DOM parsing
  */
-export const CHATGPT_SELECTORS: SelectorSet = {
+// `satisfies` rather than `: SelectorSet` on purpose: it still checks the shape,
+// but keeps `custom`'s keys known so the parser can read `selectors.custom.foo`
+// without a `?? '<literal>'` fallback. Those fallbacks were a second copy of
+// every selector living in parser.ts -- exactly the drift this file exists to
+// prevent (docs/dev/parser-gotchas.md #2).
+export const CHATGPT_SELECTORS = {
   // Main conversation container
   conversationContainer: 'main#main',
 
@@ -65,8 +70,24 @@ export const CHATGPT_SELECTORS: SelectorSet = {
     citationPill: '[data-testid="webpage-citation-pill"]',
     // Web citation link
     citationLink: '[data-testid="webpage-citation-pill"] a',
+    // Sidebar title fallbacks, tried in order after `conversationTitle`
+    conversationTitleFallback:
+      'a[data-active="true"] .truncate span, nav a[href*="/c/"] .truncate span',
+    // Title text inside a sidebar conversation link (the link itself is matched
+    // by href, built from the conversation id in the URL)
+    conversationTitleText: '.truncate span',
+    // Canvas / textdoc turn container
+    canvasContainer: '[id^="textdoc-message-"]',
+    // Canvas editable content, inside the canvas container
+    canvasContent: '.ProseMirror, .prose',
+    // Generated-image turn container
+    generatedImageContainer: '.group\\/imagegen-image, [class*="imagegen"]',
+    // Title of a generated-image turn, in the turn header
+    generatedImageTitle: '.message-role, [class*="font-medium"]',
+    // Deep-research summary button ("Research completed in 6m · 18 sources ·")
+    deepResearchButton: 'button[class*="text-token-text-tertiary"]',
   },
-};
+} satisfies SelectorSet;
 
 /**
  * ChatGPT URL patterns for detection
