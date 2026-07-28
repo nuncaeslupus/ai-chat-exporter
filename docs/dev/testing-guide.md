@@ -188,11 +188,11 @@ export function createTestQAPair(index: number): QAPair {
 ## Running Tests
 
 ```bash
-# Run all tests
+# Watch mode (best for development)
 pnpm test
 
-# Watch mode (best for development)
-pnpm test:watch
+# Run once (CI, pre-commit)
+pnpm test:run
 
 # Coverage report
 pnpm test:coverage
@@ -202,12 +202,9 @@ pnpm test -- chatgpt.test.ts
 
 # Run tests matching pattern
 pnpm test -- exporters
-
-# Interactive UI mode
-pnpm test:ui
 ```
 
-**CI/CD:** Tests run on pre-commit hook, pull requests, and main branch pushes
+**CI/CD:** Tests run in GitHub Actions on pull requests and main branch pushes (`.github/workflows/ci.yml`) — there is no pre-commit hook
 
 ## Coverage
 
@@ -250,8 +247,9 @@ describe('parse', () => {
 
 **4. Isolate Tests**
 ```typescript
-let service: SelectionService;
-beforeEach(() => { service = new SelectionService(); }); // Fresh instance
+// SelectionService is a static utility class — no instance to isolate,
+// just call its static methods directly.
+expect(SelectionService.toggleSelection(pairs, 'pair-0')).toHaveLength(2);
 ```
 
 **5. Test Error Cases**

@@ -351,8 +351,9 @@ the same field.
 **Rules:**
 
 - `src/core/exporters/index.ts` is the authority on what "every exporter" means:
-  `md` (structured), `txt`, `json`, `pdf`, `docx`, `html`. `md-exporter.ts` and
-  `html-pdf-exporter.ts` are **not registered** — code there ships to nobody.
+  `md` (structured), `txt`, `json`, `pdf`, `docx`, `html`. The old unregistered
+  `md-exporter.ts` and `html-pdf-exporter.ts` shipped to nobody and were
+  deleted; don't resurrect dead exporter files instead of wiring the registry.
 - The integration suite's `describe.each(exporterRegistry.keys())` block is the
   cheapest place to enforce it: assert the new field for *all* formats, not for
   the subset that happens to pass.
