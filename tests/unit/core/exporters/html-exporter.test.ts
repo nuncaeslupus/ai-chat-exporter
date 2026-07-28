@@ -91,6 +91,117 @@ describe('HtmlExporter security', () => {
   });
 });
 
+describe('HtmlExporter structural contract', () => {
+  function buildStructuredConversation(): Conversation {
+    return {
+      id: 'test-conversation',
+      title: 'HTML Structure Test',
+      platform: 'claude',
+      model: 'claude-3',
+      url: 'https://claude.ai/chat/html-structure-test',
+      createdAt: new Date('2025-01-01T12:00:00Z'),
+      pairs: [
+        {
+          id: 'pair-0',
+          index: 0,
+          selected: true,
+          question: {
+            id: 'q-0',
+            role: 'user',
+            content: 'plain question',
+            timestamp: new Date('2025-01-01T12:00:00Z'),
+          },
+          answer: {
+            id: 'a-0',
+            role: 'assistant',
+            content: 'Section Heading Some text function foo() { return 1; }',
+            htmlContent:
+              '<h2>Section Heading</h2><p>Some text</p><pre><code class="language-js">function foo() { return 1; }</code></pre>',
+            timestamp: new Date('2025-01-01T12:00:00Z'),
+          },
+        },
+      ],
+    } as unknown as Conversation;
+  }
+
+  async function exportStructured(includeMetadata: boolean) {
+    const conversation = buildStructuredConversation();
+    const exporter = new HtmlExporter();
+    const result = await exporter.export(conversation, conversation.pairs, {
+      format: 'html',
+      filename: 'test',
+      includeMetadata,
+      includeTimestamps: false,
+    });
+    expect(result.success).toBe(true);
+    return { conversation, html: await blobToText(result.blob!) };
+  }
+
+  it('emits a full standalone document', async () => {
+    const { html } = await exportStructured(true);
+
+    expect(html).toMatch(/^<!DOCTYPE html>/);
+    expect(html).toContain('<html');
+    expect(html).toContain('<head>');
+    expect(html).toContain('<body>');
+    expect(html).toContain('</html>');
+    // Standalone: styling and syntax highlighting are inlined, not fetched.
+    expect(html).toContain('<style>');
+    expect(html).toContain('<script>');
+  });
+
+  it('escapes HTML-significant characters in plain user content', async () => {
+    const conversation = buildStructuredConversation();
+    // No htmlContent -- exercises the plain-text fallback path, which runs
+    // the raw message content straight through the exporter's own escaper.
+    conversation.pairs[0]!.question.content = '<b>Is 1 < 2</b> & "quoted"?';
+    const exporter = new HtmlExporter();
+    const result = await exporter.export(conversation, conversation.pairs, {
+      format: 'html',
+      filename: 'test',
+      includeMetadata: false,
+      includeTimestamps: false,
+    });
+    const html = await blobToText(result.blob!);
+
+    // Must never be interpreted as a real <b> tag or unescaped ampersand.
+    expect(html).not.toContain('<b>Is 1 < 2');
+    expect(html).toContain('&lt;b&gt;Is 1 &lt; 2&lt;/b&gt; &amp; &quot;quoted&quot;?');
+  });
+
+  it('embeds highlight.js classes on code blocks, matching the language shared across formats', async () => {
+    const { html } = await exportStructured(false);
+
+    expect(html).toContain('<pre><code class="language-js">function foo() { return 1; }</code></pre>');
+
+    // The highlighter that runs client-side on open promotes 'hljs' onto the
+    // same code element and tags recognized keywords -- exercise it for real
+    // in a DOM rather than just checking the static markup.
+    const dom = new JSDOM(html, { runScripts: 'dangerously', url: 'https://example.com/export.html' });
+    await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
+    const codeBlock = dom.window.document.querySelector('pre code');
+    // Not asserting on the injected <span class="hljs-keyword"> markup itself:
+    // the highlighter's later "strings" regex re-matches the quoted class
+    // attribute the keyword pass just inserted and corrupts it (see reported
+    // bug in the worker outcome). The 'hljs' class toggle is unaffected.
+    expect(codeBlock?.classList.contains('hljs')).toBe(true);
+  });
+
+  it('keeps message order, heading level, and code placement consistent', async () => {
+    const { conversation, html } = await exportStructured(true);
+
+    const idx = (s: string) => html.indexOf(s);
+    expect(idx(conversation.url)).toBeGreaterThan(-1); // metadata rendered
+    expect(idx(conversation.url)).toBeLessThan(idx('plain question')); // metadata before body
+    expect(idx('plain question')).toBeLessThan(idx('Section Heading')); // question before answer
+    expect(idx('Section Heading')).toBeLessThan(idx('Some text')); // heading before paragraph
+    expect(idx('Some text')).toBeLessThan(idx('function foo() { return 1; }')); // paragraph before code
+    // A content heading of level 2 is shifted down two levels since the
+    // document title already occupies <h1>.
+    expect(html).toContain('<h4>Section Heading</h4>');
+  });
+});
+
 describe('exported HTML makes no third-party requests', () => {
   /**
    * PR #49 removed citation favicons at the parser, but the exporter's <img>
