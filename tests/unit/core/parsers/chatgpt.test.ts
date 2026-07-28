@@ -574,3 +574,29 @@ describe('ChatGPT Parser - Comprehensive Features', () => {
     expect(firstAnswer?.metadata?.webSearches?.length).toBeGreaterThan(0);
   });
 });
+
+describe('ChatGPT Parser - section-based turns (2026-07 DOM)', () => {
+  let parser: ChatGPTParser;
+
+  beforeEach(() => {
+    const fixturePath = join(
+      __dirname,
+      '../../../fixtures/dom-snapshots/chatgpt/formatting-showcase-2026-07.html'
+    );
+    const html = readFileSync(fixturePath, 'utf-8');
+    const dom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-section-turns' });
+    parser = new ChatGPTParser(dom.window.document);
+  });
+
+  it('extracts one correctly-paired Q&A from <section data-turn> wrappers', () => {
+    const result = parser.parse();
+    expect(result.success).toBe(true);
+    expect(result.conversation?.pairs.length).toBe(1);
+
+    const pair = result.conversation?.pairs[0];
+    expect(pair?.question.role).toBe('user');
+    expect(pair?.answer.role).toBe('assistant');
+    expect(pair?.question.content.length).toBeGreaterThan(0);
+    expect(pair?.answer.content.length).toBeGreaterThan(0);
+  });
+});

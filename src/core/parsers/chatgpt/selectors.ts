@@ -32,12 +32,13 @@ export const CHATGPT_SELECTORS: SelectorSet = {
 
   // Custom selectors for ChatGPT-specific elements
   custom: {
-    // Conversation turn containers
-    conversationTurn: 'article[data-testid^="conversation-turn-"]',
-    // User turn specifically
-    userTurn: 'article[data-turn="user"]',
-    // Assistant turn specifically
-    assistantTurn: 'article[data-turn="assistant"]',
+    // Conversation turn containers (tag-agnostic: ChatGPT moved the turn
+    // wrapper from <article> to <section> in 2026-07; data-testid survived)
+    conversationTurn: '[data-testid^="conversation-turn-"]',
+    // User turn specifically (tag-agnostic, see above)
+    userTurn: '[data-turn="user"]',
+    // Assistant turn specifically (tag-agnostic, see above)
+    assistantTurn: '[data-turn="assistant"]',
     // User message content specifically
     userMessageContent: '.user-message-bubble-color .whitespace-pre-wrap',
     // Assistant message content specifically
