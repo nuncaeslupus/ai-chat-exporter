@@ -146,7 +146,7 @@ class ContentScript {
           format,
           filename: '',
           includeMetadata: prefs.includeMetadata,
-          includeTimestamps: false,
+          includeTimestamps: prefs.includeTimestamps,
         }
       );
 
@@ -285,7 +285,7 @@ class ContentScript {
           format,
           filename: '',
           includeMetadata: prefs.includeMetadata,
-          includeTimestamps: false,
+          includeTimestamps: prefs.includeTimestamps,
         }
       );
 

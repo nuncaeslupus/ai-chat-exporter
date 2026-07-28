@@ -29,6 +29,7 @@ export const MESSAGE_TYPES = {
  */
 export const DEFAULT_PREFERENCES = {
   includeMetadata: true,
+  includeTimestamps: true,
   includeCodeBlocks: true,
   filenameTemplate: '{title}_{date}',
   defaultFormat: 'pdf' as const,

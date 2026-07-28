@@ -54,9 +54,28 @@ const POPUP_DOM = `
     <select id="format-select" disabled><option value="md">Markdown</option></select>
     <button id="export-button" disabled></button>
     <button id="print-button" disabled></button>
+    <input type="checkbox" id="option-include-metadata" />
+    <input type="checkbox" id="option-include-timestamps" />
   </div>
   <a id="report-issue"></a>
 `;
+
+/**
+ * Swap the stateless chrome.storage.sync stub (vitest.setup.ts always
+ * resolves get() to {}) for a real in-memory store, so preferences set via
+ * one call are visible to a later get() within the same test — the same
+ * round-trip a real browser restart relies on.
+ */
+function mockStatefulSyncStorage() {
+  const store: Record<string, unknown> = {};
+  Object.assign(chrome.storage.sync, {
+    get: (key: string) => Promise.resolve({ [key]: store[key] }),
+    set: (items: Record<string, unknown>) => {
+      Object.assign(store, items);
+      return Promise.resolve();
+    },
+  });
+}
 
 const CONVERSATION = {
   id: 'conv-1',
@@ -156,6 +175,80 @@ describe('popup degraded-export reporting', () => {
     await vi.waitFor(() => {
       expect(document.getElementById('status-text')?.textContent).toBe(translatedMarker);
     });
+  });
+});
+
+describe('popup export options', () => {
+  beforeEach(() => {
+    mockTabsQuery.mockReset();
+    mockTabsSendMessage.mockReset();
+    mockStatefulSyncStorage();
+    Object.assign(chrome, {
+      tabs: { query: mockTabsQuery, sendMessage: mockTabsSendMessage, create: vi.fn() },
+      i18n: mockI18n(),
+    });
+    mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://claude.ai/chat/abc' }]);
+    respondWith({ success: true });
+  });
+
+  it('reflects the persisted metadata/timestamp preferences in the toggles on load', async () => {
+    await chrome.storage.sync.set({
+      user_preferences: { includeMetadata: false, includeTimestamps: false },
+    });
+
+    await loadPopup();
+
+    expect((document.getElementById('option-include-metadata') as HTMLInputElement).checked).toBe(
+      false
+    );
+    expect(
+      (document.getElementById('option-include-timestamps') as HTMLInputElement).checked
+    ).toBe(false);
+  });
+
+  it('persists a metadata toggle change to storage', async () => {
+    await loadPopup();
+
+    const toggle = document.getElementById('option-include-metadata') as HTMLInputElement;
+    toggle.checked = false;
+    toggle.dispatchEvent(new Event('change'));
+
+    await vi.waitFor(async () => {
+      const stored = await chrome.storage.sync.get('user_preferences');
+      expect((stored.user_preferences as { includeMetadata: boolean }).includeMetadata).toBe(
+        false
+      );
+    });
+  });
+
+  it('persists a timestamps toggle change to storage', async () => {
+    await loadPopup();
+
+    const toggle = document.getElementById('option-include-timestamps') as HTMLInputElement;
+    toggle.checked = false;
+    toggle.dispatchEvent(new Event('change'));
+
+    await vi.waitFor(async () => {
+      const stored = await chrome.storage.sync.get('user_preferences');
+      expect(
+        (stored.user_preferences as { includeTimestamps: boolean }).includeTimestamps
+      ).toBe(false);
+    });
+  });
+});
+
+describe('popup export options accessibility', () => {
+  it('associates the metadata and timestamps toggles with real labels', () => {
+    const html = readFileSync(
+      resolve(__dirname, '../../../../src/extension/popup/popup.html'),
+      'utf-8'
+    );
+    for (const id of ['option-include-metadata', 'option-include-timestamps']) {
+      const labelTag = new RegExp(`<label[^>]*for="${id}"[^>]*>`).exec(html)?.[0];
+      expect(labelTag).toBeDefined();
+      const inputTag = new RegExp(`<input[^>]*id="${id}"[^>]*>`).exec(html)?.[0];
+      expect(inputTag).toBeDefined();
+    }
   });
 });
 

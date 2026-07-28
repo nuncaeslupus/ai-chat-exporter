@@ -125,6 +125,15 @@
     "description": "Opción de formato JSON"
   },
 
+  "optionIncludeMetadata": {
+    "message": "Incluir metadatos",
+    "description": "Etiqueta del interruptor que controla si las exportaciones incluyen el bloque de metadatos"
+  },
+  "optionIncludeTimestamps": {
+    "message": "Incluir marcas de tiempo",
+    "description": "Etiqueta del interruptor que controla si las exportaciones incluyen marcas de tiempo"
+  },
+
   "qaPairSingular": {
     "message": "par pregunta-respuesta",
     "description": "Forma singular de par pregunta-respuesta"

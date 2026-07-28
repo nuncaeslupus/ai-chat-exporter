@@ -125,6 +125,15 @@
     "description": "Option de format JSON"
   },
 
+  "optionIncludeMetadata": {
+    "message": "Inclure les métadonnées",
+    "description": "Libellé du commutateur contrôlant l'inclusion du bloc de métadonnées dans les exports"
+  },
+  "optionIncludeTimestamps": {
+    "message": "Inclure les horodatages",
+    "description": "Libellé du commutateur contrôlant l'inclusion des horodatages dans les exports"
+  },
+
   "qaPairSingular": {
     "message": "paire Q&R",
     "description": "Forme singulière de paire question-réponse"
