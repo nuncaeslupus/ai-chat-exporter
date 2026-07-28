@@ -300,17 +300,17 @@ describe('ClaudeParser', () => {
 
       const result = parser.parse();
 
-      // CURRENT (BAD) BEHAVIOR -- reported, not fixed, here:
-      // extractUserMessages filters `div.mb-1.mt-6.group` down to only the
-      // groups containing `[data-testid="user-message"]`; renaming that
-      // attribute drops every user message with no fallback, so the zip in
-      // extractQAPairs has nothing to pair the assistant side with. parse()
-      // reports success:true with an empty conversation and only the
-      // generic "no pairs" warning -- not a signal that names the actual
-      // cause (the role attribute going missing).
+      // FIXED BEHAVIOR (lo-d0f0): extractQAPairs now recognizes a user turn
+      // structurally, via `custom.userTurnWrapper` (`div.mb-1.mt-6.group`),
+      // which the attribute rename does not touch -- so the turn keeps its
+      // slot instead of being dropped from an array with no fallback. The
+      // renamed attribute only breaks the text-content lookup inside
+      // extractUserMessage; the uploaded-image fallback there does not
+      // depend on it, so the question still comes through as an
+      // images-only message rather than the whole pair vanishing.
       expect(result.success).toBe(true);
-      expect(result.conversation?.pairs).toEqual([]);
-      expect(result.warnings).toContain('No Q&A pairs found in the conversation');
+      expect(result.conversation?.pairs).toHaveLength(1);
+      expect(result.conversation?.pairs[0]?.question.content).toContain('Uploaded images');
     });
 
     it('does not mis-pair turns when a wrapper div is removed', () => {
@@ -346,16 +346,21 @@ describe('ClaudeParser', () => {
       const result = new ClaudeParser(document).parse();
       const pairs = result.conversation?.pairs ?? [];
 
-      // CURRENT (BAD) BEHAVIOR -- reported, not fixed, here: like the
-      // ChatGPT parser, extractQAPairs zips userMessages[i] with
-      // assistantMessages[i] by array index. The gutted turn's user message
-      // is dropped from the array instead of leaving a gap, so turn 3's
-      // question silently ends up paired with turn 2's answer, with no
-      // warning (collectWarnings only fires when pairs.length === 0).
+      // FIXED BEHAVIOR (lo-d0f0): extractQAPairs now walks the render-count
+      // turn wrappers in document order and pairs each recognized user turn
+      // with the assistant turn that follows it, instead of zipping two
+      // independently-filtered arrays by index. Turn 2's user wrapper is
+      // still recognized structurally -- its `div.mb-1.mt-6.group`
+      // sub-wrapper survives even though its content was gutted -- so it
+      // keeps its own slot: turn 3's question is never reattached to turn
+      // 2's answer.
       expect(result.success).toBe(true);
-      expect(pairs).toHaveLength(2);
-      expect(pairs[1]?.question.content).toBe('Turn3 question');
+      expect(pairs).toHaveLength(3);
+      expect(pairs[1]?.question.content).toBe('');
       expect(pairs[1]?.answer.content).toContain('Turn2 answer');
+      expect(pairs[2]?.question.content).toBe('Turn3 question');
+      expect(pairs[2]?.answer.content).toContain('Turn3 answer');
+      expect(result.warnings).toContain('Turn 2: the question could not be read');
     });
 
     it('returns success:false rather than an empty conversation when selectors match nothing', () => {

@@ -13,14 +13,17 @@ export const CLAUDE_SELECTORS: SelectorSet = {
   conversationContainer: 'div.overflow-y-scroll.overflow-x-hidden.pt-6.flex-1',
 
   // Individual message elements (both user and assistant)
-  // User messages: div.mb-1.mt-6.group
-  // Assistant messages: div[data-test-render-count]
+  // Every turn (user or assistant) is wrapped in div[data-test-render-count];
+  // div.mb-1.mt-6.group is nested inside that wrapper for user turns only.
   messageElement: 'div[data-test-render-count], div.mb-1.mt-6.group',
 
   // User messages specifically
   userMessage: 'div[data-testid="user-message"]',
 
-  // Assistant messages specifically
+  // Assistant messages specifically. Used by the parser to tell a turn's
+  // role apart (alongside custom.userTurnWrapper for the user side) when
+  // pairing turns structurally -- previously declared here but never read
+  // by parser.ts, which hardcoded this same selector inline instead (lo-d0f0).
   assistantMessage: 'div[data-is-streaming="false"]',
 
   // Content within messages
@@ -36,6 +39,13 @@ export const CLAUDE_SELECTORS: SelectorSet = {
   custom: {
     // Button injection area (page header)
     buttonArea: 'header[data-testid="page-header"] div.right-3.flex.gap-2',
+
+    // Per-turn wrapper: every turn (user or assistant) gets one of these;
+    // it survives even when a redesign guts the turn's inner content.
+    turnContainer: 'div[data-test-render-count]',
+    // User turn's inner wrapper -- present for every user turn regardless of
+    // whether data-testid="user-message" survives inside it (lo-d0f0).
+    userTurnWrapper: 'div.mb-1.mt-6.group',
 
     // User message specific selectors
     userMessageContent: 'div[data-testid="user-message"] p.whitespace-pre-wrap',

@@ -198,9 +198,9 @@ describe('GeminiParser', () => {
       // with its answer structurally -- both inside the same
       // `.conversation-container` -- rather than by zipping two
       // separately-collected arrays by index, losing one turn's question
-      // does not shift or mis-pair any other turn. This is the opposite of
-      // the ChatGPT/Claude parsers, which zip by index and DO mis-pair under
-      // the equivalent mutation (reported separately, not fixed there).
+      // does not shift or mis-pair any other turn. The ChatGPT/Claude
+      // parsers used to zip by index and mis-pair under the equivalent
+      // mutation (lo-b59b); they were fixed the same way (lo-d0f0).
       expect(result.success).toBe(true);
       expect(pairs).toHaveLength(3);
       expect(pairs[0]?.question.content).toBe('');

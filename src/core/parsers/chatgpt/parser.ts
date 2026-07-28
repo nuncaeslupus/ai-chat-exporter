@@ -107,59 +107,110 @@ export class ChatGPTParser extends BaseParser {
   }
 
   /**
-   * Extract Q&A pairs from the ChatGPT DOM
+   * Extract Q&A pairs from the ChatGPT DOM.
+   *
+   * Pairs structurally: turns are walked in document order (one combined,
+   * unfiltered query over both `userTurn` and `assistantTurn`), and each
+   * user turn is paired with the assistant turn that immediately follows
+   * it. A turn whose content fails to extract still occupies its slot in
+   * that walk -- it degrades to an empty half plus a warning (see
+   * `collectWarnings`) rather than being dropped, which is what previously
+   * let a later answer silently shift onto the wrong question (lo-d0f0).
    */
   protected extractQAPairs(config: ParserConfig): QAPair[] {
     const pairs: QAPair[] = [];
-    const userMessages = this.extractUserMessages(config);
-    const assistantMessages = this.extractAssistantMessages(config);
+    const turns = this.document.querySelectorAll(
+      `${this.selectors.custom.userTurn}, ${this.selectors.custom.assistantTurn}`
+    );
 
-    // Pair up user and assistant messages
-    const maxPairs = Math.min(userMessages.length, assistantMessages.length);
-    for (let i = 0; i < maxPairs; i++) {
-      const userMsg = userMessages[i];
-      const assistantMsg = assistantMessages[i];
-      // These are guaranteed to exist because i < maxPairs
-      if (userMsg && assistantMsg) {
-        const pair = this.createQAPair(i, userMsg, assistantMsg);
-        pairs.push(pair);
+    let pendingQuestion: Message | null = null;
+    let hasPendingQuestion = false;
+
+    turns.forEach((turn) => {
+      if (turn.matches(this.selectors.custom.userTurn)) {
+        if (hasPendingQuestion) {
+          // The previous user turn never got an assistant reply (e.g. the
+          // conversation was regenerated). Keep it as its own pair with an
+          // empty answer instead of letting this turn's answer attach to it.
+          pairs.push(
+            this.createQAPair(
+              pairs.length,
+              pendingQuestion ?? this.createMessage('user', ''),
+              this.createMessage('assistant', '')
+            )
+          );
+        }
+        pendingQuestion = this.extractUserMessageFromTurn(turn, config);
+        hasPendingQuestion = true;
+        return;
       }
-    }
 
-    // Handle orphan user messages (no assistant response yet)
-    // We skip these for now as they're incomplete
+      // Assistant turn.
+      const answer = this.extractAssistantMessageFromTurn(turn, config);
+      if (!hasPendingQuestion) {
+        // Orphan assistant turn with no preceding question; nothing to pair.
+        return;
+      }
+      pairs.push(
+        this.createQAPair(
+          pairs.length,
+          pendingQuestion ?? this.createMessage('user', ''),
+          answer ?? this.createMessage('assistant', '')
+        )
+      );
+      pendingQuestion = null;
+      hasPendingQuestion = false;
+    });
+
+    // A trailing pending question (no assistant reply yet) is an in-progress
+    // conversation -- skip it, same as before.
 
     return pairs;
   }
 
   /**
-   * Extract all user messages from the DOM
+   * Flag half-empty turns so a partially-read conversation is visible to the
+   * user instead of quietly shipping a blank question or answer.
    */
-  private extractUserMessages(config: ParserConfig): Message[] {
-    const messages: Message[] = [];
+  protected override collectWarnings(pairs: QAPair[]): string[] | undefined {
+    const warnings = super.collectWarnings(pairs) ?? [];
 
-    // Get all user turns
-    const userTurns = this.document.querySelectorAll(this.selectors.custom.userTurn);
-
-    userTurns.forEach((turn) => {
-      // Try to find a message element within the turn
-      const messageElement = turn.querySelector(this.selectors.userMessage);
-
-      if (messageElement) {
-        const message = this.extractUserMessage(messageElement, config);
-        if (message) {
-          messages.push(message);
-        }
-      } else {
-        // Fallback: treat the whole turn as a message
-        const message = this.extractUserMessage(turn, config);
-        if (message) {
-          messages.push(message);
-        }
+    for (const pair of pairs) {
+      const turn = String(pair.index + 1);
+      if (!pair.question.content) {
+        warnings.push(`Turn ${turn}: the question could not be read`);
       }
-    });
+      if (!pair.answer.content) {
+        warnings.push(`Turn ${turn}: the answer could not be read`);
+      }
+    }
 
-    return messages;
+    return warnings.length > 0 ? warnings : undefined;
+  }
+
+  /**
+   * Extract the user message from a single user turn.
+   */
+  private extractUserMessageFromTurn(turn: Element, config: ParserConfig): Message | null {
+    const messageElement = turn.querySelector(this.selectors.userMessage);
+    return this.extractUserMessage(messageElement ?? turn, config);
+  }
+
+  /**
+   * Extract the assistant message from a single assistant turn.
+   */
+  private extractAssistantMessageFromTurn(turn: Element, config: ParserConfig): Message | null {
+    // Find ALL message elements within the turn (for deep research, there can be multiple)
+    const messageElements = turn.querySelectorAll(this.selectors.assistantMessage);
+
+    if (messageElements.length > 0) {
+      // Normal text response(s) - may have multiple for deep research
+      // Combine all messages from this turn into a single message
+      return this.extractCombinedMessage(turn, messageElements, config);
+    }
+
+    // Special turn type (canvas or image-gen) - treat the whole turn as a message
+    return this.extractAssistantMessage(turn, config);
   }
 
   /**
@@ -201,38 +252,6 @@ export class ChatGPTParser extends BaseParser {
     }
 
     return message;
-  }
-
-  /**
-   * Extract all assistant messages from the DOM
-   */
-  private extractAssistantMessages(config: ParserConfig): Message[] {
-    const messages: Message[] = [];
-
-    // Get all assistant turns (includes text, canvas, and image-gen turns)
-    const assistantTurns = this.document.querySelectorAll(this.selectors.custom.assistantTurn);
-
-    assistantTurns.forEach((turn) => {
-      // Find ALL message elements within the turn (for deep research, there can be multiple)
-      const messageElements = turn.querySelectorAll(this.selectors.assistantMessage);
-
-      if (messageElements.length > 0) {
-        // Normal text response(s) - may have multiple for deep research
-        // Combine all messages from this turn into a single message
-        const combinedMessage = this.extractCombinedMessage(turn, messageElements, config);
-        if (combinedMessage) {
-          messages.push(combinedMessage);
-        }
-      } else {
-        // Special turn type (canvas or image-gen) - treat the whole turn as a message
-        const message = this.extractAssistantMessage(turn, config);
-        if (message) {
-          messages.push(message);
-        }
-      }
-    });
-
-    return messages;
   }
 
   /**

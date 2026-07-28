@@ -146,60 +146,95 @@ export class ClaudeParser extends BaseParser {
   }
 
   /**
-   * Extract Q&A pairs from the Claude DOM
+   * Extract Q&A pairs from the Claude DOM.
+   *
+   * Pairs structurally: turns are walked in document order (one query over
+   * `custom.turnContainer`, which wraps every turn of either role), and each
+   * recognized user turn is paired with the assistant turn that immediately
+   * follows it. A turn's role is told apart by `custom.userTurnWrapper` (the
+   * user bubble's own wrapper, which survives even when a redesign guts the
+   * `data-testid="user-message"` content inside it) versus `assistantMessage`.
+   * A turn whose content fails to extract still occupies its slot in that
+   * walk -- it degrades to an empty half plus a warning (see
+   * `collectWarnings`) instead of being dropped, which is what previously let
+   * a later answer silently shift onto the wrong question (lo-d0f0).
    */
   protected extractQAPairs(config: ParserConfig): QAPair[] {
-    console.log('[Claude Parser] extractQAPairs called');
     const pairs: QAPair[] = [];
-    const userMessages = this.extractUserMessages(config);
-    const assistantMessages = this.extractAssistantMessages(config);
+    const turnContainer = this.selectors.custom?.turnContainer || 'div[data-test-render-count]';
+    const userTurnWrapper = this.selectors.custom?.userTurnWrapper || 'div.mb-1.mt-6.group';
+    const turns = this.document.querySelectorAll(turnContainer);
 
-    console.log('[Claude Parser] User messages found:', userMessages.length);
-    console.log('[Claude Parser] Assistant messages found:', assistantMessages.length);
+    let pendingQuestion: Message | null = null;
+    let hasPendingQuestion = false;
 
-    // Pair up user and assistant messages
-    const maxPairs = Math.min(userMessages.length, assistantMessages.length);
-    console.log('[Claude Parser] Will create', maxPairs, 'pairs');
+    turns.forEach((turn) => {
+      const isUserTurn = turn.querySelector(userTurnWrapper) !== null;
 
-    for (let i = 0; i < maxPairs; i++) {
-      const userMsg = userMessages[i];
-      const assistantMsg = assistantMessages[i];
-      console.log(`[Claude Parser] Pairing ${i}: user=${!!userMsg}, assistant=${!!assistantMsg}`);
-      if (userMsg && assistantMsg) {
-        console.log(`[Claude Parser] About to create QAPair ${i}`);
-        const pair = this.createQAPair(i, userMsg, assistantMsg);
-        console.log(`[Claude Parser] QAPair ${i} created successfully`);
-        pairs.push(pair);
+      if (isUserTurn) {
+        if (hasPendingQuestion) {
+          // The previous user turn never got an assistant reply (e.g. the
+          // conversation was regenerated). Keep it as its own pair with an
+          // empty answer instead of letting this turn's answer attach to it.
+          pairs.push(
+            this.createQAPair(
+              pairs.length,
+              pendingQuestion ?? this.createMessage('user', ''),
+              this.createMessage('assistant', '')
+            )
+          );
+        }
+        pendingQuestion = this.extractUserMessage(turn, config);
+        hasPendingQuestion = true;
+        return;
       }
-    }
 
-    console.log('[Claude Parser] Total pairs created:', pairs.length);
+      const isAssistantTurn = turn.querySelector(this.selectors.assistantMessage) !== null;
+      if (!isAssistantTurn) {
+        // Neither role recognized structurally; nothing to pair here.
+        return;
+      }
+
+      const answer = this.extractAssistantMessage(turn, config);
+      if (!hasPendingQuestion) {
+        // Orphan assistant turn with no preceding question; nothing to pair.
+        return;
+      }
+      pairs.push(
+        this.createQAPair(
+          pairs.length,
+          pendingQuestion ?? this.createMessage('user', ''),
+          answer ?? this.createMessage('assistant', '')
+        )
+      );
+      pendingQuestion = null;
+      hasPendingQuestion = false;
+    });
+
+    // A trailing pending question (no assistant reply yet) is an in-progress
+    // conversation -- skip it, same as before.
+
     return pairs;
   }
 
   /**
-   * Extract all user messages from the DOM
+   * Flag half-empty turns so a partially-read conversation is visible to the
+   * user instead of quietly shipping a blank question or answer.
    */
-  private extractUserMessages(config: ParserConfig): Message[] {
-    const messages: Message[] = [];
+  protected override collectWarnings(pairs: QAPair[]): string[] | undefined {
+    const warnings = super.collectWarnings(pairs) ?? [];
 
-    // Find all groups containing user messages
-    const userGroups = this.document.querySelectorAll('div.mb-1.mt-6.group');
-
-    userGroups.forEach((group) => {
-      // Check if this group contains a user message
-      const userMessageElement = group.querySelector('[data-testid="user-message"]');
-      if (!userMessageElement) {
-        return;
+    for (const pair of pairs) {
+      const turn = String(pair.index + 1);
+      if (!pair.question.content) {
+        warnings.push(`Turn ${turn}: the question could not be read`);
       }
-
-      const message = this.extractUserMessage(group, config);
-      if (message) {
-        messages.push(message);
+      if (!pair.answer.content) {
+        warnings.push(`Turn ${turn}: the answer could not be read`);
       }
-    });
+    }
 
-    return messages;
+    return warnings.length > 0 ? warnings : undefined;
   }
 
   /**
@@ -333,31 +368,6 @@ export class ClaudeParser extends BaseParser {
       console.warn('[Claude Parser] Could not convert image to data URL:', error);
       return originalSrc;
     }
-  }
-
-  /**
-   * Extract all assistant messages from the DOM
-   */
-  private extractAssistantMessages(config: ParserConfig): Message[] {
-    const messages: Message[] = [];
-
-    // Find all assistant turn containers
-    const assistantTurns = this.document.querySelectorAll('div[data-test-render-count]');
-    console.log('[Claude Parser] Found assistant turns:', assistantTurns.length);
-
-    assistantTurns.forEach((turn, index) => {
-      console.log(`[Claude Parser] Processing assistant turn ${index}`);
-      const message = this.extractAssistantMessage(turn, config);
-      if (message) {
-        console.log(`[Claude Parser] Turn ${index}: Message extracted successfully`);
-        messages.push(message);
-      } else {
-        console.log(`[Claude Parser] Turn ${index}: No message extracted`);
-      }
-    });
-
-    console.log('[Claude Parser] Total assistant messages extracted:', messages.length);
-    return messages;
   }
 
   /**
