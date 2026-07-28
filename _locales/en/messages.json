@@ -421,6 +421,10 @@
     "message": "Generated in your browser. Nothing is sent to any server.",
     "description": "Privacy line under the action bar"
   },
+  "formatMenuLabel": {
+    "message": "Format",
+    "description": "Heading of the export-format menu"
+  },
   "formatNameMD": {
     "message": "Markdown",
     "description": "Short name of the Markdown format"

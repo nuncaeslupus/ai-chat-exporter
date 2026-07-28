@@ -175,6 +175,62 @@
               <span data-i18n="privacyNotice">Generated in your browser. Nothing is sent to any server.</span>
             </p>
           </div>
+
+          <!--
+            Format menu. Floats over the main view, anchored to the split
+            button's chevron — not a full screen. It is positioned against
+            `.popup-body`, so it can never grow the box, and `data-format-menu`
+            is what the router's outside-click check keys on. Open/closed is
+            the `data-format-menu-open` attribute alone; nothing here is
+            display-juggled from JS. `data-format` carries the choice.
+          -->
+          <div class="format-menu" data-format-menu role="menu" aria-labelledby="format-menu-label">
+            <p class="format-menu-label" id="format-menu-label" data-i18n="formatMenuLabel">Format</p>
+            <div class="format-menu-list">
+              <button type="button" class="format-row" role="menuitemradio" aria-checked="false" data-format="md">
+                <img class="format-row-icon" src="../assets/icons/md-icon.svg" alt="" />
+                <span class="format-row-name" data-i18n="formatNameMD">Markdown</span>
+                <svg class="format-row-check" width="12" height="9" viewBox="0 0 14 11" fill="none" aria-hidden="true">
+                  <path d="M1 5.5 5 9.5 13 1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <button type="button" class="format-row" role="menuitemradio" aria-checked="false" data-format="pdf">
+                <img class="format-row-icon" src="../assets/icons/pdf-icon.svg" alt="" />
+                <span class="format-row-name" data-i18n="formatNamePDF">PDF</span>
+                <svg class="format-row-check" width="12" height="9" viewBox="0 0 14 11" fill="none" aria-hidden="true">
+                  <path d="M1 5.5 5 9.5 13 1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <button type="button" class="format-row" role="menuitemradio" aria-checked="false" data-format="html">
+                <img class="format-row-icon" src="../assets/icons/html-icon.svg" alt="" />
+                <span class="format-row-name" data-i18n="formatNameHTML">HTML</span>
+                <svg class="format-row-check" width="12" height="9" viewBox="0 0 14 11" fill="none" aria-hidden="true">
+                  <path d="M1 5.5 5 9.5 13 1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <button type="button" class="format-row" role="menuitemradio" aria-checked="false" data-format="docx">
+                <img class="format-row-icon" src="../assets/icons/docx-icon.svg" alt="" />
+                <span class="format-row-name" data-i18n="formatNameDOCX">Word</span>
+                <svg class="format-row-check" width="12" height="9" viewBox="0 0 14 11" fill="none" aria-hidden="true">
+                  <path d="M1 5.5 5 9.5 13 1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <button type="button" class="format-row" role="menuitemradio" aria-checked="false" data-format="txt">
+                <img class="format-row-icon" src="../assets/icons/txt-icon.svg" alt="" />
+                <span class="format-row-name" data-i18n="formatNameTXT">Plain text</span>
+                <svg class="format-row-check" width="12" height="9" viewBox="0 0 14 11" fill="none" aria-hidden="true">
+                  <path d="M1 5.5 5 9.5 13 1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <button type="button" class="format-row" role="menuitemradio" aria-checked="false" data-format="json">
+                <img class="format-row-icon" src="../assets/icons/json-icon.svg" alt="" />
+                <span class="format-row-name" data-i18n="formatNameJSON">JSON</span>
+                <svg class="format-row-check" width="12" height="9" viewBox="0 0 14 11" fill="none" aria-hidden="true">
+                  <path d="M1 5.5 5 9.5 13 1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+          </div>
         </section>
 
         <!--
