@@ -2,97 +2,90 @@
 
 <!-- Written at session end. A new session reading this file can resume without additional context. -->
 
-Written 2026-07-28 (afternoon session, follows the overnight session).
+Written 2026-07-28 (evening session, follows the afternoon post-purge session).
 
-## READ FIRST — git history was rewritten today
+## READ FIRST — three green PRs are open and unmerged
 
-`main` and all 51 branches were **force-pushed** after a `git filter-repo` purge
-(commit `7f71ca3` onward). Any clone or worktree created before ~16:00 today is
-on dead history. Recover with `git fetch --all --prune && git reset --hard origin/main`
-— do **not** try to merge.
+**The loop is stopped on purpose.** `gh pr merge` is blocked by the permission
+classifier in this session, so nothing landed. Every remaining exporter task
+conflicts with what is sitting in these PRs; do not dispatch more exporter work
+until they merge.
 
-The purge removed real captured conversation data that had been public since the
-initial commit: 111 real ChatGPT conversation titles, the owner's display name,
-a Claude org UUID, an uploaded filename, and a real conversation UUID. Verified
-zero hits across all history afterwards.
+| PR | Task | State |
+| --- | --- | --- |
+| [#97](https://github.com/nuncaeslupus/ai-chat-exporter/pull/97) | `lo-0f01` lint gateable | CI green, MERGEABLE |
+| [#98](https://github.com/nuncaeslupus/ai-chat-exporter/pull/98) | `lo-8f9b` two vacuous tests | CI green, MERGEABLE |
+| [#99](https://github.com/nuncaeslupus/ai-chat-exporter/pull/99) | `lo-6fe5` video/audio in the model | CI green, MERGEABLE |
 
-**Two things remain outstanding and only a human can do them:**
+**Merge #97 first** — it rewrote 29 files. #98 and #99 were both cut off a `main`
+without it, so rebase them after (`claude-arsenal/bin/rebase_stack.sh`). Known
+trivial conflicts: #98 deletes two `pairs[0]!` / `original[0]!` lines in
+`selection-service.test.ts` that #97 also rewrites; #99's exporter diff is
+append-only case arms, so it should replay cleanly.
 
-1. **GitHub Support request.** `refs/pull/*` were rejected by the force-push
-   (GitHub owns them), so the old blobs are still fetchable by SHA via PR refs.
-   Ask Support to GC unreachable objects after a history rewrite. Until then the
-   purge is incomplete.
-2. The repo was public with that data since January — treat it as disclosed.
+Then `pnpm build` before reloading the extension — `dist/` is gitignored and
+never rebuilt automatically.
 
-Runbook with full detail: `tmp/history-purge-runbook.md` (gitignored).
+## What shipped
 
-## Rule established this session
+Queue: **74 merged / 3 done / 16 open**, `queue_doctor` 0 findings.
 
-**No real conversation data in the repo. Fictional/staged conversations only.**
-Captures live in `tmp/examples/` (gitignored); only sanitized fixtures with
-invented prose are committed. Both `real-capture.html` fixtures were rebuilt this
-way — structure preserved byte-for-byte, all prose replaced.
+- **#97 — `pnpm lint` now exits 0 and is a required CI step.** The payload's
+  premise was wrong and the worker measured before choosing:
+  `strictTypeChecked` → `recommendedTypeChecked` only moves 1092 → 926, because
+  the volume is the `no-unsafe-*` family, which lives in `recommended`, not
+  `strict`. Real root cause was ~30 explicit `any`s — `doc: any` in
+  `pdf-exporter.ts` alone caused 420 errors. Fixed at the source; only 4 rules
+  were right-sized, each commented in place, zero inline disables. Two real bugs
+  fell out: a negative array index in the PDF heading sizes, and a
+  `chrome.runtime.OnInstalledReason` reference that would have thrown on Firefox
+  install.
+- **#99 — generated video and audio are representable.** Single `media` array
+  with a `kind: 'image' | 'video' | 'audio'` discriminator; `metadata.images`
+  kept as a documented legacy alias. Rendering goes through a separate
+  `MediaBlock`, so the PDF/DOCX image-*embedding* path can never be handed a
+  video URL. All six formats render it, one test per format.
+- **#98 — two tests that passed on broken code now fail on it.** Both payload
+  line refs were stale; `toggleSelection` lives in `selection-service.test.ts`,
+  and that test was vacuous twice over (`'0'` never matched `pair-0`, *and*
+  `[...pairs]` is a shallow copy, so the mutation assertion compared an object
+  to itself). RED/GREEN proven by breaking each implementation and reverting.
 
-## What shipped (PRs #39–#55, all merged, main green)
+## Seeded this session
 
-Queue: **42 merged / 36 open**, `queue_doctor` 0 findings.
+- **`lo-fbe0`** (p5, HEALTH) — the two gaps #97 left: 189 remaining
+  `no-non-null-assertion` warnings, and `pnpm format:check` red on ~40 files,
+  not in CI. Format first, then the warnings.
 
-- **Gemini works end to end for the first time** — parser (#41), manifests (#40),
-  registry (#48), popup gate (#51), Deep Research (#55).
-- Content script **2.24 MB → 48.6 KB** eager (#42, lazy `import()`).
-- Two skills built: **`parser-generator`** upgraded with live widget-coverage
-  verification (#53) and **`exporter-generator`** created from the inert
-  `.agents/` copy (#52), with a content-type × format completeness matrix.
-- Privacy: `docs/PRIVACY.md`, README, `usage.md` and both v1.1.1 store listings
-  corrected against an audited network-call inventory (#49, #50); favicon sink
-  removed and "no remote subresource in exported HTML" pinned by test (#54).
+## Still blocked on a human capture (unchanged)
 
-## Verified live in Chrome by the user
+`lo-f132` (ChatGPT Deep Research / Canvas / images), `lo-2478` (Claude artifacts
+/ thinking / web search), `lo-3c90` (Gemini title+model selectors dead on the
+live page). All need `copy(document.querySelector('main').outerHTML)` from a
+paid, logged-in session, panel **expanded**, into `tmp/examples/`.
 
-Gemini recognised, `v1.1.1` shown, no "You said" prefix, **Deep Research exports
-correctly with its 55 cited sources**. Lazy-loading (#42) works in a real browser.
+`lo-6fe5` shipped the model, structure service and all six exporters — those are
+capture-independent — but its Gemini extraction uses generic `<video>`/`<audio>`
+selectors. If Gemini wraps playback in a custom element or a blob-only source, it
+needs `tmp/examples/gemini-video.html` and `gemini-music.html` to verify.
 
-## What is NOT verified
+## Operational notes
 
-- ChatGPT and Claude exports were never opened in a browser this session. No PDF
-  or DOCX has been rendered and looked at by anyone.
-- Gemini `getTitle()`/`getModel()` are dead against the live page — every Gemini
-  export is filed "Gemini Conversation" with no model (`lo-3c90`). The liveness
-  guard passes because the January fixture still has the old markup.
+- Worktree isolation **is** honored here (`worktree_probe.sh` → `available`,
+  every `worker_postcheck.sh` → `ok`). 2 parallel workers ran clean once told
+  which files the other held.
+- `release.sh done` re-runs the mechanical gate in the **main tree** with a
+  hardened PATH that has no `pnpm`. Any payload whose gate shells out to `pnpm`
+  needs `ARSENAL_GATE_INHERIT_ENV=1` on the release call, or it refuses `done`.
+- Workers cutting off an older `main` may find no `node_modules/.bin/eslint`;
+  one `pnpm install --frozen-lockfile` fixes it and changes no lockfile.
 
 ## How to continue
 
-Standard protocol: `queue_branch.sh`, `queue_sync.sh`, `queue_eval.sh`, workers.
-`ARSENAL_MAX_WORKERS=3` with **file-disjoint** selection worked well.
-**Verify CI yourself before recording `done`** — a worker's "typecheck clean" was
-wrong once this session and a red PR was recorded as done.
-
-**`dist/` is gitignored and never rebuilt automatically.** After merging anything,
-run `pnpm build` before telling the user to reload the extension — this bit us
-twice.
-
-### Highest-value open work
-
-- **`lo-f132` (p9, ChatGPT)** and **`lo-2478` (p8, Claude)** — the same
-  Deep-Research/widget treatment Gemini just got. **Both are blocked on a human
-  capture** (paid features, real interaction): ask the user for
-  `copy(document.querySelector('main').outerHTML)` per widget into
-  `tmp/examples/`. Capture with panels **expanded** — Gemini's report only exists
-  in the DOM while open.
-- **`lo-3c90` (p8)** — Gemini title/model selectors dead on live page.
-- **`lo-5d45` / `lo-5970` (p7)** — exporter gaps found by the completeness matrix.
-- **`lo-2416` (p9)** — every payload's mechanical gate passes vacuously
-  (0 of 70 had a fenced gate block). New payloads written this session do have
-  real gate blocks; the backlog does not.
-- **`lo-0f01` (p8)** — ~1,163 eslint errors, un-gated. Must run alone.
-
-## Tooling notes
-
-- claude-arsenal revendored **0.20.5 → 0.21.0** (`worker_postcheck.sh` now
-  snapshots to `refs/arsenal-rescue/` before destructive restores).
-- The upstream `claude-arsenal` repo's GitHub Actions are **failing on billing**,
-  so `tag-release.yml` never ran and `v0.21.0` was never tagged. The owner is
-  handling that separately.
-- skill-creator's PreToolUse gate mismatches the namespaced skill name
-  (`skill-creator:skill-creator`), so the marker is never written. Strip the
-  `<plugin>:` prefix before comparing.
+Merge the three PRs, `git pull --ff-only origin main`, then the standard
+protocol: `queue_branch.sh`, `queue_sync.sh`, `queue_eval.sh`, workers.
+Next highest-value unblocked work is the exporter cluster — `lo-5970`
+(`metadata.research` rendered by nothing), `lo-83c3` (heading levels inconsistent
+across formats), `lo-23fb` (web search titles/URLs dropped from md/txt/docx) —
+all three touch the same files, so run them **one at a time**, and only after
+#97 and #99 have landed.
