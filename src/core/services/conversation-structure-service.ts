@@ -68,6 +68,17 @@ export class ConversationStructureService {
     const webSearches: WebSearchResult[] | undefined = message.metadata?.webSearches;
     if (Array.isArray(webSearches)) {
       for (const search of webSearches) {
+        // Every exporter renders a full sources section for a search that has
+        // results, so the marker would just repeat the query above it. Only
+        // fall back to the marker when there is nothing downstream to announce
+        // the search: md / txt / docx skip a result-less search entirely, and
+        // it would vanish from those exports.
+        // ponytail: html / pdf do render their section from the query alone, so
+        // a result-less search is announced twice there — the cheap price for
+        // one guard in the shared converter instead of three per-format ones.
+        if (search.results?.length) {
+          continue;
+        }
         blocks.push({
           type: 'paragraph' as const,
           content: [{ type: 'text' as const, text: `[Web Search: ${search.query}]` }],
