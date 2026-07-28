@@ -103,7 +103,7 @@ No subscriptions, no hidden costs, no limitations. All features are available to
 
 💡 Support & Feedback
 
-Having issues or suggestions? Visit our GitHub repository at https://github.com/ivansaul/ai-chat-exporter to report bugs or request features.
+Having issues or suggestions? Visit our GitHub repository at https://github.com/nuncaeslupus/ai-chat-exporter to report bugs or request features.
 
 📝 Version History
 

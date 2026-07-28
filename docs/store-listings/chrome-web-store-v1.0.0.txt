@@ -32,10 +32,10 @@ Privacy:
 This extension runs entirely in your browser. No conversation data is sent to external servers or collected by the extension.
 
 Open Source:
-AI Chat Exporter is open source on GitHub: https://github.com/ivansaul/ai-chat-exporter
+AI Chat Exporter is open source on GitHub: https://github.com/nuncaeslupus/ai-chat-exporter
 
 Support:
-Report issues or request features at https://github.com/ivansaul/ai-chat-exporter/issues
+Report issues or request features at https://github.com/nuncaeslupus/ai-chat-exporter/issues
 
 Category
 Productivity

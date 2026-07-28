@@ -139,10 +139,10 @@ No subscriptions, no hidden costs, no feature limitations, no ads. All features 
 
 💡 Support & Feedback
 
-• Report Issues: Visit our GitHub repository (https://github.com/ivansaul/ai-chat-exporter/issues)
+• Report Issues: Visit our GitHub repository (https://github.com/nuncaeslupus/ai-chat-exporter/issues)
 • Feature Requests: Open an issue on GitHub
 • Documentation: Full usage guide available in the repository
-• Source Code: https://github.com/ivansaul/ai-chat-exporter
+• Source Code: https://github.com/nuncaeslupus/ai-chat-exporter
 
 📝 Version History
 
@@ -185,7 +185,7 @@ File Sizes:
 
 📄 License
 
-This extension is open source and available under the MIT License. See the full license at: https://github.com/ivansaul/ai-chat-exporter/blob/main/LICENSE
+This extension is open source and available under the MIT License. See the full license at: https://github.com/nuncaeslupus/ai-chat-exporter/blob/main/LICENSE
 
 ========================================
 CATEGORY
@@ -203,13 +203,13 @@ MIT License
 HOMEPAGE
 ========================================
 
-https://github.com/ivansaul/ai-chat-exporter
+https://github.com/nuncaeslupus/ai-chat-exporter
 
 ========================================
 SUPPORT SITE
 ========================================
 
-https://github.com/ivansaul/ai-chat-exporter/issues
+https://github.com/nuncaeslupus/ai-chat-exporter/issues
 
 ========================================
 PRIVACY POLICY
