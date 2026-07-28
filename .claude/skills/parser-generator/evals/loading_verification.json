@@ -1,0 +1,14 @@
+{
+  "skill": "parser-generator",
+  "canary": "parser-generator-loaded-2026-07-28-60d048f4-0d2567f35c16cbcd",
+  "negative_control": "this-skill-does-not-describe-how-to-add-a-new-export-format",
+  "load_prompts": [
+    "Add a parser for Mistral's chat UI",
+    "The ChatGPT parser stopped working, exports come out empty",
+    "Capture DOM selectors for a new chatbot platform"
+  ],
+  "no_load_prompts": [
+    "Add a CSV export format to the extension",
+    "Bump the dependencies and run the tests"
+  ]
+}
