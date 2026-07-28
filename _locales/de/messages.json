@@ -315,5 +315,118 @@
   "footerReportIssue": {
     "message": "Problem Melden",
     "description": "Report issue footer link"
+  },
+
+  "metaPairsSingular": {
+    "message": "$1 Paar",
+    "description": "Conversation meta line, one pair. $1 = pair count",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "metaPairsPlural": {
+    "message": "$1 Paare",
+    "description": "Conversation meta line, pair count. $1 = pair count",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "14"
+      }
+    }
+  },
+  "rowContent": {
+    "message": "Inhalt",
+    "description": "Label of the Content navigation row in the popup"
+  },
+  "rowContentAll": {
+    "message": "Gesamte Unterhaltung",
+    "description": "Content row value when every pair is selected"
+  },
+  "rowContentPartial": {
+    "message": "$1 von $2 Paaren",
+    "description": "Content row value with a partial selection. $1 = selected, $2 = total",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      },
+      "total": {
+        "content": "$2",
+        "example": "14"
+      }
+    }
+  },
+  "rowOptions": {
+    "message": "Optionen",
+    "description": "Label of the Options navigation row in the popup"
+  },
+  "rowOptionsChanged": {
+    "message": "Einige Einstellungen wurden geändert",
+    "description": "Tooltip of the dot marking non-default settings"
+  },
+  "exportButtonFormat": {
+    "message": "$1 exportieren",
+    "description": "Main export button label. $1 = format name",
+    "placeholders": {
+      "format": {
+        "content": "$1",
+        "example": "Markdown"
+      }
+    }
+  },
+  "changeFormatButton": {
+    "message": "Format ändern",
+    "description": "Accessible name of the format-menu chevron"
+  },
+  "printButtonFormat": {
+    "message": "$1 drucken",
+    "description": "Print button tooltip. $1 = format name",
+    "placeholders": {
+      "format": {
+        "content": "$1",
+        "example": "Markdown"
+      }
+    }
+  },
+  "printUnavailableFormat": {
+    "message": "Drucken ist für $1 nicht verfügbar",
+    "description": "Print button tooltip when the format cannot be printed. $1 = format name",
+    "placeholders": {
+      "format": {
+        "content": "$1",
+        "example": "Word"
+      }
+    }
+  },
+  "privacyNotice": {
+    "message": "Wird in deinem Browser erzeugt. Nichts wird an einen Server gesendet.",
+    "description": "Privacy line under the action bar"
+  },
+  "formatNameMD": {
+    "message": "Markdown",
+    "description": "Short name of the Markdown format"
+  },
+  "formatNamePDF": {
+    "message": "PDF",
+    "description": "Short name of the PDF format"
+  },
+  "formatNameHTML": {
+    "message": "HTML",
+    "description": "Short name of the HTML format"
+  },
+  "formatNameDOCX": {
+    "message": "Word",
+    "description": "Short name of the Word format"
+  },
+  "formatNameTXT": {
+    "message": "Nur Text",
+    "description": "Short name of the plain-text format"
+  },
+  "formatNameJSON": {
+    "message": "JSON",
+    "description": "Short name of the JSON format"
   }
 }

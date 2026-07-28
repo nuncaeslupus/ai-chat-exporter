@@ -11,9 +11,16 @@ import {
 } from '../../shared/messages';
 import type { Conversation, QAPair } from '../../core/types/conversation';
 import type { ExportFormat } from '../../core/types/exporter';
-import { getMessage, getMessageWithValues, formatNumber, getPlatformName } from '../../shared/i18n';
+import {
+  getMessage,
+  getMessageWithValues,
+  formatNumber,
+  getPlatformName,
+  getUILanguage,
+} from '../../shared/i18n';
 import { parserRegistry } from '../../core/parsers';
 import { StorageService } from '../../shared/storage';
+import { DEFAULT_PREFERENCES } from '../../shared/constants';
 import { SelectionService } from '../../core/services/selection-service';
 
 /**
@@ -97,17 +104,62 @@ function populateSupportedPlatforms(): void {
 }
 
 /**
- * Replace all elements with data-i18n attribute with their translated text
+ * Replace all elements with data-i18n attribute with their translated text.
+ *
+ * `data-i18n-label` is the icon-only variant: those buttons have no text node
+ * to translate, so the string becomes their accessible name and tooltip.
  */
 function localizeHtmlPage(): void {
-  const elements = document.querySelectorAll('[data-i18n]');
-  elements.forEach(element => {
+  document.querySelectorAll('[data-i18n]').forEach(element => {
     const key = element.getAttribute('data-i18n');
     if (key) {
-      const message = getMessage(key);
-      element.textContent = message;
+      element.textContent = getMessage(key);
     }
   });
+
+  document.querySelectorAll('[data-i18n-label]').forEach(element => {
+    const key = element.getAttribute('data-i18n-label');
+    if (key) {
+      const message = getMessage(key);
+      element.setAttribute('aria-label', message);
+      element.setAttribute('title', message);
+    }
+  });
+}
+
+/** Short, menu-ready name of each export format (`Export Markdown`). */
+const FORMAT_NAME_KEYS: Record<ExportFormat, string> = {
+  md: 'formatNameMD',
+  pdf: 'formatNamePDF',
+  html: 'formatNameHTML',
+  docx: 'formatNameDOCX',
+  txt: 'formatNameTXT',
+  json: 'formatNameJSON',
+};
+
+function getFormatName(format: ExportFormat): string {
+  return getMessage(FORMAT_NAME_KEYS[format]);
+}
+
+/**
+ * The span of days the conversation itself covers, e.g. `26–29 jul`.
+ *
+ * Read off the message timestamps, never off today's date: a chat exported
+ * weeks later must still show when it happened. Returns `null` when no
+ * message carries a usable timestamp — the meta line then drops the segment
+ * rather than inventing one. Timestamps arrive over `chrome.tabs.sendMessage`,
+ * which JSON-serialises `Date` to a string, so both shapes are accepted.
+ */
+function conversationDateRange(conversation: Conversation): string | null {
+  const times = conversation.pairs
+    .flatMap((pair) => [pair.question.timestamp, pair.answer.timestamp])
+    .map((value) => (value === undefined ? NaN : new Date(value).getTime()))
+    .filter((time) => !isNaN(time));
+
+  if (times.length === 0) return null;
+
+  const formatter = new Intl.DateTimeFormat(getUILanguage(), { day: 'numeric', month: 'short' });
+  return formatter.formatRange(new Date(Math.min(...times)), new Date(Math.max(...times)));
 }
 
 class PopupController {
@@ -148,14 +200,9 @@ class PopupController {
     const lastFormat = localStorage.getItem('lastExportFormat') as ExportFormat;
     if (lastFormat) {
       this.selectedFormat = lastFormat;
-      const formatSelect = document.getElementById('format-select') as HTMLSelectElement;
-      if (formatSelect) {
-        formatSelect.value = lastFormat;
-      }
     }
 
-    // Always update icon and print button state to match current format
-    this.updateFormatIcon(this.selectedFormat);
+    // Always update the button label and print state to match current format
     this.handleFormatChange(this.selectedFormat);
 
     // Reflect the persisted metadata/timestamp export options in the toggles
@@ -168,6 +215,8 @@ class PopupController {
     if (timestampsToggle) {
       timestampsToggle.checked = prefs.includeTimestamps;
     }
+
+    await this.updateOptionsDot();
   }
 
   /** The fixed-height box every view and state renders into. */
@@ -246,13 +295,6 @@ class PopupController {
       });
     }
 
-    // Format selection
-    document.getElementById('format-select')?.addEventListener('change', (e) => {
-      const format = (e.target as HTMLSelectElement).value as ExportFormat;
-      this.handleFormatChange(format);
-      this.updateFormatIcon(format);
-    });
-
     // Export button
     document.getElementById('export-button')?.addEventListener('click', () => {
       void this.handleExport(this.selectedFormat);
@@ -270,14 +312,10 @@ class PopupController {
 
     // Export option toggles
     document.getElementById('option-include-metadata')?.addEventListener('change', (e) => {
-      void StorageService.setUserPreferences({
-        includeMetadata: (e.target as HTMLInputElement).checked,
-      });
+      void this.persistPreference({ includeMetadata: (e.target as HTMLInputElement).checked });
     });
     document.getElementById('option-include-timestamps')?.addEventListener('change', (e) => {
-      void StorageService.setUserPreferences({
-        includeTimestamps: (e.target as HTMLInputElement).checked,
-      });
+      void this.persistPreference({ includeTimestamps: (e.target as HTMLInputElement).checked });
     });
 
     // Footer links
@@ -289,9 +327,16 @@ class PopupController {
     });
   }
 
+  /** Every preference write goes through here so the Options dot stays honest. */
+  private async persistPreference(patch: Parameters<typeof StorageService.setUserPreferences>[0]): Promise<void> {
+    await StorageService.setUserPreferences(patch);
+    await this.updateOptionsDot();
+  }
+
   private handleFormatChange(format: ExportFormat): void {
     this.selectedFormat = format;
     localStorage.setItem('lastExportFormat', format);
+    this.updateExportLabel(format);
 
     // Disable print button for formats that can't be printed nicely
     const printButton = document.getElementById('print-button') as HTMLButtonElement;
@@ -299,15 +344,13 @@ class PopupController {
       // Only allow print for HTML, PDF, TXT, MD, and JSON
       const printableFormats: ExportFormat[] = ['html', 'pdf', 'txt', 'md', 'json'];
       const canPrint = printableFormats.includes(format);
+      const formatName = getFormatName(format);
       printButton.disabled = !canPrint;
-      printButton.title = canPrint ? `Print ${format.toUpperCase()}` : `Print not available for ${format.toUpperCase()}`;
-    }
-  }
-
-  private updateFormatIcon(format: ExportFormat): void {
-    const formatIcon = document.getElementById('format-icon') as HTMLImageElement;
-    if (formatIcon) {
-      formatIcon.src = `../assets/icons/${format}-icon.svg`;
+      printButton.title = getMessageWithValues(
+        canPrint ? 'printButtonFormat' : 'printUnavailableFormat',
+        formatName
+      );
+      printButton.setAttribute('aria-label', printButton.title);
     }
   }
 
@@ -387,17 +430,18 @@ class PopupController {
     const meta = document.getElementById('conversation-meta');
 
     if (platformIcon) {
-      // Set platform icon based on platform
+      // Marks, not wordmarks: at 13px the Gemini logotype is illegible, so the
+      // spark is the only readable Gemini asset here.
       const icons: Record<string, string> = {
         chatgpt: '../assets/icons/chatgpt-logo.svg',
         claude: '../assets/icons/claude-logo.svg',
-        gemini: '../assets/icons/gemini-logo.svg',
+        gemini: '../assets/icons/gemini-spark.svg',
       };
       const defaultIcon = '../assets/icons/chatgpt-logo.svg';
       const iconPath = icons[conversation.platform] ?? defaultIcon;
       platformIcon.src = iconPath;
       platformIcon.style.display = 'block';
-      platformIcon.alt = `${conversation.platform} logo`;
+      platformIcon.alt = '';
     }
 
     if (title) {
@@ -407,8 +451,7 @@ class PopupController {
     }
 
     if (meta) {
-      const stats = this.calculateConversationStats(conversation);
-      meta.innerHTML = this.formatConversationStats(stats);
+      meta.textContent = this.formatConversationMeta(conversation);
     }
 
     // Own copy: toggling a checkbox must not mutate the conversation object
@@ -428,6 +471,7 @@ class PopupController {
 
     if (this.pairs.length === 0) {
       section.style.display = 'none';
+      this.updateContentRow();
       return;
     }
     section.style.display = 'block';
@@ -479,6 +523,8 @@ class PopupController {
         : getMessage('qaSelectionSelectAll');
     }
 
+    this.updateContentRow();
+
     // Only the ready/no-selection pair swaps here; a warning or error state
     // must not be cleared by a checkbox.
     if (this.uiState === 'ready' || this.uiState === 'noSelection') {
@@ -500,98 +546,59 @@ class PopupController {
     return SelectionService.getSelectedPairs(this.pairs).map((pair) => pair.index);
   }
 
-  private calculateConversationStats(conversation: Conversation) {
-    const pairCount = conversation.pairs.length;
-    let wordCount = 0;
-    let hasCode = false;
-    let hasImages = false;
-
-    // Count words and check for code/images
-    conversation.pairs.forEach(pair => {
-      // Count words in question
-      wordCount += this.countWords(pair.question.content);
-
-      // Count words in answer
-      wordCount += this.countWords(pair.answer.content);
-
-      // Check for code snippets in both content and htmlContent
-      if (!hasCode) {
-        hasCode = this.hasCodeContent(pair.question.content) ||
-                  this.hasCodeContent(pair.answer.content) ||
-                  this.hasCodeContent(pair.question.htmlContent || '') ||
-                  this.hasCodeContent(pair.answer.htmlContent || '');
-      }
-
-      // Check for images in both content and htmlContent
-      if (!hasImages) {
-        hasImages = this.hasImageContent(pair.question.content) ||
-                    this.hasImageContent(pair.answer.content) ||
-                    this.hasImageContent(pair.question.htmlContent || '') ||
-                    this.hasImageContent(pair.answer.htmlContent || '');
-      }
-    });
-
-    return { pairCount, wordCount, hasCode, hasImages };
+  /**
+   * `Gemini · 14 pairs · 26–29 jul`. The word count deliberately isn't here —
+   * it belongs to the pair-chooser footer, where a selection can change it.
+   */
+  private formatConversationMeta(conversation: Conversation): string {
+    const count = conversation.pairs.length;
+    const segments = [
+      getPlatformName(conversation.platform),
+      getMessageWithValues(
+        count === 1 ? 'metaPairsSingular' : 'metaPairsPlural',
+        formatNumber(count)
+      ),
+      conversationDateRange(conversation),
+    ];
+    return segments.filter((segment) => segment !== null && segment !== '').join(' · ');
   }
 
-  private countWords(text: string): number {
-    // Remove code blocks to avoid counting code as words
-    const textWithoutCode = text.replace(/```[\s\S]*?```/g, '')
-                                .replace(/`[^`]+`/g, '');
-    // Split by whitespace and filter empty strings
-    return textWithoutCode.split(/\s+/).filter(word => word.length > 0).length;
+  /** `Whole conversation`, or `3 of 14 pairs` once something is deselected. */
+  private updateContentRow(): void {
+    const value = document.getElementById('content-row-value');
+    if (!value) return;
+
+    const selected = SelectionService.getSelectionCount(this.pairs);
+    const total = this.pairs.length;
+    value.textContent =
+      total > 0 && selected < total
+        ? getMessageWithValues('rowContentPartial', formatNumber(selected), formatNumber(total))
+        : getMessage('rowContentAll');
   }
 
-  private hasCodeContent(text: string): boolean {
-    // Check for markdown code blocks, inline code, or HTML code tags
-    return /```[\s\S]*?```/.test(text) ||
-           /`[^`]+`/.test(text) ||
-           /<code[\s>]/.test(text) ||
-           /<pre[\s>]/.test(text);
+  /** Green dot on the Options row: some preference is off its default. */
+  private async updateOptionsDot(): Promise<void> {
+    const dot = document.getElementById('options-changed-dot');
+    if (!dot) return;
+
+    const prefs = await StorageService.getUserPreferences();
+    dot.hidden = (Object.keys(DEFAULT_PREFERENCES) as (keyof typeof DEFAULT_PREFERENCES)[]).every(
+      (key) => prefs[key] === DEFAULT_PREFERENCES[key]
+    );
   }
 
-  private hasImageContent(text: string): boolean {
-    // Check for markdown images or HTML img tags
-    return /!\[.*?\]\(.*?\)/.test(text) || /<img[\s>]/.test(text);
-  }
-
-  private formatConversationStats(stats: { pairCount: number; wordCount: number; hasCode: boolean; hasImages: boolean }): string {
-    const items: string[] = [];
-
-    // Q&A pairs: x
-    const pairLabel = stats.pairCount === 1 ? getMessage('qaPairSingular') : getMessage('qaPairPlural');
-    items.push(`${pairLabel.charAt(0).toUpperCase() + pairLabel.slice(1)}: ${formatNumber(stats.pairCount)}`);
-
-    // Words: y
-    const wordLabel = getMessage('wordCount');
-    items.push(`${wordLabel.charAt(0).toUpperCase() + wordLabel.slice(1)}: ${formatNumber(stats.wordCount)}`);
-
-    // Badges as inline tags
-    const tags: string[] = [];
-    if (stats.hasCode) {
-      tags.push(getMessage('badgeCode'));
+  private updateExportLabel(format: ExportFormat): void {
+    const label = document.getElementById('export-button-label');
+    if (label) {
+      label.textContent = getMessageWithValues('exportButtonFormat', getFormatName(format));
     }
-    if (stats.hasImages) {
-      tags.push(getMessage('badgeImages'));
-    }
-
-    // Join with semicolons, add tags at the end if present
-    let result = items.join('; ');
-    if (tags.length > 0) {
-      result += '; ' + tags.join(' ');
-    }
-
-    return result;
   }
 
   private enableButtons(): void {
     const exportButton = document.getElementById('export-button') as HTMLButtonElement;
-    const printButton = document.getElementById('print-button') as HTMLButtonElement;
-    const formatSelect = document.getElementById('format-select') as HTMLSelectElement;
-
     if (exportButton) exportButton.disabled = false;
-    if (printButton) printButton.disabled = false;
-    if (formatSelect) formatSelect.disabled = false;
+    // Print stays governed by the format gate, not by page readiness.
+    this.handleFormatChange(this.selectedFormat);
   }
 
   private async handleExport(format: ExportFormat): Promise<void> {
@@ -671,7 +678,8 @@ class PopupController {
       notSupportedSection.style.display = 'none';
     }
     if (mainContent) {
-      mainContent.style.display = 'block';
+      // Flex, not block: the setting rows rely on `margin-top:auto` inside it.
+      mainContent.style.display = 'flex';
     }
   }
 

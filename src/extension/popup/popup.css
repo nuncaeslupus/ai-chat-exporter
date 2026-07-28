@@ -17,7 +17,11 @@
   --color-accent: #0a6b54;
   --color-accent-pressed: #075343;
   --color-accent-tint: #e7f1ed;
+  --color-accent-wash: #f2f8f5;
   --color-on-accent: #ffffff;
+  --color-on-accent-hover: rgba(255, 255, 255, 0.08);
+  --color-on-accent-active: rgba(255, 255, 255, 0.14);
+  --color-on-accent-divider: rgba(255, 255, 255, 0.22);
 
   /* Header */
   --color-header: #06342a;
@@ -35,9 +39,12 @@
   --color-text-primary: #16211e;
   --color-text-body: #2b3833;
   /* Spec value is #6E7C77, which measures 4.36:1 on white and fails the
-     repo's WCAG AA gate; darkened until it clears 4.5:1 on every surface. */
+     repo's WCAG AA gate; darkened until it clears 4.5:1 on every surface.
+     Also stands in for the privacy line's #7E8D88 (3.30:1 on the action bar).
+     Same treatment for the tertiary value text: spec #8A9691 is 3.06:1. */
   --color-text-secondary: #63716c;
-  --color-text-tertiary: #8a9691;
+  --color-text-tertiary: #6a7470;
+  /* Decorative only — chevrons and separator dots, never text. */
   --color-text-muted: #9aa5a1;
 
   /* Surfaces */
@@ -65,13 +72,8 @@
   /* Disabled */
   --color-disabled-surface: #e9eeec;
   --color-disabled-text: #a3aeaa;
+  --color-disabled-icon: #bac4c0;
   --color-disabled-border: #e6ece9;
-
-  /* Content badges */
-  --color-badge-code-surface: #dcfce7;
-  --color-badge-code-text: #166534;
-  --color-badge-image-surface: #dbeafe;
-  --color-badge-image-text: #1e40af;
 
   /* Geometry — the whole point of the redesign: these do not change. */
   --popup-width: 360px;
@@ -235,46 +237,254 @@ body {
   50% { opacity: 0.5; }
 }
 
-/* Sections */
-.conversation-info {
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--color-border);
+/*
+ * Main "ready" view. The scroll area is a column: the conversation block sits
+ * at the top, the setting rows are pushed to the bottom with `margin-top:auto`,
+ * and the action bar lives outside it as a `flex:none` strip.
+ */
+#view-main .view-scroll {
+  display: flex;
+  flex-direction: column;
 }
 
-.conversation-header {
+#main-content {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
 }
 
-.platform-icon {
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
+.conversation-block {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .conversation-title {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  text-wrap: pretty;
   color: var(--color-text-primary);
+  /*
+   * The mock's title is one line; real ones are not. Two lines is where the
+   * box still holds the setting rows in view — past that the rows would scroll
+   * out of reach, so clamp and leave the full title in the tooltip.
+   */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
 }
 
 .conversation-meta {
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.platform-icon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.conversation-meta-text {
+  font-size: 11.5px;
   color: var(--color-text-secondary);
-  padding-left: 34px;
-  line-height: 1.6;
-  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Setting rows — navigation into the Content / Options views. */
+.setting-rows {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 16px 0;
+}
+
+/* Nothing to configure on the screens that have no conversation. */
+.popup-body[data-ui-state='unsupported'] .setting-rows,
+.popup-body[data-ui-state='reload'] .setting-rows {
+  display: none;
+}
+
+.setting-row {
+  flex: none;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 2px;
+  border: none;
+  border-radius: var(--radius-row);
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.setting-row--options {
+  gap: 8px;
+}
+
+.setting-row:hover {
+  background: var(--color-surface-sunken);
+}
+
+.setting-row-label {
+  font-size: 12.5px;
+  color: var(--color-text-body);
+}
+
+.setting-row-spacer {
+  flex: 1;
+}
+
+.setting-row-value {
+  font-size: 11.5px;
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Shown only when some preference is off its default. */
+.setting-row-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.setting-row-dot[hidden] {
+  display: none;
+}
+
+.setting-row-chevron {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+/* Action bar — split export button, print, privacy line. */
+.action-bar {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px 10px;
+  background: var(--color-surface-bar);
+}
+
+/* The unsupported / reload screens have nothing to export. */
+.popup-body[data-ui-state='unsupported'] .action-bar,
+.popup-body[data-ui-state='reload'] .action-bar {
+  display: none;
+}
+
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.split-button {
+  flex: 1;
+  height: 50px;
+  display: flex;
+  align-items: stretch;
+  border-radius: var(--radius-lg);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  overflow: hidden;
+}
+
+.split-export {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 4px 0 12px;
+  border: none;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.split-export:hover:not(:disabled) {
+  background: var(--color-accent-pressed);
+}
+
+.split-export-icon {
+  flex-shrink: 0;
+}
+
+.split-toggle {
+  width: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-left: 1px solid var(--color-on-accent-divider);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.split-toggle:hover {
+  background: var(--color-on-accent-hover);
+}
+
+/* Menu open: the half stays marked and the chevron points back at the button. */
+.popup-body[data-format-menu-open='true'] .split-toggle {
+  background: var(--color-on-accent-active);
+}
+
+.popup-body[data-format-menu-open='true'] .split-toggle-chevron {
+  transform: rotate(180deg);
+}
+
+.print-button {
+  flex: none;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.print-button:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: var(--color-accent-wash);
+}
+
+.print-button:disabled {
+  border-color: var(--color-disabled-border);
+  color: var(--color-disabled-icon);
+  cursor: not-allowed;
+}
+
+.privacy-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 10.5px;
+  color: var(--color-text-secondary);
+}
+
+.privacy-icon {
+  flex-shrink: 0;
 }
 
 /* Remove old section styles */
@@ -290,27 +500,6 @@ section {
 
 .info-section {
   margin-bottom: 0;
-}
-
-.badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: var(--radius-key);
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  vertical-align: middle;
-}
-
-.badge-code {
-  background: var(--color-badge-code-surface);
-  color: var(--color-badge-code-text);
-}
-
-.badge-image {
-  background: var(--color-badge-image-surface);
-  color: var(--color-badge-image-text);
 }
 
 /* Q&A pair selection */
@@ -389,109 +578,6 @@ section {
   margin-top: 4px;
   font-size: 11px;
   color: var(--color-text-secondary);
-}
-
-/* Actions Section */
-.export-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* Format Select with Icon */
-.format-select-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-}
-
-.format-icon {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  opacity: 0.8;
-}
-
-.format-select {
-  flex: 1;
-  padding: 10px 32px 10px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-row);
-  background: var(--color-surface);
-  color: var(--color-text-primary);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%239AA5A1' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-}
-
-.format-select:hover:not(:disabled) {
-  border-color: var(--color-accent);
-}
-
-.format-select:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: var(--color-surface-sunken);
-}
-
-.format-select:focus {
-  outline: none;
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px var(--color-accent-tint);
-}
-
-.button-row {
-  display: flex;
-  gap: 10px;
-  margin-top: 4px;
-}
-
-/* Action Buttons */
-.action-button {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px 16px;
-  border: 2px solid var(--color-accent);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  color: var(--color-accent);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-}
-
-.action-button:hover:not(:disabled) {
-  background: var(--color-accent);
-  color: var(--color-on-accent);
-}
-
-.action-button:disabled {
-  cursor: not-allowed;
-  background: var(--color-disabled-surface);
-  border-color: var(--color-disabled-border);
-  color: var(--color-disabled-text);
-}
-
-.button-icon {
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-}
-
-.button-label {
-  font-weight: 600;
 }
 
 /* Settings Section */
