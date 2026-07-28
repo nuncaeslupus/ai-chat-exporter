@@ -74,6 +74,24 @@ export class ConversationStructureService {
         });
       }
     }
+    // Deep research stats (ChatGPT) are three numbers, not renderable content —
+    // a marker paragraph is enough, and it reaches every format through the same
+    // route [Web Search: …] takes instead of six per-exporter sections.
+    const research = message.metadata?.research;
+    if (research) {
+      const parts = [
+        research.duration,
+        research.sources ? `${research.sources} sources` : '',
+        research.searches ? `${research.searches} searches` : '',
+      ].filter(Boolean);
+      if (parts.length > 0) {
+        blocks.push({
+          type: 'paragraph' as const,
+          content: [{ type: 'text' as const, text: `[Deep Research: ${parts.join(', ')}]` }],
+        });
+      }
+    }
+
     const artifacts: Artifact[] | undefined = message.metadata?.artifacts;
     if (Array.isArray(artifacts)) {
       for (const artifact of artifacts) {
