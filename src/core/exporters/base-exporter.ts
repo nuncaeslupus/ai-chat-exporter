@@ -11,7 +11,7 @@ import type {
   MediaBlock,
   QAPair,
 } from '../types';
-import { getMessage, getPlatformName } from '../../shared/i18n';
+import { getMessage, getPlatformName, getUILanguage } from '../../shared/i18n';
 
 /**
  * Abstract base class for format-specific exporters
@@ -82,15 +82,94 @@ export abstract class BaseExporter implements IExporter {
   }
 
   /**
+   * Time of day only, e.g. "12:00:00".
+   *
+   * UTC, like `formatTimestamp` — every stamp in an export reads off one clock,
+   * so the day separators below cut on the same boundaries the times imply.
+   */
+  protected formatTime(date?: Date): string {
+    if (!date) return '';
+    return date.toISOString().substring(11, 19);
+  }
+
+  /**
+   * A calendar day in the export locale, e.g. "29 jul 2026" / "Jul 29, 2026".
+   */
+  protected formatDay(date: Date): string {
+    return date.toLocaleDateString(getUILanguage(), {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'UTC',
+    });
+  }
+
+  /**
    * Format a per-message timestamp suffix to append after a role label,
-   * e.g. " (2025-01-01 12:00:00)". Returns '' when timestamps are disabled
-   * or the message has no timestamp, so callers can always append the
+   * e.g. " (12:00:00)". The date is deliberately absent: with timestamps on,
+   * the day is announced once by a day separator (see `daySeparator`) instead
+   * of being repeated on every message. Returns '' when timestamps are
+   * disabled or the message has no timestamp, so callers can always append the
    * result directly without a separate presence check.
    */
   protected formatTimestampSuffix(date: Date | undefined, includeTimestamps: boolean): string {
     if (!includeTimestamps) return '';
-    const formatted = this.formatTimestamp(date);
+    const formatted = this.formatTime(date);
     return formatted ? ` (${formatted})` : '';
+  }
+
+  /**
+   * First and last message instants across the exported pairs, or null when no
+   * message carries a timestamp. json reports these raw; every other format
+   * renders `formatDateRange` instead.
+   */
+  protected dateBounds(
+    pairs: readonly { question: { timestamp?: Date }; answer: { timestamp?: Date } }[]
+  ): { from: Date; to: Date } | null {
+    const times = pairs
+      .flatMap((pair) => [pair.question.timestamp, pair.answer.timestamp])
+      .filter((date): date is Date => date instanceof Date)
+      .map((date) => date.getTime());
+    if (times.length === 0) return null;
+
+    return { from: new Date(Math.min(...times)), to: new Date(Math.max(...times)) };
+  }
+
+  /**
+   * The conversation's date range for the export header: a single day when it
+   * all happened on one, otherwise "first – last". '' when no message carries a
+   * timestamp, so callers can drop the whole line.
+   */
+  protected formatDateRange(
+    pairs: readonly { question: { timestamp?: Date }; answer: { timestamp?: Date } }[]
+  ): string {
+    const bounds = this.dateBounds(pairs);
+    if (!bounds) return '';
+
+    const first = this.formatDay(bounds.from);
+    const last = this.formatDay(bounds.to);
+    return first === last ? first : `${first} – ${last}`;
+  }
+
+  /**
+   * Day-separator emitter, one per export.
+   *
+   * Returns a function that yields "— 29 jul 2026 —" the first time a message
+   * lands on a new day and '' otherwise (including for the very first day —
+   * a single-day conversation gets no separator at all). Feed it every message
+   * in render order; each exporter then only decides how to draw the line, not
+   * when to draw it.
+   */
+  protected daySeparator(includeTimestamps: boolean): (date?: Date) => string {
+    let lastDay: string | null = null;
+    return (date?: Date): string => {
+      if (!includeTimestamps || !date) return '';
+      const day = date.toISOString().substring(0, 10);
+      if (day === lastDay) return '';
+      const isFirstDay = lastDay === null;
+      lastDay = day;
+      return isFirstDay ? '' : `— ${this.formatDay(date)} —`;
+    };
   }
 
   /**
@@ -112,14 +191,24 @@ export abstract class BaseExporter implements IExporter {
   /**
    * Get metadata field label
    */
-  protected getMetadataLabel(field: 'platform' | 'model' | 'exported' | 'url'): string {
+  protected getMetadataLabel(
+    field: 'platform' | 'model' | 'exported' | 'url' | 'dateRange'
+  ): string {
     const keyMap = {
       platform: 'metadataFieldPlatform',
       model: 'metadataFieldModel',
       exported: 'metadataFieldExported',
       url: 'metadataFieldURL',
+      dateRange: 'metadataFieldDateRange',
     };
-    return getMessage(keyMap[field]);
+    const key = keyMap[field];
+    const message = getMessage(key);
+    // ponytail: `metadataFieldDateRange` is new here and `_locales/*` is owned
+    // by the popup-redesign i18n task, so getMessage echoes the raw key back.
+    // Fall back to English rather than printing "metadataFieldDateRange" into
+    // an export header; drop this branch once the key lands in the locales.
+    if (field === 'dateRange' && message === key) return 'Date range';
+    return message;
   }
 
   /**

@@ -69,6 +69,10 @@ export class TextExporter extends BaseExporter {
       if (conversation.model) {
         lines.push(`Model: ${conversation.model}`);
       }
+      const dateRange = this.formatDateRange(conversation.pairs);
+      if (dateRange) {
+        lines.push(`${this.getMetadataLabel('dateRange')}: ${dateRange}`);
+      }
       if (conversation.createdAt) {
         lines.push(`Exported: ${this.formatTimestamp(conversation.createdAt)}`);
       }
@@ -80,10 +84,11 @@ export class TextExporter extends BaseExporter {
 
     // Q&A pairs
     const assistantName = this.getAssistantName(conversation.platform);
+    const daySeparator = this.daySeparator(options.includeTimestamps);
     for (let i = 0; i < conversation.pairs.length; i++) {
       const pair = conversation.pairs[i];
       if (pair) {
-        lines.push(...this.formatPair(pair, assistantName, options));
+        lines.push(...this.formatPair(pair, assistantName, options, daySeparator));
         if (i < conversation.pairs.length - 1) {
           lines.push('');
           lines.push('-'.repeat(40));
@@ -98,15 +103,28 @@ export class TextExporter extends BaseExporter {
   /**
    * Format a single Q&A pair
    */
-  private formatPair(pair: StructuredQAPair, assistantName: string, options: ExportOptions): string[] {
+  private formatPair(
+    pair: StructuredQAPair,
+    assistantName: string,
+    options: ExportOptions,
+    daySeparator: (date?: Date) => string
+  ): string[] {
     const lines: string[] = [];
+    const pushDaySeparator = (date?: Date): void => {
+      const separator = daySeparator(date);
+      if (separator) {
+        lines.push(separator, '');
+      }
+    };
 
     // User message
+    pushDaySeparator(pair.question.timestamp);
     lines.push(`User${this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps)}:`);
     lines.push(...this.renderBlocks(pair.question.blocks));
     lines.push('');
 
     // Assistant message
+    pushDaySeparator(pair.answer.timestamp);
     lines.push(`${assistantName}${this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps)}:`);
     lines.push(...this.renderBlocks(pair.answer.blocks));
 

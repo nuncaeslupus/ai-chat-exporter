@@ -228,7 +228,9 @@ describe('DocxExporter', () => {
         includeTimestamps: true,
       });
       const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
-      expect(xml).toContain('2025-01-01 12:00:00');
+      expect(xml).toContain('(12:00:00)');
+      // The day is announced once by a day separator, not repeated per message.
+      expect(xml).not.toContain('2025-01-01 12:00:00');
     });
 
     it('omits the timestamp when includeTimestamps is off', async () => {
@@ -242,7 +244,7 @@ describe('DocxExporter', () => {
         includeTimestamps: false,
       });
       const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
-      expect(xml).not.toContain('2025-01-01 12:00:00');
+      expect(xml).not.toContain('12:00:00');
     });
 
     it('emits no stray label or "undefined" when a message has no timestamp', async () => {

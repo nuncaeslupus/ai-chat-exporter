@@ -64,6 +64,10 @@ export class StructuredMarkdownExporter extends BaseExporter {
       if (conversation.model) {
         lines.push(`| ${this.getMetadataLabel('model')} | ${conversation.model} |`);
       }
+      const dateRange = this.formatDateRange(conversation.pairs);
+      if (dateRange) {
+        lines.push(`| ${this.getMetadataLabel('dateRange')} | ${dateRange} |`);
+      }
       lines.push(`| ${this.getMetadataLabel('exported')} | ${this.formatTimestamp(conversation.createdAt)} |`);
       lines.push(`| ${this.getMetadataLabel('url')} | ${conversation.url} |`);
       lines.push('');
@@ -74,13 +78,23 @@ export class StructuredMarkdownExporter extends BaseExporter {
     lines.push('');
 
     // Q&A pairs
+    const daySeparator = this.daySeparator(options.includeTimestamps);
+    const pushDaySeparator = (date?: Date): void => {
+      const separator = daySeparator(date);
+      if (separator) {
+        lines.push(`**${separator}**`, '');
+      }
+    };
+
     for (const [i, pair] of conversation.pairs.entries()) {
       // User question
+      pushDaySeparator(pair.question.timestamp);
       lines.push(`${roleHashes} 👤 ${this.getRoleName('user')}${this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps)}`);
       lines.push('');
       lines.push(...this.renderBlocks(pair.question.blocks));
 
       // Assistant answer
+      pushDaySeparator(pair.answer.timestamp);
       lines.push(`${roleHashes} 🤖 ${this.getRoleName('assistant', conversation.platform)}${this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps)}`);
       lines.push('');
       lines.push(...this.renderBlocks(pair.answer.blocks));

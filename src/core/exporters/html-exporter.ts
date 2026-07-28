@@ -57,6 +57,7 @@ export class HtmlExporter extends BaseExporter {
     const platform = this.escapeHtml(this.formatPlatformName(conversation.platform));
     const model = conversation.model ? this.escapeHtml(conversation.model) : '';
     const date = this.formatTimestamp(conversation.createdAt);
+    const dateRange = this.escapeHtml(this.formatDateRange(conversation.pairs));
     const url = this.escapeHtml(conversation.url);
 
     return `<!DOCTYPE html>
@@ -72,7 +73,7 @@ export class HtmlExporter extends BaseExporter {
     <div class="container">
         <header class="header">
             <h1 class="title">${title}</h1>
-            ${options.includeMetadata ? this.generateMetadata(platform, model, date, url) : ''}
+            ${options.includeMetadata ? this.generateMetadata(platform, model, dateRange, date, url) : ''}
         </header>
 
         <main class="conversation">
@@ -87,7 +88,13 @@ export class HtmlExporter extends BaseExporter {
 </html>`;
   }
 
-  private generateMetadata(platform: string, model: string, date: string, url: string): string {
+  private generateMetadata(
+    platform: string,
+    model: string,
+    dateRange: string,
+    date: string,
+    url: string
+  ): string {
     return `
             <div class="metadata">
                 <div class="metadata-item">
@@ -98,6 +105,11 @@ export class HtmlExporter extends BaseExporter {
                 <div class="metadata-item">
                     <span class="metadata-label">${this.getMetadataLabel('model')}:</span>
                     <span class="metadata-value">${model}</span>
+                </div>` : ''}
+                ${dateRange ? `
+                <div class="metadata-item">
+                    <span class="metadata-label">${this.getMetadataLabel('dateRange')}:</span>
+                    <span class="metadata-value">${dateRange}</span>
                 </div>` : ''}
                 <div class="metadata-item">
                     <span class="metadata-label">${this.getMetadataLabel('exported')}:</span>
@@ -112,8 +124,9 @@ export class HtmlExporter extends BaseExporter {
 
   private generatePairs(pairs: StructuredQAPair[], platform: string, options: ExportOptions): string {
     const assistantName = this.getRoleName('assistant', platform);
+    const daySeparator = this.daySeparator(options.includeTimestamps);
 
-    return pairs.map(pair => `
+    return pairs.map(pair => `${this.renderDaySeparator(daySeparator(pair.question.timestamp))}
             <div class="qa-pair">
                 <div class="message user-message">
                     <div class="message-header">
@@ -123,7 +136,7 @@ export class HtmlExporter extends BaseExporter {
                         ${this.renderBlocks(pair.question.blocks)}
                     </div>
                 </div>
-
+                ${this.renderDaySeparator(daySeparator(pair.answer.timestamp))}
                 <div class="message assistant-message" data-platform="${platform}">
                     <div class="message-header">
                         <h2 class="message-role">${assistantName}</h2>${this.renderTimestampSpan(pair.answer.timestamp, options.includeTimestamps)}
@@ -135,6 +148,12 @@ export class HtmlExporter extends BaseExporter {
                     </div>
                 </div>
             </div>`).join('\n');
+  }
+
+  private renderDaySeparator(separator: string): string {
+    return separator
+      ? `<div class="day-separator">${this.escapeHtml(separator)}</div>`
+      : '';
   }
 
   private renderTimestampSpan(date: Date | undefined, includeTimestamps: boolean): string {
@@ -469,6 +488,13 @@ export class HtmlExporter extends BaseExporter {
 
         .assistant-message[data-platform="gemini"] .message-role {
             color: ${COLOR.brandTextOnLight.gemini};
+        }
+
+        .day-separator {
+            margin: 1.5rem 0;
+            text-align: center;
+            font-size: ${ptToPx(FONT_SIZE_PT.meta)}px;
+            color: ${COLOR.textMuted};
         }
 
         .message-timestamp {

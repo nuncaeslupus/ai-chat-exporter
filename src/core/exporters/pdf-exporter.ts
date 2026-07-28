@@ -163,6 +163,12 @@ export class PdfExporter extends BaseExporter {
         y += lineHeight;
       }
 
+      const dateRange = this.formatDateRange(conversation.pairs);
+      if (dateRange) {
+        doc.text(sanitizeTextForPDF(`${this.getMetadataLabel('dateRange')}: ${dateRange}`), margins.left, y);
+        y += lineHeight;
+      }
+
       if (conversation.createdAt) {
         doc.text(`${this.getMetadataLabel('exported')}: ${this.formatTimestamp(conversation.createdAt)}`, margins.left, y);
         y += lineHeight;
@@ -185,12 +191,28 @@ export class PdfExporter extends BaseExporter {
     // Get assistant name and color based on platform
     const assistantInfo = this.getAssistantInfo(conversation.platform);
 
+    const daySeparator = this.daySeparator(options.includeTimestamps);
+    const pageCentre = pageWidth / 2;
+    const renderDaySeparator = (date: Date | undefined, currentY: number): number => {
+      const separator = daySeparator(date);
+      if (!separator) return currentY;
+
+      doc.setFontSize(FONT_SIZE_PT.meta);
+      doc.setFont(FONT_FAMILY.body.pdf, 'normal');
+      doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
+      doc.text(sanitizeTextForPDF(separator), pageCentre, currentY + lineHeight, { align: 'center' });
+      doc.setFontSize(FONT_SIZE_PT.body);
+      return currentY + lineHeight * 2;
+    };
+
     for (const pair of conversation.pairs) {
       // Check if we need a new page
       if (y > pageHeight - margins.bottom - lineHeight * 10) {
         doc.addPage();
         y = margins.top;
       }
+
+      y = renderDaySeparator(pair.question.timestamp, y);
 
       // User message (blue)
       y = this.renderMessage(
@@ -207,6 +229,8 @@ export class PdfExporter extends BaseExporter {
 
       // Add spacing between user and assistant
       y += lineHeight * 0.5;
+
+      y = renderDaySeparator(pair.answer.timestamp, y);
 
       // Assistant message (platform-specific color and name)
       y = this.renderMessage(

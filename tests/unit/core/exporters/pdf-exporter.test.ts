@@ -281,7 +281,9 @@ describe('PdfExporter', () => {
       });
 
       const rendered = textCallsOf(instances[0]!);
-      expect(rendered.some((t) => t.includes('2025-01-01 12:00:00'))).toBe(true);
+      expect(rendered.some((t) => t.includes('(12:00:00)'))).toBe(true);
+      // The day is announced once by a day separator, not repeated per message.
+      expect(rendered.some((t) => t.includes('2025-01-01 12:00:00'))).toBe(false);
     });
 
     it('omits the timestamp when includeTimestamps is off', async () => {
@@ -294,7 +296,7 @@ describe('PdfExporter', () => {
       });
 
       const rendered = textCallsOf(instances[0]!);
-      expect(rendered.some((t) => t.includes('2025-01-01 12:00:00'))).toBe(false);
+      expect(rendered.some((t) => t.includes('12:00:00'))).toBe(false);
     });
 
     it('emits no stray label or "undefined" when a message has no timestamp', async () => {
