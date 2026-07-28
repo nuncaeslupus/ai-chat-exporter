@@ -20,12 +20,24 @@ const mockTabsQuery = vi.fn();
 const mockTabsSendMessage = vi.fn();
 const mockTabsCreate = vi.fn();
 const mockTabsReload = vi.fn();
+const mockExecuteScript = vi.fn();
+const mockInsertCSS = vi.fn();
+
+/** What the shipped manifest declares; the injection helper reads it from there. */
+const MANIFEST = {
+  version: '1.1.1',
+  content_scripts: [{ js: ['content/content-script.js'], css: ['content/styles.css'] }],
+};
+
+/** Chrome's wording for "nobody is listening in that tab". */
+const NO_RECEIVER = 'Could not establish connection. Receiving end does not exist.';
 
 const EN_MESSAGES: Record<string, string> = {
   statusReady: 'Ready',
   statusNotSupported: 'Not supported',
   statusNoConversation: 'No conversation',
   statusReloadNeeded: 'Reload needed',
+  statusPageCheckFailed: 'Check failed',
   statusArtifactsMissing: 'Artifacts missing',
   conversationUntitled: 'Untitled',
   platformChatGPT: 'ChatGPT',
@@ -100,6 +112,8 @@ function baseChrome(): void {
   mockTabsSendMessage.mockReset();
   mockTabsCreate.mockReset();
   mockTabsReload.mockReset();
+  mockExecuteScript.mockReset().mockResolvedValue([]);
+  mockInsertCSS.mockReset().mockResolvedValue(undefined);
   Object.assign(chrome, {
     tabs: {
       query: mockTabsQuery,
@@ -107,7 +121,8 @@ function baseChrome(): void {
       create: mockTabsCreate,
       reload: mockTabsReload,
     },
-    runtime: { getManifest: () => ({ version: '1.1.1' }) },
+    scripting: { executeScript: mockExecuteScript, insertCSS: mockInsertCSS },
+    runtime: { getManifest: () => MANIFEST },
     i18n: mockI18n(),
   });
 }
@@ -191,13 +206,116 @@ describe('popup secondary states — unsupported page', () => {
   });
 });
 
+/**
+ * The condition behind the "Receiving end does not exist" report: the extension
+ * was installed, updated or reloaded while a chat tab was already open, so
+ * nothing is listening in it. Routine, so it must self-heal and must not shout
+ * into the console — while a genuine failure still has to.
+ */
+describe('popup secondary states — no content script in the tab', () => {
+  let consoleError: ReturnType<typeof vi.spyOn>;
+  let consoleDebug: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    baseChrome();
+    mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://claude.ai/chat/abc' }]);
+    consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    consoleDebug = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
+  });
+
+  // Restored one by one: `vi.restoreAllMocks()` would also reset the shared
+  // chrome.storage mocks from vitest.setup.ts and break every later test.
+  afterEach(() => {
+    consoleError.mockRestore();
+    consoleDebug.mockRestore();
+  });
+
+  it('injects the content script and retries instead of asking for a reload', async () => {
+    let attempts = 0;
+    mockTabsSendMessage.mockImplementation(() => {
+      attempts += 1;
+      return attempts === 1
+        ? Promise.reject(new Error(NO_RECEIVER))
+        : Promise.resolve({ success: true, data: CONVERSATION });
+    });
+    await loadPopup();
+
+    await vi.waitFor(() => {
+      expect(uiState()).toBe('ready');
+    });
+    // Files come off the manifest, not a second hardcoded list.
+    expect(mockInsertCSS).toHaveBeenCalledWith({
+      target: { tabId: 1 },
+      files: ['content/styles.css'],
+    });
+    expect(mockExecuteScript).toHaveBeenCalledWith({
+      target: { tabId: 1 },
+      files: ['content/content-script.js'],
+    });
+    expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  it('keeps asking while the injected loader is still pulling in its bundle', async () => {
+    // The injected file only kicks off a dynamic import, so the listener can
+    // still be missing on the first ask after executeScript resolves.
+    let attempts = 0;
+    mockTabsSendMessage.mockImplementation(() => {
+      attempts += 1;
+      return attempts < 3
+        ? Promise.reject(new Error(NO_RECEIVER))
+        : Promise.resolve({ success: true, data: CONVERSATION });
+    });
+    await loadPopup();
+
+    await vi.waitFor(() => {
+      expect(uiState()).toBe('ready');
+    });
+    expect(mockExecuteScript).toHaveBeenCalled();
+    expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  it('degrades to the reload state without an error when the injection does not take', async () => {
+    mockTabsSendMessage.mockRejectedValue(new Error(NO_RECEIVER));
+    await loadPopup();
+
+    await vi.waitFor(() => {
+      expect(uiState()).toBe('reload');
+    });
+    expect(mockExecuteScript).toHaveBeenCalled();
+    expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  it('degrades to the reload state without an error when the injection itself fails', async () => {
+    mockTabsSendMessage.mockRejectedValue(new Error(NO_RECEIVER));
+    mockExecuteScript.mockRejectedValue(new Error('Cannot access contents of the page'));
+    await loadPopup();
+
+    await vi.waitFor(() => {
+      expect(uiState()).toBe('reload');
+    });
+    expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  it('still surfaces a genuine failure as an error rather than a reload prompt', async () => {
+    mockTabsSendMessage.mockRejectedValue(new Error('The message port closed unexpectedly'));
+    await loadPopup();
+
+    await vi.waitFor(() => {
+      expect(uiState()).toBe('error');
+    });
+    // A real fault is not something a page reload fixes: no injection is tried.
+    expect(mockExecuteScript).not.toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalled();
+    expect(document.getElementById('status-text')?.textContent).toBe('Check failed');
+  });
+});
+
 describe('popup secondary states — reload needed', () => {
   beforeEach(baseChrome);
 
   it('falls back to the reload state when the content script never answers', async () => {
     mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://claude.ai/chat/abc' }]);
-    mockTabsSendMessage.mockRejectedValue(new Error('Receiving end does not exist'));
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mockTabsSendMessage.mockRejectedValue(new Error(NO_RECEIVER));
     await loadPopup();
 
     await vi.waitFor(() => {
@@ -208,8 +326,7 @@ describe('popup secondary states — reload needed', () => {
 
   it('reloads the tab from the button rather than only telling the user how', async () => {
     mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://claude.ai/chat/abc' }]);
-    mockTabsSendMessage.mockRejectedValue(new Error('Receiving end does not exist'));
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    mockTabsSendMessage.mockRejectedValue(new Error(NO_RECEIVER));
     vi.spyOn(window, 'close').mockImplementation(() => undefined);
     await loadPopup();
 
