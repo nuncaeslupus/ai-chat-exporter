@@ -9,7 +9,11 @@ import type {
   Conversation,
   QAPair,
   StructuredContentBlock,
+  StructuredConversation,
+  StructuredQAPair,
   InlineContent,
+  ListBlock,
+  TableBlock,
 } from '../types';
 import { BaseExporter } from './base-exporter';
 import { ConversationStructureService } from '../services';
@@ -49,7 +53,7 @@ export class TextExporter extends BaseExporter {
    * Generate plain text content
    */
   private generateText(
-    conversation: any, // StructuredConversation
+    conversation: StructuredConversation,
     options: ExportOptions
   ): string {
     const lines: string[] = [];
@@ -94,7 +98,7 @@ export class TextExporter extends BaseExporter {
   /**
    * Format a single Q&A pair
    */
-  private formatPair(pair: any, assistantName: string, options: ExportOptions): string[] {
+  private formatPair(pair: StructuredQAPair, assistantName: string, options: ExportOptions): string[] {
     const lines: string[] = [];
 
     // User message
@@ -108,7 +112,7 @@ export class TextExporter extends BaseExporter {
 
     // Add artifacts if present
     if (pair.answer.metadata?.artifacts && Array.isArray(pair.answer.metadata.artifacts)) {
-      const artifactsWithContent = pair.answer.metadata.artifacts.filter((a: any) => a.content);
+      const artifactsWithContent = pair.answer.metadata.artifacts.filter((a) => a.content);
 
       if (artifactsWithContent.length > 0) {
         lines.push('');
@@ -154,15 +158,16 @@ export class TextExporter extends BaseExporter {
 
     for (const block of blocks) {
       switch (block.type) {
-        case 'paragraph':
+        case 'paragraph': {
           const text = this.inlineToText(block.content);
           if (text.trim()) {
             lines.push(text);
             lines.push('');
           }
           break;
+        }
 
-        case 'heading':
+        case 'heading': {
           const headingText = this.inlineToText(block.content);
           if (headingText.trim()) {
             lines.push('');
@@ -171,6 +176,7 @@ export class TextExporter extends BaseExporter {
             lines.push('');
           }
           break;
+        }
 
         case 'code':
           lines.push('');
@@ -186,7 +192,7 @@ export class TextExporter extends BaseExporter {
           lines.push('');
           break;
 
-        case 'blockquote':
+        case 'blockquote': {
           lines.push('');
           const quoteLines = this.renderBlocks(block.content);
           for (const line of quoteLines) {
@@ -198,6 +204,7 @@ export class TextExporter extends BaseExporter {
           }
           lines.push('');
           break;
+        }
 
         case 'hr':
           lines.push('');
@@ -225,7 +232,7 @@ export class TextExporter extends BaseExporter {
   /**
    * Render a table to plain text
    */
-  private renderTable(block: any): string[] {
+  private renderTable(block: TableBlock): string[] {
     const lines: string[] = [];
     const allRows: string[][] = [];
 
@@ -276,12 +283,11 @@ export class TextExporter extends BaseExporter {
   /**
    * Render a list to plain text lines
    */
-  private renderList(block: any, depth: number): string[] {
+  private renderList(block: ListBlock, depth: number): string[] {
     const lines: string[] = [];
     const indent = '  '.repeat(depth);
 
-    for (let i = 0; i < block.items.length; i++) {
-      const item = block.items[i];
+    for (const [i, item] of block.items.entries()) {
       const prefix = block.ordered ? `${i + 1}.` : '-';
       const text = this.inlineToText(item.content);
 

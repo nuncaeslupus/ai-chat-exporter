@@ -10,6 +10,17 @@ import type {
   Conversation,
 } from '../types';
 import { isArtifactContent } from '../types';
+import type { MessageResponse } from '../../shared/messages';
+
+/** The slice of Claude's `__NEXT_DATA__` blob this service reads. */
+interface NextData {
+  props?: {
+    pageProps?: {
+      organizationId?: string;
+      selectedOrganization?: { uuid?: string };
+    };
+  };
+}
 
 /**
  * Outcome of an enrichment attempt.
@@ -64,7 +75,7 @@ export class ClaudeApiService {
     console.log('[Claude API Service] __NEXT_DATA__ element exists:', !!nextData);
     if (nextData?.textContent) {
       try {
-        const data = JSON.parse(nextData.textContent);
+        const data = JSON.parse(nextData.textContent) as NextData;
         console.log('[Claude API Service] __NEXT_DATA__ parsed successfully');
         console.log('[Claude API Service] __NEXT_DATA__ keys:', Object.keys(data));
 
@@ -118,8 +129,8 @@ export class ClaudeApiService {
     for (const img of images) {
       const src = img.getAttribute('src');
       if (src) {
-        const apiMatch = src.match(/^\/api\/([a-f0-9-]{36})\//);
-        if (apiMatch && apiMatch[1]) {
+        const apiMatch = /^\/api\/([a-f0-9-]{36})\//.exec(src);
+        if (apiMatch?.[1]) {
           console.log('[Claude API Service] Found org ID in image URL:', src);
           return apiMatch[1];
         }
@@ -142,7 +153,7 @@ export class ClaudeApiService {
     for (const [index, pattern] of patterns.entries()) {
       const match = htmlContent.match(pattern);
       console.log(`[Claude API Service] Pattern ${index + 1} match:`, match ? match[1] : 'no match');
-      if (match && match[1]) {
+      if (match?.[1]) {
         console.log('[Claude API Service] Found organization ID in page content');
         return match[1];
       }
@@ -163,8 +174,8 @@ export class ClaudeApiService {
       const urlObj = new URL(url);
 
       // Example URL: https://claude.ai/chat/00000000-0000-4000-8000-000000000000
-      const pathMatch = urlObj.pathname.match(/\/chat\/([a-f0-9-]+)/);
-      if (!pathMatch || !pathMatch[1]) {
+      const pathMatch = /\/chat\/([a-f0-9-]+)/.exec(urlObj.pathname);
+      if (!pathMatch?.[1]) {
         console.warn('[Claude API Service] Could not extract conversation ID from URL:', url);
         return null;
       }
@@ -193,7 +204,10 @@ export class ClaudeApiService {
     request: ClaudeApiRequest
   ): Promise<ClaudeApiConversationResponse | null> {
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await chrome.runtime.sendMessage<
+        unknown,
+        MessageResponse<ClaudeApiConversationResponse>
+      >({
         type: 'fetch_claude_api_data',
         data: request,
       });
@@ -204,7 +218,7 @@ export class ClaudeApiService {
       }
 
       console.log('[Claude API Service] API response received, messages:', response.data.chat_messages?.length);
-      return response.data as ClaudeApiConversationResponse;
+      return response.data;
     } catch (error) {
       console.error('[Claude API Service] Error fetching conversation data:', error);
       return null;
@@ -230,7 +244,7 @@ export class ClaudeApiService {
 
       // Look for artifact tool use in content
       for (const content of message.content || []) {
-        console.log(`[Claude API Service] Content block type:`, content.type, 'name:', (content as any).name);
+        console.log(`[Claude API Service] Content block type:`, content.type, 'name:', (content as { name?: string }).name);
         if (isArtifactContent(content)) {
           const input = content.input;
           console.log(`[Claude API Service] Found artifact:`, input.title, 'type:', input.type, 'contentLength:', input.content?.length || 0);

@@ -16,7 +16,7 @@ describe('ClaudeParser', () => {
       'utf-8'
     );
     dom = new JSDOM(html, { url: 'https://claude.ai/chat/abc123' });
-    document = dom.window.document as unknown as Document;
+    document = dom.window.document;
     parser = new ClaudeParser(document);
   });
 
@@ -32,7 +32,7 @@ describe('ClaudeParser', () => {
         'utf-8'
       );
       dom = new JSDOM(html, { url: 'https://www.claude.ai/chat/abc123' });
-      document = dom.window.document as unknown as Document;
+      document = dom.window.document;
       parser = new ClaudeParser(document);
 
       expect(parser.canParse()).toBe(true);
@@ -44,7 +44,7 @@ describe('ClaudeParser', () => {
         'utf-8'
       );
       dom = new JSDOM(html, { url: 'https://chatgpt.com' });
-      document = dom.window.document as unknown as Document;
+      document = dom.window.document;
       parser = new ClaudeParser(document);
 
       expect(parser.canParse()).toBe(false);
@@ -52,7 +52,7 @@ describe('ClaudeParser', () => {
 
     it('returns false when conversation container not found', () => {
       const emptyDom = new JSDOM('<div></div>', { url: 'https://claude.ai/chat/abc123' });
-      const emptyDocument = emptyDom.window.document as unknown as Document;
+      const emptyDocument = emptyDom.window.document;
       const emptyParser = new ClaudeParser(emptyDocument);
 
       expect(emptyParser.canParse()).toBe(false);
@@ -319,9 +319,9 @@ describe('ClaudeParser', () => {
       // rather than committing a second fixture.
       const container = document.querySelector(
         'div.flex-1.flex.flex-col.px-4.max-w-3xl.mx-auto.w-full.pt-1'
-      ) as Element;
-      const userBlock = document.querySelector('div[data-test-render-count="2"]') as Element;
-      const assistantBlock = document.querySelector('div[data-test-render-count="1"]') as Element;
+      )!;
+      const userBlock = document.querySelector('div[data-test-render-count="2"]')!;
+      const assistantBlock = document.querySelector('div[data-test-render-count="1"]')!;
       userBlock.querySelector('p.whitespace-pre-wrap')!.textContent = 'Turn1 question';
       assistantBlock.querySelector('p.font-claude-response-body')!.textContent = 'Turn1 answer';
       for (const n of [2, 3]) {
@@ -339,8 +339,8 @@ describe('ClaudeParser', () => {
       // Gut turn 2's user content entirely (image thumbnail + text), as a
       // redesign that collapsed its wrapper divs plausibly would -- leave
       // turns 1 and 3 untouched.
-      const turn2UserBlock = document.querySelectorAll('div[data-test-render-count="2"]')[1] as Element;
-      turn2UserBlock.querySelectorAll('div.relative.group\\/thumbnail').forEach((el) => el.remove());
+      const turn2UserBlock = document.querySelectorAll('div[data-test-render-count="2"]')[1]!;
+      turn2UserBlock.querySelectorAll('div.relative.group\\/thumbnail').forEach((el) => { el.remove(); });
       turn2UserBlock.querySelector('div[data-testid="user-message"]')!.remove();
 
       const result = new ClaudeParser(document).parse();
@@ -430,7 +430,7 @@ describe('ClaudeParser', () => {
 
       expect(point).not.toBeNull();
       const header = document.querySelector('header[data-testid="page-header"]');
-      expect(header?.contains(point!)).toBe(true);
+      expect(header?.contains(point)).toBe(true);
     });
   });
 });

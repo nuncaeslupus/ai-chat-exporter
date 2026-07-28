@@ -504,7 +504,7 @@ describe('ChatGPTParser implementation', () => {
 
     it('returns success:false rather than an empty conversation when selectors match nothing', () => {
       // Simulate a redesign that drops the turn marker entirely.
-      document.querySelectorAll('[data-turn]').forEach((el) => el.removeAttribute('data-turn'));
+      document.querySelectorAll('[data-turn]').forEach((el) => { el.removeAttribute('data-turn'); });
 
       const result = parser.parse();
 

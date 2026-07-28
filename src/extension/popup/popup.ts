@@ -150,7 +150,7 @@ class PopupController {
 
     // Export button
     document.getElementById('export-button')?.addEventListener('click', () => {
-      this.handleExport(this.selectedFormat);
+      void this.handleExport(this.selectedFormat);
     });
 
     // Q&A pair select-all / select-none toggle
@@ -160,17 +160,17 @@ class PopupController {
 
     // Print button
     document.getElementById('print-button')?.addEventListener('click', () => {
-      this.handlePrint();
+      void this.handlePrint();
     });
 
     // Export option toggles
     document.getElementById('option-include-metadata')?.addEventListener('change', (e) => {
-      StorageService.setUserPreferences({
+      void StorageService.setUserPreferences({
         includeMetadata: (e.target as HTMLInputElement).checked,
       });
     });
     document.getElementById('option-include-timestamps')?.addEventListener('change', (e) => {
-      StorageService.setUserPreferences({
+      void StorageService.setUserPreferences({
         includeTimestamps: (e.target as HTMLInputElement).checked,
       });
     });
@@ -178,7 +178,7 @@ class PopupController {
     // Footer links
     document.getElementById('report-issue')?.addEventListener('click', (e) => {
       e.preventDefault();
-      chrome.tabs.create({
+      void chrome.tabs.create({
         url: 'https://github.com/nuncaeslupus/ai-chat-exporter/issues',
       });
     });
@@ -228,7 +228,10 @@ class PopupController {
 
       // Try to get conversation from content script
       const message = createMessage<GetConversationMessage>('get_conversation', {});
-      const response = await chrome.tabs.sendMessage(tab.id, message);
+      const response = await chrome.tabs.sendMessage<unknown, MessageResponse<Conversation> | undefined>(
+        tab.id,
+        message
+      );
 
       if (response?.success && response.data) {
         this.updateConversationInfo(response.data);
@@ -583,5 +586,5 @@ class PopupController {
 // Initialize popup
 const popup = new PopupController();
 document.addEventListener('DOMContentLoaded', () => {
-  popup.initialize();
+  void popup.initialize();
 });

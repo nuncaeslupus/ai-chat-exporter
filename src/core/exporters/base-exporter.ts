@@ -115,7 +115,7 @@ export abstract class BaseExporter implements IExporter {
   /**
    * Get role name for display
    */
-  protected getRoleName(role: 'user' | 'assistant' | string, platform?: string): string {
+  protected getRoleName(role: string, platform?: string): string {
     // If platform is specified, try to get platform-specific assistant name
     if (role === 'assistant' && platform) {
       const key = `role${platform.charAt(0).toUpperCase()}${platform.slice(1)}`;

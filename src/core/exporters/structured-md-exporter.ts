@@ -10,7 +10,10 @@ import type {
   Conversation,
   QAPair,
   StructuredContentBlock,
+  StructuredConversation,
   InlineContent,
+  ListBlock,
+  TableBlock,
 } from '../types';
 import { BaseExporter } from './base-exporter';
 import { ConversationStructureService } from '../services';
@@ -44,7 +47,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
     }
   }
 
-  private generateMarkdown(conversation: any, options: ExportOptions): string {
+  private generateMarkdown(conversation: StructuredConversation, options: ExportOptions): string {
     const lines: string[] = [];
 
     // Title
@@ -69,9 +72,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
     lines.push('');
 
     // Q&A pairs
-    for (let i = 0; i < conversation.pairs.length; i++) {
-      const pair = conversation.pairs[i];
-
+    for (const [i, pair] of conversation.pairs.entries()) {
       // User question
       lines.push(`### 👤 ${this.getRoleName('user')}${this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps)}`);
       lines.push('');
@@ -84,7 +85,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
 
       // Add artifacts if present
       if (pair.answer.metadata?.artifacts && Array.isArray(pair.answer.metadata.artifacts)) {
-        const artifactsWithContent = pair.answer.metadata.artifacts.filter((a: any) => a.content);
+        const artifactsWithContent = pair.answer.metadata.artifacts.filter((a) => a.content);
 
         if (artifactsWithContent.length > 0) {
           lines.push('');
@@ -166,15 +167,16 @@ export class StructuredMarkdownExporter extends BaseExporter {
 
     for (const block of blocks) {
       switch (block.type) {
-        case 'paragraph':
+        case 'paragraph': {
           const paraText = this.renderInline(block.content).trim();
           if (paraText) {
             lines.push(paraText);
             lines.push('');
           }
           break;
+        }
 
-        case 'heading':
+        case 'heading': {
           const hashes = '#'.repeat(Math.min(block.level + 3, 6)); // +3 because title is h1, User/Assistant are h3
           const headingText = this.renderInline(block.content).trim();
           if (headingText) {
@@ -182,6 +184,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
             lines.push('');
           }
           break;
+        }
 
         case 'code':
           lines.push(`\`\`\`${block.language}`);
@@ -195,18 +198,19 @@ export class StructuredMarkdownExporter extends BaseExporter {
           lines.push('');
           break;
 
-        case 'blockquote':
+        case 'blockquote': {
           const quoteLines = this.renderBlocks(block.content);
           lines.push(...quoteLines.map(line => (line ? `> ${line}` : '>')));
           lines.push('');
           break;
+        }
 
         case 'hr':
           lines.push('---');
           lines.push('');
           break;
 
-        case 'image':
+        case 'image': {
           const alt = block.alt || 'image';
 
           // Match Claude's webchat thumbnail size (typically ~200px)
@@ -234,6 +238,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
           }
           lines.push('');
           break;
+        }
 
         case 'table':
           lines.push(...this.renderTable(block));
@@ -248,7 +253,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
   /**
    * Render a table to markdown
    */
-  private renderTable(block: any): string[] {
+  private renderTable(block: TableBlock): string[] {
     const lines: string[] = [];
 
     // Render headers if present
@@ -279,11 +284,11 @@ export class StructuredMarkdownExporter extends BaseExporter {
   /**
    * Render a list to markdown
    */
-  private renderList(block: any, depth: number): string[] {
+  private renderList(block: ListBlock, depth: number): string[] {
     const lines: string[] = [];
     const indent = '  '.repeat(depth);
 
-    block.items.forEach((item: any, index: number) => {
+    block.items.forEach((item, index) => {
       const prefix = block.ordered ? `${index + 1}.` : '-';
       const content = this.renderInline(item.content).trim();
 

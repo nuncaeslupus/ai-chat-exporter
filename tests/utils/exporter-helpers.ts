@@ -23,8 +23,8 @@ export async function blobToText(blob: Blob): Promise<string> {
   // Fallback: use FileReader (works in JSDOM)
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error('Failed to read blob'));
+    reader.onload = () => { resolve(reader.result as string); };
+    reader.onerror = () => { reject(new Error('Failed to read blob')); };
     reader.readAsText(blob);
   });
 }

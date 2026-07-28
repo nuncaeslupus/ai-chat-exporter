@@ -2,6 +2,8 @@
  * Structured content types for rich conversation formatting
  */
 
+import type { MessageMetadata } from './conversation';
+
 /**
  * Base content block
  */
@@ -120,12 +122,7 @@ export interface StructuredMessage {
   role: 'user' | 'assistant' | 'system';
   timestamp: Date;
   blocks: StructuredContentBlock[];
-  metadata?: {
-    artifacts?: any[];
-    webSearches?: any[];
-    images?: any[];
-    [key: string]: any;
-  };
+  metadata?: MessageMetadata;
 }
 
 /**

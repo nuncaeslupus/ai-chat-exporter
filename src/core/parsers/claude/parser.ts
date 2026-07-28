@@ -124,7 +124,7 @@ export class ClaudeParser extends BaseParser {
     // Try to find the container with the model selector button
     const modelButton = this.document.querySelector('button[data-testid="model-selector-dropdown"]');
     if (modelButton?.parentElement) {
-      return modelButton.parentElement as HTMLElement;
+      return modelButton.parentElement;
     }
 
     // Fallback: try the buttonArea selector
@@ -289,8 +289,8 @@ export class ClaudeParser extends BaseParser {
   /**
    * Extract user uploaded images
    */
-  private extractUserUploadedImages(element: Element): Array<{ src: string; alt?: string; width?: number; height?: number }> {
-    const images: Array<{ src: string; alt?: string; width?: number; height?: number }> = [];
+  private extractUserUploadedImages(element: Element): { src: string; alt?: string; width?: number; height?: number }[] {
+    const images: { src: string; alt?: string; width?: number; height?: number }[] = [];
 
     const imageContainers = element.querySelectorAll('div.relative.group\\/thumbnail');
 
@@ -543,11 +543,11 @@ export class ClaudeParser extends BaseParser {
       // Extract result count
       const countElement = container.querySelector('p.text-text-500.font-small');
       const countText = countElement?.textContent?.trim() || '';
-      const countMatch = countText.match(/(\d+)/);
-      const resultCount = countMatch && countMatch[1] ? parseInt(countMatch[1], 10) : undefined;
+      const countMatch = /(\d+)/.exec(countText);
+      const resultCount = countMatch?.[1] ? parseInt(countMatch[1], 10) : undefined;
 
       // Extract individual results
-      const results: Array<{ title: string; url: string; favicon?: string; domain?: string }> = [];
+      const results: { title: string; url: string; favicon?: string; domain?: string }[] = [];
       const resultLinks = container.querySelectorAll('div.flex.flex-nowrap.p-2 a');
 
       resultLinks.forEach((link) => {
@@ -614,7 +614,7 @@ export class ClaudeParser extends BaseParser {
 
     // Claude shows time in HH:MM format (e.g., "18:40")
     // We'll create a date with today's date and the given time
-    const timeMatch = timeText.match(/(\d{1,2}):(\d{2})/);
+    const timeMatch = /(\d{1,2}):(\d{2})/.exec(timeText);
     if (!timeMatch) {
       return undefined;
     }

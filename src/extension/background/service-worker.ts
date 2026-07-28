@@ -18,13 +18,17 @@ import type { ExportFormat } from '../../core/types';
 chrome.runtime.onInstalled.addListener((details) => {
   console.log(`[${EXTENSION_NAME}] Extension installed/updated`, details);
 
-  if (details.reason === 'install') {
+  // Compared as a string, not via chrome.runtime.OnInstalledReason: Firefox does
+  // not expose that enum object at runtime.
+  const reason: string = details.reason;
+
+  if (reason === 'install') {
     // First time installation
     console.log(`[${EXTENSION_NAME}] First time installation`);
 
     // You could open a welcome page here if desired
     // chrome.tabs.create({ url: 'pages/welcome.html' });
-  } else if (details.reason === 'update') {
+  } else if (reason === 'update') {
     // Extension updated
     console.log(`[${EXTENSION_NAME}] Extension updated to version ${chrome.runtime.getManifest().version}`);
   }
@@ -42,11 +46,11 @@ chrome.runtime.onStartup.addListener(() => {
 /**
  * Message handler for communication between components
  */
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
   console.log(`[${EXTENSION_NAME}] Background received message:`, message);
 
   // Handle Claude API data fetch
-  if (message.type === 'fetch_claude_api_data') {
+  if (isClaudeApiFetchMessage(message)) {
     handleClaudeApiFetch(message.data)
       .then((data) => {
         sendResponse({ success: true, data });
@@ -65,6 +69,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   sendResponse({ success: true });
   return false;
 });
+
+interface ClaudeApiFetchMessage {
+  type: 'fetch_claude_api_data';
+  data: { organizationId: string; conversationId: string };
+}
+
+function isClaudeApiFetchMessage(message: unknown): message is ClaudeApiFetchMessage {
+  return (
+    typeof message === 'object' &&
+    message !== null &&
+    (message as { type?: unknown }).type === 'fetch_claude_api_data'
+  );
+}
 
 /**
  * Fetch Claude conversation data from API
@@ -92,7 +109,7 @@ async function handleClaudeApiFetch(request: {
       throw new Error(`API request failed: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data: unknown = await response.json();
     console.log(`[${EXTENSION_NAME}] Claude API response received`);
 
     return data;

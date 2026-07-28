@@ -38,9 +38,7 @@ export interface PrintConversationMessage extends BaseMessage<'print_conversatio
 /**
  * Get conversation message
  */
-export interface GetConversationMessage extends BaseMessage<'get_conversation'> {
-  // No additional data needed
-}
+export type GetConversationMessage = BaseMessage<'get_conversation'>;
 
 /**
  * User preferences interface
