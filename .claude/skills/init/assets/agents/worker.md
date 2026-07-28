@@ -45,6 +45,15 @@ branch. Capture it first.
    If the payload already contains `## Attempt N failure` sections, read them
    before implementing — they record what prior approaches were tried and why
    they failed.
+   - **If the file is not on disk**, your worktree predates the commit that
+     seeded it. Read it from the branch instead:
+     `git show arsenal-queue:claude-arsenal/queue/<task_id>.md`. Do not report
+     the task as unworkable over a missing payload file.
+   - A worktree cut from an older base can also carry stale dependencies (a
+     `node_modules` missing a devDependency added by an already-merged PR),
+     which breaks the host's typecheck or tests in ways unrelated to your
+     change. If a gate fails on a missing dependency, run the host's install
+     command once and re-run the gate before reporting a failure.
 2. **Write tests first (RED).** From the `## Tests` section of the payload,
    write each specified test and confirm it fails before touching production code:
    - Run the test(s) and verify they fail because the behavior does not exist yet —
@@ -103,8 +112,31 @@ If implementation cannot be completed for any other reason, return outcome
 `open` to the orchestrator with a structured failure note (see step 4 format)
 for the `## Failure notes` section. Do not open a PR.
 
+## Never `git stash`
+
+`refs/stash` is **repo-global, not worktree-scoped**. `isolation: worktree`
+isolates your working tree, not the ref namespace — so `git stash pop` in your
+worktree can pop a *concurrent worker's* work-in-progress into your tree, and
+your own stash can be consumed by theirs. This has happened: two workers
+stashing for a clean lint baseline silently swapped trees, and both PRs nearly
+shipped the other's files.
+
+For a clean baseline, read from git instead of moving your tree:
+
+- `git show HEAD:<path>` — the committed version of a file.
+- `git diff` / `git diff --stat` — exactly what you changed.
+- `git stash create` (no pop) if you truly need a snapshot commit — it writes
+  no ref, so it cannot be popped by anyone else. `claude-arsenal/bin/rescue_snapshot.sh`
+  does this for you and prints the ref it saved.
+
+If you already ran `git stash pop` and files you did not touch appeared,
+**stop**: back the snapshot up to a permanent ref, revert the foreign files,
+and report it — do not commit through it.
+
 ## What not to do
 
+- Do not run `git stash` / `git stash pop` — see above; `refs/stash` is shared
+  with every other worker in the repo.
 - Do not run `claim.sh` — the orchestrator already claimed the task.
 - Do not run `release.sh` — you are on a feature-branch worktree; `release.sh`
   guards on `arsenal-queue`. The orchestrator records the outcome.
