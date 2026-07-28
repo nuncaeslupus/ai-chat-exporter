@@ -264,8 +264,19 @@ describe('ChatGPTParser implementation', () => {
     it('extracts message content correctly', () => {
       const result = parser.parse();
       const pair = result.conversation?.pairs[0];
-      expect(pair?.question.content.length).toBeGreaterThan(0);
-      expect(pair?.answer.content.length).toBeGreaterThan(0);
+      expect(pair?.question.content).toBe(
+        'Yes You can point the TESSERA command line Client At a verdant gateway AS long?'
+      );
+      const answer = pair?.answer.content ?? '';
+      // Anchors at the head, middle and tail of the fixture answer, so a
+      // truncated or garbled extraction fails instead of passing on length > 0.
+      expect(answer).toContain(
+        'As, the endpoint speaks the Same REQUEST shape the client Already Knows how to SEND. The gateway:'
+      );
+      expect(answer).toContain(
+        'bashadapter --endpoint https://example.org/guides/verdant-gateway --runtime HANDLER'
+      );
+      expect(answer).toMatch(/One KEEPS a Plain\?$/);
     });
 
     it('preserves HTML content when configured', () => {
