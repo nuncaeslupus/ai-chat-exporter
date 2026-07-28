@@ -21,6 +21,14 @@ import { ConversationStructureService } from '../services';
 import { getMessageWithValues } from '../../shared/i18n';
 import { sanitizeTextForPDF } from '../utils/pdf-characters';
 import { loadImagesParallel, type LoadedImage } from '../utils/image-loader';
+import {
+  COLOR,
+  FONT_FAMILY,
+  FONT_SIZE_PT,
+  PDF_FONT_SIZE_PT,
+  SPACING,
+  hexToRgbTuple,
+} from './style-tokens';
 
 /**
  * Exports conversations to PDF format
@@ -124,17 +132,17 @@ export class PdfExporter extends BaseExporter {
     const lineHeight = 6;
 
     // Title
-    doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(17, 24, 39); // Dark gray
+    doc.setFontSize(PDF_FONT_SIZE_PT.title);
+    doc.setFont(FONT_FAMILY.body.pdf, 'bold');
+    doc.setTextColor(...hexToRgbTuple(COLOR.textPrimary));
     doc.text(sanitizeTextForPDF(conversation.title), margins.left, y);
     y += lineHeight * 2.5;
 
     // Metadata
     if (options.includeMetadata) {
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(107, 114, 128); // Medium gray
+      doc.setFontSize(FONT_SIZE_PT.meta);
+      doc.setFont(FONT_FAMILY.body.pdf, 'normal');
+      doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
 
       doc.text(`${this.getMetadataLabel('platform')}: ${this.formatPlatformName(conversation.platform)}`, margins.left, y);
       y += lineHeight;
@@ -154,14 +162,14 @@ export class PdfExporter extends BaseExporter {
 
       // Draw separator line
       y += lineHeight * 0.5;
-      doc.setDrawColor(229, 231, 235);
+      doc.setDrawColor(...hexToRgbTuple(COLOR.border));
       doc.setLineWidth(0.5);
       doc.line(margins.left, y, pageWidth - margins.right, y);
       y += lineHeight * 1.5;
     }
 
     // Q&A pairs
-    doc.setFontSize(11);
+    doc.setFontSize(FONT_SIZE_PT.body);
 
     // Get assistant name and color based on platform
     const assistantInfo = this.getAssistantInfo(conversation.platform);
@@ -183,7 +191,7 @@ export class PdfExporter extends BaseExporter {
         contentWidth,
         lineHeight,
         pageHeight,
-        [37, 99, 235]
+        hexToRgbTuple(COLOR.link)
       );
 
       // Add spacing between user and assistant
@@ -229,8 +237,8 @@ export class PdfExporter extends BaseExporter {
       const pageCount = doc.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
-        doc.setFontSize(9);
-        doc.setTextColor(150);
+        doc.setFontSize(PDF_FONT_SIZE_PT.small);
+        doc.setTextColor(...hexToRgbTuple(COLOR.textFaint));
         doc.text(
           getMessageWithValues('pageNumberFormat', String(i), String(pageCount)),
           pageWidth / 2,
@@ -259,8 +267,8 @@ export class PdfExporter extends BaseExporter {
     let y = startY;
 
     // Role label
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
+    doc.setFont(FONT_FAMILY.body.pdf, 'bold');
+    doc.setFontSize(PDF_FONT_SIZE_PT.roleLabel);
     doc.setTextColor(...roleColor);
     doc.text(`${role}:`, margins.left, y);
     y += lineHeight * 1.2;
@@ -347,9 +355,9 @@ export class PdfExporter extends BaseExporter {
     let y = startY;
 
     // "Artifacts" label
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(55, 65, 81);
+    doc.setFont(FONT_FAMILY.body.pdf, 'bold');
+    doc.setFontSize(PDF_FONT_SIZE_PT.sectionLabel);
+    doc.setTextColor(...hexToRgbTuple(COLOR.textBody));
     doc.text('Artifacts:', margins.left, y);
     y += lineHeight * 1.2;
 
@@ -362,9 +370,9 @@ export class PdfExporter extends BaseExporter {
       }
 
       // Artifact title
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.setTextColor(17, 24, 39);
+      doc.setFont(FONT_FAMILY.body.pdf, 'bold');
+      doc.setFontSize(PDF_FONT_SIZE_PT.artifactTitle);
+      doc.setTextColor(...hexToRgbTuple(COLOR.textPrimary));
       const titleLines = doc.splitTextToSize(sanitizeTextForPDF(artifact.title), contentWidth);
       for (const line of titleLines) {
         doc.text(line, margins.left, y);
@@ -373,9 +381,9 @@ export class PdfExporter extends BaseExporter {
 
       // Artifact type
       if (artifact.typeLabel) {
-        doc.setFont('helvetica', 'italic');
-        doc.setFontSize(9);
-        doc.setTextColor(107, 114, 128);
+        doc.setFont(FONT_FAMILY.body.pdf, 'italic');
+        doc.setFontSize(FONT_SIZE_PT.meta);
+        doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
         doc.text(`Type: ${sanitizeTextForPDF(artifact.typeLabel)}`, margins.left, y);
         y += lineHeight;
       }
@@ -383,9 +391,9 @@ export class PdfExporter extends BaseExporter {
       y += lineHeight * 0.3;
 
       // Artifact content (code block)
-      doc.setFont('courier', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(51, 51, 51);
+      doc.setFont(FONT_FAMILY.code.pdf, 'normal');
+      doc.setFontSize(FONT_SIZE_PT.code);
+      doc.setTextColor(...hexToRgbTuple(COLOR.textStrong));
 
       const contentLines = (artifact.content || '').split('\n');
       for (const line of contentLines) {
@@ -401,8 +409,8 @@ export class PdfExporter extends BaseExporter {
       }
 
       // Reset font
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
+      doc.setFont(FONT_FAMILY.body.pdf, 'normal');
+      doc.setFontSize(FONT_SIZE_PT.body);
 
       y += lineHeight;
     }
@@ -426,9 +434,9 @@ export class PdfExporter extends BaseExporter {
     let y = startY;
 
     // "Web Search Results" label
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(55, 65, 81);
+    doc.setFont(FONT_FAMILY.body.pdf, 'bold');
+    doc.setFontSize(PDF_FONT_SIZE_PT.sectionLabel);
+    doc.setTextColor(...hexToRgbTuple(COLOR.textBody));
     doc.text('Web Search Results:', margins.left, y);
     y += lineHeight * 1.2;
 
@@ -441,17 +449,17 @@ export class PdfExporter extends BaseExporter {
       }
 
       // Search query
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.setTextColor(17, 24, 39);
+      doc.setFont(FONT_FAMILY.body.pdf, 'bold');
+      doc.setFontSize(PDF_FONT_SIZE_PT.artifactTitle);
+      doc.setTextColor(...hexToRgbTuple(COLOR.textPrimary));
       doc.text(sanitizeTextForPDF(search.query || 'References'), margins.left, y);
       y += lineHeight;
 
       // Result count
       if (search.resultCount) {
-        doc.setFont('helvetica', 'italic');
-        doc.setFontSize(9);
-        doc.setTextColor(107, 114, 128);
+        doc.setFont(FONT_FAMILY.body.pdf, 'italic');
+        doc.setFontSize(FONT_SIZE_PT.meta);
+        doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
         doc.text(`${search.resultCount} results found`, margins.left, y);
         y += lineHeight;
       }
@@ -460,8 +468,8 @@ export class PdfExporter extends BaseExporter {
 
       // Render results
       if (search.results && Array.isArray(search.results)) {
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
+        doc.setFont(FONT_FAMILY.body.pdf, 'normal');
+        doc.setFontSize(PDF_FONT_SIZE_PT.small);
 
         for (const result of search.results) {
           if (y > pageHeight - margins.bottom - lineHeight * 3) {
@@ -470,7 +478,7 @@ export class PdfExporter extends BaseExporter {
           }
 
           // Result title (as link)
-          doc.setTextColor(37, 99, 235); // Blue
+          doc.setTextColor(...hexToRgbTuple(COLOR.link));
           const titleLines = doc.splitTextToSize(sanitizeTextForPDF(result.title), contentWidth - 10);
           for (const line of titleLines) {
             doc.text('• ' + line, margins.left + 5, y);
@@ -479,11 +487,11 @@ export class PdfExporter extends BaseExporter {
 
           // Result domain
           if (result.domain) {
-            doc.setFont('helvetica', 'italic');
-            doc.setTextColor(107, 114, 128);
+            doc.setFont(FONT_FAMILY.body.pdf, 'italic');
+            doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
             doc.text(`  ${sanitizeTextForPDF(result.domain)}`, margins.left + 7, y);
             y += lineHeight * 0.9;
-            doc.setFont('helvetica', 'normal');
+            doc.setFont(FONT_FAMILY.body.pdf, 'normal');
           }
 
           y += lineHeight * 0.3;
@@ -541,10 +549,12 @@ export class PdfExporter extends BaseExporter {
       y += lineHeight * 0.5;
 
       // Set font size based on heading level
-      const fontSize = Math.max(16 - block.level, 11);
+      const fontSize = PDF_FONT_SIZE_PT.headingByLevel[
+        Math.min(block.level - 1, PDF_FONT_SIZE_PT.headingByLevel.length - 1)
+      ];
       doc.setFontSize(fontSize);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(31, 41, 55);
+      doc.setFont(FONT_FAMILY.body.pdf, 'bold');
+      doc.setTextColor(...hexToRgbTuple(COLOR.textStrong));
 
       const lines = doc.splitTextToSize(sanitizeTextForPDF(text), contentWidth);
       for (const line of lines) {
@@ -557,8 +567,8 @@ export class PdfExporter extends BaseExporter {
       }
 
       // Reset font
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(FONT_SIZE_PT.body);
+      doc.setFont(FONT_FAMILY.body.pdf, 'normal');
 
       y += lineHeight * 0.3; // Spacing after heading
     }
@@ -581,12 +591,11 @@ export class PdfExporter extends BaseExporter {
     depth: number
   ): number {
     let y = startY;
-    const baseIndent = 5; // Base indentation for all lists (5mm)
-    const indent = baseIndent + (depth * 5); // Additional 5mm per nesting level
+    const indent = SPACING.listIndentStepMm * (depth + 1); // 5mm per nesting level
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(55, 65, 81);
+    doc.setFont(FONT_FAMILY.body.pdf, 'normal');
+    doc.setFontSize(FONT_SIZE_PT.body);
+    doc.setTextColor(...hexToRgbTuple(COLOR.textBody));
 
     for (let i = 0; i < block.items.length; i++) {
       const item = block.items[i];
@@ -659,24 +668,24 @@ export class PdfExporter extends BaseExporter {
 
     // Draw left border for blockquote
     const quoteStartY = y;
-    const quoteMargin = { ...margins, left: margins.left + 5 };
-    const quoteWidth = contentWidth - 5;
+    const quoteMargin = { ...margins, left: margins.left + SPACING.listIndentStepMm };
+    const quoteWidth = contentWidth - SPACING.listIndentStepMm;
 
     // Set style for blockquote
-    doc.setTextColor(107, 114, 128);
-    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
+    doc.setFont(FONT_FAMILY.body.pdf, 'italic');
 
     // Render content
     y = this.renderBlocks(doc, content, y, quoteMargin, quoteWidth, lineHeight, pageHeight);
 
     // Draw left border
-    doc.setDrawColor(209, 213, 219);
+    doc.setDrawColor(...hexToRgbTuple(COLOR.blockquoteBorder));
     doc.setLineWidth(1);
     doc.line(margins.left + 2, quoteStartY - 2, margins.left + 2, y);
 
     // Reset style
-    doc.setTextColor(55, 65, 81);
-    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...hexToRgbTuple(COLOR.textBody));
+    doc.setFont(FONT_FAMILY.body.pdf, 'normal');
 
     y += lineHeight * 0.3; // Spacing after blockquote
 
@@ -704,7 +713,7 @@ export class PdfExporter extends BaseExporter {
       y = margins.top;
     }
 
-    doc.setDrawColor(229, 231, 235);
+    doc.setDrawColor(...hexToRgbTuple(COLOR.border));
     doc.setLineWidth(0.3);
     doc.line(margins.left, y, margins.left + contentWidth, y);
 
@@ -793,9 +802,9 @@ export class PdfExporter extends BaseExporter {
 
       // Add alt text below image if available
       if (block.alt) {
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'italic');
-        doc.setTextColor(107, 114, 128);
+        doc.setFontSize(FONT_SIZE_PT.meta);
+        doc.setFont(FONT_FAMILY.body.pdf, 'italic');
+        doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
         const altText = sanitizeTextForPDF(block.alt);
         const altLines = doc.splitTextToSize(altText, contentWidth);
         for (const line of altLines) {
@@ -807,9 +816,9 @@ export class PdfExporter extends BaseExporter {
           y += lineHeight * 0.8;
         }
         // Reset font
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(55, 65, 81);
+        doc.setFontSize(FONT_SIZE_PT.body);
+        doc.setFont(FONT_FAMILY.body.pdf, 'normal');
+        doc.setTextColor(...hexToRgbTuple(COLOR.textBody));
       }
 
       y += lineHeight * 0.3; // Spacing after image
@@ -876,11 +885,11 @@ export class PdfExporter extends BaseExporter {
       }
 
       // Draw header background
-      doc.setFillColor(249, 250, 251);
+      doc.setFillColor(...hexToRgbTuple(COLOR.surfaceSubtle));
       doc.rect(margins.left, y, contentWidth, headerHeight, 'F');
 
       // Draw header borders
-      doc.setDrawColor(229, 231, 235);
+      doc.setDrawColor(...hexToRgbTuple(COLOR.border));
       doc.setLineWidth(0.1);
       for (let i = 0; i <= numCols; i++) {
         const x = margins.left + i * colWidth;
@@ -890,9 +899,9 @@ export class PdfExporter extends BaseExporter {
       doc.line(margins.left, y + headerHeight, margins.left + contentWidth, y + headerHeight);
 
       // Draw header text
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.setTextColor(55, 65, 81);
+      doc.setFont(FONT_FAMILY.body.pdf, 'bold');
+      doc.setFontSize(PDF_FONT_SIZE_PT.small);
+      doc.setTextColor(...hexToRgbTuple(COLOR.textBody));
 
       table.headers.forEach((header, i) => {
         const cellText = this.inlineToPlainText(header);
@@ -905,7 +914,7 @@ export class PdfExporter extends BaseExporter {
     }
 
     // Render rows
-    doc.setFont('helvetica', 'normal');
+    doc.setFont(FONT_FAMILY.body.pdf, 'normal');
     table.rows.forEach((row, rowIdx) => {
       if (!row) return;
 
@@ -919,12 +928,12 @@ export class PdfExporter extends BaseExporter {
 
       // Alternate row background
       if (rowIdx % 2 === 1) {
-        doc.setFillColor(250, 251, 252);
+        doc.setFillColor(...hexToRgbTuple(COLOR.surfaceSubtle));
         doc.rect(margins.left, y, contentWidth, rowHeight, 'F');
       }
 
       // Draw row borders
-      doc.setDrawColor(229, 231, 235);
+      doc.setDrawColor(...hexToRgbTuple(COLOR.border));
       for (let i = 0; i <= numCols; i++) {
         const x = margins.left + i * colWidth;
         doc.line(x, y, x, y + rowHeight);
@@ -973,14 +982,14 @@ export class PdfExporter extends BaseExporter {
    * Get assistant name and color based on platform
    */
   private getAssistantInfo(platform: string): { name: string; color: [number, number, number] } {
-    const platformColors: Record<string, [number, number, number]> = {
-      chatgpt: [16, 163, 127], // Green
-      claude: [204, 123, 88], // Orange/rust
-      gemini: [66, 133, 244], // Blue
+    const platformColors: Record<string, string> = {
+      chatgpt: COLOR.brand.chatgpt,
+      claude: COLOR.brand.claude,
+      gemini: COLOR.brand.gemini,
     };
 
     const name = this.getRoleName('assistant', platform);
-    const color = platformColors[platform] || [95, 99, 104]; // Default gray
+    const color = hexToRgbTuple(platformColors[platform] ?? COLOR.brand.default);
 
     return { name, color };
   }
@@ -1006,9 +1015,9 @@ export class PdfExporter extends BaseExporter {
 
     // Language label
     if (language) {
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(107, 114, 128);
+      doc.setFontSize(FONT_SIZE_PT.codeLabel);
+      doc.setFont(FONT_FAMILY.body.pdf, 'bold');
+      doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
       doc.text(sanitizeTextForPDF(language.toUpperCase()), margins.left, y);
       y += lineHeight * 0.8;
     }
@@ -1021,8 +1030,8 @@ export class PdfExporter extends BaseExporter {
     let totalCodeHeight = 0;
     const wrappedLines: string[] = [];
 
-    doc.setFont('courier', 'normal');
-    doc.setFontSize(9);
+    doc.setFont(FONT_FAMILY.code.pdf, 'normal');
+    doc.setFontSize(FONT_SIZE_PT.code);
 
     for (const line of codeLines) {
       const sanitized = sanitizeTextForPDF(line || ' ');
@@ -1038,14 +1047,14 @@ export class PdfExporter extends BaseExporter {
     }
 
     // Draw background rectangle
-    doc.setFillColor(243, 244, 246); // Light gray
-    doc.setDrawColor(229, 231, 235); // Border
+    doc.setFillColor(...hexToRgbTuple(COLOR.surfaceMuted));
+    doc.setDrawColor(...hexToRgbTuple(COLOR.border));
     doc.setLineWidth(0.2);
     doc.roundedRect(margins.left, y - 2, contentWidth, totalCodeHeight + 6, 2, 2, 'FD');
 
     // Render code lines
     y += 3;
-    doc.setTextColor(31, 41, 55); // Dark text for code
+    doc.setTextColor(...hexToRgbTuple(COLOR.textStrong)); // Dark text for code
 
     for (const line of wrappedLines) {
       if (y > pageHeight - margins.bottom) {
@@ -1060,8 +1069,8 @@ export class PdfExporter extends BaseExporter {
     y += lineHeight * 0.3; // Spacing after code block
 
     // Reset font
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
+    doc.setFont(FONT_FAMILY.body.pdf, 'normal');
+    doc.setFontSize(FONT_SIZE_PT.body);
 
     return y;
   }
@@ -1082,9 +1091,9 @@ export class PdfExporter extends BaseExporter {
   ): number {
     let y = startY;
 
-    doc.setFont('helvetica', isItalic ? 'italic' : 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(55, 65, 81);
+    doc.setFont(FONT_FAMILY.body.pdf, isItalic ? 'italic' : 'normal');
+    doc.setFontSize(FONT_SIZE_PT.body);
+    doc.setTextColor(...hexToRgbTuple(COLOR.textBody));
 
     const sanitized = sanitizeTextForPDF(text);
     const lines = doc.splitTextToSize(sanitized, contentWidth);

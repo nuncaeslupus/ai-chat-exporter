@@ -10,6 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { COLOR } from '../../../src/core/exporters/style-tokens';
 
 const popupCss = readFileSync(
   resolve(__dirname, '../../../src/extension/popup/popup.css'),
@@ -52,12 +53,29 @@ function normalizeColor(value: string): string {
   return trimmed;
 }
 
+/**
+ * Index of the `}` that closes the `{` at `braceStart`, counting brace depth
+ * so a `${...}` template expression's own `}` (as used by html-exporter.ts's
+ * style-tokens interpolations) doesn't get mistaken for the rule's closer.
+ */
+function matchingBraceEnd(css: string, braceStart: number): number {
+  let depth = 1;
+  for (let i = braceStart + 1; i < css.length; i++) {
+    if (css[i] === '{') depth++;
+    else if (css[i] === '}') {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  throw new Error(`unbalanced braces starting at ${String(braceStart)}`);
+}
+
 /** Value of `prop` inside the first `{...}` block whose text starts with `selector`. */
 function declValue(css: string, selector: string, prop: string): string {
   const idx = css.indexOf(selector);
   if (idx === -1) throw new Error(`selector not found: ${selector}`);
   const braceStart = css.indexOf('{', idx);
-  const braceEnd = css.indexOf('}', braceStart);
+  const braceEnd = matchingBraceEnd(css, braceStart);
   const block = css.slice(braceStart, braceEnd);
   // Negative lookbehind avoids matching "color:" inside "background-color:"
   // (or any other `-color:`) when `prop` is the bare "color" property.
@@ -83,8 +101,33 @@ function popupColor(selector: string, prop: string): string {
   if (!resolved) throw new Error(`unresolved custom property ${varName}`);
   return resolved;
 }
+/**
+ * html-exporter.ts now sources its palette from style-tokens.ts's `COLOR`
+ * object via `${COLOR.foo.bar}` template interpolations rather than literal
+ * hex strings. Resolve those expressions against the real, imported module
+ * so this test keeps checking the actual rendered colour, not a template
+ * placeholder.
+ */
+function resolveColorExpr(raw: string): string {
+  const match = /^\$\{COLOR\.([\w.]+)\}$/.exec(raw.trim());
+  const capture = match?.[1];
+  if (!capture) return raw;
+
+  let value: unknown = COLOR;
+  for (const key of capture.split('.')) {
+    if (typeof value !== 'object' || value === null) {
+      throw new Error(`could not resolve token expression: ${raw}`);
+    }
+    value = (value as Record<string, unknown>)[key];
+  }
+  if (typeof value !== 'string') {
+    throw new Error(`could not resolve token expression: ${raw}`);
+  }
+  return value;
+}
+
 function exporterColor(selector: string, prop: string): string {
-  return declValue(exporterTs, selector, prop);
+  return resolveColorExpr(declValue(exporterTs, selector, prop));
 }
 
 // Ambient container backgrounds used by several exported-HTML text rules.
