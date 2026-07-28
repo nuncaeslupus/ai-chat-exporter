@@ -421,18 +421,27 @@ export class ChatGPTParser extends BaseParser {
     // Find all img tags within the message
     const imgElements = element.querySelectorAll('img');
 
-    // Code artifacts (extractArtifacts) render their own decorative preview
-    // <img> inside the code panel (e.g. an SVG artifact's inline preview).
-    // That image belongs to the artifact, not the conversation -- skip it
-    // here so it isn't also filed as a real message image (lo-4b7f).
-    const artifactContainerSelector = this.selectors.custom?.codeArtifactContainer ?? 'pre.overflow-visible\\!';
+    // A conversation-content <img> legitimately means one of: a user upload,
+    // a generated image (handled separately by extractGeneratedImage), or an
+    // image inline in the assistant's markdown. Everything else is UI chrome
+    // that happens to contain an <img> -- an artifact's decorative code-panel
+    // preview (lo-4b7f) or a web-citation pill's third-party favicon
+    // (lo-37b2, see docs/dev/parser-gotchas.md #6). Exclusion is simpler than
+    // an allow-list here: both non-content cases already have a stable
+    // structural selector, while legitimate images have no unifying wrapper
+    // to allow-list on.
+    const excludedImageContainerSelector = [
+      this.selectors.custom?.codeArtifactContainer ?? 'pre.overflow-visible\\!',
+      this.selectors.custom?.citationPill ?? '[data-testid="webpage-citation-pill"]',
+      'button',
+    ].join(', ');
 
     imgElements.forEach((img) => {
       const src = img.getAttribute('src');
       const alt = img.getAttribute('alt');
 
-      // Skip UI icons, tiny images, and artifact-internal preview images
-      if (src && !src.includes('sprites-core') && !src.includes('icon') && !img.closest(artifactContainerSelector)) {
+      // Skip UI icons, tiny images, and non-content container images
+      if (src && !src.includes('sprites-core') && !src.includes('icon') && !img.closest(excludedImageContainerSelector)) {
         const imageData: { src: string; alt?: string; width?: number; height?: number } = { src };
         if (alt) {
           imageData.alt = alt;
