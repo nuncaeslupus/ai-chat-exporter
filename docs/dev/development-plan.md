@@ -30,7 +30,7 @@ ChatGPT DOM → ChatGPTParser → Conversation
 ### Key Files
 - **Parsers**: `src/core/parsers/chatgpt/parser.ts`
 - **Services**: `src/core/services/{html-content-parser,conversation-structure-service,filename-service}.ts`
-- **Exporters**: `src/core/exporters/{md,pdf,docx,html,txt,json}-exporter.ts`
+- **Exporters**: `src/core/exporters/{structured-md,pdf,docx,html,txt,json}-exporter.ts`
 - **Types**: `src/core/types/{conversation,structured-content,exporter}.ts`
 
 ## Next Steps
@@ -38,14 +38,12 @@ ChatGPT DOM → ChatGPTParser → Conversation
 ### High Priority
 1. **Export Options UI** - Checkboxes for metadata, timestamps, etc.
 2. **Selection Service** - UI for selecting specific Q&A pairs
-3. **Print Functionality** - Format and open print dialog
 
 ### Medium Priority
-4. **Claude.ai & Gemini Parsers** - Implement DOM selectors
-5. **Image Support** - Parse and embed images in exports
-6. **LaTeX/Math Support** - Preserve equations
-7. **Export Statistics** - Token count, character count
-8. **Multilanguage** - Translate export headers
+3. **Image Support** - Parse and embed images in exports
+4. **LaTeX/Math Support** - Preserve equations
+5. **Export Statistics** - Token count, character count
+6. **Multilanguage** - Translate export headers
 
 ## Quality Goals
 

@@ -23,7 +23,7 @@ npm install -g pnpm@10.27.0
 pnpm install          # Install dependencies
 
 # Development (watch mode)
-pnpm dev              # Both browsers
+pnpm dev              # Alias for dev:chrome
 pnpm dev:chrome       # Chrome only
 pnpm dev:firefox      # Firefox only
 
@@ -46,6 +46,21 @@ pnpm lint:fix         # Fix style
 pnpm typecheck        # Check types
 pnpm validate         # Lint + typecheck + test
 ```
+
+## Makefile
+
+A `Makefile` wraps the common commands above (`make install`, `make dev`,
+`make build`, `make test`, `make lint`, `make typecheck`, `make package`,
+`make clean`). Two targets are not 1:1 aliases:
+
+- `make dev` runs `pnpm dev:chrome` (not the `pnpm dev` alias).
+- `make validate` runs `check-release` + `pnpm typecheck` + `pnpm test:coverage`
+  — it deliberately **excludes lint** (ESLint has ~1150 pre-existing errors
+  not yet cleaned up; see task `lo-0f01`), unlike `pnpm validate` which
+  includes it. `make validate` mirrors what CI's `validate` job actually runs.
+
+`make release-check` runs `validate` + `package` — everything a release needs
+to be green.
 
 ## Load in Browser
 

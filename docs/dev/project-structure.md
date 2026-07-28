@@ -20,7 +20,6 @@ metadata:
 src/
 ├── core/              # Parsers, exporters, services, types
 ├── extension/         # Background, content, popup
-├── ui/                # Components, themes, injection
 ├── shared/            # Constants, messages, storage
 └── assets/            # Icons and images
 ```
@@ -39,11 +38,12 @@ Supported languages: en, es, ca, de, fr, it, pt
 
 ### Configuration
 - **`manifests/`** - Browser extension manifests (base, chrome, firefox)
-- **`build/`** - Build scripts (gitignored)
+- **`build/`** - Build scripts (tracked; only `build/.vite/` is gitignored)
+- **`Makefile`** - Thin wrappers over the pnpm scripts + extension dev loop
 - **Root**: package.json, tsconfig.json, vitest.config.ts, eslint.config.js
 
 ### AI Development
-- **`.agents/`** - Agent skills (parser-generator, exporter-generator)
+- **`.claude/skills/`** - Agent skills (parser-generator, exporter-generator)
 - **`CLAUDE.md`** - Claude Code instructions
 
 ## File Naming
@@ -55,9 +55,9 @@ Supported languages: en, es, ca, de, fr, it, pt
 
 ## What's Included/Excluded
 
-**Included**: src/, tests/, docs/, _locales/, manifests/, config files, AI files, LICENSE
+**Included**: src/, tests/, docs/, _locales/, manifests/, build/, config files, AI files, LICENSE
 
-**Excluded (gitignored)**: dist/, build/, node_modules/, tmp/, IDE settings, test output
+**Excluded (gitignored)**: dist/, build/.vite/, node_modules/, tmp/, IDE settings, test output
 
 ## Quick Actions
 

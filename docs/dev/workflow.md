@@ -49,7 +49,7 @@ docs/
 
 ## Release Workflow
 
-See [docs/dev/releasing.md](docs/dev/releasing.md) for detailed release process.
+See [releasing.md](releasing.md) for detailed release process.
 
 **Quick steps**:
 1. Update version in `package.json` and `manifests/manifest.base.json`
@@ -84,7 +84,7 @@ Follow conventional commit format:
 pnpm install
 
 # Build for development
-pnpm dev              # Watch mode
+pnpm dev              # Alias for dev:chrome (watch mode)
 pnpm dev:chrome       # Chrome only
 pnpm dev:firefox      # Firefox only
 

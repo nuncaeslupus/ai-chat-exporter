@@ -64,10 +64,10 @@ metadata:
 
 ## Agent Skills
 
-Skills are stored in `.agents/` directory:
+Skills are stored in `.claude/skills/` directory:
 
 ```
-.agents/
+.claude/skills/
 ├── parser-generator/
 │   └── SKILL.md
 └── exporter-generator/
@@ -140,7 +140,7 @@ metadata:
 4. Update indexes
 
 **Add Agent Skill:**
-1. Create directory in `.agents/`
+1. Create directory in `.claude/skills/`
 2. Add `SKILL.md` with proper frontmatter
 3. Follow Agent Skills specification
 4. Reference from development docs

@@ -13,7 +13,7 @@ metadata:
 Layered architecture with clear separation:
 
 ```
-Extension Infrastructure → UI Layer → Services → Core (Parsers/Exporters)
+Extension Infrastructure → Services → Core (Parsers/Exporters)
 ```
 
 **Key principles**: Strict TypeScript, platform-agnostic core, dependency inversion, pluggable parsers/exporters.
@@ -26,11 +26,6 @@ Platform-agnostic business logic:
 - **Parsers**: BaseParser + platform implementations (ChatGPT, Claude, Gemini)
 - **Exporters**: BaseExporter + format implementations (PDF, MD, TXT, JSON, DOCX, HTML)
 - **Services**: FilenameService, SelectionService, ConversationStructureService
-
-### UI (`src/ui/`)
-- **Components**: Vanilla TypeScript custom elements with encapsulated styles
-- **Themes**: Platform-specific styling (ChatGPT, Claude, Gemini)
-- **Injection**: Button injector for platform pages
 
 ### Extension (`src/extension/`)
 - **Content**: Platform detection, parser initialization, export handling
@@ -85,7 +80,7 @@ See `src/core/types/` for full definitions:
 
 - **Template Method**: BaseParser/BaseExporter define algorithms
 - **Strategy**: Interchangeable parsers/exporters selected at runtime
-- **Registry**: Dynamic discovery via PARSERS/EXPORTERS arrays
+- **Registry**: `parserRegistry`/`exporterRegistry` `Map`s of factory functions (`src/core/parsers/index.ts`, `src/core/exporters/index.ts`)
 - **Factory**: detectParser(), getExporter(format)
 
 ## Security & Performance

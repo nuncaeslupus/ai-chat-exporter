@@ -16,7 +16,7 @@ metadata:
 
 ## What's Completed
 
-- ✅ ChatGPT parser with images, canvas, deep research
+- ✅ ChatGPT, Claude, and Gemini parsers (images, canvas, deep research)
 - ✅ Repository preparation (README, LICENSE)
 - ✅ Documentation structure
 - ✅ GitHub links updated in extension
@@ -32,11 +32,5 @@ metadata:
 pnpm package:all  # Creates versioned packages
 ```
 
-### Future Parsers
-To implement Claude/Gemini parsers:
-1. Visit platform with a conversation
-2. Inspect DOM with DevTools
-3. Find message selectors
-4. Update parser files following ChatGPT pattern
-
-For details, see [adding-parsers.md](adding-parsers.md).
+### Adding a New Platform Parser
+See [adding-parsers.md](adding-parsers.md) for the current process.
