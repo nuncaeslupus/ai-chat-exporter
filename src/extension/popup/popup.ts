@@ -2,7 +2,13 @@
  * Popup script for AI Chat Exporter extension
  */
 
-import { createMessage, type GetConversationMessage, type MessageResponse } from '../../shared/messages';
+import {
+  createMessage,
+  type GetConversationMessage,
+  type ExportConversationMessage,
+  type PrintConversationMessage,
+  type MessageResponse,
+} from '../../shared/messages';
 import type { Conversation, QAPair } from '../../core/types/conversation';
 import type { ExportFormat } from '../../core/types/exporter';
 import { getMessage, getMessageWithValues, formatNumber, getPlatformName } from '../../shared/i18n';
@@ -474,12 +480,10 @@ class PopupController {
         throw new Error(getMessage('errorNoActiveTabFound'));
       }
 
-      const message = {
-        type: 'export_conversation',
+      const message = createMessage<ExportConversationMessage>('export_conversation', {
         format,
         selectedIndices: this.selectedPairIndices(),
-        timestamp: Date.now(),
-      };
+      });
 
       const response: MessageResponse | undefined = await chrome.tabs.sendMessage(tab.id, message);
       if (!response?.success) {
@@ -505,12 +509,10 @@ class PopupController {
         throw new Error(getMessage('errorNoActiveTabFound'));
       }
 
-      const message = {
-        type: 'print_conversation',
+      const message = createMessage<PrintConversationMessage>('print_conversation', {
         format: this.selectedFormat,
         selectedIndices: this.selectedPairIndices(),
-        timestamp: Date.now(),
-      };
+      });
 
       const response: MessageResponse | undefined = await chrome.tabs.sendMessage(tab.id, message);
       if (response?.warning) {

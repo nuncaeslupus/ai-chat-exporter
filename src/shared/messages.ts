@@ -2,7 +2,7 @@
  * Message types and interfaces for extension communication
  */
 
-import type { QAPair, ExportFormat, ExportOptions } from '../core/types';
+import type { ExportFormat } from '../core/types';
 
 /**
  * Base message interface
@@ -14,18 +14,25 @@ interface BaseMessage<T extends string = string> {
 
 /**
  * Export conversation message
+ *
+ * `selectedIndices` is optional: the popup's selection UI sends the indices
+ * of the pairs to export, but the context-menu / keyboard-shortcut senders
+ * (service worker) have no selection UI and omit it, meaning "export
+ * everything" (see `applySelection` in content-script.ts).
  */
 export interface ExportConversationMessage extends BaseMessage<'export_conversation'> {
   format: ExportFormat;
-  selectedPairs: QAPair[];
-  options: ExportOptions;
+  selectedIndices?: number[];
 }
 
 /**
  * Print conversation message
+ *
+ * See `ExportConversationMessage` for `selectedIndices` semantics.
  */
 export interface PrintConversationMessage extends BaseMessage<'print_conversation'> {
-  selectedPairs: QAPair[];
+  format: ExportFormat;
+  selectedIndices?: number[];
 }
 
 /**
@@ -33,29 +40,6 @@ export interface PrintConversationMessage extends BaseMessage<'print_conversatio
  */
 export interface GetConversationMessage extends BaseMessage<'get_conversation'> {
   // No additional data needed
-}
-
-/**
- * Page ready state message
- * Sent from content script to background to indicate if page is ready for export/print
- */
-export interface PageReadyStateMessage extends BaseMessage<'page_ready_state'> {
-  ready: boolean;
-}
-
-/**
- * Update preferences message
- */
-export interface UpdatePreferencesMessage extends BaseMessage<'update_preferences'> {
-  preferences: Partial<UserPreferences>;
-}
-
-/**
- * Show notification message
- */
-export interface ShowNotificationMessage extends BaseMessage<'show_notification'> {
-  message: string;
-  notificationType: 'success' | 'error' | 'info';
 }
 
 /**
@@ -115,34 +99,6 @@ export function isPrintConversationMessage(
 export function isGetConversationMessage(msg: unknown): msg is GetConversationMessage {
   return (
     typeof msg === 'object' && msg !== null && 'type' in msg && msg.type === 'get_conversation'
-  );
-}
-
-/**
- * Type guard for update preferences message
- */
-export function isUpdatePreferencesMessage(
-  msg: unknown,
-): msg is UpdatePreferencesMessage {
-  return (
-    typeof msg === 'object' &&
-    msg !== null &&
-    'type' in msg &&
-    msg.type === 'update_preferences'
-  );
-}
-
-/**
- * Type guard for show notification message
- */
-export function isShowNotificationMessage(
-  msg: unknown,
-): msg is ShowNotificationMessage {
-  return (
-    typeof msg === 'object' &&
-    msg !== null &&
-    'type' in msg &&
-    msg.type === 'show_notification'
   );
 }
 

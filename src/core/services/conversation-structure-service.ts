@@ -5,6 +5,8 @@
 
 import type {
   Conversation,
+  Message,
+  QAPair,
   StructuredConversation,
   StructuredQAPair,
   StructuredMessage,
@@ -33,7 +35,7 @@ export class ConversationStructureService {
   /**
    * Convert a Q&A pair to structured format
    */
-  private static convertPair(pair: any, index: number): StructuredQAPair {
+  private static convertPair(pair: QAPair, index: number): StructuredQAPair {
     return {
       id: pair.id,
       index,
@@ -46,7 +48,7 @@ export class ConversationStructureService {
   /**
    * Convert a message to structured format
    */
-  private static convertMessage(message: any): StructuredMessage {
+  private static convertMessage(message: Message): StructuredMessage {
     // Parse HTML content for rich formatting when available; fall back to plain text.
     const blocks: StructuredContentBlock[] = message.htmlContent
       ? HtmlContentParser.parse(message.htmlContent)
@@ -117,7 +119,9 @@ export class ConversationStructureService {
     const structuredMessage: StructuredMessage = {
       id: message.id,
       role: message.role,
-      timestamp: message.timestamp,
+      // `Message.timestamp` is optional (parsers don't always find one);
+      // `StructuredMessage.timestamp` is required, so fall back to now.
+      timestamp: message.timestamp || new Date(),
       blocks,
     };
 

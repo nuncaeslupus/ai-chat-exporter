@@ -5,6 +5,12 @@
 
 import { EXTENSION_NAME, DEFAULT_PREFERENCES } from '../../shared/constants';
 import { StorageService } from '../../shared/storage';
+import {
+  createMessage,
+  type ExportConversationMessage,
+  type PrintConversationMessage,
+} from '../../shared/messages';
+import type { ExportFormat } from '../../core/types';
 
 /**
  * Extension installation handler
@@ -270,25 +276,21 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
   // Handle Export actions
   if (menuId.startsWith('export-')) {
-    const format = menuId.replace('export-', '');
+    // Safe cast: the menu id is built from EXPORT_FORMATS, whose `id`s are all
+    // valid ExportFormat values.
+    const format = menuId.replace('export-', '') as ExportFormat;
     console.log(`[${EXTENSION_NAME}] Export requested: ${format}`);
 
-    sendMessageToTab(tab.id, {
-      type: 'export_conversation',
-      format: format,
-      timestamp: Date.now(),
-    });
+    sendMessageToTab(tab.id, createMessage<ExportConversationMessage>('export_conversation', { format }));
   }
   // Handle Print actions
   else if (menuId.startsWith('print-')) {
-    const format = menuId.replace('print-', '');
+    // Safe cast: the menu id is built from PRINT_FORMATS, whose `id`s are all
+    // valid ExportFormat values.
+    const format = menuId.replace('print-', '') as ExportFormat;
     console.log(`[${EXTENSION_NAME}] Print requested: ${format}`);
 
-    sendMessageToTab(tab.id, {
-      type: 'print_conversation',
-      format: format,
-      timestamp: Date.now(),
-    });
+    sendMessageToTab(tab.id, createMessage<PrintConversationMessage>('print_conversation', { format }));
   }
 });
 
@@ -309,11 +311,14 @@ chrome.commands.onCommand.addListener((command) => {
       // after every export), falling back to the configured default.
       StorageService.getLastExportFormat()
         .then((format) => {
-          sendMessageToTab(tabId, {
-            type: 'export_conversation',
-            format: format ?? DEFAULT_PREFERENCES.defaultFormat,
-            timestamp: Date.now(),
-          });
+          sendMessageToTab(
+            tabId,
+            createMessage<ExportConversationMessage>('export_conversation', {
+              // Safe cast: persisted by this extension from a previous export,
+              // so it is always a valid ExportFormat when present.
+              format: (format ?? DEFAULT_PREFERENCES.defaultFormat) as ExportFormat,
+            }),
+          );
         })
         .catch((error: unknown) => {
           console.error(`[${EXTENSION_NAME}] Failed to send export command:`, error);

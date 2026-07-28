@@ -14,6 +14,11 @@ import { SelectionService } from '../../core/services/selection-service';
 import { StorageService } from '../../shared/storage';
 import type { Conversation, ExportFormat } from '../../core/types';
 import { sanitizeHtml } from '../../core/utils/sanitize-html';
+import {
+  isExportConversationMessage,
+  isPrintConversationMessage,
+  isGetConversationMessage,
+} from '../../shared/messages';
 
 /**
  * Apply the popup's per-pair selection (by `pair.index`, the only identifier
@@ -670,7 +675,7 @@ if (document.readyState === 'loading') {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   (async () => {
     try {
-      if (message.type === 'get_conversation') {
+      if (isGetConversationMessage(message)) {
         // Re-parse conversation to get latest content
         await contentScript.initialize();
         const conversation = contentScript.getConversation();
@@ -678,16 +683,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           success: true,
           data: conversation,
         });
-      } else if (message.type === 'export_conversation') {
-        const selectedIndices = (message as { selectedIndices?: number[] }).selectedIndices;
-        const warning = await contentScript.handleExport(message.format, selectedIndices);
+      } else if (isExportConversationMessage(message)) {
+        const warning = await contentScript.handleExport(message.format, message.selectedIndices);
         sendResponse({
           success: true,
           ...(warning && { warning }),
         });
-      } else if (message.type === 'print_conversation') {
-        const selectedIndices = (message as { selectedIndices?: number[] }).selectedIndices;
-        const warning = await contentScript.handlePrint(message.format, selectedIndices);
+      } else if (isPrintConversationMessage(message)) {
+        const warning = await contentScript.handlePrint(message.format, message.selectedIndices);
         sendResponse({
           success: true,
           ...(warning && { warning }),
