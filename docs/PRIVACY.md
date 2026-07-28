@@ -2,15 +2,23 @@
 
 _Last updated: 2026-07-28_
 
-AI Chat Exporter is a browser extension that exports your ChatGPT and Claude
-conversations to PDF, Markdown, DOCX, HTML, TXT, and JSON. This page explains
-what data it touches and where any network requests go.
+AI Chat Exporter is a browser extension that exports your ChatGPT, Claude, and
+Gemini conversations to PDF, Markdown, DOCX, HTML, TXT, and JSON. This page
+explains what data it touches and where any network requests go.
+
+**In short: your conversations never leave your browser.** We have no server,
+so there is nowhere for them to go. Nobody — including us — can read, collect,
+or store what you export. The rest of this page is the detail behind that.
 
 ## What we collect
 
 Nothing. The extension has no backend, no analytics, and no telemetry. There is
 no server operated by us for it to talk to, so we never see, receive, or store
 your conversations or anything else about your use of the extension.
+
+Your conversations are read from the page, turned into a file, and saved to your
+computer. They are never uploaded, never transmitted to us, and never shared
+with anyone.
 
 ## Local processing
 
@@ -59,7 +67,6 @@ the chat provider whose page you are already on:
 The extension requests `activeTab`, `storage`, and `contextMenus`, plus host
 access limited to `chat.openai.com`, `chatgpt.com`, `claude.ai`, and
 `gemini.google.com`. It cannot read or make requests to any other site.
-Exporting from Gemini is not enabled yet, although the host is already listed.
 
 ## Questions
 
