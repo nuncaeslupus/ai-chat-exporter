@@ -508,6 +508,16 @@ describe('ChatGPT Parser - Web Citations', () => {
     }
   });
 
+  it('does not file citation-pill favicons in metadata.images (lo-37b2)', () => {
+    // Each webpage-citation-pill embeds a third-party favicon <img> next to
+    // the link text. extractImages() must not treat those as conversation
+    // images -- they belong to the citation, not the message, and their
+    // third-party URLs would leak the cited domains on every export view.
+    const result = parser.parse();
+    const images = result.conversation?.pairs[0]?.answer.metadata?.images;
+    expect(images ?? []).toHaveLength(0);
+  });
+
   it('sets result count correctly', () => {
     const result = parser.parse();
     const webSearches = result.conversation?.pairs[0]?.answer.metadata?.webSearches;
