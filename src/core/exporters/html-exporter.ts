@@ -228,6 +228,16 @@ export class HtmlExporter extends BaseExporter {
           return `<img src="${imgUrl}" alt="${alt}"${imgTitle}${imgWidth}${imgHeight}>`;
         }
 
+        // HTML is the only format that can actually play the clip. The inner
+        // link doubles as the fallback for a browser that can't.
+        case 'media': {
+          const mediaUrl = this.escapeHtml(block.url);
+          const mediaLabel = this.escapeHtml(this.mediaLabel(block));
+          const mediaType = block.mimeType ? ` type="${this.escapeHtml(block.mimeType)}"` : '';
+          const tag = block.kind === 'video' ? 'video' : 'audio';
+          return `<${tag} controls src="${mediaUrl}"${mediaType}><a href="${mediaUrl}">${mediaLabel}</a></${tag}>`;
+        }
+
         case 'table':
           return this.renderTable(block);
 

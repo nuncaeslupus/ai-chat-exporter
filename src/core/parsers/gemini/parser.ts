@@ -93,15 +93,26 @@ export class GeminiParser extends BaseParser {
       const answer = answerElement
         ? this.extractContent(answerElement, config.preserveHtml)
         : { content: '' };
-      if (!question.content && !answer.content) {
+      // "Create video" / "Create music" render their player inside
+      // `model-response` but outside the `.markdown` body, so the clip has to
+      // be picked up separately or it never reaches the export.
+      const responseElement = container.querySelector(this.selectors.assistantMessage);
+      const media = responseElement ? this.extractMedia(responseElement) : [];
+
+      if (!question.content && !answer.content && media.length === 0) {
         return;
+      }
+
+      const answerMessage = this.createMessage('assistant', answer.content, answer.htmlContent);
+      if (media.length > 0) {
+        answerMessage.metadata = { ...answerMessage.metadata, media };
       }
 
       pairs.push(
         this.createQAPair(
           pairs.length,
           this.createMessage('user', question.content, question.htmlContent),
-          this.createMessage('assistant', answer.content, answer.htmlContent)
+          answerMessage
         )
       );
       containers.push(container);
@@ -124,7 +135,8 @@ export class GeminiParser extends BaseParser {
       if (!pair.question.content) {
         warnings.push(`Turn ${turn}: the question could not be read`);
       }
-      if (!pair.answer.content) {
+      // A media-only answer (a generated clip with no prose) is read fine.
+      if (!pair.answer.content && !pair.answer.metadata?.media?.length) {
         warnings.push(`Turn ${turn}: the answer could not be read`);
       }
     }

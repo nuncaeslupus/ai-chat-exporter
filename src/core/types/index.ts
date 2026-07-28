@@ -11,6 +11,7 @@ export type {
   QAPair,
   Conversation,
   Artifact,
+  MediaItem,
   WebSearchResult,
 } from './conversation';
 
@@ -25,6 +26,7 @@ export type {
   BlockquoteBlock,
   HorizontalRuleBlock,
   ImageBlock,
+  MediaBlock,
   TableBlock,
   StructuredContentBlock,
   InlineContent,

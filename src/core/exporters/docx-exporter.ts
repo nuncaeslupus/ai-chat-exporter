@@ -397,6 +397,21 @@ export class DocxExporter extends BaseExporter {
           );
           break;
 
+        // Word can't play the clip inline; label it and keep the URL.
+        case 'media':
+          elements.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `[${this.mediaLabel(block)}] ${block.url}`,
+                  italics: true,
+                }),
+              ],
+              spacing: { before: 100, after: 100 },
+            })
+          );
+          break;
+
         case 'table':
           elements.push(this.renderTable(block));
           break;

@@ -12,8 +12,10 @@ import type {
   StructuredMessage,
   StructuredContentBlock,
   Artifact,
-  WebSearchResult,
   ImageBlock,
+  MediaBlock,
+  MediaItem,
+  WebSearchResult,
 } from '../types';
 import { HtmlContentParser } from './html-content-parser';
 
@@ -94,27 +96,49 @@ export class ConversationStructureService {
       }
     }
 
-    // Add images from metadata if present
-    if (message.metadata?.images && Array.isArray(message.metadata.images)) {
-      for (const image of message.metadata.images) {
-        if (image.src) {
-          const imageBlock: ImageBlock = {
-            type: 'image',
-            url: image.src,
-            alt: image.alt || 'Image',
-          };
+    // Add media from metadata if present. `metadata.images` is the legacy
+    // image-only alias for `metadata.media`, so both feed the same loop.
+    const legacyImages: MediaItem[] = Array.isArray(message.metadata?.images)
+      ? message.metadata.images.map((image) => ({ ...image, kind: 'image' as const }))
+      : [];
+    const media: MediaItem[] = Array.isArray(message.metadata?.media)
+      ? message.metadata.media
+      : [];
 
-          // Add dimensions if available
-          if (image.width) {
-            imageBlock.width = image.width;
-          }
-          if (image.height) {
-            imageBlock.height = image.height;
-          }
-
-          blocks.push(imageBlock);
-        }
+    for (const item of [...legacyImages, ...media]) {
+      if (!item.src) {
+        continue;
       }
+
+      if (item.kind === 'image') {
+        const imageBlock: ImageBlock = {
+          type: 'image',
+          url: item.src,
+          alt: item.alt ?? 'Image',
+        };
+        if (item.width) {
+          imageBlock.width = item.width;
+        }
+        if (item.height) {
+          imageBlock.height = item.height;
+        }
+        blocks.push(imageBlock);
+        continue;
+      }
+
+      const mediaBlock: MediaBlock = {
+        type: 'media',
+        kind: item.kind,
+        url: item.src,
+        alt: item.alt ?? (item.kind === 'video' ? 'Video' : 'Audio'),
+      };
+      if (item.mimeType) {
+        mediaBlock.mimeType = item.mimeType;
+      }
+      if (item.duration) {
+        mediaBlock.duration = item.duration;
+      }
+      blocks.push(mediaBlock);
     }
 
     const structuredMessage: StructuredMessage = {

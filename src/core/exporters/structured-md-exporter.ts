@@ -240,6 +240,12 @@ export class StructuredMarkdownExporter extends BaseExporter {
           break;
         }
 
+        // No markdown syntax plays video or audio, so link it with a label.
+        case 'media':
+          lines.push(`[${this.mediaLabel(block)}](${block.url})`);
+          lines.push('');
+          break;
+
         case 'table':
           lines.push(...this.renderTable(block));
           lines.push('');

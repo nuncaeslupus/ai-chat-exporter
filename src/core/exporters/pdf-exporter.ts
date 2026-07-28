@@ -341,6 +341,21 @@ export class PdfExporter extends BaseExporter {
         case 'image':
           y = this.renderImage(doc, block, y, margins, contentWidth, lineHeight, pageHeight);
           break;
+
+        // A PDF can't play the clip; emit the same labelled placeholder an
+        // unloadable image gets, with the URL so it stays reachable.
+        case 'media':
+          y = this.renderText(
+            doc,
+            `[${this.mediaLabel(block)}] ${block.url}`,
+            y,
+            margins,
+            contentWidth,
+            lineHeight,
+            pageHeight,
+            true
+          );
+          break;
       }
     }
 

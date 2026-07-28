@@ -218,6 +218,13 @@ export class TextExporter extends BaseExporter {
           lines.push('');
           break;
 
+        // Plain text can't play it; the URL is the only way back to the clip.
+        case 'media':
+          lines.push('');
+          lines.push(`[${this.mediaLabel(block)}] ${block.url}`);
+          lines.push('');
+          break;
+
         case 'table':
           lines.push('');
           lines.push(...this.renderTable(block));

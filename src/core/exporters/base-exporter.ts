@@ -8,6 +8,7 @@ import type {
   ExportOptions,
   ExportResult,
   Conversation,
+  MediaBlock,
   QAPair,
 } from '../types';
 import { getMessage, getPlatformName } from '../../shared/i18n';
@@ -90,6 +91,15 @@ export abstract class BaseExporter implements IExporter {
     if (!includeTimestamps) return '';
     const formatted = this.formatTimestamp(date);
     return formatted ? ` (${formatted})` : '';
+  }
+
+  /**
+   * Label for a playable media block, e.g. "Video: Lighthouse timelapse".
+   * Callers wrap it per format ("[...]", a markdown link, an <a>).
+   */
+  protected mediaLabel(block: MediaBlock): string {
+    const kind = block.kind === 'video' ? 'Video' : 'Audio';
+    return block.alt ? `${kind}: ${block.alt}` : kind;
   }
 
   /**
