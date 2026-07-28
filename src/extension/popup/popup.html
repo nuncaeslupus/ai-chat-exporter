@@ -241,16 +241,27 @@
           Anything added here must keep the `.view-scroll` (flex:1) + flex:none
           header/footer shape so it scrolls inside the box.
         -->
+        <!--
+          Pair chooser. Three bands inside the same 260px box: header and
+          footer are `flex:none`, only the list scrolls. Back and Done are pure
+          navigation triggers — `data-nav` is all the R1 router needs.
+        -->
         <section class="popup-view" id="view-content" hidden>
-          <div class="view-scroll">
-            <section class="qa-selection" id="qa-selection-section" style="display: none;">
-              <div class="qa-selection-header">
-                <span class="qa-selection-title" data-i18n="qaSelectionTitle">Select Q&amp;A pairs to export</span>
-                <button type="button" class="qa-selection-toggle-all" id="qa-selection-toggle-all"></button>
-              </div>
-              <ul class="qa-selection-list" id="qa-selection-list"></ul>
-              <div class="qa-selection-count" id="qa-selection-count"></div>
-            </section>
+          <div class="pair-chooser-header">
+            <button type="button" class="submenu-back" data-nav="main" data-i18n-label="submenuBack">
+              <svg width="7" height="11" viewBox="0 0 8 12" fill="none" aria-hidden="true">
+                <path d="M6.5 1 1.5 6l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <h2 class="submenu-title" data-i18n="qaSelectionTitle">Choose pairs</h2>
+            <button type="button" class="pair-chooser-toggle-all" id="qa-selection-toggle-all"></button>
+          </div>
+          <ul class="qa-selection-list" id="qa-selection-list"></ul>
+          <div class="pair-chooser-footer">
+            <span class="pair-chooser-summary" id="qa-selection-count"></span>
+            <button type="button" class="pair-chooser-done" data-nav="main" data-i18n="submenuDone">
+              Done
+            </button>
           </div>
         </section>
 
