@@ -32,7 +32,7 @@ describe('every registered exporter honours selectedPairs', () => {
 
   for (const [format, factory] of exporterRegistry) {
     it(`${format} exporter exports only the selected pairs`, async () => {
-      const exporter = factory();
+      const exporter = await factory();
 
       const fullResult = await exporter.export(conversation, allPairs, {
         ...baseOptions,

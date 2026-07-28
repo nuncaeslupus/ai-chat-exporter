@@ -118,7 +118,7 @@ describe('fixture -> parser -> every exporter', () => {
     // loadImageAsDataUrl() times out rather than hanging on any future
     // undecodable image.
     it('exports the real, unmodified fixture without hanging', async () => {
-      const exporter = exporterRegistry.get('pdf')!();
+      const exporter = await exporterRegistry.get('pdf')!();
       const result = await exporter.export(conversation, selectedPairs, EXPORT_OPTIONS('pdf'));
       expect(result.success, result.error).toBe(true);
     });
@@ -126,7 +126,7 @@ describe('fixture -> parser -> every exporter', () => {
 
   it('parses the ChatGPT capture and exports it to every format without throwing', async () => {
     for (const [format, factory] of exporterRegistry) {
-      const exporter = factory();
+      const exporter = await factory();
       const result = await exporter.export(conversation, selectedPairs, EXPORT_OPTIONS(format));
 
       expect(result.success, `${format} export failed: ${result.error ?? 'unknown error'}`).toBe(
@@ -138,7 +138,7 @@ describe('fixture -> parser -> every exporter', () => {
 
   describe.each(Array.from(exporterRegistry.keys()))('%s exporter', (format) => {
     async function exportFixture() {
-      const exporter = exporterRegistry.get(format)!();
+      const exporter = await exporterRegistry.get(format)!();
       const result = await exporter.export(conversation, selectedPairs, EXPORT_OPTIONS(format));
       return extractSearchableText(format, result.blob!);
     }

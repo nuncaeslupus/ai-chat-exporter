@@ -9,8 +9,6 @@ import { FilenameService } from '../../core/services/filename-service';
 import { ClaudeApiService } from '../../core/services/claude-api-service';
 import { StorageService } from '../../shared/storage';
 import type { Conversation, ExportFormat } from '../../core/types';
-import { marked } from 'marked';
-import hljs from 'highlight.js';
 import { sanitizeHtml } from '../../core/utils/sanitize-html';
 
 /**
@@ -103,7 +101,7 @@ class ContentScript {
       });
 
       // Get exporter for format
-      const exporter = getExporter(format);
+      const exporter = await getExporter(format);
       if (!exporter) {
         throw new Error(`No exporter found for format: ${format}`);
       }
@@ -214,7 +212,7 @@ class ContentScript {
       const pairsToExport = this.conversation.pairs;
 
       // Get exporter for format
-      const exporter = getExporter(format);
+      const exporter = await getExporter(format);
       if (!exporter) {
         throw new Error(`No exporter found for format: ${format}`);
       }
@@ -338,6 +336,13 @@ class ContentScript {
    * Uses marked.js library for proper markdown parsing
    */
   private async renderMarkdownToCleanHtml(markdown: string, title: string): Promise<string> {
+    // Loaded on demand: this is the print-only path, and full highlight.js is
+    // ~950 KB (194 languages) that every page load would otherwise pay for.
+    const [{ marked }, { default: hljs }] = await Promise.all([
+      import('marked'),
+      import('highlight.js'),
+    ]);
+
     // Configure marked for GitHub Flavored Markdown with syntax highlighting
     marked.setOptions({ gfm: true, breaks: false });
     marked.use({
