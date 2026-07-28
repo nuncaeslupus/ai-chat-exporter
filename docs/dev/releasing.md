@@ -65,11 +65,10 @@ Use previous version as template, update "What's New" section.
 4. Fill in metadata from `docs/store-listings/firefox-addons-v{VERSION}.txt`
 5. Submit for review (1-7 days)
 
-**Note**: Firefox reviewers typically need build instructions to reproduce
-`dist/chrome`/`dist/firefox` from source. This project does not yet ship a
-`BUILD_INSTRUCTIONS.md` in the source zip (tracked separately as `lo-0906`) —
-until that lands, `pnpm install && pnpm build:chrome` (see
-[building.md](building.md)) is what a reviewer needs.
+**Note**: Firefox reviewers need build instructions to reproduce
+`dist/chrome`/`dist/firefox` from source. `BUILD_INSTRUCTIONS.md` at the repo
+root ships in the source zip and covers this (see also
+[building.md](building.md) for the full development workflow).
 
 ## Post-Release
 
