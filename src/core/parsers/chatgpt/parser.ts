@@ -419,12 +419,18 @@ export class ChatGPTParser extends BaseParser {
     // Find all img tags within the message
     const imgElements = element.querySelectorAll('img');
 
+    // Code artifacts (extractArtifacts) render their own decorative preview
+    // <img> inside the code panel (e.g. an SVG artifact's inline preview).
+    // That image belongs to the artifact, not the conversation -- skip it
+    // here so it isn't also filed as a real message image (lo-4b7f).
+    const artifactContainerSelector = this.selectors.custom?.codeArtifactContainer ?? 'pre.overflow-visible\\!';
+
     imgElements.forEach((img) => {
       const src = img.getAttribute('src');
       const alt = img.getAttribute('alt');
 
-      // Skip UI icons and tiny images
-      if (src && !src.includes('sprites-core') && !src.includes('icon')) {
+      // Skip UI icons, tiny images, and artifact-internal preview images
+      if (src && !src.includes('sprites-core') && !src.includes('icon') && !img.closest(artifactContainerSelector)) {
         const imageData: { src: string; alt?: string; width?: number; height?: number } = { src };
         if (alt) {
           imageData.alt = alt;
