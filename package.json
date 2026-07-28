@@ -8,7 +8,7 @@
     "dev:chrome": "vite build --watch --config build/vite.chrome.ts --mode development",
     "dev:firefox": "vite build --watch --config build/vite.firefox.ts --mode development",
     "build": "pnpm build:chrome && pnpm build:firefox",
-    "build:content": "vite build --config build/vite.content.ts --mode production --outDir dist/chrome/content && vite build --config build/vite.content.ts --mode production --outDir dist/firefox/content",
+    "build:content": "vite build --config build/vite.content.ts --mode production --outDir dist/chrome && vite build --config build/vite.content.ts --mode production --outDir dist/firefox && node build/check-bundle-size.cjs",
     "build:chrome": "pnpm build:content && vite build --config build/vite.chrome.ts --mode production",
     "build:firefox": "pnpm build:content && vite build --config build/vite.firefox.ts --mode production",
     "build:test": "pnpm build && pnpm package:all",
