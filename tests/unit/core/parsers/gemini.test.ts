@@ -142,6 +142,90 @@ describe('GeminiParser', () => {
       expect(result.warnings).toContain('No Q&A pairs found in the conversation');
     });
   });
+
+  // DOM-drift regression tests: the likelier real-world failure than empty or
+  // malformed HTML is the target site renaming a class or moving an
+  // attribute -- a *plausible near-miss*. Each test mutates a fresh copy of
+  // the real fixture and asserts on the resulting failure SIGNAL, not merely
+  // on "did not throw" -- a silently empty or half-parsed conversation is
+  // worse than an exception (lo-b59b).
+  describe('DOM drift resilience (plausible near-miss selector breakage)', () => {
+    it('reports failure when the message-role marker is renamed', () => {
+      const doc = new JSDOM(html, { url: GEMINI_URL }).window.document;
+      // `<user-query-content>` is Gemini's role marker for the user side of
+      // a turn (GEMINI_SELECTORS.userMessage) -- a custom-element tag rather
+      // than an attribute, but the same kind of drift.
+      doc.querySelectorAll('user-query-content').forEach((el) => {
+        const replacement = doc.createElement('user-query-content-renamed');
+        replacement.innerHTML = el.innerHTML;
+        el.replaceWith(replacement);
+      });
+
+      const result = new GeminiParser(doc).parse();
+
+      // CURRENT BEHAVIOR (documented, not a bug to fix here): this does NOT
+      // return success:false -- there is no dedicated failure signal -- but
+      // unlike the ChatGPT/Claude parsers it is also NOT a silent, unflagged
+      // empty conversation. extractQAPairs pairs structurally per
+      // `.conversation-container` and keeps every turn even when
+      // `userMessage` doesn't match inside it (see that method's docstring);
+      // collectWarnings then flags each one individually.
+      expect(result.success).toBe(true);
+      const pairs = result.conversation?.pairs ?? [];
+      expect(pairs).toHaveLength(3);
+      pairs.forEach((pair) => expect(pair.question.content).toBe(''));
+      expect(result.warnings).toEqual([
+        'Turn 1: the question could not be read',
+        'Turn 2: the question could not be read',
+        'Turn 3: the question could not be read',
+      ]);
+    });
+
+    it('does not mis-pair turns when a wrapper div is removed', () => {
+      const doc = new JSDOM(html, { url: GEMINI_URL }).window.document;
+      const baseline = new GeminiParser(doc).parse().conversation?.pairs ?? [];
+      expect(baseline).toHaveLength(3);
+
+      // Remove the question wrapper from the FIRST turn only -- as a
+      // redesign that dropped its markup plausibly would -- and leave the
+      // other two turns untouched.
+      doc.querySelector('.conversation-container user-query-content')?.remove();
+
+      const result = new GeminiParser(doc).parse();
+      const pairs = result.conversation?.pairs ?? [];
+
+      // CURRENT (GOOD) BEHAVIOR: because extractQAPairs pairs a question
+      // with its answer structurally -- both inside the same
+      // `.conversation-container` -- rather than by zipping two
+      // separately-collected arrays by index, losing one turn's question
+      // does not shift or mis-pair any other turn. This is the opposite of
+      // the ChatGPT/Claude parsers, which zip by index and DO mis-pair under
+      // the equivalent mutation (reported separately, not fixed there).
+      expect(result.success).toBe(true);
+      expect(pairs).toHaveLength(3);
+      expect(pairs[0]?.question.content).toBe('');
+      expect(pairs[1]?.question.content).toBe(baseline[1]?.question.content);
+      expect(pairs[1]?.answer.content).toBe(baseline[1]?.answer.content);
+      expect(pairs[2]?.question.content).toBe(baseline[2]?.question.content);
+      expect(pairs[2]?.answer.content).toBe(baseline[2]?.answer.content);
+      expect(result.warnings).toContain('Turn 1: the question could not be read');
+    });
+
+    it('returns success:false rather than an empty conversation when selectors match nothing', () => {
+      const doc = new JSDOM(html, { url: GEMINI_URL }).window.document;
+      doc.querySelectorAll('.conversation-container').forEach((el) => el.remove());
+
+      const result = new GeminiParser(doc).parse();
+
+      // CURRENT BEHAVIOR (documented, not a bug to fix here): same as
+      // ChatGPT/Claude -- BaseParser.parse() only sets success:false when
+      // extractQAPairs throws. An empty match set does not throw, so this
+      // reports success:true with a generic warning instead.
+      expect(result.success).toBe(true);
+      expect(result.conversation?.pairs).toEqual([]);
+      expect(result.warnings).toContain('No Q&A pairs found in the conversation');
+    });
+  });
 });
 
 describe('GeminiParser — Deep Research', () => {

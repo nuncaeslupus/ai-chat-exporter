@@ -284,6 +284,97 @@ describe('ClaudeParser', () => {
     });
   });
 
+  // DOM-drift regression tests: the likelier real-world failure than empty or
+  // malformed HTML is the target site renaming a class or moving an
+  // attribute -- a *plausible near-miss*. Each test mutates a fresh copy of
+  // the real fixture (loaded by the outer beforeEach) and asserts on the
+  // resulting failure SIGNAL, not merely on "did not throw" -- a silently
+  // empty or half-parsed conversation is worse than an exception (lo-b59b).
+  describe('DOM drift resilience (plausible near-miss selector breakage)', () => {
+    it('reports failure when the message-role attribute is renamed', () => {
+      // `data-testid="user-message"` is Claude's role marker for the user
+      // side of a turn (see CLAUDE_SELECTORS.userMessage).
+      document.querySelectorAll('[data-testid="user-message"]').forEach((el) => {
+        el.setAttribute('data-testid', 'user-msg-renamed');
+      });
+
+      const result = parser.parse();
+
+      // CURRENT (BAD) BEHAVIOR -- reported, not fixed, here:
+      // extractUserMessages filters `div.mb-1.mt-6.group` down to only the
+      // groups containing `[data-testid="user-message"]`; renaming that
+      // attribute drops every user message with no fallback, so the zip in
+      // extractQAPairs has nothing to pair the assistant side with. parse()
+      // reports success:true with an empty conversation and only the
+      // generic "no pairs" warning -- not a signal that names the actual
+      // cause (the role attribute going missing).
+      expect(result.success).toBe(true);
+      expect(result.conversation?.pairs).toEqual([]);
+      expect(result.warnings).toContain('No Q&A pairs found in the conversation');
+    });
+
+    it('does not mis-pair turns when a wrapper div is removed', () => {
+      // The committed fixture holds a single turn; clone it twice (tagging
+      // each copy's text uniquely) to get three turns to mis-pair across,
+      // rather than committing a second fixture.
+      const container = document.querySelector(
+        'div.flex-1.flex.flex-col.px-4.max-w-3xl.mx-auto.w-full.pt-1'
+      ) as Element;
+      const userBlock = document.querySelector('div[data-test-render-count="2"]') as Element;
+      const assistantBlock = document.querySelector('div[data-test-render-count="1"]') as Element;
+      userBlock.querySelector('p.whitespace-pre-wrap')!.textContent = 'Turn1 question';
+      assistantBlock.querySelector('p.font-claude-response-body')!.textContent = 'Turn1 answer';
+      for (const n of [2, 3]) {
+        const clonedUser = userBlock.cloneNode(true) as Element;
+        const clonedAssistant = assistantBlock.cloneNode(true) as Element;
+        clonedUser.querySelector('p.whitespace-pre-wrap')!.textContent = `Turn${n} question`;
+        clonedAssistant.querySelector('p.font-claude-response-body')!.textContent = `Turn${n} answer`;
+        container.appendChild(clonedUser);
+        container.appendChild(clonedAssistant);
+      }
+
+      const baseline = new ClaudeParser(document).parse().conversation?.pairs ?? [];
+      expect(baseline).toHaveLength(3); // sanity: three clean turns before mutation
+
+      // Gut turn 2's user content entirely (image thumbnail + text), as a
+      // redesign that collapsed its wrapper divs plausibly would -- leave
+      // turns 1 and 3 untouched.
+      const turn2UserBlock = document.querySelectorAll('div[data-test-render-count="2"]')[1] as Element;
+      turn2UserBlock.querySelectorAll('div.relative.group\\/thumbnail').forEach((el) => el.remove());
+      turn2UserBlock.querySelector('div[data-testid="user-message"]')!.remove();
+
+      const result = new ClaudeParser(document).parse();
+      const pairs = result.conversation?.pairs ?? [];
+
+      // CURRENT (BAD) BEHAVIOR -- reported, not fixed, here: like the
+      // ChatGPT parser, extractQAPairs zips userMessages[i] with
+      // assistantMessages[i] by array index. The gutted turn's user message
+      // is dropped from the array instead of leaving a gap, so turn 3's
+      // question silently ends up paired with turn 2's answer, with no
+      // warning (collectWarnings only fires when pairs.length === 0).
+      expect(result.success).toBe(true);
+      expect(pairs).toHaveLength(2);
+      expect(pairs[1]?.question.content).toBe('Turn3 question');
+      expect(pairs[1]?.answer.content).toContain('Turn2 answer');
+    });
+
+    it('returns success:false rather than an empty conversation when selectors match nothing', () => {
+      const container = document.querySelector('div.overflow-y-scroll.overflow-x-hidden.pt-6.flex-1');
+      container!.innerHTML = '';
+
+      const result = parser.parse();
+
+      // CURRENT BEHAVIOR (documented, not a bug to fix here): this does NOT
+      // return success:false. BaseParser.parse() only sets success:false
+      // when extractQAPairs throws; an empty match set does not throw, so
+      // this still reports success:true with a generic warning instead of a
+      // dedicated failure signal.
+      expect(result.success).toBe(true);
+      expect(result.conversation?.pairs).toEqual([]);
+      expect(result.warnings).toContain('No Q&A pairs found in the conversation');
+    });
+  });
+
   describe('image encoding cache', () => {
     it('draws each image to canvas at most once across repeated parses', () => {
       // content-script.ts creates a fresh parser instance for every

@@ -430,6 +430,96 @@ describe('ChatGPTParser implementation', () => {
       expect(pairs[2]?.answer.content).toBe('Third answer');
     });
   });
+
+  // DOM-drift regression tests: the edge cases above cover empty and
+  // malformed HTML, but the likelier real-world failure is the target site
+  // renaming a class or moving an attribute -- a *plausible near-miss*, not
+  // garbage HTML. Each test here mutates a fresh copy of the real fixture
+  // (loaded by the outer beforeEach) the way a redesign plausibly would, and
+  // asserts on the resulting failure SIGNAL rather than merely on "did not
+  // throw" -- a silently empty or half-parsed conversation is worse than an
+  // exception (lo-b59b).
+  describe('DOM drift resilience (plausible near-miss selector breakage)', () => {
+    function freshParser(): ChatGPTParser {
+      const html = readFileSync(
+        join(__dirname, '../../../fixtures/dom-snapshots/chatgpt/real-capture.html'),
+        'utf-8'
+      );
+      const freshDom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-conversation' });
+      return new ChatGPTParser(freshDom.window.document);
+    }
+
+    it('reports failure when the message-role attribute is renamed', () => {
+      document.querySelectorAll('[data-message-author-role]').forEach((el) => {
+        const role = el.getAttribute('data-message-author-role');
+        el.removeAttribute('data-message-author-role');
+        el.setAttribute('data-msg-role', role ?? '');
+      });
+
+      const baseline = freshParser().parse().conversation?.pairs.length ?? 0;
+      const result = parser.parse();
+
+      // CURRENT BEHAVIOR (documented, not a bug to fix here): this does NOT
+      // fail. extractUserMessages/extractAssistantMessages fall back to the
+      // turn wrapper (`[data-turn="user"/"assistant"]`) and class-based
+      // content selectors whenever `userMessage`/`assistantMessage` doesn't
+      // match, so renaming just the role attribute is fully absorbed and the
+      // conversation still comes out complete. There is no dedicated
+      // "role attribute missing" failure signal -- there is simply nothing
+      // here that needs one.
+      expect(result.success).toBe(true);
+      expect(result.conversation?.pairs.length).toBe(baseline);
+      expect(baseline).toBeGreaterThan(0);
+    });
+
+    it('does not mis-pair turns when a wrapper div is removed', () => {
+      const baseline = freshParser().parse().conversation?.pairs ?? [];
+
+      // Gut one middle user turn's content entirely -- as a redesign that
+      // collapsed its inner wrapper divs plausibly would -- and leave every
+      // other turn's markup untouched.
+      const turn = document.querySelector('[data-testid="conversation-turn-9"]');
+      expect(turn).not.toBeNull();
+      expect(turn?.getAttribute('data-turn')).toBe('user');
+      turn!.innerHTML = '';
+
+      const result = parser.parse();
+      const pairs = result.conversation?.pairs ?? [];
+
+      // CURRENT (BAD) BEHAVIOR -- reported, not fixed, here: extractQAPairs
+      // zips userMessages[i] with assistantMessages[i] by array index.
+      // extractUserMessage returns null for the gutted turn (no content, no
+      // images), so it is dropped from the array instead of leaving a gap;
+      // every pair after it then shifts by one, silently mis-pairing an
+      // assistant answer with the WRONG question. collectWarnings only fires
+      // when pairs.length === 0, so this produces zero warnings despite the
+      // corruption -- exactly the "half-parsed and silent" failure mode this
+      // task is about.
+      expect(result.success).toBe(true);
+      expect(pairs.length).toBe(baseline.length - 1);
+      expect(pairs[4]?.answer.content).toBe(baseline[4]?.answer.content);
+      expect(pairs[4]?.question.content).toBe(baseline[5]?.question.content);
+      expect(pairs[4]?.question.content).not.toBe(baseline[4]?.question.content);
+    });
+
+    it('returns success:false rather than an empty conversation when selectors match nothing', () => {
+      // Simulate a redesign that drops the turn marker entirely.
+      document.querySelectorAll('[data-turn]').forEach((el) => el.removeAttribute('data-turn'));
+
+      const result = parser.parse();
+
+      // CURRENT BEHAVIOR (documented, not a bug to fix here): this does NOT
+      // return success:false. BaseParser.parse() only sets success:false
+      // when extractQAPairs throws; a selector set that matches nothing does
+      // not throw -- it just yields an empty pairs array -- so parse()
+      // reports success:true with a generic warning instead of a dedicated
+      // failure signal. This is the silent-empty-conversation gap the task
+      // is about.
+      expect(result.success).toBe(true);
+      expect(result.conversation?.pairs).toEqual([]);
+      expect(result.warnings).toContain('No Q&A pairs found in the conversation');
+    });
+  });
 });
 
 describe('ChatGPT Parser - Code Artifacts', () => {
