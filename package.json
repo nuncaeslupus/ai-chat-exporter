@@ -23,7 +23,7 @@
     "validate": "pnpm lint && pnpm typecheck && pnpm test:coverage",
     "package:chrome": "cd dist/chrome && zip -r ../ai-chat-exporter-chrome.zip .",
     "package:firefox": "cd dist/firefox && zip -r ../ai-chat-exporter-firefox.zip .",
-    "package:source": "zip -r dist/ai-chat-exporter-source.zip . -x 'node_modules/*' -x 'dist/*' -x '.git/*' -x '*.log' -x '.vscode/*' -x '.idea/*' -x '*.zip' -x 'tmp/*' -x 'coverage/*' -x '.nyc_output/*'",
+    "package:source": "zip -r dist/ai-chat-exporter-source.zip . -x 'node_modules/*' -x 'dist/*' -x '.git/*' -x '*.log' -x '.vscode/*' -x '.idea/*' -x '*.zip' -x 'tmp/*' -x 'coverage/*' -x '.nyc_output/*' -x '.claude/*' -x '.agents/*' -x 'claude-arsenal/*'",
     "package:all": "node build/package-all.cjs"
   },
   "keywords": [
