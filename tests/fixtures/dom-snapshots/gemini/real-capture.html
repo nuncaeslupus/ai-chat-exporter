@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Gemini</title></head>
+<body>
+<!--
+  Gemini DOM fixture, derived from a live capture of gemini.google.com
+  (tmp/examples/artifacts-gemini-rendered.html, 2026-01-17 — gitignored, 2.1MB).
+
+  Sanitized: the sidebar (every conversation title in the account), avatars,
+  action bars, menus, icons, source lists and Angular/jslog attributes were
+  removed. The capture carried no text inside <user-query-content>, so the
+  three questions here are invented; every element and class name around them
+  comes from the capture.
+-->
+<main class="chat-app">
+  <top-bar-actions><div class="top-bar-actions">
+    <div class="center-section"><div class="conversation-title-container"><conversation-actions class="conversation-actions"><button aria-label="Open menu for conversation actions." data-test-id="actions-menu-button" class="mat-mdc-menu-trigger mat-mdc-tooltip-trigger conversation-actions-menu-button" aria-haspopup="menu" aria-expanded="false" aria-describedby="cdk-describedby-message-ng-1-6" cdk-describedby-host="ng-1"><span class="conversation-title gds-title-m">Paper airplane aerodynamics</span></button></conversation-actions></div></div>
+    <div class="right-section"><bard-mode-switcher data-test-id="bard-mode-switcher"><a class="bard-logo-container logo-only hide-on-mobile" href="/app"><bard-logo data-test-id="bard-logo-only">
+                                <div data-test-id="logo" class="logo"><span data-test-id="bard-text" class="bard-text enable-aurora"> Gemini
+                                    </span></div>
+                            </bard-logo></a></bard-mode-switcher></div>
+  </div></top-bar-actions>
+  <chat-window class="immersives-mode"><div class="chat-container">
+    <infinite-scroller><div id="chat-history" class="chat-history-scroll-container">
+<div class="conversation-container message-actions-hover-boundary" id="c686dff8a50c68d8"><user-query><span class="user-query-container"><user-query-content class="user-query-container">
+                                                                            <div class="user-query-container">
+                                                                                <div class="file-preview-container"></div><p>How does a wing actually generate lift?</p></div></user-query-content></span></user-query><model-response>
+                                                                    <div>
+                                                                        <response-container class="reduced-bottom-padding">
+                                                                            <div class="response-container response-container-with-gpi"><div class="presented-response-container">
+                                                                                    <div class="avatar-gutter">
+                                                                                        </div><div class="response-container-content has-thoughts"><div class="response-content">
+                                                                                            <div class="thoughts-container">
+                                                                                                <div class="thoughts-content">
+                                                                                                    <div class="thoughts-wrapper"><model-thoughts data-test-id="model-thoughts">
+                                                                                                            <div xapautoid="" class="model-thoughts" id="xap-auto-id-0">
+                                                                                                                <div class="thoughts-header">
+                                                                                                                    <button mat-button="" data-test-id="thoughts-header-button" class="mdc-button mat-mdc-button-base thoughts-header-button mat-mdc-button mat-unthemed" mat-ripple-loader-uninitialized="" mat-ripple-loader-class-name="mat-mdc-button-ripple"><span class="mat-mdc-button-persistent-ripple mdc-button__ripple"></span><span class="mdc-button__label">
+                                                                                                                            <div class="thoughts-header-button-content">
+                                                                                                                                <div class="thoughts-header-button-label">
+                                                                                                                                    <span>Show
+                                                                                                                                        thinking</span>
+                                                                                                                                </div>
+                                                                                                                                <div class="thoughts-header-button-icons"></div>
+                                                                                                                            </div>
+                                                                                                                        </span><span class="mat-focus-indicator"></span><span class="mat-mdc-button-touch-target"></span></button>
+                                                                                                                </div></div>
+                                                                                                        </model-thoughts></div></div></div><structured-content-container class="model-response-text has-thoughts processing-state-visible">
+                                                                                                <div class="container">
+                                                                                                    <message-content id="message-content-id-r_c686dff8a50c68d8">
+                                                                                                        <div inline-copy-host="" class="markdown markdown-main-panel stronger enable-updated-hr-color" id="model-response-message-contentr_c686dff8a50c68d8" aria-live="off" aria-busy="false" dir="ltr">
+                                                                                                            <p data-path-to-node="0">
+                                                                                                                Lift is
+                                                                                                                generated
+                                                                                                                through
+                                                                                                                two
+                                                                                                                complementary
+                                                                                                                physical
+                                                                                                                principles:
+                                                                                                                <b data-path-to-node="0" data-index-in-node="65">Bernoulli’s
+                                                                                                                    Principle</b>
+                                                                                                                (pressure
+                                                                                                                differentials)
+                                                                                                                and <b data-path-to-node="0" data-index-in-node="116">Newton’s
+                                                                                                                    Third
+                                                                                                                    Law</b>
+                                                                                                                (action-reaction
+                                                                                                                via air
+                                                                                                                deflection).
+                                                                                                                While
+                                                                                                                pressure
+                                                                                                                differences
+                                                                                                                matter,
+                                                                                                                they are
+                                                                                                                a result
+                                                                                                                of the
+                                                                                                                wing
+                                                                                                                forcing
+                                                                                                                the air
+                                                                                                                to curve
+                                                                                                                and move
+                                                                                                                downward.
+                                                                                                            </p>
+                                                                                                            <hr data-path-to-node="1">
+                                                                                                            <h3 data-path-to-node="2">
+                                                                                                                Definition:
+                                                                                                                Lift ✈️
+                                                                                                            </h3>
+                                                                                                            <p data-path-to-node="3">
+                                                                                                                In fluid
+                                                                                                                dynamics,
+                                                                                                                lift is
+                                                                                                                the
+                                                                                                                component
+                                                                                                                of the
+                                                                                                                total
+                                                                                                                aerodynamic
+                                                                                                                force
+                                                                                                                perpendicular
+                                                                                                                to the
+                                                                                                                oncoming
+                                                                                                                flow
+                                                                                                                direction.
+                                                                                                                It
+                                                                                                                occurs
+                                                                                                                because
+                                                                                                                a wing
+                                                                                                                (airfoil)
+                                                                                                                changes
+                                                                                                                the
+                                                                                                                momentum
+                                                                                                                of the
+                                                                                                                air,
+                                                                                                                deflecting
+                                                                                                                it
+                                                                                                                downward.
+                                                                                                                According
+                                                                                                                to <b data-path-to-node="3" data-index-in-node="223">Newton\'s
+                                                                                                                    Third
+                                                                                                                    Law</b>,
+                                                                                                                as the
+                                                                                                                wing
+                                                                                                                pushes
+                                                                                                                the air
+                                                                                                                down,
+                                                                                                                the air
+                                                                                                                pushes
+                                                                                                                the wing
+                                                                                                                up.
+                                                                                                                Simultaneously,
+                                                                                                                <b data-path-to-node="3" data-index-in-node="320">Bernoulli\'s
+                                                                                                                    Principle</b>
+                                                                                                                states
+                                                                                                                that the
+                                                                                                                faster-moving
+                                                                                                                air over
+                                                                                                                the
+                                                                                                                curved
+                                                                                                                top of
+                                                                                                                the wing
+                                                                                                                creates
+                                                                                                                a lower
+                                                                                                                pressure
+                                                                                                                zone
+                                                                                                                compared
+                                                                                                                to the
+                                                                                                                slower
+                                                                                                                air
+                                                                                                                underneath.
+                                                                                                            </p>
+                                                                                                            <h3 data-path-to-node="4">
+                                                                                                                Intuitive
+                                                                                                                Analogy:
+                                                                                                                The Car
+                                                                                                                Window
+                                                                                                                🚗</h3>
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                        </div>
+                                                                                                    </message-content></div>
+                                                                                            </structured-content-container><div class="response-footer complete has-thoughts gap"></div>
+                                                                                        </div></div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </response-container></div>
+                                                                </model-response>
+                                                                <div class="restart-chat-button-scroll-placeholder">
+                                                                </div></div>
+<div class="conversation-container message-actions-hover-boundary" id="aac9aec5d20abeae"><user-query><span class="user-query-container"><user-query-content class="user-query-container">
+                                                                            <div class="user-query-container">
+                                                                                <div class="file-preview-container"></div><p>Why does 100 GSM paper fly further than printer paper?</p></div></user-query-content></span></user-query><model-response>
+                                                                    <div>
+                                                                        <response-container class="reduced-bottom-padding">
+                                                                            <div class="response-container response-container-with-gpi"><div class="presented-response-container">
+                                                                                    <div class="avatar-gutter">
+                                                                                        </div><div class="response-container-content has-thoughts"><div class="response-content">
+                                                                                            <div class="thoughts-container">
+                                                                                                <div class="thoughts-content">
+                                                                                                    <div class="thoughts-wrapper"><model-thoughts data-test-id="model-thoughts">
+                                                                                                            <div xapautoid="" class="model-thoughts" id="xap-auto-id-1">
+                                                                                                                <div class="thoughts-header">
+                                                                                                                    <button mat-button="" data-test-id="thoughts-header-button" class="mdc-button mat-mdc-button-base thoughts-header-button mat-mdc-button mat-unthemed" mat-ripple-loader-uninitialized="" mat-ripple-loader-class-name="mat-mdc-button-ripple"><span class="mat-mdc-button-persistent-ripple mdc-button__ripple"></span><span class="mdc-button__label">
+                                                                                                                            <div class="thoughts-header-button-content">
+                                                                                                                                <div class="thoughts-header-button-label">
+                                                                                                                                    <span>Show
+                                                                                                                                        thinking</span>
+                                                                                                                                </div>
+                                                                                                                                <div class="thoughts-header-button-icons"></div>
+                                                                                                                            </div>
+                                                                                                                        </span><span class="mat-focus-indicator"></span><span class="mat-mdc-button-touch-target"></span></button>
+                                                                                                                </div></div>
+                                                                                                        </model-thoughts></div></div></div><structured-content-container class="model-response-text has-thoughts processing-state-visible">
+                                                                                                <div class="container">
+                                                                                                    <message-content id="message-content-id-r_aac9aec5d20abeae">
+                                                                                                        <div inline-copy-host="" class="markdown markdown-main-panel stronger enable-updated-hr-color" id="model-response-message-contentr_aac9aec5d20abeae" aria-live="off" aria-busy="false" dir="ltr">
+                                                                                                            <p data-path-to-node="0">
+                                                                                                                The 100
+                                                                                                                GSM
+                                                                                                                paper is
+                                                                                                                preferred
+                                                                                                                because
+                                                                                                                it
+                                                                                                                increases
+                                                                                                                the <b data-path-to-node="0" data-index-in-node="56">inertial
+                                                                                                                    mass</b>
+                                                                                                                of the
+                                                                                                                airplane
+                                                                                                                without
+                                                                                                                significantly
+                                                                                                                increasing
+                                                                                                                its
+                                                                                                                surface
+                                                                                                                area.
+                                                                                                                This
+                                                                                                                higher
+                                                                                                                mass-to-surface-area
+                                                                                                                ratio
+                                                                                                                allows
+                                                                                                                the
+                                                                                                                plane to
+                                                                                                                "punch"
+                                                                                                                through
+                                                                                                                the air
+                                                                                                                more
+                                                                                                                effectively,
+                                                                                                                as it
+                                                                                                                possesses
+                                                                                                                more
+                                                                                                                energy
+                                                                                                                to
+                                                                                                                counteract
+                                                                                                                the
+                                                                                                                negative
+                                                                                                                work
+                                                                                                                done by
+                                                                                                                <b data-path-to-node="0" data-index-in-node="306">drag</b>
+                                                                                                                🌬️.</p>
+                                                                                                            <hr data-path-to-node="1">
+                                                                                                            <h3 data-path-to-node="2">
+                                                                                                                Definition:
+                                                                                                                Kinetic
+                                                                                                                Energy
+                                                                                                                and
+                                                                                                                Momentum
+                                                                                                                ⚡</h3>
+                                                                                                            <ul data-path-to-node="3">
+                                                                                                                <li>
+                                                                                                                    <p data-path-to-node="3,0,0">
+                                                                                                                        <b data-path-to-node="3,0,0" data-index-in-node="0">Kinetic
+                                                                                                                            Energy
+                                                                                                                            (<span class="math-inline" data-math="KE" data-index-in-node="16"><span class="katex"><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut"></span><span class="mord mathnormal">K</span><span class="mord mathnormal">E</span></span></span></span></span>):</b>
+                                                                                                                        The
+                                                                                                                        energy
+                                                                                                                        an
+                                                                                                                        object
+                                                                                                                        possesses
+                                                                                                                        due
+                                                                                                                        to
+                                                                                                                        its
+                                                                                                                        motion,
+                                                                                                                        defined
+                                                                                                                        by
+                                                                                                                        the
+                                                                                                                        formula
+                                                                                                                        <span class="math-inline" data-math="KE = \\frac{1}{2}mv^2" data-index-in-node="94"><span class="katex"><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut"></span><span class="mord mathnormal">K</span><span class="mord mathnormal">E</span><span class="mspace"></span><span class="mrel">=</span><span class="mspace"></span></span><span class="base"><span class="strut"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist"><span><span class="pstrut"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">2</span></span></span></span><span><span class="pstrut"></span><span class="frac-line"></span></span><span><span class="pstrut"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">1</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mord mathnormal">m</span><span class="mord"><span class="mord mathnormal">v</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist"><span><span class="pstrut"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span></span></span></span></span></span></span></span></span>.
+                                                                                                                    </p>
+                                                                                                                </li>
+                                                                                                                <li>
+                                                                                                                    <p data-path-to-node="3,1,0">
+                                                                                                                        <b data-path-to-node="3,1,0" data-index-in-node="0">Momentum
+                                                                                                                            (<span class="math-inline" data-math="p" data-index-in-node="10"><span class="katex"><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut"></span><span class="mord mathnormal">p</span></span></span></span></span>):</b>
+                                                                                                                        The
+                                                                                                                        product
+                                                                                                                        of
+                                                                                                                        an
+                                                                                                                        object\'s
+                                                                                                                        mass
+                                                                                                                        and
+                                                                                                                        its
+                                                                                                                        velocity
+                                                                                                                        (<span class="math-inline" data-math="p = mv" data-index-in-node="64"><span class="katex"><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut"></span><span class="mord mathnormal">p</span><span class="mspace"></span><span class="mrel">=</span><span class="mspace"></span></span><span class="base"><span class="strut"></span><span class="mord mathnormal">m</span><span class="mord mathnormal">v</span></span></span></span></span>),
+                                                                                                                        representing
+                                                                                                                        the
+                                                                                                                        "quantity
+                                                                                                                        of
+                                                                                                                        motion."
+                                                                                                                    </p>
+                                                                                                                </li>
+                                                                                                            </ul>
+                                                                                                            <p data-path-to-node="4">
+                                                                                                                When you
+                                                                                                                throw a
+                                                                                                                plane,
+                                                                                                                you
+                                                                                                                provide
+                                                                                                                the
+                                                                                                                initial
+                                                                                                                velocity
+                                                                                                                (<span class="math-inline" data-math="v" data-index-in-node="58"><span class="katex"><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut"></span><span class="mord mathnormal">v</span></span></span></span></span>).
+                                                                                                                With a
+                                                                                                                higher
+                                                                                                                mass
+                                                                                                                (<span class="math-inline" data-math="m" data-index-in-node="82"><span class="katex"><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut"></span><span class="mord mathnormal">m</span></span></span></span></span>)
+                                                                                                                from the
+                                                                                                                100 GSM
+                                                                                                                paper,
+                                                                                                                the
+                                                                                                                plane
+                                                                                                                starts
+                                                                                                                its
+                                                                                                                flight
+                                                                                                                with
+                                                                                                                more
+                                                                                                                joules
+                                                                                                                of
+                                                                                                                energy
+                                                                                                                and more
+                                                                                                                momentum
+                                                                                                                than a
+                                                                                                                lighter
+                                                                                                                80 GSM
+                                                                                                                version.
+                                                                                                            </p>
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                            
+                                                                                                        </div>
+                                                                                                    </message-content></div>
+                                                                                            </structured-content-container><div class="response-footer complete has-thoughts gap"></div>
+                                                                                        </div></div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </response-container></div>
+                                                                </model-response>
+                                                                <div class="restart-chat-button-scroll-placeholder">
+                                                                </div></div>
+<div class="conversation-container message-actions-hover-boundary" id="b9b8f264a58b7813"><user-query><span class="user-query-container"><user-query-content class="user-query-container">
+                                                                            <div class="user-query-container">
+                                                                                <div class="file-preview-container"></div><p>Give me the HTML for a small infographic about it.</p></div></user-query-content></span></user-query><model-response>
+                                                                    <div>
+                                                                        <response-container class="reduced-bottom-padding">
+                                                                            <div class="response-container response-container-with-gpi"><div class="presented-response-container">
+                                                                                    <div class="avatar-gutter">
+                                                                                        </div><div class="response-container-content has-thoughts"><div class="response-content">
+                                                                                            <div class="thoughts-container">
+                                                                                                <div class="thoughts-content">
+                                                                                                    <div class="thoughts-wrapper"><model-thoughts data-test-id="model-thoughts">
+                                                                                                            <div xapautoid="" class="model-thoughts" id="xap-auto-id-8">
+                                                                                                                <div class="thoughts-header">
+                                                                                                                    <button mat-button="" data-test-id="thoughts-header-button" class="mdc-button mat-mdc-button-base thoughts-header-button mat-mdc-button mat-unthemed" mat-ripple-loader-uninitialized="" mat-ripple-loader-class-name="mat-mdc-button-ripple"><span class="mat-mdc-button-persistent-ripple mdc-button__ripple"></span><span class="mdc-button__label">
+                                                                                                                            <div class="thoughts-header-button-content">
+                                                                                                                                <div class="thoughts-header-button-label">
+                                                                                                                                    <span>Show
+                                                                                                                                        thinking</span>
+                                                                                                                                </div>
+                                                                                                                                <div class="thoughts-header-button-icons"></div>
+                                                                                                                            </div>
+                                                                                                                        </span><span class="mat-focus-indicator"></span><span class="mat-mdc-button-touch-target"></span></button>
+                                                                                                                </div></div>
+                                                                                                        </model-thoughts></div></div></div><structured-content-container class="model-response-text has-thoughts processing-state-visible">
+                                                                                                <div class="container">
+                                                                                                    <message-content id="message-content-id-r_b9b8f264a58b7813">
+                                                                                                        <div inline-copy-host="" class="markdown markdown-main-panel stronger enable-updated-hr-color" id="model-response-message-contentr_b9b8f264a58b7813" aria-live="off" aria-busy="false" dir="ltr">
+                                                                                                            <p data-path-to-node="0">
+                                                                                                                I will
+                                                                                                                generate
+                                                                                                                a
+                                                                                                                complete,
+                                                                                                                single-file
+                                                                                                                HTML
+                                                                                                                Single
+                                                                                                                Page
+                                                                                                                Application
+                                                                                                                (SPA)
+                                                                                                                infographic
+                                                                                                                titled
+                                                                                                                "The
+                                                                                                                Aerodynamics
+                                                                                                                of Paper
+                                                                                                                Flight".
+                                                                                                            </p>
+                                                                                                            <p data-path-to-node="1">
+                                                                                                                This
+                                                                                                                infographic
+                                                                                                                synthesizes
+                                                                                                                the
+                                                                                                                knowledge
+                                                                                                                from
+                                                                                                                your
+                                                                                                                recent
+                                                                                                                study
+                                                                                                                guide,
+                                                                                                                quiz,
+                                                                                                                and
+                                                                                                                flashcards
+                                                                                                                into a
+                                                                                                                visual
+                                                                                                                narrative.
+                                                                                                                It
+                                                                                                                covers
+                                                                                                                the four
+                                                                                                                forces
+                                                                                                                of
+                                                                                                                flight,
+                                                                                                                the
+                                                                                                                physics
+                                                                                                                of
+                                                                                                                kinetic
+                                                                                                                energy
+                                                                                                                (why
+                                                                                                                100gsm
+                                                                                                                paper
+                                                                                                                matters),
+                                                                                                                stability
+                                                                                                                mechanics,
+                                                                                                                and
+                                                                                                                compares
+                                                                                                                different
+                                                                                                                design
+                                                                                                                archetypes
+                                                                                                                (Darts
+                                                                                                                vs.
+                                                                                                                Gliders).
+                                                                                                            </p>
+                                                                                                            <h3 data-path-to-node="2">
+                                                                                                                <b data-path-to-node="2" data-index-in-node="0">Plan
+                                                                                                                    &amp;
+                                                                                                                    Palette</b>
+                                                                                                            </h3>
+                                                                                                            <ul data-path-to-node="3">
+                                                                                                                <li>
+                                                                                                                    <p data-path-to-node="3,0,0">
+                                                                                                                        <b data-path-to-node="3,0,0" data-index-in-node="0">Palette:</b>
+                                                                                                                        "Electric
+                                                                                                                        Blue
+                                                                                                                        &amp;
+                                                                                                                        Indigo"
+                                                                                                                        –
+                                                                                                                        chosen
+                                                                                                                        for
+                                                                                                                        its
+                                                                                                                        vibrancy
+                                                                                                                        and
+                                                                                                                        association
+                                                                                                                        with
+                                                                                                                        the
+                                                                                                                        sky/flight,
+                                                                                                                        while
+                                                                                                                        maintaining
+                                                                                                                        professional
+                                                                                                                        contrast.
+                                                                                                                    </p>
+                                                                                                                    <ul data-path-to-node="3,0,1">
+                                                                                                                        <li>
+                                                                                                                            <p data-path-to-node="3,0,1,0,0">
+                                                                                                                                Primary:
+                                                                                                                                <code data-path-to-node="3,0,1,0,0" data-index-in-node="9">#2563eb</code>
+                                                                                                                                (Royal
+                                                                                                                                Blue)
+                                                                                                                            </p>
+                                                                                                                        </li>
+                                                                                                                        <li>
+                                                                                                                            <p data-path-to-node="3,0,1,1,0">
+                                                                                                                                Secondary:
+                                                                                                                                <code data-path-to-node="3,0,1,1,0" data-index-in-node="11">#4f46e5</code>
+                                                                                                                                (Indigo)
+                                                                                                                            </p>
+                                                                                                                        </li>
+                                                                                                                        <li>
+                                                                                                                            <p data-path-to-node="3,0,1,2,0">
+                                                                                                                                Accent:
+                                                                                                                                <code data-path-to-node="3,0,1,2,0" data-index-in-node="8">#facc15</code>
+                                                                                                                                (Yellow/Gold
+                                                                                                                                for
+                                                                                                                                highlights)
+                                                                                                                            </p>
+                                                                                                                        </li>
+                                                                                                                        <li>
+                                                                                                                            <p data-path-to-node="3,0,1,3,0">
+                                                                                                                                Background:
+                                                                                                                                <code data-path-to-node="3,0,1,3,0" data-index-in-node="12">#f1f5f9</code>
+                                                                                                                                (Slate
+                                                                                                                                100)
+                                                                                                                            </p>
+                                                                                                                        </li>
+                                                                                                                    </ul>
+                                                                                                                </li>
+                                                                                                                <li>
+                                                                                                                    <p data-path-to-node="3,1,0">
+                                                                                                                        <b data-path-to-node="3,1,0" data-index-in-node="0">Structure:</b>
+                                                                                                                    </p>
+                                                                                                                    <ol start="1" data-path-to-node="3,1,1">
+                                                                                                                        <li>
+                                                                                                                            <p data-path-to-node="3,1,1,0,0">
+                                                                                                                                <b data-path-to-node="3,1,1,0,0" data-index-in-node="0">Hero
+                                                                                                                                    Section:</b>
+                                                                                                                                Introduction
+                                                                                                                                to
+                                                                                                                                high-performance
+                                                                                                                                paper
+                                                                                                                                engineering.
+                                                                                                                            </p>
+                                                                                                                        </li>
+                                                                                                                        <li>
+                                                                                                                            <p data-path-to-node="3,1,1,1,0">
+                                                                                                                                <b data-path-to-node="3,1,1,1,0" data-index-in-node="0">Archetype
+                                                                                                                                    Analysis
+                                                                                                                                    (Radar
+                                                                                                                                    Chart):</b>
+                                                                                                                                Comparing
+                                                                                                                                "Dart"
+                                                                                                                                vs.
+                                                                                                                                "Glider"
+                                                                                                                                vs.
+                                                                                                                                "Stunt"
+                                                                                                                                planes
+                                                                                                                                across
+                                                                                                                                performance
+                                                                                                                                metrics.
+                                                                                                                            </p>
+                                                                                                                        </li>
+                                                                                                                        <li>
+                                                                                                                            <p data-path-to-node="3,1,1,2,0">
+                                                                                                                                <b data-path-to-node="3,1,1,2,0" data-index-in-node="0">The
+                                                                                                                                    Physics
+                                                                                                                                    of
+                                                                                                                                    Mass
+                                                                                                                                    (Line
+                                                                                                                                    Chart):</b>
+                                                                                                                                Visualizing
+                                                                                                                                Kinetic
+                                                                                                                                Energy
+                                                                                                                                differences
+                                                                                                                                between
+                                                                                                                                80
+                                                                                                                                GSM
+                                                                                                                                and
+                                                                                                                                100
+                                                                                                                                GSM
+                                                                                                                                paper.
+                                                                                                                            </p>
+                                                                                                                        </li>
+                                                                                                                        <li>
+                                                                                                                            <p data-path-to-node="3,1,1,3,0">
+                                                                                                                                <b data-path-to-node="3,1,1,3,0" data-index-in-node="0">Record
+                                                                                                                                    Breakers
+                                                                                                                                    (Bar
+                                                                                                                                    Chart):</b>
+                                                                                                                                Comparing
+                                                                                                                                distances
+                                                                                                                                of
+                                                                                                                                famous
+                                                                                                                                designs.
+                                                                                                                            </p>
+                                                                                                                        </li>
+                                                                                                                        <li>
+                                                                                                                            <p data-path-to-node="3,1,1,4,0">
+                                                                                                                                <b data-path-to-node="3,1,1,4,0" data-index-in-node="0">Stability
+                                                                                                                                    Mechanics
+                                                                                                                                    (Scatter
+                                                                                                                                    Plot):</b>
+                                                                                                                                The
+                                                                                                                                relationship
+                                                                                                                                between
+                                                                                                                                Launch
+                                                                                                                                Speed
+                                                                                                                                and
+                                                                                                                                Stability
+                                                                                                                                based
+                                                                                                                                on
+                                                                                                                                Center
+                                                                                                                                of
+                                                                                                                                Pressure
+                                                                                                                                placement.
+                                                                                                                            </p>
+                                                                                                                        </li>
+                                                                                                                        <li>
+                                                                                                                            <p data-path-to-node="3,1,1,5,0">
+                                                                                                                                <b data-path-to-node="3,1,1,5,0" data-index-in-node="0">Design
+                                                                                                                                    Anatomy
+                                                                                                                                    (CSS
+                                                                                                                                    Diagram):</b>
+                                                                                                                                Visualizing
+                                                                                                                                the
+                                                                                                                                Aspect
+                                                                                                                                Ratio
+                                                                                                                                and
+                                                                                                                                Dihedral
+                                                                                                                                Angle
+                                                                                                                                without
+                                                                                                                                SVG.
+                                                                                                                            </p>
+                                                                                                                        </li>
+                                                                                                                    </ol>
+                                                                                                                </li>
+                                                                                                            </ul>
+                                                                                                            <h3 data-path-to-node="4">
+                                                                                                                <b data-path-to-node="4" data-index-in-node="0">Generated
+                                                                                                                    Files</b>
+                                                                                                            </h3>
+                                                                                                            <ol start="1" data-path-to-node="5">
+                                                                                                                <li>
+                                                                                                                    <p data-path-to-node="5,0,0">
+                                                                                                                        <code data-path-to-node="5,0,0" data-index-in-node="0">paper_airplane_infographic.html</code>:
+                                                                                                                        The
+                                                                                                                        complete
+                                                                                                                        SPA
+                                                                                                                        containing
+                                                                                                                        all
+                                                                                                                        HTML,
+                                                                                                                        CSS
+                                                                                                                        (Tailwind),
+                                                                                                                        and
+                                                                                                                        JavaScript
+                                                                                                                        (Chart.js
+                                                                                                                        logic).
+                                                                                                                    </p>
+                                                                                                                </li>
+                                                                                                                <div class="attachment-container unknown">
+                                                                                                                    <response-element ng-version="0.0.0-PLACEHOLDER"><immersive-entry-chip><div data-test-id="container" class="container is-open clickable"><div data-test-id="default-entry-chip-content" class="default-entry-chip-content"><div class="text"><div data-test-id="artifact-text" class="gds-title-m">
+                                                                                                                                            The
+                                                                                                                                            Aerodynamics
+                                                                                                                                            of
+                                                                                                                                            Paper
+                                                                                                                                            Flight
+                                                                                                                                        </div>
+                                                                                                                                        <span data-test-id="creation-timestamp" class="creation-timestamp gds-body-m">Jan
+                                                                                                                                            17,
+                                                                                                                                            1:19
+                                                                                                                                            PM</span></div></div></div></immersive-entry-chip></response-element>
+                                                                                                                </div>
+                                                                                                            </ol>
+                                                                                                            
+                                                                                                            
+                                                                                                            <ul data-path-to-node="9">
+                                                                                                                <li>
+                                                                                                                    <p data-path-to-node="9,0,0">
+                                                                                                                        <b data-path-to-node="9,0,0" data-index-in-node="0">Archetype
+                                                                                                                            Radar:</b>
+                                                                                                                        Compares
+                                                                                                                        the
+                                                                                                                        trade-offs
+                                                                                                                        between
+                                                                                                                        "Dart"
+                                                                                                                        (speed)
+                                                                                                                        and
+                                                                                                                        "Glider"
+                                                                                                                        (lift)
+                                                                                                                        designs.
+                                                                                                                    </p>
+                                                                                                                </li>
+                                                                                                                <li>
+                                                                                                                    <p data-path-to-node="9,1,0">
+                                                                                                                        <b data-path-to-node="9,1,0" data-index-in-node="0">Physics
+                                                                                                                            Engine:</b>
+                                                                                                                        A
+                                                                                                                        line
+                                                                                                                        chart
+                                                                                                                        demonstrates
+                                                                                                                        the
+                                                                                                                        exponential
+                                                                                                                        energy
+                                                                                                                        advantage
+                                                                                                                        of
+                                                                                                                        using
+                                                                                                                        heavier
+                                                                                                                        (100
+                                                                                                                        GSM)
+                                                                                                                        paper
+                                                                                                                        at
+                                                                                                                        high
+                                                                                                                        velocities
+                                                                                                                        (<span class="math-inline" data-math="KE = \\frac{1}{2}mv^2" data-index-in-node="128"><span class="katex"><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut"></span><span class="mord mathnormal">K</span><span class="mord mathnormal">E</span><span class="mspace"></span><span class="mrel">=</span><span class="mspace"></span></span><span class="base"><span class="strut"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist"><span><span class="pstrut"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">2</span></span></span></span><span><span class="pstrut"></span><span class="frac-line"></span></span><span><span class="pstrut"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">1</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mord mathnormal">m</span><span class="mord"><span class="mord mathnormal">v</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist"><span><span class="pstrut"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span></span></span></span></span></span></span></span></span>).
+                                                                                                                    </p>
+                                                                                                                </li>
+                                                                                                                <li>
+                                                                                                                    <p data-path-to-node="9,2,0">
+                                                                                                                        <b data-path-to-node="9,2,0" data-index-in-node="0">Record
+                                                                                                                            Breakers:</b>
+                                                                                                                        A
+                                                                                                                        horizontal
+                                                                                                                        bar
+                                                                                                                        chart
+                                                                                                                        ranks
+                                                                                                                        famous
+                                                                                                                        planes
+                                                                                                                        by
+                                                                                                                        distance,
+                                                                                                                        culminating
+                                                                                                                        in
+                                                                                                                        the
+                                                                                                                        "Mach
+                                                                                                                        5"
+                                                                                                                        record.
+                                                                                                                    </p>
+                                                                                                                </li>
+                                                                                                                <li>
+                                                                                                                    <p data-path-to-node="9,3,0">
+                                                                                                                        <b data-path-to-node="9,3,0" data-index-in-node="0">Stability
+                                                                                                                            Mechanics:</b>
+                                                                                                                        A
+                                                                                                                        scatter
+                                                                                                                        plot
+                                                                                                                        correlates
+                                                                                                                        velocity
+                                                                                                                        with
+                                                                                                                        stability,
+                                                                                                                        alongside
+                                                                                                                        a
+                                                                                                                        pure
+                                                                                                                        CSS
+                                                                                                                        diagram
+                                                                                                                        illustrating
+                                                                                                                        the
+                                                                                                                        critical
+                                                                                                                        relationship
+                                                                                                                        between
+                                                                                                                        the
+                                                                                                                        Center
+                                                                                                                        of
+                                                                                                                        Gravity
+                                                                                                                        (CoG)
+                                                                                                                        and
+                                                                                                                        Center
+                                                                                                                        of
+                                                                                                                        Pressure
+                                                                                                                        (CoP).
+                                                                                                                    </p>
+                                                                                                                </li>
+                                                                                                            </ul>
+                                                                                                            
+                                                                                                        </div>
+                                                                                                    </message-content></div>
+                                                                                            </structured-content-container><div class="response-footer complete has-thoughts gap"></div>
+                                                                                        </div></div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </response-container></div>
+                                                                </model-response>
+                                                                <div class="restart-chat-button-scroll-placeholder">
+                                                                </div></div>
+    </div></infinite-scroller>
+  </div></chat-window>
+</main>
+</body>
+</html>
