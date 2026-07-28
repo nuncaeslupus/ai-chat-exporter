@@ -51,10 +51,16 @@ export const CHATGPT_SELECTORS: SelectorSet = {
     buttonArea: 'main header, main > div:first-child',
     // Code artifact container (escape ! in class name)
     codeArtifactContainer: 'pre.overflow-visible\\!',
-    // Code artifact language label
+    // Code artifact language label (legacy markup, pre-CodeMirror)
     codeArtifactLanguage: 'div.h-9',
-    // Code artifact content
+    // Code artifact content (legacy markup, pre-CodeMirror)
     codeArtifactContent: 'code.whitespace-pre\\!, code[class*="language-"]',
+    // Code artifact sticky header (CodeMirror 6 viewer, 2026-07+): holds the
+    // language name as plain text next to an icon, alongside Copy/Run buttons
+    codeArtifactStickyHeader: '.sticky',
+    // Code artifact content (CodeMirror 6 viewer, 2026-07+): <code> has no
+    // class at all, so scope to the editor's own content pre specifically
+    codeArtifactCodeMirrorCode: '.cm-content code, #code-block-viewer code',
     // Web citation pill container
     citationPill: '[data-testid="webpage-citation-pill"]',
     // Web citation link
