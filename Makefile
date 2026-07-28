@@ -34,6 +34,7 @@ typecheck: ## tsc --noEmit
 # `validate`/`release-check` mirror what CI's `validate` job actually runs.
 validate: build ## typecheck + tests + release-config checks (mirrors CI; lint excluded, see lo-0f01)
 	node build/check-release.cjs version
+	node build/check-release.cjs node
 	pnpm typecheck
 	pnpm test:coverage
 	node build/check-release.cjs manifest
