@@ -92,6 +92,30 @@ describe('TextExporter', () => {
       const text = await blobToText(result.blob!);
       expect(text).toContain('Test Conversation');
     });
+
+    it('omits the metadata block when the metadata option is off', async () => {
+      const result = await exporter.export(conversation, selectedPairs, {
+        format: 'txt',
+        filename: 'test',
+        includeMetadata: false,
+        includeTimestamps: false,
+      });
+      const text = await blobToText(result.blob!);
+      expect(text).not.toContain('Platform:');
+      expect(text).not.toContain('URL:');
+    });
+
+    it('includes the metadata block when the metadata option is on', async () => {
+      const result = await exporter.export(conversation, selectedPairs, {
+        format: 'txt',
+        filename: 'test',
+        includeMetadata: true,
+        includeTimestamps: false,
+      });
+      const text = await blobToText(result.blob!);
+      expect(text).toContain('Platform:');
+      expect(text).toContain('URL:');
+    });
   });
 
   describe('link rendering', () => {

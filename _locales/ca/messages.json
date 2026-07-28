@@ -125,6 +125,15 @@
     "description": "JSON format option"
   },
 
+  "optionIncludeMetadata": {
+    "message": "Incloure metadades",
+    "description": "Label for the toggle controlling whether exports include the metadata block"
+  },
+  "optionIncludeTimestamps": {
+    "message": "Incloure marques de temps",
+    "description": "Label for the toggle controlling whether exports include message timestamps"
+  },
+
   "qaPairSingular": {
     "message": "parella P&R",
     "description": "Singular form of Q&A pair"

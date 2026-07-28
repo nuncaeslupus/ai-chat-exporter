@@ -7,6 +7,7 @@ import type { Conversation } from '../../core/types/conversation';
 import type { ExportFormat } from '../../core/types/exporter';
 import { getMessage, formatNumber, getPlatformName } from '../../shared/i18n';
 import { parserRegistry } from '../../core/parsers';
+import { StorageService } from '../../shared/storage';
 
 /**
  * Platform information for display
@@ -118,6 +119,17 @@ class PopupController {
     // Always update icon and print button state to match current format
     this.updateFormatIcon(this.selectedFormat);
     this.handleFormatChange(this.selectedFormat);
+
+    // Reflect the persisted metadata/timestamp export options in the toggles
+    const prefs = await StorageService.getUserPreferences();
+    const metadataToggle = document.getElementById('option-include-metadata') as HTMLInputElement;
+    if (metadataToggle) {
+      metadataToggle.checked = prefs.includeMetadata;
+    }
+    const timestampsToggle = document.getElementById('option-include-timestamps') as HTMLInputElement;
+    if (timestampsToggle) {
+      timestampsToggle.checked = prefs.includeTimestamps;
+    }
   }
 
   private setupEventListeners(): void {
@@ -136,6 +148,18 @@ class PopupController {
     // Print button
     document.getElementById('print-button')?.addEventListener('click', () => {
       this.handlePrint();
+    });
+
+    // Export option toggles
+    document.getElementById('option-include-metadata')?.addEventListener('change', (e) => {
+      StorageService.setUserPreferences({
+        includeMetadata: (e.target as HTMLInputElement).checked,
+      });
+    });
+    document.getElementById('option-include-timestamps')?.addEventListener('change', (e) => {
+      StorageService.setUserPreferences({
+        includeTimestamps: (e.target as HTMLInputElement).checked,
+      });
     });
 
     // Footer links

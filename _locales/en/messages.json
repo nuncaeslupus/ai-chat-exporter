@@ -125,6 +125,15 @@
     "description": "JSON format option"
   },
 
+  "optionIncludeMetadata": {
+    "message": "Include metadata",
+    "description": "Label for the toggle controlling whether exports include the metadata block"
+  },
+  "optionIncludeTimestamps": {
+    "message": "Include timestamps",
+    "description": "Label for the toggle controlling whether exports include message timestamps"
+  },
+
   "qaPairSingular": {
     "message": "Q&A pair",
     "description": "Singular form of Q&A pair"

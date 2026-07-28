@@ -63,6 +63,7 @@ export interface ShowNotificationMessage extends BaseMessage<'show_notification'
  */
 export interface UserPreferences {
   includeMetadata: boolean;
+  includeTimestamps: boolean;
   includeCodeBlocks: boolean;
   filenameTemplate: string;
   defaultFormat: ExportFormat;
