@@ -67,12 +67,10 @@ export {
 // Config types
 export type {
   FilenameVariables,
-  UserPreferences,
   PrintOptions,
 } from './config';
 export {
   DEFAULT_FILENAME_TEMPLATE,
-  DEFAULT_PREFERENCES,
   DEFAULT_PRINT_OPTIONS,
 } from './config';
 
