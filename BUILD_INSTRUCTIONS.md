@@ -4,7 +4,7 @@ Reproduce the built extension from this source tree.
 
 ## Requirements
 
-- Node.js >= 18.0.0
+- Node.js >= 22.0.0
 - pnpm 10.27.0 (`npm install -g pnpm@10.27.0`)
 
 ## Steps
