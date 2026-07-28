@@ -28,6 +28,30 @@
     "message": "Non pris en charge",
     "description": "Message d'état pour pages non prises en charge"
   },
+  "statusNoActiveTab": {
+    "message": "Aucun onglet actif",
+    "description": "Status message when no active browser tab is found"
+  },
+  "statusArtifactsMissing": {
+    "message": "Artefacts manquants",
+    "description": "Status message when export or print completes but some content was left out"
+  },
+  "statusExportFailed": {
+    "message": "Échec de l'exportation",
+    "description": "Status message when export fails"
+  },
+  "statusPrintFailed": {
+    "message": "Échec de l'impression",
+    "description": "Status message when print fails"
+  },
+  "errorNoActiveTabFound": {
+    "message": "Aucun onglet actif trouvé",
+    "description": "Error message when no active browser tab is found during export or print"
+  },
+  "conversationUntitled": {
+    "message": "Sans titre",
+    "description": "Fallback conversation title when none is available"
+  },
 
   "noChatbotDetectedTitle": {
     "message": "Aucun Chatbot Détecté",

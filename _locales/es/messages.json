@@ -28,6 +28,30 @@
     "message": "No compatible",
     "description": "Mensaje de estado para páginas no compatibles"
   },
+  "statusNoActiveTab": {
+    "message": "Sin pestaña activa",
+    "description": "Status message when no active browser tab is found"
+  },
+  "statusArtifactsMissing": {
+    "message": "Faltan artefactos",
+    "description": "Status message when export or print completes but some content was left out"
+  },
+  "statusExportFailed": {
+    "message": "Error al exportar",
+    "description": "Status message when export fails"
+  },
+  "statusPrintFailed": {
+    "message": "Error al imprimir",
+    "description": "Status message when print fails"
+  },
+  "errorNoActiveTabFound": {
+    "message": "No se encontró ninguna pestaña activa",
+    "description": "Error message when no active browser tab is found during export or print"
+  },
+  "conversationUntitled": {
+    "message": "Sin título",
+    "description": "Fallback conversation title when none is available"
+  },
 
   "noChatbotDetectedTitle": {
     "message": "Chatbot No Detectado",

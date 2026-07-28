@@ -173,7 +173,7 @@ class PopupController {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id) {
-        this.updateStatus('error', 'No active tab');
+        this.updateStatus('error', getMessage('statusNoActiveTab'));
         return;
       }
 
@@ -251,7 +251,7 @@ class PopupController {
     }
 
     if (title) {
-      const titleText = conversation.title || 'Untitled';
+      const titleText = conversation.title || getMessage('conversationUntitled');
       title.textContent = titleText;
       title.title = titleText;
     }
@@ -360,7 +360,7 @@ class PopupController {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id) {
-        throw new Error('No active tab found');
+        throw new Error(getMessage('errorNoActiveTabFound'));
       }
 
       const message = {
@@ -371,18 +371,18 @@ class PopupController {
 
       const response: MessageResponse | undefined = await chrome.tabs.sendMessage(tab.id, message);
       if (!response?.success) {
-        throw new Error(response?.error ?? 'Export failed');
+        throw new Error(response?.error ?? getMessage('statusExportFailed'));
       }
       if (response.warning) {
         // Degraded export (e.g. artifact contents missing) — keep the popup
         // open so the user actually sees it. Full reason is in the tooltip.
-        this.updateStatus('warning', 'Artifacts missing', response.warning);
+        this.updateStatus('warning', getMessage('statusArtifactsMissing'), response.warning);
         return;
       }
       window.close(); // Close popup after triggering export
     } catch (error) {
       console.error('Export failed:', error);
-      this.updateStatus('error', error instanceof Error ? error.message : 'Export failed');
+      this.updateStatus('error', error instanceof Error ? error.message : getMessage('statusExportFailed'));
     }
   }
 
@@ -390,7 +390,7 @@ class PopupController {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id) {
-        throw new Error('No active tab found');
+        throw new Error(getMessage('errorNoActiveTabFound'));
       }
 
       const message = {
@@ -401,13 +401,13 @@ class PopupController {
 
       const response: MessageResponse | undefined = await chrome.tabs.sendMessage(tab.id, message);
       if (response?.warning) {
-        this.updateStatus('warning', 'Artifacts missing', response.warning);
+        this.updateStatus('warning', getMessage('statusArtifactsMissing'), response.warning);
         return;
       }
       window.close(); // Close popup after triggering print
     } catch (error) {
       console.error('Print failed:', error);
-      this.updateStatus('error', 'Print failed');
+      this.updateStatus('error', getMessage('statusPrintFailed'));
     }
   }
 
