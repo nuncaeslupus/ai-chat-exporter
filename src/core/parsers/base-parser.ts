@@ -205,8 +205,11 @@ export abstract class BaseParser implements IParser {
     const copyButtons = element.querySelectorAll('button[class*="copy"], button[class*="Copy"]');
     copyButtons.forEach(btn => btn.remove());
 
-    // Remove ALL buttons (ChatGPT UI has many button artifacts)
-    const allButtons = element.querySelectorAll('button');
+    // Remove ALL buttons (ChatGPT UI has many button artifacts), including
+    // non-<button> elements exposed as buttons via ARIA role (e.g. a `<span
+    // role="button">` copy-table/copy-code control whose SVG sprite icon would
+    // otherwise ship in htmlContent as a dead `/cdn/assets/sprites-...` reference).
+    const allButtons = element.querySelectorAll('button, [role="button"]');
     allButtons.forEach(btn => btn.remove());
 
     // Remove screenreader-only elements
