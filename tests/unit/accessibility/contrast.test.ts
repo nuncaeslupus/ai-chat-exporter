@@ -209,6 +209,27 @@ const popupPairs: Pair[] = [
     bg: popupColor(".format-row[aria-checked='true'] {", 'background'),
     threshold: 3,
   },
+  // Pair chooser (R4). Rows sit on the page background until expanded, when
+  // they gain the bar tint — every text colour has to clear both.
+  { label: 'submenu title', fg: popupColor('.submenu-title {', 'color'), bg: popupColor('body {', 'background'), threshold: 4.5 },
+  { label: 'submenu back chevron', fg: popupColor('.submenu-back {', 'color'), bg: popupColor('.submenu-back {', 'background'), threshold: 3 },
+  { label: 'pair chooser All/None link', fg: popupColor('.pair-chooser-toggle-all {', 'color'), bg: popupColor('body {', 'background'), threshold: 4.5 },
+  { label: 'pair number', fg: popupColor('.pair-row-number {', 'color'), bg: popupColor('body {', 'background'), threshold: 4.5 },
+  { label: 'pair number (expanded tint)', fg: popupColor('.pair-row-number {', 'color'), bg: popupColor(".pair-row[data-expanded='true'] {", 'background'), threshold: 4.5 },
+  { label: 'pair question', fg: popupColor('.pair-row-text {', 'color'), bg: popupColor('body {', 'background'), threshold: 4.5 },
+  { label: 'pair question (expanded tint)', fg: popupColor('.pair-row-text {', 'color'), bg: popupColor(".pair-row[data-expanded='true'] {", 'background'), threshold: 4.5 },
+  {
+    label: 'pair question (deselected)',
+    fg: popupColor(".pair-row[data-selected='false'] .pair-row-text {", 'color'),
+    bg: popupColor('body {', 'background'),
+    threshold: 4.5,
+  },
+  { label: 'pair more/less link', fg: popupColor('.pair-row-toggle {', 'color'), bg: popupColor('body {', 'background'), threshold: 4.5 },
+  { label: 'pair more/less link (expanded tint)', fg: popupColor('.pair-row-toggle {', 'color'), bg: popupColor(".pair-row[data-expanded='true'] {", 'background'), threshold: 4.5 },
+  { label: 'day separator date', fg: popupColor('.pair-day-label {', 'color'), bg: popupColor('body {', 'background'), threshold: 4.5 },
+  { label: 'pair chooser summary', fg: popupColor('.pair-chooser-summary {', 'color'), bg: popupColor('.pair-chooser-footer {', 'background'), threshold: 4.5 },
+  { label: 'pair chooser Done label', fg: popupColor('.pair-chooser-done {', 'color'), bg: popupColor('.pair-chooser-done {', 'background'), threshold: 4.5 },
+  { label: 'pair chooser Done label (hover bg)', fg: popupColor('.pair-chooser-done {', 'color'), bg: popupColor('.pair-chooser-done:hover {', 'background'), threshold: 4.5 },
   // Unsupported page dims the header; the same text tokens ride on it.
   { label: 'popup-version (dimmed header)', fg: popupColor('.popup-version {', 'color'), bg: popupColor("body[data-ui-state='unsupported'] .popup-header {", 'background'), threshold: 4.5 },
   { label: 'status-text (dimmed header)', fg: popupColor('.status-text {', 'color'), bg: popupColor("body[data-ui-state='unsupported'] .popup-header {", 'background'), threshold: 4.5 },

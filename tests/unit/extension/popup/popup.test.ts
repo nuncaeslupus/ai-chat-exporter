@@ -361,7 +361,6 @@ describe('popup Q&A pair selection (lo-adf1)', () => {
       expect(checkboxes()).toHaveLength(3);
     });
     expect(checkboxes().every((cb) => cb.checked)).toBe(true);
-    expect(document.getElementById('qa-selection-section')?.style.display).toBe('block');
   });
 
   it('select-all / select-none toggle every pair', async () => {

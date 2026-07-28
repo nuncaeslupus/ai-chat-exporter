@@ -151,24 +151,16 @@
   },
 
   "qaSelectionTitle": {
-    "message": "Sélectionnez les paires question-réponse à exporter",
-    "description": "Heading above the per-pair checkbox list in the popup"
+    "message": "Choisir les paires",
+    "description": "Title of the Content submenu, the pair chooser"
   },
   "qaSelectionSelectAll": {
-    "message": "Tout sélectionner",
+    "message": "Tous",
     "description": "Label for the toggle button when not every Q&A pair is selected"
   },
   "qaSelectionDeselectAll": {
-    "message": "Tout désélectionner",
+    "message": "Aucun",
     "description": "Label for the toggle button when every Q&A pair is selected"
-  },
-  "qaSelectionCount": {
-    "message": "$1 sur $2 sélectionnée(s)",
-    "description": "Selection summary below the pair list. $1 = selected count, $2 = total pairs",
-    "placeholders": {
-      "count": { "content": "$1", "example": "2" },
-      "total": { "content": "$2", "example": "5" }
-    }
   },
   "qaSelectionPairFallbackLabel": {
     "message": "Paire question-réponse $1",
@@ -448,5 +440,30 @@
   "formatNameJSON": {
     "message": "JSON",
     "description": "Short name of the JSON format"
+  },
+  "submenuBack": {
+    "message": "Retour",
+    "description": "Accessible name of the back button in every popup submenu"
+  },
+  "submenuDone": {
+    "message": "Terminé",
+    "description": "Button that closes a popup submenu and returns to the main view"
+  },
+  "pairChooserMore": {
+    "message": "plus",
+    "description": "Link that expands a clamped question in the pair chooser"
+  },
+  "pairChooserLess": {
+    "message": "moins",
+    "description": "Link that collapses an expanded question in the pair chooser"
+  },
+  "pairChooserSummary": {
+    "message": "$1 sur $2 · $3 mots",
+    "description": "Pair chooser footer. $1 = selected pairs, $2 = total pairs, $3 = words in the selection",
+    "placeholders": {
+      "count": { "content": "$1", "example": "2" },
+      "total": { "content": "$2", "example": "14" },
+      "words": { "content": "$3", "example": "4,120" }
+    }
   }
 }

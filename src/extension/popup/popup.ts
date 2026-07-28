@@ -206,9 +206,60 @@ function conversationDateRange(conversation: Conversation): string | null {
   return formatter.formatRange(new Date(Math.min(...times)), new Date(Math.max(...times)));
 }
 
+/**
+ * Roughly what fits in the row's two clamped lines. Past it the row grows a
+ * `more` link. Measuring the real overflow needs layout the popup does not
+ * have at render time, and the spec puts the cut at ≈120 characters anyway.
+ */
+const CLAMP_CHARS = 120;
+
+/**
+ * ponytail: whitespace split. Undercounts CJK, which has no spaces — fine for
+ * a footer estimate, swap in Intl.Segmenter if that ever matters.
+ */
+function countWords(text: string): number {
+  const trimmed = text.trim();
+  return trimmed === '' ? 0 : trimmed.split(/\s+/).length;
+}
+
+/**
+ * The day a pair happened on, or `null` when neither of its messages carries a
+ * usable timestamp. Timestamps cross `chrome.tabs.sendMessage`, which
+ * JSON-serialises `Date` to a string, so both shapes are accepted.
+ */
+function pairDate(pair: QAPair): Date | null {
+  for (const value of [pair.question.timestamp, pair.answer.timestamp]) {
+    if (value === undefined) continue;
+    const date = new Date(value);
+    if (!isNaN(date.getTime())) return date;
+  }
+  return null;
+}
+
+/** Small builder so the row markup below stays readable. */
+function el(tag: string, className: string, text?: string): HTMLElement {
+  const node = document.createElement(tag);
+  node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+/** Two hairlines with the date between them, e.g. `29 July`. */
+function daySeparatorRow(label: string): HTMLElement {
+  const item = el('li', 'pair-day-separator');
+  item.append(
+    el('span', 'pair-day-rule'),
+    el('span', 'pair-day-label', label),
+    el('span', 'pair-day-rule')
+  );
+  return item;
+}
+
 class PopupController {
   private selectedFormat: ExportFormat = 'md';
   private pairs: QAPair[] = [];
+  /** Rows showing their full question text (`more` / `less`). */
+  private expandedPairIds = new Set<string>();
   private view: PopupView = 'main';
   private formatMenuOpen = false;
   private uiState: UiState = 'detecting';
@@ -569,48 +620,92 @@ class PopupController {
   }
 
   /**
-   * Render the per-pair checkbox list plus the select-all/select-none toggle
-   * and the "N of M selected" summary.
+   * Render the pair rows, the day separators between them, and the footer.
+   *
+   * A separator marks a *change* of date, so it can never open the list: the
+   * previous day starts unset and only the second dated pair onwards can
+   * differ from it.
    */
   private renderSelectionList(): void {
-    const section = document.getElementById('qa-selection-section');
     const list = document.getElementById('qa-selection-list');
-    if (!section || !list) return;
+    if (!list) return;
 
-    if (this.pairs.length === 0) {
-      section.style.display = 'none';
-      this.updateContentRow();
-      return;
-    }
-    section.style.display = 'block';
+    const dayFormat = new Intl.DateTimeFormat(getUILanguage(), {
+      day: 'numeric',
+      month: 'long',
+    });
+    const rows: HTMLElement[] = [];
+    let previousDay: string | null = null;
 
-    list.innerHTML = '';
     this.pairs.forEach((pair) => {
-      const item = document.createElement('li');
-      item.className = 'qa-selection-item';
-
-      const checkboxId = `qa-pair-${pair.id}`;
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.id = checkboxId;
-      checkbox.checked = pair.selected;
-      checkbox.addEventListener('change', () => {
-        this.pairs = SelectionService.toggleSelection(this.pairs, pair.id);
-        this.renderSelectionList();
-      });
-
-      const label = document.createElement('label');
-      label.htmlFor = checkboxId;
-      const preview = pair.question.content.trim();
-      label.textContent = preview || getMessageWithValues('qaSelectionPairFallbackLabel', pair.index + 1);
-      label.title = label.textContent;
-
-      item.appendChild(checkbox);
-      item.appendChild(label);
-      list.appendChild(item);
+      const date = pairDate(pair);
+      if (date !== null) {
+        const day = date.toDateString();
+        if (previousDay !== null && day !== previousDay) {
+          rows.push(daySeparatorRow(dayFormat.format(date)));
+        }
+        previousDay = day;
+      }
+      rows.push(this.pairRow(pair));
     });
 
+    list.replaceChildren(...rows);
     this.updateSelectionSummary();
+  }
+
+  /** One chooser row: checkbox, pair number, clamped question, `more` link. */
+  private pairRow(pair: QAPair): HTMLElement {
+    const item = el('li', 'pair-row');
+    const expanded = this.expandedPairIds.has(pair.id);
+    item.dataset.expanded = String(expanded);
+    item.dataset.selected = String(pair.selected);
+
+    const checkboxId = `qa-pair-${pair.id}`;
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = checkboxId;
+    checkbox.checked = pair.selected;
+    checkbox.addEventListener('change', () => {
+      this.pairs = SelectionService.toggleSelection(this.pairs, pair.id);
+      this.renderSelectionList();
+    });
+
+    const question = pair.question.content.trim();
+    const text = question || getMessageWithValues('qaSelectionPairFallbackLabel', pair.index + 1);
+    const label = document.createElement('label');
+    label.className = 'pair-row-text';
+    label.htmlFor = checkboxId;
+    label.textContent = text;
+    label.title = text;
+
+    const body = el('div', 'pair-row-body');
+    body.appendChild(label);
+
+    if (text.length > CLAMP_CHARS) {
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'pair-row-toggle';
+      toggle.textContent = getMessage(expanded ? 'pairChooserLess' : 'pairChooserMore');
+      toggle.setAttribute('aria-expanded', String(expanded));
+      toggle.addEventListener('click', () => {
+        // Reveals text and nothing else — the selection must not move with it.
+        if (expanded) this.expandedPairIds.delete(pair.id);
+        else this.expandedPairIds.add(pair.id);
+        this.renderSelectionList();
+      });
+      body.appendChild(toggle);
+    }
+
+    item.append(checkbox, el('span', 'pair-row-number', formatNumber(pair.index + 1)), body);
+    return item;
+  }
+
+  /** Words in the pairs still selected — the footer's second number. */
+  private selectedWordCount(): number {
+    return SelectionService.getSelectedPairs(this.pairs).reduce(
+      (total, pair) => total + countWords(pair.question.content) + countWords(pair.answer.content),
+      0
+    );
   }
 
   private updateSelectionSummary(): void {
@@ -618,10 +713,13 @@ class PopupController {
     const toggleAllButton = document.getElementById('qa-selection-toggle-all');
 
     if (countEl) {
+      // `2 of 14 · 4,120 words` — every number through the active locale, so
+      // the thousands separator is never hardcoded.
       countEl.textContent = getMessageWithValues(
-        'qaSelectionCount',
-        SelectionService.getSelectionCount(this.pairs),
-        this.pairs.length
+        'pairChooserSummary',
+        formatNumber(SelectionService.getSelectionCount(this.pairs)),
+        formatNumber(this.pairs.length),
+        formatNumber(this.selectedWordCount())
       );
     }
     if (toggleAllButton) {

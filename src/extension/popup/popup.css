@@ -622,82 +622,222 @@ section {
   margin-bottom: 0;
 }
 
-/* Q&A pair selection */
-.qa-selection {
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.qa-selection-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
-}
-
-.qa-selection-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.qa-selection-toggle-all {
-  background: none;
-  border: none;
-  color: var(--color-accent);
-  font-size: 12px;
-  cursor: pointer;
-  padding: 2px 4px;
-}
-
-.qa-selection-toggle-all:hover {
-  text-decoration: underline;
-}
-
-.qa-selection-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  max-height: 120px;
-  overflow-y: auto;
-}
-
-.qa-selection-item {
+/*
+ * ── Pair chooser (Content submenu) ────────────────────────────────────────
+ * Three bands in the same 260px box: header and footer are `flex:none`, only
+ * the list scrolls. Nothing here can grow the popup.
+ */
+.pair-chooser-header {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px;
-  border-radius: var(--radius-chip);
-  /* Rows must not shrink inside a scrolling flex column. */
-  flex: none;
+  padding: 11px 16px 8px;
 }
 
-.qa-selection-item:hover {
+.submenu-back {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-chip);
+  background: var(--color-surface-key);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.submenu-back:hover {
   background: var(--color-surface-hover);
 }
 
-.qa-selection-item input[type='checkbox'] {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  cursor: pointer;
-  accent-color: var(--color-accent);
-}
-
-.qa-selection-item label {
-  font-size: 12px;
+.submenu-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
   color: var(--color-text-primary);
-  cursor: pointer;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.qa-selection-count {
-  margin-top: 4px;
+.pair-chooser-toggle-all {
+  flex: none;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.pair-chooser-toggle-all:hover {
+  color: var(--color-accent-pressed);
+}
+
+.qa-selection-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 10px 0 16px;
+  list-style: none;
+}
+
+.pair-row {
+  /* Without `flex:none` the rows collapse inside the scrolling column — the
+     same trap the format menu hit, and the reason its rows are fixed too. */
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 6px 6px 6px 0;
+  border-radius: var(--radius-row);
+}
+
+/* Expanded: full text, tinted, and the left edge gains the padding the
+   rounded surface needs. */
+.pair-row[data-expanded='true'] {
+  padding-left: 4px;
+  background: var(--color-surface-bar);
+}
+
+.pair-row input[type='checkbox'] {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin-top: 1px;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+/*
+ * Normal type with tabular figures — the spec is explicit that this is NOT
+ * monospace; the lining figures are what keeps the column straight.
+ * Spec paints it #9AA5A1 (2.54:1 on white), which the WCAG gate rejects for
+ * text, so it takes the secondary token instead.
+ */
+.pair-row-number {
+  flex: none;
+  min-width: 14px;
+  margin-top: 2px;
   font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   color: var(--color-text-secondary);
+}
+
+.pair-row-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 6px;
+}
+
+/* Two lines, then the tooltip. `word-break` stays at its default so the clamp
+   lands between words and never mid-word. */
+.pair-row-text {
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--color-text-body);
+  cursor: pointer;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.pair-row[data-expanded='true'] .pair-row-text {
+  display: block;
+  overflow: visible;
+}
+
+/* Deselected rows step back. Spec's #5F6E69 rounds to the secondary token,
+   which already clears AA on white and on the expanded tint. */
+.pair-row[data-selected='false'] .pair-row-text {
+  color: var(--color-text-secondary);
+}
+
+.pair-row-toggle {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.pair-row-toggle:hover {
+  color: var(--color-accent-pressed);
+}
+
+/* Day separator — two hairlines with the date between them. */
+.pair-day-separator {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 6px 5px 0;
+}
+
+.pair-day-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--color-border-hairline);
+}
+
+.pair-day-label {
+  flex: none;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  /* Spec's #9AA5A1 again — 2.54:1, under AA even at this size. */
+  color: var(--color-text-secondary);
+}
+
+/* Footer — the running count and the way out. */
+.pair-chooser-footer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px 11px;
+  background: var(--color-surface-bar);
+}
+
+.pair-chooser-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+.pair-chooser-done {
+  flex: none;
+  height: 30px;
+  padding: 0 13px;
+  border: none;
+  border-radius: var(--radius-row);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pair-chooser-done:hover {
+  background: var(--color-accent-pressed);
 }
 
 /* Settings Section */
