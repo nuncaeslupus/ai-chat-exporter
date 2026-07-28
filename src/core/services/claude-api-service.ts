@@ -68,27 +68,20 @@ export class ClaudeApiService {
    */
   private static findOrganizationId(document: Document): string | null {
     // Try multiple approaches to find the organization ID
-    console.log('[Claude API Service] Starting organization ID extraction...');
 
     // 1. Check for next.js data
     const nextData = document.getElementById('__NEXT_DATA__');
-    console.log('[Claude API Service] __NEXT_DATA__ element exists:', !!nextData);
     if (nextData?.textContent) {
       try {
         const data = JSON.parse(nextData.textContent) as NextData;
-        console.log('[Claude API Service] __NEXT_DATA__ parsed successfully');
-        console.log('[Claude API Service] __NEXT_DATA__ keys:', Object.keys(data));
 
         // Navigate through potential paths where org ID might be
         if (data?.props?.pageProps?.organizationId) {
-          console.log('[Claude API Service] Found org ID in __NEXT_DATA__.props.pageProps.organizationId');
           return data.props.pageProps.organizationId;
         }
         if (data?.props?.pageProps?.selectedOrganization?.uuid) {
-          console.log('[Claude API Service] Found org ID in __NEXT_DATA__.props.pageProps.selectedOrganization.uuid');
           return data.props.pageProps.selectedOrganization.uuid;
         }
-        console.log('[Claude API Service] __NEXT_DATA__ props.pageProps:', data?.props?.pageProps ? Object.keys(data.props.pageProps) : 'undefined');
       } catch (error) {
         console.warn('[Claude API Service] Failed to parse __NEXT_DATA__:', error);
       }
@@ -97,9 +90,7 @@ export class ClaudeApiService {
     // 2. Check for org ID in localStorage (Claude might store it there)
     try {
       const storedOrgId = localStorage.getItem('lastOrganizationId');
-      console.log('[Claude API Service] localStorage lastOrganizationId:', storedOrgId ? 'found' : 'not found');
       if (storedOrgId) {
-        console.log('[Claude API Service] Found org ID in localStorage');
         return storedOrgId;
       }
     } catch (error) {
@@ -109,7 +100,6 @@ export class ClaudeApiService {
     // 3. Check URL parameters (some Claude URLs include org ID)
     const urlParams = new URLSearchParams(window.location.search);
     const orgIdParam = urlParams.get('orgId') || urlParams.get('organizationId');
-    console.log('[Claude API Service] URL parameters check:', orgIdParam ? 'found' : 'not found');
     if (orgIdParam) {
       return orgIdParam;
     }
@@ -125,13 +115,11 @@ export class ClaudeApiService {
 
     // 5. Check for org ID in image/file URLs (Claude uses /api/{orgId}/files/... pattern)
     const images = document.querySelectorAll('img[src^="/api/"]');
-    console.log('[Claude API Service] Found images with /api/ URLs:', images.length);
     for (const img of images) {
       const src = img.getAttribute('src');
       if (src) {
         const apiMatch = /^\/api\/([a-f0-9-]{36})\//.exec(src);
         if (apiMatch?.[1]) {
-          console.log('[Claude API Service] Found org ID in image URL:', src);
           return apiMatch[1];
         }
       }
@@ -142,7 +130,6 @@ export class ClaudeApiService {
     // serializes the entire document, so it only runs once every cheap
     // source above has failed.
     const htmlContent = document.documentElement.innerHTML;
-    console.log('[Claude API Service] Searching HTML content (length:', htmlContent.length, 'chars)');
 
     const patterns = [
       /"organizationID":"([a-f0-9-]{36})"/i,
@@ -150,11 +137,9 @@ export class ClaudeApiService {
       /"organization_id":"([a-f0-9-]{36})"/i
     ];
 
-    for (const [index, pattern] of patterns.entries()) {
+    for (const pattern of patterns) {
       const match = htmlContent.match(pattern);
-      console.log(`[Claude API Service] Pattern ${index + 1} match:`, match ? match[1] : 'no match');
       if (match?.[1]) {
-        console.log('[Claude API Service] Found organization ID in page content');
         return match[1];
       }
     }
@@ -217,7 +202,6 @@ export class ClaudeApiService {
         return null;
       }
 
-      console.log('[Claude API Service] API response received, messages:', response.data.chat_messages?.length);
       return response.data;
     } catch (error) {
       console.error('[Claude API Service] Error fetching conversation data:', error);
@@ -231,7 +215,6 @@ export class ClaudeApiService {
    */
   static extractArtifacts(apiData: ClaudeApiConversationResponse): Map<string, Artifact[]> {
     const artifactsByMessageUuid = new Map<string, Artifact[]>();
-    console.log('[Claude API Service] extractArtifacts: Processing', apiData.chat_messages.length, 'messages');
 
     for (const message of apiData.chat_messages) {
       // Only process assistant messages
@@ -240,14 +223,11 @@ export class ClaudeApiService {
       }
 
       const artifacts: Artifact[] = [];
-      console.log(`[Claude API Service] Message ${message.index}: ${message.content?.length || 0} content blocks`);
 
       // Look for artifact tool use in content
       for (const content of message.content || []) {
-        console.log(`[Claude API Service] Content block type:`, content.type, 'name:', (content as { name?: string }).name);
         if (isArtifactContent(content)) {
           const input = content.input;
-          console.log(`[Claude API Service] Found artifact:`, input.title, 'type:', input.type, 'contentLength:', input.content?.length || 0);
 
           // Map Claude API artifact type to our artifact type
           let type = 'unknown';
@@ -292,12 +272,10 @@ export class ClaudeApiService {
       }
 
       if (artifacts.length > 0) {
-        console.log(`[Claude API Service] Message ${message.uuid}: Found ${artifacts.length} artifacts`);
         artifactsByMessageUuid.set(message.uuid, artifacts);
       }
     }
 
-    console.log('[Claude API Service] Total messages with artifacts:', artifactsByMessageUuid.size);
     return artifactsByMessageUuid;
   }
 
@@ -344,13 +322,8 @@ export class ClaudeApiService {
     const artifactsByMessageUuid = this.extractArtifacts(apiData);
 
     if (artifactsByMessageUuid.size === 0) {
-      console.log('[Claude API Service] No artifacts found in API response');
       return { conversation };
     }
-
-    console.log(
-      `[Claude API Service] Found artifacts in ${artifactsByMessageUuid.size} messages`
-    );
 
     const assistantMessages = apiData.chat_messages.filter(
       (message) => message.sender === 'assistant'
@@ -378,10 +351,6 @@ export class ClaudeApiService {
       if (!apiArtifacts) {
         return pair;
       }
-
-      console.log(
-        `[Claude API Service] Pair ${pairIndex}: Replacing artifacts with ${apiArtifacts.length} from API message ${assistantMessage?.uuid}`
-      );
 
       return {
         ...pair,

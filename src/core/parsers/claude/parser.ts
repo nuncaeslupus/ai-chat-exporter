@@ -375,16 +375,13 @@ export class ClaudeParser extends BaseParser {
    */
   private extractAssistantMessage(element: Element, config: ParserConfig): Message | null {
     const messageId = this.generateId();
-    console.log('[Claude Parser] extractAssistantMessage called for element:', element.tagName);
 
     // Extract all content parts
     const contentParts: string[] = [];
     const htmlParts: string[] = [];
 
     // Extract web searches
-    console.log('[Claude Parser] About to extract web searches...');
     const webSearches = this.extractWebSearches(element);
-    console.log('[Claude Parser] Web searches extracted:', webSearches.length);
     if (webSearches.length > 0) {
       webSearches.forEach(search => {
         contentParts.push(`[Web Search: ${search.query}]`);
@@ -396,7 +393,6 @@ export class ClaudeParser extends BaseParser {
 
     // Extract text content from standard-markdown or progressive-markdown
     const markdownContainers = element.querySelectorAll('div.standard-markdown, div.progressive-markdown');
-    console.log('[Claude Parser] Found markdown containers:', markdownContainers.length);
     markdownContainers.forEach((container) => {
       const { content, htmlContent } = this.extractContent(container, config.preserveHtml);
       if (content) {
@@ -408,26 +404,19 @@ export class ClaudeParser extends BaseParser {
     });
 
     // Extract artifacts
-    console.log('[Claude Parser] About to extract artifacts...');
     const artifacts = this.extractArtifacts(element);
-    console.log('[Claude Parser] Artifacts extracted:', artifacts.length);
     if (artifacts.length > 0) {
       artifacts.forEach(artifact => {
         contentParts.push(`[${artifact.typeLabel || artifact.type}: ${artifact.title}]`);
       });
     }
 
-    console.log('[Claude Parser] Total content parts:', contentParts.length);
     if (contentParts.length === 0) {
-      console.log('[Claude Parser] No content parts, returning null');
       return null;
     }
 
     // Combine all content
     const combinedContent = contentParts.join('\n\n');
-    console.log('[Claude Parser] Combined content preview (first 500 chars):', combinedContent.substring(0, 500));
-    console.log('[Claude Parser] Combined content includes Web Search:', combinedContent.includes('[Web Search:'));
-    console.log('[Claude Parser] Combined content includes artifacts:', combinedContent.includes('[Imagen:') || combinedContent.includes('[Documento:') || combinedContent.includes('[Diagrama:'));
     const combinedHtml = htmlParts.length > 0 ? htmlParts.join('\n') : undefined;
 
     // Extract timestamp
@@ -459,12 +448,10 @@ export class ClaudeParser extends BaseParser {
     const artifacts: Artifact[] = [];
 
     const artifactContainers = element.querySelectorAll('div.pt-3.pb-3');
-    console.log('[Claude Parser] Found artifact containers:', artifactContainers.length);
 
     artifactContainers.forEach((container) => {
       // Check if this contains an artifact
       const artifactBlock = container.querySelector('div.artifact-block-cell');
-      console.log('[Claude Parser] Artifact block found:', !!artifactBlock);
       if (!artifactBlock) {
         return;
       }
@@ -472,12 +459,10 @@ export class ClaudeParser extends BaseParser {
       // Extract title
       const titleElement = artifactBlock.querySelector('div.leading-tight.text-sm.line-clamp-1');
       const title = titleElement?.textContent?.trim() || 'Untitled Artifact';
-      console.log('[Claude Parser] Artifact title:', title);
 
       // Extract type label (e.g., "Imagen", "Artefacto interactivo", "Documento", "Diagrama")
       const typeElement = artifactBlock.querySelector('div.text-xs.line-clamp-1.text-text-400');
       const typeLabel = typeElement?.textContent?.trim() || '';
-      console.log('[Claude Parser] Artifact typeLabel:', typeLabel);
 
       // Determine artifact type based on label
       let type = 'unknown';
@@ -521,7 +506,6 @@ export class ClaudeParser extends BaseParser {
     const searches: WebSearchResult[] = [];
 
     const searchContainers = element.querySelectorAll('div.ease-out.transition-all.flex.flex-col.font-ui');
-    console.log('[Claude Parser] Found search containers:', searchContainers.length);
 
     searchContainers.forEach((container) => {
       // Check if this is a web search widget
@@ -533,10 +517,8 @@ export class ClaudeParser extends BaseParser {
       // Extract query
       const queryElement = container.querySelector('.flex.gap-2.relative.font-base');
       const query = queryElement?.textContent?.trim() || '';
-      console.log('[Claude Parser] Search query:', query);
 
       if (!query) {
-        console.log('[Claude Parser] No query found, skipping');
         return;
       }
 
