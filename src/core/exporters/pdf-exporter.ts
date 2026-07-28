@@ -782,6 +782,10 @@ export class PdfExporter extends BaseExporter {
   ): number {
     let y = startY;
 
+    // Same shape as txt/docx: keep the URL even when alt text exists, so a
+    // failed image still points at the picture. renderText wraps it.
+    const placeholder = `[Image: ${block.alt || 'image'}] ${block.url}`;
+
     // Try to get the loaded image from cache
     const loadedImage = this.imageCache.get(block.url);
 
@@ -790,7 +794,7 @@ export class PdfExporter extends BaseExporter {
       y += lineHeight * 0.3;
       y = this.renderText(
         doc,
-        `[Image: ${block.alt || block.url}]`,
+        placeholder,
         y,
         margins,
         contentWidth,
@@ -872,7 +876,7 @@ export class PdfExporter extends BaseExporter {
       // Fall back to showing placeholder text
       y = this.renderText(
         doc,
-        `[Image: ${block.alt || block.url}]`,
+        placeholder,
         y,
         margins,
         contentWidth,

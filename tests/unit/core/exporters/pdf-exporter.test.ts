@@ -63,6 +63,12 @@ const { instances, MockJsPDF } = vi.hoisted(() => {
 // pdf-exporter.ts resolves to this mock.
 vi.mock('jspdf', () => ({ jsPDF: MockJsPDF }));
 
+// jsdom never fires load/error on <img>, so the real loader hangs. An empty
+// cache is exactly the "every image failed to load" state under test.
+vi.mock('../../../../src/core/utils/image-loader', () => ({
+  loadImagesParallel: async () => new Map(),
+}));
+
 function buildConversation(): { conversation: Conversation; pairs: QAPair[] } {
   const pair: QAPair = {
     id: 'pair-0',
@@ -252,6 +258,47 @@ describe('PdfExporter', () => {
     const combined = textCallsOf(instance).join(' ');
     expect(combined).toContain('https://example.com/');
     expect(combined).not.toContain('https://example.com/ (https://example.com/)');
+  });
+
+  it('keeps the URL in the placeholder when an image fails to load and has alt text', async () => {
+    const pair: QAPair = {
+      id: 'pair-img',
+      index: 0,
+      selected: true,
+      question: {
+        id: 'q-img',
+        role: 'user',
+        content: 'question',
+        timestamp: new Date('2025-01-01T12:00:00Z'),
+      },
+      answer: {
+        id: 'a-img',
+        role: 'assistant',
+        content: 'fallback',
+        htmlContent: '<p><img src="https://example.com/pic.png" alt="A diagram"></p>',
+        timestamp: new Date('2025-01-01T12:00:00Z'),
+      },
+    };
+    const conversation: Conversation = {
+      id: 'test-conversation-img',
+      title: 'Image Test',
+      platform: 'claude',
+      model: 'claude-3',
+      pairs: [pair],
+      url: 'https://claude.ai/chat/image-test',
+      createdAt: new Date('2025-01-01T12:00:00Z'),
+    };
+
+    await new PdfExporter().export(conversation, [pair], {
+      format: 'pdf',
+      filename: 'test',
+      includeMetadata: false,
+      includeTimestamps: false,
+    });
+
+    const combined = textCallsOf(instances[0]!).join(' ');
+    expect(combined).toContain('[Image: A diagram]');
+    expect(combined).toContain('https://example.com/pic.png');
   });
 
   it('switches to a monospace font for the code block', async () => {
