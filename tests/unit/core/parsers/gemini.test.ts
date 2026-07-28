@@ -136,3 +136,17 @@ describe('GeminiParser', () => {
     });
   });
 });
+
+describe('parser registry', () => {
+  it('registers gemini so detectParser can find it', async () => {
+    const { parserRegistry } = await import('../../../../src/core/parsers/index');
+    expect([...parserRegistry.keys()]).toContain('gemini');
+  });
+
+  it('detectParser selects GeminiParser on a gemini document', async () => {
+    const { detectParser } = await import('../../../../src/core/parsers/index');
+    const html = readFileSync(FIXTURE, 'utf-8');
+    const dom = new JSDOM(html, { url: GEMINI_URL });
+    expect(detectParser(dom.window.document)).toBeInstanceOf(GeminiParser);
+  });
+});
