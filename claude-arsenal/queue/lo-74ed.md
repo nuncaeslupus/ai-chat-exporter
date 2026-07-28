@@ -1,6 +1,11 @@
 # Payload: lo-74ed — Rendered maths is deleted from every export
 
+## Acceptance gate
+
 **Gate**: a conversation containing a KaTeX-rendered formula exports with the formula text present.
+
+
+Prose-only gate — verified by worker judgment, no script to run.
 
 `src/core/parsers/base-parser.ts:216-218` — `cleanupElement()` unconditionally removes every `[aria-hidden="true"]` element, and it runs (via `extractContent`, line 180) for all three parsers before `textContent` is read.
 

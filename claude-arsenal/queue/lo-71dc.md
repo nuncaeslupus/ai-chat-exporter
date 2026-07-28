@@ -1,6 +1,11 @@
 # Payload: lo-71dc — Sanitize scraped HTML on the live re-injection paths
 
+## Acceptance gate
+
 **Gate**: a conversation containing `<img src=x onerror=alert(1)>` and `<script>` in a message body exports and prints with the payload inert; a test asserts it.
+
+
+Prose-only gate — verified by worker judgment, no script to run.
 
 ## The two live sinks
 

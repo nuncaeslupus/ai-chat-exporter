@@ -1,6 +1,11 @@
 # Payload: lo-c03f — Content script is 2.24 MB on every page load
 
+## Acceptance gate
+
 **Gate**: `dist/chrome/content/content-script.js` under 300 KB raw; export still works for all six formats.
+
+
+Prose-only gate — verified by worker judgment, no script to run.
 
 ## Measured today
 

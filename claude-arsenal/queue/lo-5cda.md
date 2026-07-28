@@ -1,6 +1,11 @@
 # Payload: lo-5cda — README and usage.md describe a different extension
 
+## Acceptance gate
+
 **Gate**: every feature, platform and shortcut named in `README.md` and `docs/usage.md` exists in the code, verified claim by claim.
+
+
+Prose-only gate — verified by worker judgment, no script to run.
 
 ## Confirmed wrong
 

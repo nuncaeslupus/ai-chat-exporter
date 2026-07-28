@@ -1,6 +1,11 @@
 # Payload: lo-a8c6 — Image-only user turns shift every later pair
 
+## Acceptance gate
+
 **Gate**: a conversation whose second turn is an image with no text exports with every question matched to its own answer.
+
+
+Prose-only gate — verified by worker judgment, no script to run.
 
 ## The defect
 

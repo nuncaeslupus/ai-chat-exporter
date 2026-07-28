@@ -1,6 +1,11 @@
 # Payload: lo-e5f2 — Strip debug logging from hot paths
 
+## Acceptance gate
+
 **Gate**: no `console.log` in per-message, per-node or per-artifact loops; production build ships no conversation content to the console.
+
+
+Prose-only gate — verified by worker judgment, no script to run.
 
 ## Sites
 
