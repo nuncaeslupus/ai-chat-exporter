@@ -72,6 +72,13 @@ export class ConversationStructureService {
     const artifacts: Artifact[] | undefined = message.metadata?.artifacts;
     if (Array.isArray(artifacts)) {
       for (const artifact of artifacts) {
+        // Every exporter renders a full "Artifacts" section (title, type, content)
+        // for any artifact that has content, so the marker would just repeat the
+        // same title a second time. Only fall back to the marker when there's no
+        // fuller rendering downstream to announce the artifact.
+        if (artifact.content) {
+          continue;
+        }
         blocks.push({
           type: 'paragraph' as const,
           content: [

@@ -94,4 +94,37 @@ describe('ConversationStructureService', () => {
     const markerBlock = blocks.find((b) => isMarkerParagraph(b, '[Document: My Doc]'));
     expect(markerBlock).toBeDefined();
   });
+
+  it('does not append a marker for an artifact that already has content (lo-45b2)', () => {
+    // Exporters render a full "Artifacts" section (title, type, content) for any
+    // artifact with content, so the marker paragraph would just repeat the title
+    // a second time. Regression coverage for lo-45b2: artifacts rendered twice.
+    const conversation = buildConversation({
+      metadata: {
+        artifacts: [
+          { type: 'document', typeLabel: 'Document', title: 'My Doc', content: 'Full body text' },
+        ],
+      },
+    });
+
+    const structured = ConversationStructureService.toStructured(conversation);
+    const blocks = structured.pairs[0]!.answer.blocks;
+
+    const markerBlock = blocks.find((b) => isMarkerParagraph(b, '[Document: My Doc]'));
+    expect(markerBlock).toBeUndefined();
+  });
+
+  it('still appends the marker for an artifact with no content to render elsewhere', () => {
+    const conversation = buildConversation({
+      metadata: {
+        artifacts: [{ type: 'image', typeLabel: 'Image', title: 'My Image' }],
+      },
+    });
+
+    const structured = ConversationStructureService.toStructured(conversation);
+    const blocks = structured.pairs[0]!.answer.blocks;
+
+    const markerBlock = blocks.find((b) => isMarkerParagraph(b, '[Image: My Image]'));
+    expect(markerBlock).toBeDefined();
+  });
 });
