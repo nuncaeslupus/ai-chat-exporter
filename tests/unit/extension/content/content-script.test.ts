@@ -355,3 +355,81 @@ describe('content-script concurrent export/print isolation (lo-08b0)', () => {
     expect(exportedConversations).toContainEqual(conversationExport);
   });
 });
+
+describe('content-script Q&A pair selection (lo-adf1)', () => {
+  beforeEach(() => {
+    mockParse.mockReset();
+    mockExport.mockReset();
+    URL.createObjectURL = vi.fn(() => 'blob:mock');
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  it('export includes only pairs with selected === true', async () => {
+    const pairs = [
+      createTestQAPair(0, 'Q1', 'A1', true),
+      createTestQAPair(1, 'Q2', 'A2', false),
+      createTestQAPair(2, 'Q3', 'A3', true),
+    ];
+    mockParse.mockReturnValue({ success: true, conversation: createTestConversation(pairs) });
+    mockExport.mockResolvedValue({ success: true, blob: new Blob(['x']) });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'export_conversation', format: 'md' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+
+    const exportedPairs = mockExport.mock.calls[0]?.[1] as typeof pairs;
+    expect(exportedPairs).toHaveLength(2);
+    expect(exportedPairs.every((p) => p.selected)).toBe(true);
+    expect(exportedPairs.map((p) => p.index)).toEqual([0, 2]);
+  });
+
+  it('applies selectedIndices sent from the popup, overriding the parsed selected flags', async () => {
+    const pairs = [
+      createTestQAPair(0, 'Q1', 'A1', true),
+      createTestQAPair(1, 'Q2', 'A2', true),
+      createTestQAPair(2, 'Q3', 'A3', true),
+    ];
+    mockParse.mockReturnValue({ success: true, conversation: createTestConversation(pairs) });
+    mockExport.mockResolvedValue({ success: true, blob: new Blob(['x']) });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener(
+      { type: 'export_conversation', format: 'md', selectedIndices: [0, 2] },
+      {},
+      sendResponse
+    );
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+
+    const exportedPairs = mockExport.mock.calls[0]?.[1] as typeof pairs;
+    expect(exportedPairs.map((p) => p.index)).toEqual([0, 2]);
+  });
+
+  it('exports nothing (but still succeeds) when selectedIndices deselects every pair', async () => {
+    const pairs = [createTestQAPair(0, 'Q1', 'A1', true)];
+    mockParse.mockReturnValue({ success: true, conversation: createTestConversation(pairs) });
+    mockExport.mockResolvedValue({ success: true, blob: new Blob(['x']) });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener(
+      { type: 'export_conversation', format: 'md', selectedIndices: [] },
+      {},
+      sendResponse
+    );
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+
+    const exportedPairs = mockExport.mock.calls[0]?.[1] as typeof pairs;
+    expect(exportedPairs).toEqual([]);
+  });
+});

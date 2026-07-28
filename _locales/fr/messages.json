@@ -134,6 +134,34 @@
     "description": "Libellé du commutateur contrôlant l'inclusion des horodatages dans les exports"
   },
 
+  "qaSelectionTitle": {
+    "message": "Sélectionnez les paires question-réponse à exporter",
+    "description": "Heading above the per-pair checkbox list in the popup"
+  },
+  "qaSelectionSelectAll": {
+    "message": "Tout sélectionner",
+    "description": "Label for the toggle button when not every Q&A pair is selected"
+  },
+  "qaSelectionDeselectAll": {
+    "message": "Tout désélectionner",
+    "description": "Label for the toggle button when every Q&A pair is selected"
+  },
+  "qaSelectionCount": {
+    "message": "$1 sur $2 sélectionnée(s)",
+    "description": "Selection summary below the pair list. $1 = selected count, $2 = total pairs",
+    "placeholders": {
+      "count": { "content": "$1", "example": "2" },
+      "total": { "content": "$2", "example": "5" }
+    }
+  },
+  "qaSelectionPairFallbackLabel": {
+    "message": "Paire question-réponse $1",
+    "description": "Checkbox label used when a pair's question has no text. $1 = 1-based pair number",
+    "placeholders": {
+      "index": { "content": "$1", "example": "1" }
+    }
+  },
+
   "qaPairSingular": {
     "message": "paire Q&R",
     "description": "Forme singulière de paire question-réponse"

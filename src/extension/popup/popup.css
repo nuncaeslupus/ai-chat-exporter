@@ -206,6 +206,82 @@ section {
   color: #1e40af;
 }
 
+/* Q&A pair selection */
+.qa-selection {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.qa-selection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.qa-selection-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.qa-selection-toggle-all {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.qa-selection-toggle-all:hover {
+  text-decoration: underline;
+}
+
+.qa-selection-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.qa-selection-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.qa-selection-item:hover {
+  background: var(--bg-hover);
+}
+
+.qa-selection-item input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: var(--primary-color);
+}
+
+.qa-selection-item label {
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qa-selection-count {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
 /* Actions Section */
 .export-controls {
   display: flex;

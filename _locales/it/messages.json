@@ -134,6 +134,34 @@
     "description": "Label for the toggle controlling whether exports include message timestamps"
   },
 
+  "qaSelectionTitle": {
+    "message": "Seleziona le coppie domanda-risposta da esportare",
+    "description": "Heading above the per-pair checkbox list in the popup"
+  },
+  "qaSelectionSelectAll": {
+    "message": "Seleziona tutto",
+    "description": "Label for the toggle button when not every Q&A pair is selected"
+  },
+  "qaSelectionDeselectAll": {
+    "message": "Deseleziona tutto",
+    "description": "Label for the toggle button when every Q&A pair is selected"
+  },
+  "qaSelectionCount": {
+    "message": "$1 di $2 selezionate",
+    "description": "Selection summary below the pair list. $1 = selected count, $2 = total pairs",
+    "placeholders": {
+      "count": { "content": "$1", "example": "2" },
+      "total": { "content": "$2", "example": "5" }
+    }
+  },
+  "qaSelectionPairFallbackLabel": {
+    "message": "Coppia domanda-risposta $1",
+    "description": "Checkbox label used when a pair's question has no text. $1 = 1-based pair number",
+    "placeholders": {
+      "index": { "content": "$1", "example": "1" }
+    }
+  },
+
   "qaPairSingular": {
     "message": "coppia Q&R",
     "description": "Singular form of Q&A pair"
