@@ -6,14 +6,29 @@ observed in this codebase, not a hypothetical.
 
 Part of the parser-generator skill.
 
+## Contents
+
+- [Text and inline formatting](#text-and-inline-formatting)
+- [Headings, lists, blockquotes, horizontal rules](#headings-lists-blockquotes-horizontal-rules)
+- [Tables](#tables)
+- [Code blocks](#code-blocks)
+- [Rendered maths](#rendered-maths)
+- [Images](#images)
+- [Web search citations](#web-search-citations)
+- [Artifacts and canvases](#artifacts-and-canvases)
+- [Attachments, audio, video, reasoning traces](#attachments-audio-video-reasoning-traces)
+- [Extending the data model](#extending-the-data-model)
+
 ## Text and inline formatting
 
 Bold, italic, inline code, links, strikethrough. Handled generically by
 `HtmlContentParser` once the content root is correct.
 
-**Trap:** scraping the turn wrapper instead of the content root pulls in `.sr-only`
-nodes naming the speaker ("You said:"), which are visually hidden but not
-`aria-hidden`.
+**Trap:** scraping the turn wrapper instead of the content root pulls in
+screen-reader-only nodes naming the speaker ("You said:"), which are visually hidden
+but not `aria-hidden`. The class differs per framework — `.sr-only` on Tailwind
+(ChatGPT), `.cdk-visually-hidden` on Angular (Gemini). See the live verification
+reference for the full table and the generalised fix.
 
 ## Headings, lists, blockquotes, horizontal rules
 
@@ -122,4 +137,40 @@ Claude artifacts, ChatGPT canvas.
 Not yet surveyed in this codebase. ChatGPT's Canvas, Deep Research and o-series
 reasoning traces were unreachable on a Free-tier account at the time of the 2026-07
 survey. Treat them as unknown territory: probe a live page before assuming either
-that they work or that they do not exist.
+that they work or that they do not exist. The widget coverage matrix reference lists
+the rest of the per-platform surface to work through.
+
+## Extending the data model
+
+A widget sometimes carries information no existing field can hold — a research
+report's source count, a thinking panel's trace, an artifact's language. Flattening
+it into `content` is lossy and irreversible: once it is a string, no exporter can
+render it as anything else.
+
+Extend `src/core/types/conversation.ts` instead.
+
+**Add a typed field when** the shape is known and at least one exporter will render
+it specially — like `Artifact` and `WebSearchResult` already do. A typed field gets
+compiler help: adding a required property makes every construction site fail to
+build, which is exactly the reminder you want.
+
+**Reuse `MessageMetadata`'s index signature (`[key: string]: unknown`) when** the data
+is a single platform's incidental detail that every exporter will treat as opaque.
+It costs nothing and it also hides nothing from the compiler — which is the risk:
+untyped metadata never fails a build when an exporter forgets it.
+
+**Then update every exporter.** There are six formats (pdf, md, txt, json, docx,
+html) behind eight implementations in `src/core/exporters/`. A new content type
+wired into one of them exports perfectly in that format and silently disappears from
+the other five — the exact failure already observed with `metadata.webSearches`,
+which several exporters read and several do not.
+
+Checklist for a new content type:
+
+- [ ] type added or extended in `src/core/types/conversation.ts`
+- [ ] parser populates it, with a fixture test that fails without the change
+- [ ] each of the six formats renders it (or deliberately drops it, with a comment
+      saying so)
+- [ ] one test per format asserting the content is present in the output
+- [ ] plain-text formats have a fallback — txt and md cannot render a diagram, so
+      decide what they say instead of emitting nothing

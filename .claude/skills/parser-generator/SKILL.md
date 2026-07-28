@@ -1,13 +1,14 @@
 ---
 name: parser-generator
-description: Use whenever anything under src/core/parsers/ is being added or repaired — capturing a live DOM, deriving selectors, implementing a BaseParser subclass. Triggered by "add a parser for X", "support a new chatbot", "capture DOM selectors", "the parser stopped working", "exports come out empty". Do NOT use for src/core/exporters/ work (see docs/dev/adding-exporters.md), nor for a parser change that touches no selector.
+description: Use whenever anything under src/core/parsers/ is being added or repaired — capturing a live DOM, deriving selectors, implementing a BaseParser subclass, and verifying live that every widget the chatbot renders survives into an export. Triggered by "add a parser for X", "support a new chatbot", "capture DOM selectors", "the parser stopped working", "exports come out empty", "deep research is missing from the export". Do NOT use for src/core/exporters/ work (see docs/dev/adding-exporters.md), nor for a parser change that touches no selector.
 ---
 
 # parser-generator
 
-Builds and repairs platform parsers for this extension: capture a live DOM, derive
-selectors that survive a redesign, implement a `BaseParser` subclass, and prove it
-against a committed fixture.
+Builds and repairs platform parsers for this extension: enumerate every widget the
+chatbot can render, capture each one live, derive selectors that survive a redesign,
+implement a `BaseParser` subclass, and prove in a real browser that the widget
+reaches an exported file.
 
 CANARY: parser-generator-loaded-2026-07-28-60d048f4-0d2567f35c16cbcd
 
@@ -18,50 +19,62 @@ Load this skill when:
 - Adding support for a new chatbot platform (Mistral, Grok, DeepSeek, …).
 - A platform redesigned and an existing parser stopped extracting — exports are
   empty or a content type went missing.
+- One widget (deep research, canvas, an artifact, a thinking panel) is absent from
+  exports while the rest of the conversation is fine.
 - Capturing a DOM snapshot to turn into a test fixture.
-- Reviewing a parser diff for selector fragility.
+- Checking that a newly registered platform is actually reachable end to end.
+- Reviewing a parser diff for selector fragility or missing widget coverage.
 
 If the task is really about turning an already-parsed `Conversation` into a file
 format, this is the wrong skill — that is exporter work.
 
-## The rule that matters most
+## The two rules that matter most
 
-**A passing test suite is no evidence that a parser works today.**
+**1. A passing test suite is no evidence that a parser works today.**
 
 Fixtures are snapshots of a past DOM. In July 2026 ChatGPT renamed its turn wrapper
 from `<article data-turn>` to `<section data-turn>`. The parser hardcoded `article`,
 extracted **nothing** from every live conversation, and all 61 unit tests still
 passed against a January fixture.
 
-So the workflow below starts at a live page, never at the existing code.
+**2. One conversation is not the platform.**
+
+A parser built against a single chat handles the widgets that chat happened to
+contain and silently drops the rest. `GeminiParser` requires both a user-query node
+and a `.markdown` content node in each container and returns early if either is
+missing — so a Deep Research turn vanishes entirely, the question with it, with no
+error and no failing test.
+
+So the workflow starts at a live page and at a widget *list*, never at the existing
+code and never at one conversation.
 
 ## Workflow
 
-### 1. Capture a live DOM — from a purpose-made conversation
+### 1. Enumerate the widgets before capturing anything
 
-Never capture a real user conversation: fixtures get committed to a public repo.
-Create one with invented data exercising the relevant element types (headings,
-nested lists, tables, code, maths, citations, images).
+Build the per-platform matrix of widget classes the parser must survive — canvas,
+deep research, artifacts, thinking panels, citations, uploads — and derive it from
+the live product's own UI, not from memory or from a list in this repo. Seeds and
+the matrix format: [widget coverage matrix](references/widget-coverage-matrix.md).
 
-In the browser console on that conversation:
+Then **capture one purpose-made conversation per widget class**. One widget per
+capture file: a mega-fixture makes failures ambiguous and forces every widget to be
+reproduced at once after the next redesign.
 
-```js
-const m = document.querySelector('main');
-const a = document.createElement('a');
-a.href = URL.createObjectURL(new Blob([m.outerHTML], { type: 'text/html' }));
-a.download = 'platform-feature-YYYY-MM.html';
-document.body.appendChild(a); a.click(); a.remove();
-```
+### 2. Drive the browser, do not just read the code
 
-Use `main.outerHTML`, **not** `documentElement` — the sidebar carries every
-conversation title in the account. Scan the saved file for personal identifiers
-before committing it.
+Use the Browser pane tools (`mcp__Claude_Browser__navigate`, `read_page`,
+`get_page_text`, `javascript_tool`, `computer`) to open the conversation, trigger the
+widget, wait for generation to finish, probe selectors, and capture `main.outerHTML`.
+Recipes, timing traps and the capture snippet:
+[live verification](references/live-verification.md).
 
-Analyse the downloaded file locally with grep rather than paging HTML back through
-the conversation: far cheaper, and it avoids secret-redaction heuristics mangling
-long CSS-module hashes and URL query strings.
+Never capture a real user conversation — fixtures get committed to a public repo.
+Use `main.outerHTML`, not `documentElement`: the sidebar carries every conversation
+title in the account. Scan the saved file for personal identifiers, then analyse it
+locally with grep rather than paging HTML back through the conversation.
 
-### 2. Probe which selectors actually match
+### 3. Probe which selectors actually match
 
 Before writing anything, run every candidate against the live page and record match
 counts. Zero-match selectors are the defect; theorising about double-matches without
@@ -76,7 +89,7 @@ Scope every probe to one turn — `[...document.querySelectorAll('[data-turn="as
 — then query inside it. A page-wide `querySelector` in a multi-turn document returns
 the first match, which is rarely the intended one.
 
-### 3. Choose selectors that survive a redesign
+### 4. Choose selectors that survive a redesign
 
 Ranked by durability:
 
@@ -88,7 +101,7 @@ Never: tag names as identity (`article` to `section` broke everything), Tailwind
 utility classes, or hashed CSS-module / CodeMirror class names
 (`TyagGW_tableWrapper`, `ͼd`) which change every build.
 
-### 4. Implement against the real `BaseParser`
+### 5. Implement against the real `BaseParser`
 
 `src/core/parsers/base-parser.ts`. A subclass supplies:
 
@@ -114,22 +127,39 @@ logic is a defect even when it currently works — it means a future repair appl
 `selectors.ts` silently does nothing. That is what made the ChatGPT break harder to
 fix than it needed to be.
 
-Register in `src/core/parsers/index.ts` (`parserRegistry` and
-`createParserForDocument`). `detectParser()` calls `canParse()` on each parser in
-turn, so a `canParse()` gated on a stale container selector makes the parser
-unreachable no matter how good the rest of it is.
+When a widget carries information no existing field can hold, **extend
+`src/core/types/conversation.ts`** rather than flattening the widget into text —
+flattening is irreversible, and no exporter can recover structure from a string.
+Typed field vs `metadata`, and the mandatory per-exporter follow-through, are in the
+[content type checklist](references/content-type-checklist.md).
 
-### 5. Prove it, then re-check live
+### 6. Confirm the parser is actually reachable
+
+Registration is not reachability. A correct, registered parser stayed dead because a
+*second* hardcoded domain list gated it — `popup.ts`'s `checkCurrentPage` had
+`gemini.google.com` commented out behind a stale TODO.
+
+Grep every hardcoded platform/host list (`manifests/*.json`, the background service
+worker, the popup, locales) and confirm the new platform appears in each, preferring
+derivation from `parserRegistry` over another literal. Then load the build in a real
+browser and confirm the popup recognises the page. See
+[live verification](references/live-verification.md).
+
+### 7. Prove it end to end
 
 Write the fixture test, confirm it fails before the fix and passes after. A test
 green *before* the fix is measuring something else — change the fixture until it
 genuinely fails.
 
-Then return to the live page and confirm the real thing works. The fixture only
-proves the absence of a regression against the past.
+Then export the conversation in **all six formats** and open every file. A widget
+can parse correctly and still vanish from five exporters. Finally return to the live
+page and confirm the real thing works: the fixture only proves the absence of a
+regression against the past.
 
 ## References — load on demand
 
+- [Widget coverage matrix](references/widget-coverage-matrix.md) — load before capturing anything: the per-platform list of widgets to exercise, and why one conversation is never enough.
+- [Live verification](references/live-verification.md) — load when driving the browser: capture recipes, reachability greps, and the end-to-end export check.
 - [Content type checklist](references/content-type-checklist.md) — load when deciding what a parser must handle: maths, code, tables, images, citations, and the trap in each.
 
 ## Gotchas
@@ -153,8 +183,17 @@ proves the absence of a regression against the past.
   PDF exporter forever. Scope collection to explicitly enumerated containers, and
   prefer a structural check to a URL substring sniff: an `includes('icon')` filter
   once made a bug's test pass by coincidence.
-- **Screen-reader text is real text.** Turn wrappers contain `.sr-only` nodes naming
-  the speaker. Visually hidden but not `aria-hidden`, so a text scrape keeps them.
+- **A guard inside the turn loop deletes the question too.** `if (!content) return;`
+  in a per-container loop drops the whole turn, not just the missing half — which is
+  how a Deep Research turn disappears from a Gemini export without an error. A turn
+  that matches the container selector but not the content selector is a finding to
+  log or fall back from, never a silent skip.
+- **Screen-reader text is real text, and its class is framework-specific.** Turn
+  wrappers carry visually-hidden nodes naming the speaker: `.sr-only` on Tailwind
+  (ChatGPT), `.cdk-visually-hidden` on Angular (Gemini). Hidden but not
+  `aria-hidden`, so a text scrape keeps them. Identify the site's framework, look up
+  its visually-hidden convention, verify against the capture, and put the fix in the
+  shared `BaseParser` cleanup — a per-parser fix makes the next platform relearn it.
   Scrape the narrowest content root, never the turn wrapper.
 - **A defect can be invisible in `textContent`.** Icon-only buttons have empty text,
   but their markup lands in `htmlContent`, which three exporters consume. Assert on
