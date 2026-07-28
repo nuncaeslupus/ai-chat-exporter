@@ -39,13 +39,25 @@ import { ConversationStructureService } from '../services';
 import {
   COLOR,
   DOCX_FONT_SIZE_PT,
+  DOC_HEADING_LEVEL,
   FONT_FAMILY,
   FONT_SIZE_PT,
   SPACING,
+  bodyHeadingLevel,
   hexToDocxColor,
   mmToTwips,
   ptToHalfPt,
 } from './style-tokens';
+
+/** Document heading level 1-6 -> docx HeadingLevel, index 0 = level 1. */
+const DOCX_HEADING_BY_LEVEL: (typeof HeadingLevel)[keyof typeof HeadingLevel][] = [
+  HeadingLevel.HEADING_1,
+  HeadingLevel.HEADING_2,
+  HeadingLevel.HEADING_3,
+  HeadingLevel.HEADING_4,
+  HeadingLevel.HEADING_5,
+  HeadingLevel.HEADING_6,
+];
 
 /**
  * Exports conversations to DOCX (Word) format
@@ -100,6 +112,7 @@ export class DocxExporter extends BaseExporter {
             size: ptToHalfPt(DOCX_FONT_SIZE_PT.title),
           }),
         ],
+        heading: DOCX_HEADING_BY_LEVEL[DOC_HEADING_LEVEL.title - 1]!,
         spacing: { after: 300 },
       })
     );
@@ -207,7 +220,7 @@ export class DocxExporter extends BaseExporter {
     }
     return new Paragraph({
       children,
-      heading: HeadingLevel.HEADING_2,
+      heading: DOCX_HEADING_BY_LEVEL[DOC_HEADING_LEVEL.roleLabel - 1]!,
       spacing: { before: 300, after: 150 },
     });
   }
@@ -449,16 +462,7 @@ export class DocxExporter extends BaseExporter {
       return [];
     }
 
-    // Map heading levels (shift by 2 since we use HEADING_2 for user/assistant)
-    const headingLevels: (typeof HeadingLevel)[keyof typeof HeadingLevel][] = [
-      HeadingLevel.HEADING_3,
-      HeadingLevel.HEADING_4,
-      HeadingLevel.HEADING_5,
-      HeadingLevel.HEADING_6,
-      HeadingLevel.HEADING_6,
-      HeadingLevel.HEADING_6,
-    ];
-    const heading: (typeof HeadingLevel)[keyof typeof HeadingLevel] = headingLevels[Math.min(block.level - 1, headingLevels.length - 1)]!;
+    const heading = DOCX_HEADING_BY_LEVEL[bodyHeadingLevel(block.level) - 1]!;
 
     return [
       new Paragraph({

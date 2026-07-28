@@ -16,8 +16,10 @@
  * `FONT_SIZE_PT` / `COLOR` / `SPACING` hold values that are deliberately shared
  * across two or more formats (the divergences called out in lo-82e7). The
  * `PDF_*` / `DOCX_*` / `HTML_*` constants hold values that stay format-specific
- * on purpose (e.g. heading-level sizing, which C-2 owns) — they are centralised
- * here too so no bare literal remains, but are not forced to numerically match.
+ * on purpose (e.g. per-format heading sizing) — they are centralised here too
+ * so no bare literal remains, but are not forced to numerically match. The
+ * heading *levels* they are indexed by, however, are canonical: see
+ * `DOC_HEADING_LEVEL` / `bodyHeadingLevel` below.
  *
  * A later global scale factor (compact/normal/large, see C-4) can multiply
  * every entry of `FONT_SIZE_PT` (and the per-format size tables) uniformly
@@ -153,17 +155,49 @@ export const FONT_SIZE_PT = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Per-format sizes kept intentionally format-specific (not part of this
-// task's reconciliation — centralised so no bare literal remains, but not
-// forced to numerically match across formats). Heading-level sizing in
-// particular is C-2's job.
+// Canonical document outline (C-2)
 // ---------------------------------------------------------------------------
 
+/**
+ * Every exported document spends its top heading levels on chrome: level 1 is
+ * the conversation title, level 2 is the role label (User / assistant name).
+ * Body headings therefore start at level 3, which is what `bodyHeadingLevel`
+ * derives — the offset is not arbitrary, it is `DOC_HEADING_LEVEL.roleLabel`.
+ *
+ * txt and json have no heading-level surface: json passes the source markup
+ * through losslessly, txt collapses every heading to an underlined line.
+ */
+export const DOC_HEADING_LEVEL = {
+  title: 1,
+  roleLabel: 2,
+  max: 6,
+} as const;
+
+/** Source heading level (1-6) -> document heading level, clamped to 6. */
+export function bodyHeadingLevel(sourceLevel: number): number {
+  const source = Math.max(sourceLevel, 1);
+  return Math.min(source + DOC_HEADING_LEVEL.roleLabel, DOC_HEADING_LEVEL.max);
+}
+
+// ---------------------------------------------------------------------------
+// Per-format sizes kept intentionally format-specific (not part of this
+// task's reconciliation — centralised so no bare literal remains, but not
+// forced to numerically match across formats).
+// ---------------------------------------------------------------------------
+
+/**
+ * pdf has no structural heading levels — font size is its only level surface,
+ * so this table is indexed by DOCUMENT level (index 0 = level 1 = title,
+ * index 1 = level 2 = role label) and must stay monotonic. Body headings read
+ * off levels 3-6, which is why they can no longer outrank the role label the
+ * way the old source-level-indexed table let them.
+ */
+const PDF_HEADING_SCALE_PT = [20, 15, 14, 13, 12, 11] as const;
+
 export const PDF_FONT_SIZE_PT = {
-  title: 20,
-  roleLabel: 12,
-  /** Heading levels 1-6, index 0 = level 1. Unchanged from the previous max(16-level,11) formula. */
-  headingByLevel: [15, 14, 13, 12, 11, 11],
+  headingByLevel: PDF_HEADING_SCALE_PT,
+  title: PDF_HEADING_SCALE_PT[0], // DOC_HEADING_LEVEL.title
+  roleLabel: PDF_HEADING_SCALE_PT[1], // DOC_HEADING_LEVEL.roleLabel
   sectionLabel: 11, // "Artifacts:" / "Web Search Results:"
   artifactTitle: 10,
   small: 9, // page numbers, table header/body text, search-result title
@@ -176,7 +210,7 @@ export const DOCX_FONT_SIZE_PT = {
 
 export const HTML_FONT_SIZE_PT = {
   title: 24,
-  /** Heading levels 1-6, index 0 = level 1. Unchanged. */
+  /** Document heading levels 1-6, index 0 = level 1 — maps 1:1 onto `.message-content hN`. */
   headingByLevel: [22.5, 18, 15, 13.5, 12, 10.5],
   roleLabel: 10.5,
   timestamp: 9.75,
