@@ -11,6 +11,7 @@ import {
   type PrintConversationMessage,
 } from '../../shared/messages';
 import type { ExportFormat } from '../../core/types';
+import { sendTabMessage } from '../../shared/tab-messaging';
 
 /**
  * Extension installation handler
@@ -257,26 +258,49 @@ function createContextMenus(): void {
 }
 
 /**
- * Send a message to a tab's content script and log a delivery failure
- * instead of swallowing it. `chrome.tabs.sendMessage` fails silently (no
- * callback invocation error, just a `chrome.runtime.lastError`) when the tab
- * has no content script — e.g. it was loaded before install, the extension
- * was reloaded, or the page is an unsupported one. There is no
- * "notifications" permission and no badge API used anywhere in this
- * extension to route the error through instead, so this reuses the
- * console.error(`[${EXTENSION_NAME}] ...`) pattern already used above for
- * chrome.contextMenus.create's own lastError checks — the established
- * error-surfacing path for this service worker.
+ * Flag (or clear) a failed request on the toolbar badge.
+ *
+ * The service worker has no UI of its own, so a `console.error` here is a
+ * failure the user never sees. `chrome.action` is already in the manifest;
+ * `notifications` is not, and is not worth a store re-review for an error path.
+ *
+ * ponytail: no auto-clear timer — an MV3 worker can be killed before one fires,
+ * leaving the badge stuck. The next export attempt clears it instead.
+ */
+function setErrorBadge(failed: boolean): void {
+  void chrome.action.setBadgeText({ text: failed ? '!' : '' });
+  if (failed) {
+    void chrome.action.setBadgeBackgroundColor({ color: '#D93025' });
+  }
+}
+
+/**
+ * Send a message to a tab's content script. A tab with no content script — one
+ * loaded before install, or after an extension reload — is the common case, and
+ * `sendTabMessage` recovers from it by injecting the script and retrying, so
+ * the export goes through instead of dying.
+ *
+ * Fire-and-forget by design (callers do not await it); a failure that survives
+ * the injection is surfaced on the badge.
  */
 function sendMessageToTab(tabId: number, message: unknown): void {
-  chrome.tabs.sendMessage(tabId, message, () => {
-    if (chrome.runtime.lastError) {
-      console.error(
-        `[${EXTENSION_NAME}] Failed to deliver message to tab (no content script?):`,
-        tabId,
-        chrome.runtime.lastError.message,
-      );
+  setErrorBadge(false);
+
+  void sendTabMessage(tabId, message).then((result) => {
+    if (result.ok) {
+      return;
     }
+    if (result.reason === 'failed') {
+      console.error(
+        `[${EXTENSION_NAME}] Failed to deliver message to tab ${tabId}:`,
+        result.error,
+      );
+    } else {
+      // Not a fault: injection was refused, so the page is one this extension
+      // cannot reach (restricted URL, revoked host access, dead tab).
+      console.debug(`[${EXTENSION_NAME}] No content script in tab ${tabId}:`, result.error);
+    }
+    setErrorBadge(true);
   });
 }
 
