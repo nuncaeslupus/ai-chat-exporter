@@ -445,12 +445,14 @@ export class DocxExporter extends BaseExporter {
           elements.push(this.renderHorizontalRule());
           break;
 
+        // Word gets no embedded picture here; label it and keep the URL so the
+        // image is still reachable.
         case 'image':
           elements.push(
             new Paragraph({
               children: [
                 new TextRun({
-                  text: `[Image: ${block.alt || 'image'}]`,
+                  text: `[Image: ${block.alt || 'image'}] ${block.url}`,
                   italics: true,
                 }),
               ],

@@ -244,7 +244,12 @@ export class HtmlExporter extends BaseExporter {
           const imgTitle = block.title ? ` title="${this.escapeHtml(block.title)}"` : '';
           const imgWidth = block.width ? ` width="${block.width}"` : '';
           const imgHeight = block.height ? ` height="${block.height}"` : '';
-          return `<img src="${imgUrl}" alt="${alt}"${imgTitle}${imgWidth}${imgHeight}>`;
+          const img = `<img src="${imgUrl}" alt="${alt}"${imgTitle}${imgWidth}${imgHeight}>`;
+          // A linked thumbnail/citation: HTML is the only format that can put
+          // the image back inside its anchor, so this is where linkUrl is read.
+          if (!block.linkUrl) return img;
+          const href = this.escapeHtml(block.linkUrl);
+          return `<a href="${href}" target="_blank" rel="noopener noreferrer">${img}</a>`;
         }
 
         // HTML is the only format that can actually play the clip. The inner

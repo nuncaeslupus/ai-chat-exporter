@@ -14,6 +14,19 @@ import type {
 import { getMessage, getPlatformName, getUILanguage } from '../../shared/i18n';
 
 /**
+ * Seconds -> "M:SS", or "H:MM:SS" once it passes an hour. Format-agnostic: the
+ * six exporters all read it through `mediaLabel()`.
+ */
+function formatDuration(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  const mm = hours > 0 ? String(minutes).padStart(2, '0') : String(minutes);
+  return `${hours > 0 ? `${hours}:` : ''}${mm}:${String(secs).padStart(2, '0')}`;
+}
+
+/**
  * Abstract base class for format-specific exporters
  */
 export abstract class BaseExporter implements IExporter {
@@ -173,12 +186,15 @@ export abstract class BaseExporter implements IExporter {
   }
 
   /**
-   * Label for a playable media block, e.g. "Video: Lighthouse timelapse".
-   * Callers wrap it per format ("[...]", a markdown link, an <a>).
+   * Label for a playable media block, e.g. "Video: Lighthouse timelapse (2:14)".
+   * Callers wrap it per format ("[...]", a markdown link, an <a>), so appending
+   * the duration here is what puts it in every format at once.
    */
   protected mediaLabel(block: MediaBlock): string {
     const kind = block.kind === 'video' ? 'Video' : 'Audio';
-    return block.alt ? `${kind}: ${block.alt}` : kind;
+    const label = block.alt ? `${kind}: ${block.alt}` : kind;
+    // A 0/absent duration says nothing; only render a real one.
+    return block.duration ? `${label} (${formatDuration(block.duration)})` : label;
   }
 
   /**
