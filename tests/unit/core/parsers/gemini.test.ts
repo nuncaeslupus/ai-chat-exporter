@@ -3,9 +3,16 @@ import { JSDOM } from 'jsdom';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { GeminiParser } from '../../../../src/core/parsers/gemini/parser';
-import { GEMINI_SELECTORS } from '../../../../src/core/parsers/gemini/selectors';
+import {
+  GEMINI_SELECTORS,
+  GEMINI_DEEP_RESEARCH_SELECTORS,
+} from '../../../../src/core/parsers/gemini/selectors';
 
 const FIXTURE = join(__dirname, '../../../fixtures/dom-snapshots/gemini/real-capture.html');
+const DEEP_RESEARCH_FIXTURE = join(
+  __dirname,
+  '../../../fixtures/dom-snapshots/gemini/deep-research-2026-07.html'
+);
 const GEMINI_URL = 'https://gemini.google.com/app/abc123';
 
 function parserFor(html: string, url = GEMINI_URL): GeminiParser {
@@ -134,6 +141,94 @@ describe('GeminiParser', () => {
       expect(result.conversation?.pairs).toHaveLength(0);
       expect(result.warnings).toContain('No Q&A pairs found in the conversation');
     });
+  });
+});
+
+describe('GeminiParser — Deep Research', () => {
+  let html: string;
+  let parser: GeminiParser;
+
+  beforeEach(() => {
+    html = readFileSync(DEEP_RESEARCH_FIXTURE, 'utf-8');
+    parser = parserFor(html);
+  });
+
+  // Same guard as the main selector suite, against the only capture that has
+  // an open immersive panel.
+  it('every GEMINI_DEEP_RESEARCH_SELECTORS entry matches the captured DOM', () => {
+    const { document } = new JSDOM(html).window;
+    const panel = document.querySelector(GEMINI_DEEP_RESEARCH_SELECTORS.panel);
+    expect(panel, GEMINI_DEEP_RESEARCH_SELECTORS.panel).not.toBeNull();
+
+    for (const [name, selector] of Object.entries(GEMINI_DEEP_RESEARCH_SELECTORS)) {
+      if (name === 'panel') continue;
+      const scope = name === 'entryChip' ? document : panel!;
+      expect(scope.querySelectorAll(selector).length, `${name}: ${selector}`).toBeGreaterThan(0);
+    }
+  });
+
+  it('keeps both Deep Research turns', () => {
+    const pairs = parser.parse().conversation?.pairs ?? [];
+    expect(pairs).toHaveLength(2);
+    expect(pairs[0]?.question.content).toContain('rules-based European equity sleeve');
+    expect(pairs[1]?.question.content).toContain('Start research');
+  });
+
+  it('folds the report body into the turn that links to it', () => {
+    const pairs = parser.parse().conversation?.pairs ?? [];
+    const answer = pairs[1]?.answer.content ?? '';
+
+    // The one-line in-chat acknowledgement is still there ...
+    expect(answer).toContain("I've completed your research");
+    // ... followed by the report that only exists in the immersive panel.
+    expect(answer).toContain('Feasibility Report: Rules-Based Equity Sleeves');
+    expect(answer).toContain('eight basis points of the traded notional');
+
+    // and it lands on the chip's turn, not the research-plan turn.
+    expect(pairs[0]?.answer.content).not.toContain('Feasibility Report');
+  });
+
+  it('preserves the report markup when preserveHtml is set', () => {
+    const pairs = parser.parse({ preserveHtml: true }).conversation?.pairs ?? [];
+    expect(pairs[1]?.answer.htmlContent).toContain('<h1');
+    expect(pairs[1]?.answer.htmlContent).toContain('Feasibility Report');
+  });
+
+  it('records the cited sources as webSearches, and only the cited ones', () => {
+    const pairs = parser.parse().conversation?.pairs ?? [];
+    const searches = pairs[1]?.answer.metadata?.webSearches ?? [];
+
+    expect(searches).toHaveLength(1);
+    expect(searches[0]?.query).toBe('Cross-Sectional Equity Cost Study');
+    expect(searches[0]?.resultCount).toBe(3);
+    expect(searches[0]?.results?.map((r) => r.domain)).toEqual([
+      'brokerfees.example.test',
+      'custody.example.test',
+      'marketdata.example.test',
+    ]);
+    expect(searches[0]?.results?.[0]).toMatchObject({
+      title: 'Fee schedule for retail equity accounts',
+      url: 'https://source1.example.test/page',
+    });
+    // `.unused-sources` (read but not cited) stay out.
+    expect(JSON.stringify(searches)).not.toContain('archive.example.test');
+  });
+
+  it('strips Angular cdk-visually-hidden text from the question', () => {
+    const pairs = parser.parse().conversation?.pairs ?? [];
+    expect(pairs[0]?.question.content).not.toContain('You said');
+    expect(pairs[1]?.answer.content).not.toContain('Opens in a new window');
+  });
+
+  it('emits a turn whose answer body is missing, with a warning', () => {
+    const stripped = html.replace(/class="markdown markdown-main-panel/g, 'class="stripped');
+    const result = parserFor(stripped).parse();
+    const pairs = result.conversation?.pairs ?? [];
+
+    expect(pairs).toHaveLength(2);
+    expect(pairs[0]?.question.content).toContain('rules-based European equity sleeve');
+    expect(pairs[0]?.answer.content).toBe('');
+    expect(result.warnings).toContain('Turn 1: the answer could not be read');
   });
 });
 

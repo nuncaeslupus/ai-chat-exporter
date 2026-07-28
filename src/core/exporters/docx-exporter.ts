@@ -282,6 +282,33 @@ export class DocxExporter extends BaseExporter {
       }
     }
 
+    // Add cited sources (Gemini Deep Research, ChatGPT/Claude web search)
+    if (pair.answer.metadata?.webSearches && Array.isArray(pair.answer.metadata.webSearches)) {
+      for (const search of pair.answer.metadata.webSearches) {
+        if (!search.results?.length) {
+          continue;
+        }
+        paragraphs.push(
+          new Paragraph({
+            text: `Sources — ${search.query || 'References'}`,
+            heading: HeadingLevel.HEADING_3,
+            spacing: { before: 200, after: 100 },
+          })
+        );
+        for (const result of search.results) {
+          paragraphs.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: result.title, size: 22 }),
+                new TextRun({ text: ` — ${result.url}`, size: 20, italics: true }),
+              ],
+              spacing: { after: 50 },
+            })
+          );
+        }
+      }
+    }
+
     return paragraphs;
   }
 

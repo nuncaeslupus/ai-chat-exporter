@@ -132,6 +132,22 @@ export class StructuredMarkdownExporter extends BaseExporter {
         }
       }
 
+      // Add cited sources (Gemini Deep Research, ChatGPT/Claude web search)
+      if (pair.answer.metadata?.webSearches && Array.isArray(pair.answer.metadata.webSearches)) {
+        for (const search of pair.answer.metadata.webSearches) {
+          if (!search.results?.length) {
+            continue;
+          }
+          lines.push('');
+          lines.push(`### Sources — ${search.query || 'References'}`);
+          lines.push('');
+          for (const result of search.results) {
+            lines.push(`- [${result.title}](${result.url})${result.domain ? ` — *${result.domain}*` : ''}`);
+          }
+          lines.push('');
+        }
+      }
+
       // Add separator between pairs (but not after the last one)
       if (i < conversation.pairs.length - 1) {
         lines.push('---');

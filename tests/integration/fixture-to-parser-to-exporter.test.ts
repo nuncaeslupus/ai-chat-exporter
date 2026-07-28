@@ -176,20 +176,12 @@ describe('fixture -> parser -> every exporter', () => {
       expect(text).toContain('Web Development Technologies Comparison');
     });
 
-    if (format === 'html' || format === 'pdf' || format === 'json') {
-      it('carries a web-search result URL through', async () => {
-        const text = await exportFixture();
-        expect(text).toContain('developer.mozilla.org');
-      });
-    } else {
-      // Known bug lo-23fb: web-search titles/URLs are missing from md/txt/docx
-      // exports -- those exporters never read metadata.webSearches at all.
-      // Asserted here as current (wrong) behaviour so a fix shows up as a
-      // test failure that needs lo-23fb's assertion flipped, not a silent gap.
-      it('does NOT carry a web-search result URL through (known bug lo-23fb)', async () => {
-        const text = await exportFixture();
-        expect(text).not.toContain('developer.mozilla.org');
-      });
-    }
+    // lo-23fb is fixed: md/txt/docx now read metadata.webSearches too, so every
+    // registered exporter carries cited sources. Keep this asserted for ALL
+    // formats -- Gemini Deep Research files its sources in the same field.
+    it('carries a web-search result URL through', async () => {
+      const text = await exportFixture();
+      expect(text).toContain('developer.mozilla.org');
+    });
   });
 });
