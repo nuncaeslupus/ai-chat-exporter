@@ -1,5 +1,7 @@
 # Payload: lo-ca56 — C-3: docx has no platform brand colour
 
+## Acceptance gate
+
 **Gate**: a docx export is visually identifiable as ChatGPT / Claude / Gemini in the
 same way pdf and html already are.
 

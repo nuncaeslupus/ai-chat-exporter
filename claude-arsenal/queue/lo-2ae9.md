@@ -1,5 +1,7 @@
 # Payload: lo-2ae9 — C-4: three-step font-size option
 
+## Acceptance gate
+
 **Gate**: choosing compact / normal / large in the popup measurably changes the
 page count of a pdf and docx export of the same conversation.
 

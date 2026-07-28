@@ -1,6 +1,11 @@
 # Payload: lo-4f4e — Claude artifacts are matched by position and title
 
+## Acceptance gate
+
 **Gate**: a conversation with an edited or regenerated turn attributes every artifact to the correct pair.
+
+
+Prose-only gate — verified by worker judgment, no script to run.
 
 `src/core/services/claude-api-service.ts` (359 lines, **no test file**) cross-references two independently-sourced structures — the DOM scrape and the private API response — using:
 

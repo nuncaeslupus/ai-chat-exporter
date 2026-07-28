@@ -1,7 +1,12 @@
 # Payload: lo-4b7f — PDF export never returns on an SVG artifact
 
+## Acceptance gate
+
 **Gate**: exporting `tests/fixtures/dom-snapshots/chatgpt/comprehensive.html` to PDF
 completes; the bounded-`Promise.race` reproduction in
+
+Prose-only gate — verified by worker judgment, no script to run.
+
 `tests/integration/fixture-to-parser-to-exporter.test.ts` is converted into a
 plain assertion that `export()` resolves.
 

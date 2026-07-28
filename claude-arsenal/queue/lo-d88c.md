@@ -1,7 +1,12 @@
 # Payload: lo-d88c — Reimplement the Gemini parser
 
+## Acceptance gate
+
 **Gate**: `GeminiParser.canParse()` returns true against a freshly captured Gemini
 DOM fixture, and `extractQAPairs` returns correctly-paired Q&A with non-empty
+
+Prose-only gate — verified by worker judgment, no script to run.
+
 content, proven by fixture tests.
 
 ## Why this task exists

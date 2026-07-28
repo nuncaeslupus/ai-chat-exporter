@@ -1,5 +1,7 @@
 # Payload: lo-6fe5 — the model cannot represent generated video or audio
 
+## Acceptance gate
+
 **Gate**: a message carrying a generated video and a generated audio clip round-trips
 through parse → model → all six registered exporters, proven per format.
 

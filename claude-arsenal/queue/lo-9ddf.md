@@ -1,7 +1,12 @@
 # Payload: lo-9ddf — D-5: Integration suite pins behaviour that PR #14 changes
 
+## Acceptance gate
+
 **Gate**: with PR #14 and PR #24 both merged, `pnpm test` is green and no
 assertion in `tests/integration/fixture-to-parser-to-exporter.test.ts` asserts
+
+Prose-only gate — verified by worker judgment, no script to run.
+
 behaviour that the merged code no longer has.
 
 **This is a merge-ordering hazard, not a code defect.** Act on it when the two

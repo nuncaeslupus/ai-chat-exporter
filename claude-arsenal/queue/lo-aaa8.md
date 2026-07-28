@@ -1,5 +1,7 @@
 # Payload: lo-aaa8 — D-11: docx table headers are silently not bold
 
+## Acceptance gate
+
 **Gate**: header cells in a docx table render bold.
 
 ```bash

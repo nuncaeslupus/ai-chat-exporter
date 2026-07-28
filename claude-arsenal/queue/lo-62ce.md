@@ -1,7 +1,12 @@
 # Payload: lo-62ce — UI chrome inside `.markdown` leaks into exported HTML
 
+## Acceptance gate
+
 **Gate**: exported HTML from a ChatGPT conversation containing a table and a code
 block contains no `<button>`, and no `<use href="/cdn/assets/sprites-...">` sprite
+
+Prose-only gate — verified by worker judgment, no script to run.
+
 reference.
 
 ## The defect

@@ -1,6 +1,11 @@
 # Payload: lo-0cd5 — Test `html-content-parser.ts`
 
+## Acceptance gate
+
 **Gate**: `src/core/services/html-content-parser.ts` above 80 % statement coverage.
+
+
+Prose-only gate — verified by worker judgment, no script to run.
 
 446 lines at **3.73 % statements / 0 % functions** — the most complex untested unit in the repo, and it feeds the structured-md, docx and html exporters. Untested logic: nested `<div>` block detection (line 134), table header/body parsing (284-329), recursive inline formatting (334-435), code-block extraction.
 

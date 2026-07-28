@@ -1,6 +1,11 @@
 # Payload: lo-adf1 — Q&A selection UI
 
+## Acceptance gate
+
 **Gate**: deselecting a pair in the UI produces an export containing only the selected pairs.
+
+
+Prose-only gate — verified by worker judgment, no script to run.
 
 ## Tests
 

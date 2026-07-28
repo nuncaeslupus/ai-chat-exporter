@@ -1,5 +1,7 @@
 # Payload: lo-fc5f — C-7: export to Google Drive
 
+## Acceptance gate
+
 **Gate**: an export can be sent to the user's Google Drive, and the privacy
 documentation matches the new behaviour.
 

@@ -1,6 +1,11 @@
 # Payload: lo-df75 — CI and Makefile gaps
 
+## Acceptance gate
+
 **Gate**: CI catches a version mismatch and publishes the built zips; `make validate` passes on a clean checkout.
+
+
+Prose-only gate — verified by worker judgment, no script to run.
 
 ## Work
 

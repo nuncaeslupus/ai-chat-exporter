@@ -1,7 +1,12 @@
 # Payload: lo-4cdc — Parser hardcodes selectors instead of reading its SelectorSet
 
+## Acceptance gate
+
 **Gate**: no CSS selector string for turns or message content is inlined in
 `src/core/parsers/chatgpt/parser.ts`; all come from `CHATGPT_SELECTORS`.
+
+Prose-only gate — verified by worker judgment, no script to run.
+
 
 ## The defect
 
