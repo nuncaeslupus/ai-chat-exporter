@@ -71,7 +71,7 @@ export class HtmlExporter extends BaseExporter {
         </header>
 
         <main class="conversation">
-            ${this.generatePairs(conversation.pairs, conversation.platform)}
+            ${this.generatePairs(conversation.pairs, conversation.platform, options)}
         </main>
 
         <footer class="footer">
@@ -105,14 +105,14 @@ export class HtmlExporter extends BaseExporter {
             </div>`;
   }
 
-  private generatePairs(pairs: any[], platform: string): string {
+  private generatePairs(pairs: any[], platform: string, options: ExportOptions): string {
     const assistantName = this.getRoleName('assistant', platform);
 
     return pairs.map(pair => `
             <div class="qa-pair">
                 <div class="message user-message">
                     <div class="message-header">
-                        <span class="message-role">${this.getRoleName('user')}</span>
+                        <span class="message-role">${this.getRoleName('user')}</span>${this.renderTimestampSpan(pair.question.timestamp, options.includeTimestamps)}
                     </div>
                     <div class="message-content">
                         ${this.renderBlocks(pair.question.blocks)}
@@ -121,7 +121,7 @@ export class HtmlExporter extends BaseExporter {
 
                 <div class="message assistant-message" data-platform="${platform}">
                     <div class="message-header">
-                        <span class="message-role">${assistantName}</span>
+                        <span class="message-role">${assistantName}</span>${this.renderTimestampSpan(pair.answer.timestamp, options.includeTimestamps)}
                     </div>
                     <div class="message-content">
                         ${this.renderBlocks(pair.answer.blocks)}
@@ -130,6 +130,11 @@ export class HtmlExporter extends BaseExporter {
                     </div>
                 </div>
             </div>`).join('\n');
+  }
+
+  private renderTimestampSpan(date: Date | undefined, includeTimestamps: boolean): string {
+    const suffix = this.formatTimestampSuffix(date, includeTimestamps).trim();
+    return suffix ? `<span class="message-timestamp">${this.escapeHtml(suffix)}</span>` : '';
   }
 
   private renderArtifacts(artifacts?: any[]): string {
@@ -442,6 +447,15 @@ export class HtmlExporter extends BaseExporter {
 
         .assistant-message[data-platform="gemini"] .message-role {
             color: #1165f1;
+        }
+
+        .message-timestamp {
+            margin-left: 0.5rem;
+            font-size: 0.8125rem;
+            font-weight: 400;
+            text-transform: none;
+            letter-spacing: normal;
+            color: #9ca3af;
         }
 
         .message-content > *:first-child {

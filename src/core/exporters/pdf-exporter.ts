@@ -174,13 +174,33 @@ export class PdfExporter extends BaseExporter {
       }
 
       // User message (blue)
-      y = this.renderMessage(doc, this.getRoleName('user'), pair.question.blocks, y, margins, contentWidth, lineHeight, pageHeight, [37, 99, 235]);
+      y = this.renderMessage(
+        doc,
+        `${this.getRoleName('user')}${this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps)}`,
+        pair.question.blocks,
+        y,
+        margins,
+        contentWidth,
+        lineHeight,
+        pageHeight,
+        [37, 99, 235]
+      );
 
       // Add spacing between user and assistant
       y += lineHeight * 0.5;
 
       // Assistant message (platform-specific color and name)
-      y = this.renderMessage(doc, assistantInfo.name, pair.answer.blocks, y, margins, contentWidth, lineHeight, pageHeight, assistantInfo.color);
+      y = this.renderMessage(
+        doc,
+        `${assistantInfo.name}${this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps)}`,
+        pair.answer.blocks,
+        y,
+        margins,
+        contentWidth,
+        lineHeight,
+        pageHeight,
+        assistantInfo.color
+      );
 
       // Render artifacts if present
       if (pair.answer.metadata?.artifacts && Array.isArray(pair.answer.metadata.artifacts)) {

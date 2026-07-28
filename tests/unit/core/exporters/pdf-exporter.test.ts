@@ -269,4 +269,70 @@ describe('PdfExporter', () => {
     const fontCallBefore = [...instance.calls.slice(0, idx)].reverse().find((c) => c.method === 'setFont');
     expect(fontCallBefore?.args[0]).toBe('courier');
   });
+
+  describe('per-message timestamps', () => {
+    it('renders a per-message timestamp when includeTimestamps is on', async () => {
+      const { conversation, pairs } = buildConversation();
+      await new PdfExporter().export(conversation, pairs, {
+        format: 'pdf',
+        filename: 'test',
+        includeMetadata: false,
+        includeTimestamps: true,
+      });
+
+      const rendered = textCallsOf(instances[0]!);
+      expect(rendered.some((t) => t.includes('2025-01-01 12:00:00'))).toBe(true);
+    });
+
+    it('omits the timestamp when includeTimestamps is off', async () => {
+      const { conversation, pairs } = buildConversation();
+      await new PdfExporter().export(conversation, pairs, {
+        format: 'pdf',
+        filename: 'test',
+        includeMetadata: false,
+        includeTimestamps: false,
+      });
+
+      const rendered = textCallsOf(instances[0]!);
+      expect(rendered.some((t) => t.includes('2025-01-01 12:00:00'))).toBe(false);
+    });
+
+    it('emits no stray label or "undefined" when a message has no timestamp', async () => {
+      const pair: QAPair = {
+        id: 'pair-no-ts',
+        index: 0,
+        selected: true,
+        question: {
+          id: 'q-no-ts',
+          role: 'user',
+          content: 'question',
+        },
+        answer: {
+          id: 'a-no-ts',
+          role: 'assistant',
+          content: 'answer',
+        },
+      } as unknown as QAPair;
+      const conversation: Conversation = {
+        id: 'test-conversation-no-ts',
+        title: 'No Timestamp Test',
+        platform: 'claude',
+        model: 'claude-3',
+        pairs: [pair],
+        url: 'https://claude.ai/chat/no-timestamp-test',
+        createdAt: new Date('2025-01-01T12:00:00Z'),
+      };
+
+      await new PdfExporter().export(conversation, [pair], {
+        format: 'pdf',
+        filename: 'test',
+        includeMetadata: false,
+        includeTimestamps: true,
+      });
+
+      const rendered = textCallsOf(instances[0]!);
+      expect(rendered.some((t) => t.includes('undefined'))).toBe(false);
+      expect(rendered.some((t) => /\(\s*\)/.test(t))).toBe(false);
+    });
+  });
 });

@@ -118,6 +118,57 @@ describe('TextExporter', () => {
     });
   });
 
+  describe('per-message timestamps', () => {
+    it('renders a per-message timestamp when includeTimestamps is on', async () => {
+      const result = await exporter.export(conversation, selectedPairs, {
+        format: 'txt',
+        filename: 'test',
+        includeMetadata: false,
+        includeTimestamps: true,
+      });
+      const text = await blobToText(result.blob!);
+      expect(text).toContain('2025-01-01 12:00:00');
+    });
+
+    it('omits the timestamp when includeTimestamps is off', async () => {
+      const result = await exporter.export(conversation, selectedPairs, {
+        format: 'txt',
+        filename: 'test',
+        includeMetadata: false,
+        includeTimestamps: false,
+      });
+      const text = await blobToText(result.blob!);
+      expect(text).not.toContain('2025-01-01 12:00:00');
+    });
+
+    it('emits no stray label or "undefined" when a message has no timestamp', async () => {
+      const pair: QAPair = {
+        id: 'pair-no-ts',
+        index: 0,
+        selected: true,
+        question: {
+          id: 'q-no-ts',
+          role: 'user',
+          content: 'question',
+        },
+        answer: {
+          id: 'a-no-ts',
+          role: 'assistant',
+          content: 'answer',
+        },
+      } as unknown as QAPair;
+      const result = await exporter.export(createTestConversation([pair]), [pair], {
+        format: 'txt',
+        filename: 'test',
+        includeMetadata: false,
+        includeTimestamps: true,
+      });
+      const text = await blobToText(result.blob!);
+      expect(text).not.toContain('undefined');
+      expect(text).not.toMatch(/\(\s*\)/);
+    });
+  });
+
   describe('link rendering', () => {
     function buildLinkPair(href: string, linkText: string): QAPair {
       return {
