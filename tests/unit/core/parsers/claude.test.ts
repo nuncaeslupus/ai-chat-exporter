@@ -62,7 +62,7 @@ describe('ClaudeParser', () => {
   describe('getTitle', () => {
     it('extracts conversation title correctly', () => {
       const title = parser.getTitle();
-      expect(title).toBe('Image research and SVG recreation with AI generation');
+      expect(title).toBe('Sample fixture conversation for parser tests');
     });
 
     it('returns default title when element not found', () => {
@@ -131,7 +131,7 @@ describe('ClaudeParser', () => {
 
     it('sets conversation title', () => {
       const result = parser.parse();
-      expect(result.conversation!.title).toBe('Image research and SVG recreation with AI generation');
+      expect(result.conversation!.title).toBe('Sample fixture conversation for parser tests');
     });
 
     it('sets conversation URL', () => {
@@ -188,7 +188,7 @@ describe('ClaudeParser', () => {
 
       const image = firstPair?.question.metadata?.images?.[0];
       expect(image?.src).toContain('/api/');
-      expect(image?.alt).toBe('Bernard_Bernoulli_facebiggest.png');
+      expect(image?.alt).toBe('sample_sketch_placeholder.png');
     });
 
     it('extracts web search results', () => {
@@ -200,7 +200,7 @@ describe('ClaudeParser', () => {
       expect(firstPair?.answer.metadata?.webSearches?.length).toBeGreaterThan(0);
 
       const search = firstPair?.answer.metadata?.webSearches?.[0];
-      expect(search?.query).toBe('pixel art character black hair big eyes peachy skin');
+      expect(search?.query).toBe('placeholder fixture search query');
       expect(search?.resultCount).toBe(10);
     });
 
@@ -213,7 +213,7 @@ describe('ClaudeParser', () => {
       expect(firstPair?.answer.metadata?.artifacts?.length).toBeGreaterThan(0);
 
       const artifact = firstPair?.answer.metadata?.artifacts?.[0];
-      expect(artifact?.title).toBe('Pixel Art Character Recreation');
+      expect(artifact?.title).toBe('Placeholder SVG Artifact');
       expect(artifact?.type).toBe('image');
       expect(artifact?.typeLabel).toBe('Imagen');
       expect(artifact?.language).toBe('svg');
@@ -223,14 +223,14 @@ describe('ClaudeParser', () => {
       const result = parser.parse();
       const firstPair = result.conversation?.pairs[0];
 
-      expect(firstPair?.answer.content).toContain('[Imagen: Pixel Art Character Recreation]');
+      expect(firstPair?.answer.content).toContain('[Imagen: Placeholder SVG Artifact]');
     });
 
     it('includes web search info in content', () => {
       const result = parser.parse();
       const firstPair = result.conversation?.pairs[0];
 
-      expect(firstPair?.answer.content).toContain('[Web Search: pixel art character black hair big eyes peachy skin]');
+      expect(firstPair?.answer.content).toContain('[Web Search: placeholder fixture search query]');
     });
 
     it('preserves HTML content when available', () => {

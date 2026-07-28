@@ -137,7 +137,7 @@ export class ClaudeApiService {
     try {
       const urlObj = new URL(url);
 
-      // Example URL: https://claude.ai/chat/0ee665c3-eaa5-485b-83aa-184065da1977
+      // Example URL: https://claude.ai/chat/00000000-0000-4000-8000-000000000000
       const pathMatch = urlObj.pathname.match(/\/chat\/([a-f0-9-]+)/);
       if (!pathMatch || !pathMatch[1]) {
         console.warn('[Claude API Service] Could not extract conversation ID from URL:', url);
