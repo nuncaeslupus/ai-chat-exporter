@@ -3,6 +3,10 @@ import { describe, it, expect, vi, beforeAll } from 'vitest';
 describe('export keyboard shortcut', () => {
   let sendMessageMock: ReturnType<typeof vi.fn>;
   let onCommandHandler: (command: string) => void;
+  let onClickedHandler: (
+    info: { menuItemId: string },
+    tab: { id: number } | undefined,
+  ) => void;
 
   beforeAll(async () => {
     sendMessageMock = vi.fn();
@@ -26,7 +30,11 @@ describe('export keyboard shortcut', () => {
           cb();
         }),
         create: vi.fn(),
-        onClicked: { addListener: vi.fn() },
+        onClicked: {
+          addListener: vi.fn((handler: typeof onClickedHandler) => {
+            onClickedHandler = handler;
+          }),
+        },
       },
       commands: {
         onCommand: {
@@ -74,5 +82,36 @@ describe('export keyboard shortcut', () => {
     // 'show_export_dialog') is silently dropped.
     expect(message.type).toBe('export_conversation');
     expect(message.format).toBeTruthy();
+  });
+
+  it('surfaces chrome.runtime.lastError when the content script is missing from a context-menu export', () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    // Simulate the tab having no content script injected (tab loaded before
+    // install / extension reloaded / unsupported page): sendMessage's
+    // callback fires with chrome.runtime.lastError set and no response.
+    sendMessageMock.mockImplementationOnce(
+      (_tabId: number, _message: unknown, callback?: () => void) => {
+        (chrome.runtime as unknown as { lastError?: { message: string } }).lastError = {
+          message: 'Could not establish connection. Receiving end does not exist.',
+        };
+        callback?.();
+        delete (chrome.runtime as unknown as { lastError?: { message: string } }).lastError;
+      },
+    );
+
+    onClickedHandler({ menuItemId: 'export-pdf' }, { id: 42 });
+
+    expect(errorSpy).toHaveBeenCalled();
+    const loggedError = errorSpy.mock.calls.some((call) =>
+      call.some(
+        (arg) =>
+          typeof arg === 'string' &&
+          arg.includes('Could not establish connection'),
+      ),
+    );
+    expect(loggedError).toBe(true);
+
+    errorSpy.mockRestore();
   });
 });
