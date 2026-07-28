@@ -48,9 +48,8 @@ export class ChatGPTParser extends BaseParser {
 
     // Try sidebar selectors as fallback
     const selectors = [
-      'a[data-active=""] .truncate span',
-      'a[data-active="true"] .truncate span',
-      'nav a[href*="/c/"] .truncate span',
+      this.selectors.conversationTitle,
+      this.selectors.custom.conversationTitleFallback,
     ];
 
     for (const selector of selectors) {
@@ -66,7 +65,9 @@ export class ChatGPTParser extends BaseParser {
     const match = url.match(/\/c\/([a-f0-9-]+)/);
     if (match) {
       const conversationLink = this.document.querySelector(`a[href*="${match[0]}"]`);
-      const title = conversationLink?.querySelector('.truncate span')?.textContent?.trim();
+      const title = conversationLink
+        ?.querySelector(this.selectors.custom.conversationTitleText)
+        ?.textContent?.trim();
       if (title) {
         return title;
       }
@@ -79,18 +80,13 @@ export class ChatGPTParser extends BaseParser {
    * Get the model name if detectable
    */
   getModel(): string | null {
-    const modelSelector = this.selectors.modelIndicator;
-    if (!modelSelector) {
-      return null;
-    }
-
-    const modelElement = this.document.querySelector(modelSelector);
+    const modelElement = this.document.querySelector(this.selectors.modelIndicator);
     if (!modelElement) {
       return null;
     }
 
     // ChatGPT stores model in data-message-model-slug attribute
-    const modelSlug = modelElement.getAttribute('data-message-model-slug');
+    const modelSlug = modelElement.getAttribute(this.selectors.custom.modelSlugAttr);
     return modelSlug || null;
   }
 
@@ -98,13 +94,8 @@ export class ChatGPTParser extends BaseParser {
    * Find the best injection point for UI buttons
    */
   getButtonInjectionPoint(): HTMLElement | null {
-    const buttonArea = this.selectors.custom?.buttonArea;
-    if (!buttonArea) {
-      return null;
-    }
-
     // Try each selector in the buttonArea (comma-separated)
-    const selectors = buttonArea.split(',').map((s) => s.trim());
+    const selectors = this.selectors.custom.buttonArea.split(',').map((s) => s.trim());
     for (const selector of selectors) {
       const element = this.document.querySelector(selector);
       if (element instanceof HTMLElement) {
@@ -148,12 +139,11 @@ export class ChatGPTParser extends BaseParser {
     const messages: Message[] = [];
 
     // Get all user turns
-    const userTurnSelector = this.selectors.custom?.userTurn ?? '[data-turn="user"]';
-    const userTurns = this.document.querySelectorAll(userTurnSelector);
+    const userTurns = this.document.querySelectorAll(this.selectors.custom.userTurn);
 
     userTurns.forEach((turn) => {
       // Try to find a message element within the turn
-      const messageElement = turn.querySelector('[data-message-author-role="user"]');
+      const messageElement = turn.querySelector(this.selectors.userMessage);
 
       if (messageElement) {
         const message = this.extractUserMessage(messageElement, config);
@@ -177,14 +167,13 @@ export class ChatGPTParser extends BaseParser {
    */
   private extractUserMessage(element: Element, config: ParserConfig): Message | null {
     // Get message ID from attribute
-    const messageId = element.getAttribute('data-message-id') || this.generateId();
+    const messageId = element.getAttribute(this.selectors.custom.messageIdAttr) || this.generateId();
 
     // Extract images first so an image-only turn still occupies its slot
     const images = this.extractImages(element);
 
     // Find content element
-    const contentSelector = this.selectors.custom?.userMessageContent || '.whitespace-pre-wrap';
-    const contentElement = element.querySelector(contentSelector);
+    const contentElement = element.querySelector(this.selectors.custom.userMessageContent);
 
     let content: string | undefined;
     let htmlContent: string | undefined;
@@ -221,12 +210,11 @@ export class ChatGPTParser extends BaseParser {
     const messages: Message[] = [];
 
     // Get all assistant turns (includes text, canvas, and image-gen turns)
-    const assistantTurnSelector = this.selectors.custom?.assistantTurn ?? '[data-turn="assistant"]';
-    const assistantTurns = this.document.querySelectorAll(assistantTurnSelector);
+    const assistantTurns = this.document.querySelectorAll(this.selectors.custom.assistantTurn);
 
     assistantTurns.forEach((turn) => {
       // Find ALL message elements within the turn (for deep research, there can be multiple)
-      const messageElements = turn.querySelectorAll('[data-message-author-role="assistant"]');
+      const messageElements = turn.querySelectorAll(this.selectors.assistantMessage);
 
       if (messageElements.length > 0) {
         // Normal text response(s) - may have multiple for deep research
@@ -255,8 +243,9 @@ export class ChatGPTParser extends BaseParser {
     messageElements: NodeListOf<Element>,
     config: ParserConfig
   ): Message | null {
-    const messageId = turn.getAttribute('data-message-id') ||
-                     messageElements[0]?.getAttribute('data-message-id') ||
+    const messageIdAttr = this.selectors.custom.messageIdAttr;
+    const messageId = turn.getAttribute(messageIdAttr) ||
+                     messageElements[0]?.getAttribute(messageIdAttr) ||
                      this.generateId();
 
     const contentParts: string[] = [];
@@ -272,8 +261,7 @@ export class ChatGPTParser extends BaseParser {
 
     // Extract content from each message element
     messageElements.forEach((element) => {
-      const contentSelector = this.selectors.custom?.assistantMessageContent || '.markdown.prose';
-      const contentElement = element.querySelector(contentSelector);
+      const contentElement = element.querySelector(this.selectors.custom.assistantMessageContent);
 
       if (contentElement) {
         const { content, htmlContent } = this.extractContent(contentElement, config.preserveHtml);
@@ -337,7 +325,7 @@ export class ChatGPTParser extends BaseParser {
    */
   private extractAssistantMessage(element: Element, config: ParserConfig): Message | null {
     // Get message ID from attribute
-    const messageId = element.getAttribute('data-message-id') || this.generateId();
+    const messageId = element.getAttribute(this.selectors.custom.messageIdAttr) || this.generateId();
 
     // Check if this is a canvas turn
     const canvasContent = this.extractCanvasContent(element);
@@ -357,8 +345,7 @@ export class ChatGPTParser extends BaseParser {
     }
 
     // Find content element (markdown content)
-    const contentSelector = this.selectors.custom?.assistantMessageContent || '.markdown.prose';
-    const contentElement = element.querySelector(contentSelector);
+    const contentElement = element.querySelector(this.selectors.custom.assistantMessageContent);
 
     if (!contentElement) {
       // Try to get content directly from the element
@@ -431,8 +418,8 @@ export class ChatGPTParser extends BaseParser {
     // structural selector, while legitimate images have no unifying wrapper
     // to allow-list on.
     const excludedImageContainerSelector = [
-      this.selectors.custom?.codeArtifactContainer ?? 'pre.overflow-visible\\!',
-      this.selectors.custom?.citationPill ?? '[data-testid="webpage-citation-pill"]',
+      this.selectors.custom.codeArtifactContainer,
+      this.selectors.custom.citationPill,
       'button',
     ].join(', ');
 
@@ -484,13 +471,13 @@ export class ChatGPTParser extends BaseParser {
    */
   private extractCanvasContent(element: Element): { text: string; html: string } | null {
     // Look for canvas/document container
-    const canvasElement = element.querySelector('[id^="textdoc-message-"]');
+    const canvasElement = element.querySelector(this.selectors.custom.canvasContainer);
     if (!canvasElement) {
       return null;
     }
 
     // Find the ProseMirror content
-    const proseMirrorContent = canvasElement.querySelector('.ProseMirror, .prose');
+    const proseMirrorContent = canvasElement.querySelector(this.selectors.custom.canvasContent);
     if (!proseMirrorContent) {
       return null;
     }
@@ -506,7 +493,7 @@ export class ChatGPTParser extends BaseParser {
    */
   private extractGeneratedImage(element: Element): { src: string; alt?: string; width?: number; height?: number } | null {
     // Look for image generation container
-    const imageGenContainer = element.querySelector('.group\\/imagegen-image, [class*="imagegen"]');
+    const imageGenContainer = element.querySelector(this.selectors.custom.generatedImageContainer);
     if (!imageGenContainer) {
       return null;
     }
@@ -561,7 +548,9 @@ export class ChatGPTParser extends BaseParser {
   private extractImageTitle(element: Element): string | null {
     // Look for the image title in the turn header
     // The structure is typically: "Imagen creada • Vacaciones románticas en Tailandia"
-    const headerText = element.querySelector('.message-role, [class*="font-medium"]')?.textContent?.trim();
+    const headerText = element
+      .querySelector(this.selectors.custom.generatedImageTitle)
+      ?.textContent?.trim();
 
     if (headerText) {
       // Extract text after the bullet point if present
@@ -581,7 +570,7 @@ export class ChatGPTParser extends BaseParser {
    */
   private extractDeepResearchInfo(element: Element): { duration: string; sources: number; searches: number } | null {
     // Look for research completion indicator
-    const researchButton = element.querySelector('button[class*="text-token-text-tertiary"]');
+    const researchButton = element.querySelector(this.selectors.custom.deepResearchButton);
     if (!researchButton) {
       return null;
     }
@@ -610,8 +599,8 @@ export class ChatGPTParser extends BaseParser {
   private extractArtifacts(element: Element): Artifact[] {
     const artifacts: Artifact[] = [];
 
-    // Find all code artifact containers (escape the ! in the class name)
-    const codeBlocks = element.querySelectorAll('pre.overflow-visible\\!');
+    // Find all code artifact containers
+    const codeBlocks = element.querySelectorAll(this.selectors.custom.codeArtifactContainer);
 
     codeBlocks.forEach((block) => {
       // Extract language from the header. Legacy markup carried a `div.h-9`
@@ -620,11 +609,12 @@ export class ChatGPTParser extends BaseParser {
       // the sticky header above the editor (e.g. "Python"). Strip buttons from
       // a clone first so their labels ("Copy", "Run") don't leak into it --
       // this is a real DOM source, not a guess from the code body.
-      const legacyLanguageSelector = this.selectors.custom?.codeArtifactLanguage ?? 'div.h-9';
-      let language = block.querySelector(legacyLanguageSelector)?.textContent.trim().toLowerCase();
+      let language = block
+        .querySelector(this.selectors.custom.codeArtifactLanguage)
+        ?.textContent.trim()
+        .toLowerCase();
       if (!language) {
-        const stickyHeaderSelector = this.selectors.custom?.codeArtifactStickyHeader ?? '.sticky';
-        const header = block.querySelector(stickyHeaderSelector);
+        const header = block.querySelector(this.selectors.custom.codeArtifactStickyHeader);
         if (header) {
           const headerClone = header.cloneNode(true) as Element;
           headerClone.querySelectorAll('button').forEach((btn) => {
@@ -639,12 +629,9 @@ export class ChatGPTParser extends BaseParser {
       // CodeMirror's <code> has no class at all, so fall back to the <code>
       // inside the CodeMirror viewer specifically (never the outer wrapper,
       // which would also pick up header/button text).
-      const legacyContentSelector =
-        this.selectors.custom?.codeArtifactContent ?? 'code.whitespace-pre\\!, code[class*="language-"]';
-      const codeMirrorContentSelector =
-        this.selectors.custom?.codeArtifactCodeMirrorCode ?? '.cm-content code, #code-block-viewer code';
       const codeElement =
-        block.querySelector(legacyContentSelector) ?? block.querySelector(codeMirrorContentSelector);
+        block.querySelector(this.selectors.custom.codeArtifactContent) ??
+        block.querySelector(this.selectors.custom.codeArtifactCodeMirrorCode);
       if (!codeElement) {
         return;
       }
@@ -695,7 +682,7 @@ export class ChatGPTParser extends BaseParser {
    */
   private extractWebSearches(element: Element): WebSearchResult[] {
     // Find all citation pills
-    const citationLinks = element.querySelectorAll('[data-testid="webpage-citation-pill"] a');
+    const citationLinks = element.querySelectorAll(this.selectors.custom.citationLink);
 
     if (citationLinks.length === 0) {
       return [];
