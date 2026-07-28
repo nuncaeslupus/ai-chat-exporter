@@ -531,12 +531,18 @@ export class PdfExporter extends BaseExporter {
             y += lineHeight * 0.9;
           }
 
-          // Result domain
-          if (result.domain) {
+          // Result URL. ponytail: printed on its own line in place of the
+          // domain it contains — a PDF has no clickable citation, so the full
+          // URL is the only way back to the source; the domain would just
+          // repeat its prefix.
+          const url = sanitizeTextForPDF(result.url ?? '');
+          if (url) {
             doc.setFont(FONT_FAMILY.body.pdf, 'italic');
             doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
-            doc.text(`  ${sanitizeTextForPDF(result.domain)}`, margins.left + 7, y);
-            y += lineHeight * 0.9;
+            for (const line of splitLines(doc, url, contentWidth - 12)) {
+              doc.text(`  ${line}`, margins.left + 7, y);
+              y += lineHeight * 0.9;
+            }
             doc.setFont(FONT_FAMILY.body.pdf, 'normal');
           }
 
