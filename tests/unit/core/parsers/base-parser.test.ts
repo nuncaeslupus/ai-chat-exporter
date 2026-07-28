@@ -6,6 +6,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { JSDOM } from 'jsdom';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { GeminiParser } from '../../../../src/core/parsers/gemini/parser';
 
 // GeminiParser exposes `document` and `extractContent` as `protected`; this test
@@ -58,5 +60,46 @@ describe('BaseParser cleanupElement (via GeminiParser.extractContent)', () => {
     expect(content).not.toContain('decorative icon');
     expect(content).toContain('Hello');
     expect(content).toContain('world');
+  });
+
+  // lo-725a: ChatGPT KaTeX ships THREE copies of a formula (.katex-mathml with an
+  // annotation[encoding="application/x-tex"], plus .katex-html) where Gemini ships
+  // only one (.katex-html). Keeping aria-hidden (lo-74ed) preserves Gemini's only
+  // copy but triplicates ChatGPT's — cleanupElement must collapse the whole .katex
+  // unit to one representation instead of deciding per aria-hidden node.
+  describe('ChatGPT KaTeX (mathml + annotation + html) fixture', () => {
+    function loadChatGPTMarkdown(): Element {
+      const fixturePath = join(
+        __dirname,
+        '../../../fixtures/dom-snapshots/chatgpt/formatting-showcase-2026-07.html'
+      );
+      const html = readFileSync(fixturePath, 'utf-8');
+      const dom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-conversation' });
+      const markdown = dom.window.document.querySelector('[data-message-author-role="assistant"] .markdown');
+      if (!markdown) {
+        throw new Error('fixture is missing the assistant .markdown content root');
+      }
+      return markdown;
+    }
+
+    it('collapses the inline formula to a single LaTeX-sourced copy, not a triplicated one', () => {
+      const parser = buildParser('');
+      const { content } = parser.extractContent(loadChatGPTMarkdown(), false);
+
+      // The lossless annotation source ("E = mc^2") should appear, and only once —
+      // "mc" is unique to the annotation copy (mathml/html render "mc2" with no gap).
+      expect(content).toContain('E = mc^2');
+      expect(content.match(/mc/g) ?? []).toHaveLength(1);
+    });
+
+    it('collapses the display formula to a single LaTeX-sourced copy, not a triplicated one', () => {
+      const parser = buildParser('');
+      const { content } = parser.extractContent(loadChatGPTMarkdown(), false);
+
+      // "\sum" is unique to the annotation copy; the mathml/html copies render the
+      // unicode glyph "∑" instead. Its absence proves those copies were dropped.
+      expect(content).toContain('\\sum_{i=1}^{3} i = 6');
+      expect(content).not.toContain('∑');
+    });
   });
 });
