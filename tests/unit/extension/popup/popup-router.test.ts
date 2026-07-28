@@ -1,11 +1,13 @@
 /**
  * Popup shell — view router and fixed body box (lo-c39f).
  *
- * The redesign's whole premise is that the popup is one fixed 48+260 box: the
- * view swaps inside it and the box never changes. These tests assert the state
- * machine (which container is visible, which UI state is recorded), not pixel
- * values — jsdom has no layout engine, so heights are guarded by the class
- * staying put rather than by measurement.
+ * The redesign's whole premise is that the popup is one fixed box — 48+260 as
+ * drawn, 56+320 since R11 scaled it up: the view swaps inside it and the box
+ * never changes. These tests assert the state machine (which container is
+ * visible, which UI state is recorded), not rendered pixel values — jsdom has
+ * no layout engine, so heights are guarded by the class staying put rather
+ * than by measurement. The declared numbers are guarded at the bottom of this
+ * file, straight off popup.css.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -257,5 +259,67 @@ describe('popup fixed body box', () => {
       expect(bodyBox().dataset.uiState).toBe('error');
     });
     expectBoxIntact();
+  });
+});
+
+/*
+ * The box's declared size and the type scale, read straight out of popup.css.
+ * jsdom cannot lay the popup out, so these guard the *declarations* the browser
+ * measurements were taken against: 420x(56+320), and every font size coming
+ * from one token block so the next resize is that block and nothing else.
+ */
+const POPUP_CSS = readFileSync(
+  resolve(__dirname, '../../../../src/extension/popup/popup.css'),
+  'utf-8'
+);
+
+/** The `:root` block — where every token must be declared. */
+const ROOT_BLOCK = /:root\s*\{([\s\S]*?)\n\}/.exec(POPUP_CSS)?.[1] ?? '';
+
+describe('popup geometry and type tokens', () => {
+  it.each([
+    ['--popup-width', '420px'],
+    ['--header-height', '56px'],
+    ['--body-height', '320px'],
+  ])('declares %s as %s', (token, value) => {
+    expect(ROOT_BLOCK).toContain(`${token}: ${value};`);
+  });
+
+  it('takes every font size from a type-scale token, never a literal', () => {
+    const outsideRoot = POPUP_CSS.replace(ROOT_BLOCK, '');
+    const literals = outsideRoot
+      .split('\n')
+      .filter((line) => /^\s*font-size:/.test(line) && !line.includes('var(--text-'));
+    expect(literals).toEqual([]);
+  });
+
+  it('declares every type token it uses', () => {
+    const used = new Set(
+      [...POPUP_CSS.matchAll(/var\((--text-[\w-]+)\)/g)].map((match) => match[1])
+    );
+    expect(used.size).toBeGreaterThan(0);
+    for (const token of used) {
+      expect(ROOT_BLOCK).toMatch(new RegExp(`${token}:\\s*[\\d.]+px;`));
+    }
+  });
+
+  /*
+   * The action bar is the one part R11 did not scale — the author's call was
+   * that it already reads at the right size. It gets its own off-scale token so
+   * a future bump of the scale cannot drag the button along with it.
+   */
+  it.each([
+    ['--text-action: 14px', ROOT_BLOCK],
+    ['height: 50px', /\.split-button\s*\{([^}]*)\}/.exec(POPUP_CSS)?.[1] ?? ''],
+    ['width: 42px', /\.split-toggle\s*\{([^}]*)\}/.exec(POPUP_CSS)?.[1] ?? ''],
+    ['width: 50px', /\.print-button\s*\{([^}]*)\}/.exec(POPUP_CSS)?.[1] ?? ''],
+    ['height: 50px', /\.print-button\s*\{([^}]*)\}/.exec(POPUP_CSS)?.[1] ?? ''],
+  ])('keeps the action bar at its 5a size: %s', (declaration, block) => {
+    expect(block).toContain(declaration);
+  });
+
+  it('sizes the export label off the action token, not the scale', () => {
+    const block = /\.split-export\s*\{([^}]*)\}/.exec(POPUP_CSS)?.[1] ?? '';
+    expect(block).toContain('font-size: var(--text-action);');
   });
 });

@@ -19,11 +19,55 @@ No hay React ni build de componentes en el popup: el HTML del prototipo usa esti
 
 ## Geometría global
 
-- Ancho del popup: **360 px** (igual que hoy; `body { width: 360px }`).
-- **Cabecera fija: 48 px** de alto (padding 12/16, contenido de 24 px).
-- **Cuerpo de altura fija: 260 px**, con `box-sizing: border-box`, `overflow: hidden` y `min-height: 0`. Todos los estados —listo, submenús, avisos, no compatible, recarga— usan exactamente esta caja: **el popup nunca salta de tamaño**.
-- Alto total: **310 px** (48 + 260 + 2 de borde). Muy por debajo del techo de 600 px de Chrome.
+> **Actualizado por R11 (2026-07-29)**, a petición del autor: *«haz las fuentes y
+> el popup más grandes»*. La caja de 5a (360 × 310, tipografía de 10,5–17 px) se
+> lee pequeña en pantalla real. Las cifras de abajo son las vigentes; las que
+> aparecen en cada pantalla de *Screens / Views* son las de 5a, y se convierten a
+> las actuales con la tabla de la escala tipográfica en **Design Tokens**.
+
+- Ancho del popup: **420 px** (`body { width: var(--popup-width) }`; era 360).
+- **Cabecera fija: 56 px** de alto (padding 14/18, contenido de 28 px; era 48).
+- **Cuerpo de altura fija: 320 px**, con `box-sizing: border-box`, `overflow: hidden` y `min-height: 0`. Todos los estados —listo, submenús, avisos, no compatible, recarga— usan exactamente esta caja: **el popup nunca salta de tamaño** (era 260).
+- Alto total: **378 px** (56 + 320 + 2 de borde). Muy por debajo del techo de 600 px de Chrome.
 - Lo que crece (lista de pares, lista de formatos, futuros ajustes) **scrollea dentro** de esa caja, nunca la estira.
+- Los tres valores viven en `:root` de `popup.css` (`--popup-width`,
+  `--header-height`, `--body-height`); no hay ninguna altura de caja escrita a
+  mano en las reglas de componente.
+
+### Medidas verificadas en navegador (R11)
+
+Con la conversación de ejemplo y el título recortado a dos líneas:
+
+| Vista / estado | Bandas | Suma |
+| --- | --- | --- |
+| principal (listo, sin selección, avisos) | scroll 118 + filas 104 + barra 98 | **320,0** |
+| principal (detectando, avisos sin filas) | scroll 222 + barra 98 | **320,0** |
+| principal (no compatible, recarga) | scroll 320 | **320,0** |
+| Elegir pares | cabecera 50 + lista 213 + pie 57 | **320,0** |
+| Opciones | cabecera 48 + lista 215 + pie 57 | **320,0** |
+
+Contenedor 376 px (378 con el borde del navegador) y **0 px de scroll
+horizontal** en las cuatro vistas y los seis estados. `#view-filename` sigue
+vacío: es de R6.
+
+Tres apaños se midieron de nuevo con la caja grande, porque sus cifras venían de
+la caja pequeña:
+
+- **Título recortado a 2 líneas (R2)**. Su motivo original —«a la tercera línea
+  las filas de ajuste se van de la vista»— **ya no aplica**: R2 sacó esas filas
+  de la zona de scroll y están visibles con cualquier título. Pero el recorte se
+  queda en 2 por un motivo nuevo y medido: en la banda de 118 px, 2 líneas dejan
+  26,8 px de holgura, 3 líneas pasan por sólo 2,4 px (una línea más de meta se
+  la come) y 4 se salen por 22 px. Lo que sí desaparece: el desbordamiento de
+  6 px que tenía a 360 px de ancho — ahora es 0.
+- **El estado «con avisos» oculta las filas de ajuste (R7)**. Sigue haciendo
+  falta. `Reintentar` ya no se cae del todo (antes se iba 99 px; ahora asoma por
+  2,6 px), pero ese margen es del ancho de un título de tarjeta que envuelva, y
+  la banda sigue desbordando 100 px, que dejan el bloque de conversación entero
+  bajo la línea de corte. Sin las filas, la tarjeta entra con 0 px de desborde.
+- **La lista de formatos scrollea (R3)**. Sigue scrolleando: 228 px de filas en
+  una banda de 177 px (antes 197 en 154). Los seis formatos no pueden verse a la
+  vez — el menú tendría que empezar por encima del borde superior de la caja.
 
 ## Screens / Views
 
@@ -36,7 +80,7 @@ No hay React ni build de componentes en el popup: el HTML del prototipo usa esti
 - Versión `1.1.1`, 10.5 px, `rgba(255,255,255,.5)`, `font-variant-numeric: tabular-nums`, en el mismo flujo con `flex:1` (empuja el estado a la derecha). Se lee del manifest, como ya hace `renderVersion()`.
 - Píldora de estado: `background:rgba(255,255,255,.14)`, radio 999, padding `3.5px 9px`; punto 5 px `#7FD9BE`; texto 10.5 px / 600 `#C9EDE1`.
 
-**Cuerpo** (260 px, columna):
+**Cuerpo** (320 px, columna):
 1. Bloque de conversación (padding `14px 16px 0`, gap 12):
    - Título: 17 px / 700, `line-height:1.25`, `letter-spacing:-.015em`, `text-wrap:pretty`, `#16211E`.
    - Meta: logo de plataforma 13 px + texto 11.5 px `#6E7C77`, `tabular-nums`: `Gemini · 14 pares · 26 – 29 jul` (plataforma · nº de pares · rango de fechas del chat). Sin recuento de palabras aquí.
@@ -58,7 +102,7 @@ Se abre al pulsar la mitad derecha del botón. **No es una pantalla completa**: 
 - Formatos y extensiones: Markdown `.md`, PDF `.pdf`, HTML `.html`, Word `.docx`, Texto plano `.txt`, JSON `.json`.
 
 ### 3. Submenú “Contenido” → Elegir pares
-Ocupa la misma caja de 260 px, en tres franjas:
+Ocupa la misma caja de 320 px, en tres franjas:
 - **Cabecera del submenú** (`padding:11px 16px 8px`, `flex:none`): botón volver 24×24, radio 7, `#F1F5F3`, chevron izquierdo; título `Elegir pares` 13 px / 700; a la derecha enlace `Todos` / `Ninguno`, 11.5 px / 600 `#0A6B54`.
 - **Lista** (`flex:1; overflow-y:auto`, padding `0 10px 0 16px`, gap 2). Cada fila: checkbox 15 px (`accent-color:#0A6B54`), número de par 11 px / 700 `#9AA5A1` con `tabular-nums` y `min-width:14px` (**tipografía normal, no monospace**), y texto de la pregunta 11.5 px `#2B3833`, `line-height:1.35`, recortado a **2 líneas** con `-webkit-line-clamp:2` (≈120 caracteres, nunca corta a mitad de palabra) más enlace **`más`** 10.5 px / 600 `#0A6B54`. Al desplegar, la fila muestra el texto completo, se tiñe `#F7FAF8` con radio 8 y el enlace pasa a **`menos`**. Los no seleccionados usan `#5F6E69`.
 - **Separador de día**: cuando la fecha del par cambia respecto al anterior, fila con dos líneas de 1 px `#EBF0EE` y la fecha centrada, 10 px / 600 `#9AA5A1` (`29 de julio`).
@@ -79,7 +123,7 @@ Misma caja; sin ejemplos ni textos explicativos largos. Tres filas:
 - Ayuda: `Arrastra las piezas para reordenarlas.` 10.5 px `#9AA5A1`.
 - **Pie fijo**: icono de archivo 13 px + **nombre resultante real** en monospace 11 px `#075343` con elipsis + botón `Hecho`. Se recalcula en vivo con la conversación actual.
 
-### 6. Estados secundarios (misma caja de 260 px)
+### 6. Estados secundarios (misma caja de 320 px)
 - **Detectando**: cabecera con punto `#9CC3B7` y texto `Detectando…`; cuerpo con esqueletos (barras `#EDF1EF` / `#F2F5F3`, radios 5–7) y botón inerte `#EDF1EF` con texto `#AEB9B5`.
 - **Sin nada seleccionado**: botón `Exportar` deshabilitado (`#E9EEEC` / `#A3AEAA`, `cursor:not-allowed`); la fila Contenido pasa a aviso: `background:#FDF4E7`, radio 9, texto `Ningún par seleccionado` 12.5 px / 600 `#7A5406`, acción `Elegir pares` `#96702A`.
 - **Exportado con avisos** (artefactos de Claude no recuperados): punto `#F0C368` y texto `Con avisos` en la cabecera; tarjeta `#FDF4E7`, radio 12, padding `11px 12px`: triángulo 17 px `#B07A0F`, título `Guardado, pero incompleto` 12.5 px / 650 `#6B4A05`, detalle 11.5 px `#7A5C1B`, enlace `Reintentar` 11.5 px / 700 `#8A6A12` subrayado. El botón principal pasa a `Exportar de nuevo`. El motivo completo, en el `title` (ya lo hace `popup.ts` con `response.warning`).
@@ -127,12 +171,42 @@ Mismo layout, tokens sustituidos: fondo `#141E1B`, cabecera `#0B1F1A`, superfici
 
 **Colores (oscuro)**: ver sección 7.
 
-**Tipografía**: pila del sistema, la misma que ya usa `popup.css` (`-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`). Escala: 17/700 título de conversación · 14/700 botón principal · 13/700 título de submenú · 12.5/650 nombre en cabecera · 12.5 filas · 11.5–12 valores y textos de pares · 11 números y resúmenes · 10.5 versión, privacidad, monospace de nombre de archivo · 10/700 rótulos en mayúsculas. Números siempre con `font-variant-numeric: tabular-nums`. Monospace sólo para nombres de archivo y plantillas: `ui-monospace, SFMono-Regular, Menlo, monospace`.
+**Tipografía**: pila del sistema, la misma que ya usa `popup.css` (`-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif`). Números siempre con `font-variant-numeric: tabular-nums`. Monospace sólo para nombres de archivo y plantillas: `ui-monospace, SFMono-Regular, Menlo, monospace`.
 
-**Espaciado**: 2 · 5 · 6 · 8 · 9 · 10 · 12 · 14 · 16 px.
-**Radios**: 5 (teclas) · 7 (fichas, botón volver) · 8 (filas de menú) · 9 (enlaces de plataforma) · 10 (campo de piezas) · 11–12 (botones grandes, tarjetas, menú flotante) · 999 (píldora de estado).
+**Escala tipográfica (R11)**. En 5a los tamaños estaban escritos a mano en ~30
+reglas de componente; ahora viven en `:root` igual que la tabla de colores, y
+**ninguna regla declara un `font-size` literal**. Los valores son los de 5a
+× 1,15 redondeados al 0,5 px más cercano. Para leer cualquier pantalla de
+*Screens / Views*, traduce su cifra de 5a con esta tabla:
+
+| Token | 5a | R11 | Usos |
+| --- | --- | --- | --- |
+| `--text-3xs` | 10 | **11,5** | rótulos en mayúsculas, separador de día |
+| `--text-2xs` | 10,5 | **12** | versión, línea de privacidad, monospace del nombre, pies |
+| `--text-xs` | 11 | **12,5** | números de par, resúmenes |
+| `--text-sm` | 11,5 | **13** | texto de pares, valores de fila, meta, cuerpo del aviso |
+| `--text-md` | 12 | **14** | filas de formato, ayuda de estado, `Hecho`, `kbd` |
+| `--text-base` | 12,5 | **14,5** | filas de ajuste, nombre en cabecera, título del aviso |
+| `--text-lg` | 13 | **15** | títulos de submenú, botón de recarga |
+| `--text-xl` | 14 | **16** | base del documento |
+| `--text-2xl` | 14,5 | **16,5** | titular del estado «recarga» |
+| `--text-3xl` | 15 | **17,5** | titular del estado «no compatible» |
+| `--text-4xl` | 17 | **19,5** | título de conversación |
+| `--text-action` | 14 | **14** | etiqueta del botón de exportar — *fuera de la escala* |
+
+`--text-action` está deliberadamente fuera de la escala: por indicación del
+autor la **barra de acción no crece** («el botón ya es bastante grande»), así
+que un futuro ajuste de la escala no debe arrastrarla.
+
+Los tamaños de fila, iconos y paddings **dirigidos por la tipografía** siguen el
+mismo factor 1,15; las hairlines, los radios y los bordes de 1,5 px no cambian.
+Los colores tampoco cambian: el texto más grande sitúa algunos grises en el
+tramo de «texto grande» de WCAG, pero **ningún valor se relaja por eso**.
+
+**Espaciado**: 2 · 5 · 6 · 7 · 8 · 9 · 10 · 11 · 12 · 13 · 14 · 18 px.
+**Radios**: 5 (teclas) · 7 (fichas, botón volver) · 8 (filas de menú) · 9 (enlaces de plataforma) · 10 (campo de piezas) · 11–12 (botones grandes, tarjetas, menú flotante) · 999 (píldora de estado). Sin cambios en R11.
 **Sombras**: menú flotante `0 12px 30px rgba(6,52,42,.22)` + `0 0 0 1px #E2E9E5`. En el popup real no hace falta sombra exterior (la pone el navegador).
-**Alturas fijas**: cabecera 48 · cuerpo 260 · filas de ajuste 38 · botón principal 50 · Imprimir 50×50 · filas de formato 31 · botón `Hecho` 30 · tope del menú de formatos 180.
+**Alturas fijas (R11)**: cabecera 56 · cuerpo 320 · filas de ajuste 44 · filas de formato 36 · botón `Hecho` 34 · botón de recarga 48 · círculo de recarga 44 · tope del menú de formatos 207. **Sin escalar** (barra de acción): botón principal 50 · mitad derecha 42 · Imprimir 50×50 · etiqueta 14.
 
 ## Assets
 Copiados del propio repo (`src/assets/icons/`): `icon-128.png`, `chatgpt-logo.svg`, `claude-logo.svg` (la “A” de Anthropic), `md-icon.svg`, `pdf-icon.svg`, `html-icon.svg`, `docx-icon.svg`, `txt-icon.svg`, `json-icon.svg`.
@@ -152,7 +226,7 @@ Añadidos en diseño:
 Para ver los diseños: abrir los `.dc.html` en un navegador. En el documento de diseño, cada opción tiene un identificador visible (`5a`, `4b`, …) y las referencias entre turnos son enlaces internos.
 
 ## Notas de implementación
-1. Empieza por la caja fija: `header` de 48 px + contenedor de 260 px con `box-sizing:border-box; overflow:hidden`. Todos los estados se pintan dentro. Es lo que evita que el popup salte.
+1. Empieza por la caja fija: `header` de 56 px + contenedor de 320 px con `box-sizing:border-box; overflow:hidden`. Todos los estados se pintan dentro. Es lo que evita que el popup salte.
 2. Cualquier lista dentro del cuerpo va en un contenedor `flex:1; overflow-y:auto; min-height:0`, con las cabeceras y pies en `flex:none`. Y las filas de lista, `flex:none` (si no, se encogen).
 3. Añade `* { box-sizing: border-box }` al reset de `popup.css`; hoy no está y varias alturas dependen de ello.
 4. Nuevas claves de traducción en los siete `_locales`: título de submenús (`Elegir pares`, `Opciones`, `Nombre del archivo`, `Formato`), `Todos` / `Ninguno`, `Hecho`, `Por defecto`, `más` / `menos`, línea de privacidad, `Recargar la página`, `Guardado, pero incompleto`, `Reintentar`, `Ningún par seleccionado`, nombres de las piezas del nombre de archivo. Reutiliza las existentes cuando encajen.
