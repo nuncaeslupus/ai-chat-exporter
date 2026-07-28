@@ -10,13 +10,13 @@ AI Chat Exporter and Printer
 SHORT DESCRIPTION (132 characters max)
 ========================================
 
-Export and print ChatGPT and Claude conversations to PDF, Markdown, Word and other formats with advanced formatting.
+Export and print ChatGPT, Claude and Gemini conversations to PDF, Markdown, Word and other formats with rich formatting.
 
 ========================================
 DETAILED DESCRIPTION
 ========================================
 
-Export your AI conversations with professional formatting - AI Chat Exporter makes it easy to save and share your conversations with ChatGPT and Claude in multiple formats. Gemini support is coming soon.
+Export your AI conversations with professional formatting - AI Chat Exporter makes it easy to save and share your conversations with ChatGPT, Claude and Gemini in multiple formats.
 
 ✨ What's New in v1.1.1
 
@@ -31,40 +31,32 @@ Right-Click Context Menu:
 
 Multiple Export Formats:
 
-• PDF - Professional documents with proper pagination and formatting
+• PDF - Paginated documents with page numbers, code highlighting and embedded images
 • Markdown - Clean, readable text with full formatting support
 • Word - Microsoft Word documents with proper structure
-• HTML, JSON, Plain text and more
-
-Smart Selection:
-
-• Export entire conversations or select specific messages
-• Interactive selection mode with visual feedback
-• Batch export multiple conversations
+• HTML, JSON, Plain text
 
 Multiple Access Methods:
 
 • Extension toolbar icon with popup interface
-• In-page export buttons
 • Right-click context menus for quick access ⚡ NEW!
-• Keyboard shortcuts (Ctrl+Shift+E / Cmd+Shift+E)
+• Keyboard shortcut (Ctrl+Shift+E / Cmd+Shift+E)
 
 Print Support:
 
-• Direct printing with optimized layouts
-• Page break control
+• Opens the conversation in a new tab and raises the browser print dialog
 • Print-friendly formatting
+• Available for every format except Word
 • Quick access via context menu ⚡ NEW!
 
 Rich Content Preservation:
 
 • Code blocks with syntax highlighting
-• Mathematical formulas and equations
+• Mathematical formulas, kept as their LaTeX source
 • Images and visual content
 • Tables and lists
 • Web citations and references (ChatGPT)
-• File attachments (Claude Projects)
-• Code artifacts (ChatGPT)
+• Code artifacts (ChatGPT and Claude)
 
 Multi-Language Support:
 
@@ -75,8 +67,8 @@ Multi-Language Support:
 🌐 Supported Platforms
 
 • ChatGPT (chat.openai.com, chatgpt.com) - Including code artifacts and web search results
-• Claude (claude.ai) - Including artifacts and project files
-• Gemini (gemini.google.com) - Soon!
+• Claude (claude.ai) - Including artifact contents
+• Gemini (gemini.google.com) - Full conversation export
 
 🔒 Privacy & Security
 
@@ -91,7 +83,7 @@ Method 1: Extension Popup
 1. Open any supported AI chat platform
 2. Click the extension icon in your toolbar
 3. Choose your export format
-4. Select which messages to export (or export all)
+4. Click Export (or Print) - the whole conversation is exported
 5. Download your formatted conversation
 
 Method 2: Right-Click Menu ⚡ NEW!
@@ -102,17 +94,16 @@ Method 2: Right-Click Menu ⚡ NEW!
 5. Your conversation is instantly exported or printed
 
 Method 3: Keyboard Shortcut
-• Press Ctrl+Shift+E (Windows/Linux) or Cmd+Shift+E (Mac) to open the export dialog
+• Press Ctrl+Shift+E (Windows/Linux) or Cmd+Shift+E (Mac) to export straight away, in the format you last used
 
 🎨 Professional Output
 
 All exports include:
 
-• Conversation title and metadata
-• Timestamps for each message
+• Conversation title and metadata (platform, model, date, URL)
 • Proper formatting and structure
 • Code syntax highlighting
-• Preserved images and attachments
+• Images (embedded in PDF, linked in HTML and Markdown)
 • Web search results and citations
 
 🚀 Perfect For
@@ -154,9 +145,10 @@ We never collect, store, or receive your conversations, and the extension has no
 PERMISSIONS JUSTIFICATION
 ========================================
 
-• activeTab: Required to access the conversation content on ChatGPT and Claude pages
-• storage: Used to save user preferences (language, default format) locally in your browser
+• activeTab: Required to access the conversation content on the supported chat pages
+• storage: Used to save user preferences (last used export format) locally in your browser
 • contextMenus: Provides right-click menu options for quick export and print access
+• Host permissions (chat.openai.com, chatgpt.com, claude.ai, gemini.google.com): Required to read the open conversation on each supported platform, and, on claude.ai, to call Claude's own API with your existing session for artifact content the page does not render. The extension has no access to any other site.
 
 ========================================
 SCREENSHOTS
@@ -164,12 +156,11 @@ SCREENSHOTS
 
 1. Main export interface with format selection
 2. Right-click context menu showing Export and Print options ⚡ NEW!
-3. Selection mode showing message picker
-4. PDF export example with professional formatting
-5. Markdown export with code highlighting
-6. ChatGPT code artifacts in exported document
-7. Web search citations in export
-8. Multi-language support interface
+3. PDF export example with professional formatting
+4. Markdown export with code highlighting
+5. ChatGPT code artifacts in exported document
+6. Web search citations in export
+7. Multi-language support interface
 
 ========================================
 TAGS

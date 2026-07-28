@@ -1,44 +1,44 @@
 # AI Chat Exporter
 
-A powerful browser extension to export your AI chatbot conversations from ChatGPT, Claude, and Gemini to multiple formats.
+A browser extension to export your AI chatbot conversations from ChatGPT, Claude, and Gemini to multiple formats.
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-1.1.1-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)
 
 ## Features
 
-- 🚀 **Multi-Platform Support**: Export conversations from ChatGPT, Claude (coming soon), and Gemini (coming soon)
+- 🚀 **Multi-Platform Support**: Export conversations from ChatGPT, Claude, and Gemini
 - 📄 **Multiple Export Formats**:
   - **Markdown** (.md) - Clean, readable format with proper formatting
-  - **PDF** (.pdf) - Professional documents with syntax highlighting
-  - **HTML** (.html) - Standalone HTML with ChatGPT-like styling
+  - **PDF** (.pdf) - Paginated documents with syntax highlighting and page numbers
+  - **HTML** (.html) - Standalone HTML with inlined styling
   - **Word Document** (.docx) - Rich formatted documents
   - **Plain Text** (.txt) - Simple text format
   - **JSON** (.json) - Structured data for programmatic use
 - 🎨 **Rich Content Support**:
   - Code blocks with syntax highlighting
-  - Images (user uploads and AI-generated)
-  - Canvas/document content
-  - Deep research results with metadata
+  - Images (embedded in PDF; referenced by URL in HTML and Markdown)
+  - Artifacts / canvas content
+  - Web search citations (link, title and domain)
+  - Math rendered by the page, preserved as its LaTeX source
   - Lists, headings, blockquotes
   - Inline formatting (bold, italic, code, links)
 - 🔧 **Smart Parsing**:
   - Preserves conversation structure
   - Removes UI artifacts (buttons, icons)
   - Maintains code formatting
-  - Handles special ChatGPT features (canvas, research mode)
-- 🌍 **Multilingual**: Interface and exports support multiple languages
+- 🖱️ **Three ways to export**: the toolbar popup, a right-click Export/Print
+  context menu, and `Ctrl+Shift+E` / `Cmd+Shift+E`
+- 🌍 **Multilingual**: Interface available in 7 languages (English, Spanish,
+  French, German, Italian, Portuguese, Catalan)
 
 ## Installation
 
-### From Chrome Web Store (Coming Soon)
-Visit the [Chrome Web Store](#) and click "Add to Chrome"
+The extension is not published to the Chrome Web Store or Firefox Add-ons yet.
+Install it from source:
 
-### From Firefox Add-ons (Coming Soon)
-Visit [Firefox Add-ons](#) and click "Add to Firefox"
-
-### Manual Installation (Development)
+### Manual Installation
 
 #### Chrome/Edge
 1. Download or clone this repository
@@ -61,29 +61,40 @@ Visit [Firefox Add-ons](#) and click "Add to Firefox"
 1. Navigate to a conversation on ChatGPT, Claude, or Gemini
 2. Click the extension icon in your browser toolbar
 3. Choose your preferred export format
-4. Click "Export" to download the conversation
+4. Click "Export" to download the conversation, or "Print" to open it in the
+   browser print dialog
 
-### Keyboard Shortcuts (Coming Soon)
-- `Ctrl+Shift+E` - Open export menu
-- `Ctrl+Shift+P` - Print conversation
+You can also right-click anywhere on a supported page and pick a format from the
+**Export** or **Print** submenus. Print is available for every format except
+DOCX.
+
+### Keyboard Shortcut
+- `Ctrl+Shift+E` (`Cmd+Shift+E` on Mac) - Export the current conversation in the
+  format you last used. This is the only shortcut the extension registers;
+  rebind it at `chrome://extensions/shortcuts` or, in Firefox, `about:addons` →
+  gear icon → "Manage Extension Shortcuts".
 
 ## Supported Platforms
 
-### ChatGPT ✅
-- Full support for all message types
-- Image extraction (uploaded and generated)
-- Canvas/document content
-- Deep research mode with metadata
+All three platforms are parsed by a dedicated parser with unit tests against a
+captured DOM snapshot.
+
+### ChatGPT (`chat.openai.com`, `chatgpt.com`)
+- All message types
+- Images (uploaded and generated)
+- Canvas / code artifacts
+- Web search citations
 - Code blocks with syntax highlighting
-- All conversation features
 
-### Claude (Coming Soon)
-- Basic conversation export
-- Feature parity with ChatGPT planned
+### Claude (`claude.ai`)
+- Conversation export
+- Artifact contents, fetched from Claude's own API using your existing session
+  (the DOM only renders an artifact chip). If that call fails, the export still
+  succeeds and the extension tells you the artifact bodies are missing.
 
-### Gemini (Coming Soon)
-- Basic conversation export
-- Feature parity with ChatGPT planned
+### Gemini (`gemini.google.com`)
+- Conversation export, with the model's thinking panel and action bars excluded
+- Rendered math preserved as its LaTeX source
 
 ## Development
 
@@ -120,11 +131,11 @@ ai-chat-exporter/
 ├── src/
 │   ├── core/
 │   │   ├── parsers/      # Platform-specific parsers
-│   │   │   ├── chatgpt/  # ChatGPT parser (fully implemented)
-│   │   │   ├── claude/   # Claude parser (placeholder)
-│   │   │   └── gemini/   # Gemini parser (placeholder)
+│   │   │   ├── chatgpt/
+│   │   │   ├── claude/
+│   │   │   └── gemini/
 │   │   ├── exporters/    # Export format handlers
-│   │   │   ├── md-exporter.ts
+│   │   │   ├── structured-md-exporter.ts
 │   │   │   ├── pdf-exporter.ts
 │   │   │   ├── html-exporter.ts
 │   │   │   ├── docx-exporter.ts
@@ -136,7 +147,7 @@ ai-chat-exporter/
 │   │   ├── background/   # Service worker
 │   │   ├── content/      # Content scripts
 │   │   └── popup/        # Extension popup
-│   └── ui/               # UI components
+│   └── ui/               # Unused in-page components (not injected today)
 ├── tests/                # Test files
 ├── build/                # Build configuration
 └── manifests/            # Extension manifests
@@ -149,11 +160,12 @@ The extension uses a clean architecture with structured content:
 1. **Parsers** - Extract conversations from platform DOM
 2. **Structure Service** - Convert HTML to structured JSON (paragraphs, code blocks, headings, etc.)
 3. **Exporters** - Generate files from structured content
-4. **Content Scripts** - Inject into web pages and handle parsing
-5. **Background Service** - Manage extension lifecycle
-6. **Popup UI** - User interface for export options
+4. **Content Scripts** - Injected into supported pages; parse the conversation
+   and run the export or print on request
+5. **Background Service** - Extension lifecycle, context menus, keyboard command
+6. **Popup UI** - Format picker with Export and Print buttons
 
-See [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md) for detailed progress and architecture.
+See [docs/dev/development-plan.md](./docs/dev/development-plan.md) for detailed progress and architecture.
 
 ### Adding a New Parser
 
@@ -193,26 +205,21 @@ Contributions are welcome! Please:
 - Ensure all tests pass (`pnpm test`)
 - Run type checking (`pnpm typecheck`)
 
-## Roadmap
+## Not implemented yet
 
-### Current Focus
-- [ ] Complete Claude.ai parser
-- [ ] Complete Gemini parser
-- [ ] Chrome Web Store submission
-- [ ] Firefox Add-ons submission
+So you know what you are *not* getting:
 
-### Planned Features
-- [ ] Conversation selection (export specific messages)
-- [ ] Export options UI (metadata, timestamps, etc.)
-- [ ] LaTeX/Math equation support
-- [ ] Export templates/themes
-- [ ] Batch export multiple conversations
-- [ ] Auto-export on conversation end
-- [ ] Cloud sync (optional)
-- [ ] Search within exported conversations
-- [ ] Export to Notion/Obsidian
+- **Selecting which Q&A pairs to export.** Every export includes the whole
+  conversation.
+- **An options UI.** There is no settings screen: metadata is always included,
+  timestamps never are, and the filename template is fixed at `{title}_{date}`.
+- **In-page export buttons.** Export and print are reached from the popup, the
+  right-click menu, or the keyboard shortcut only.
+- **Batch export.** One conversation at a time.
 
-See [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md) for detailed roadmap.
+Open work is tracked in [GitHub issues](https://github.com/nuncaeslupus/ai-chat-exporter/issues);
+see [docs/dev/development-plan.md](./docs/dev/development-plan.md) for the
+longer-term plan.
 
 ## Privacy & Security
 
@@ -245,6 +252,7 @@ web font, or tracking pixel. Full details in [docs/PRIVACY.md](./docs/PRIVACY.md
 The extension requires:
 - `activeTab` - To access the current conversation
 - `storage` - To save user preferences
+- `contextMenus` - For the right-click Export and Print menus
 - Host permissions for `chat.openai.com`, `chatgpt.com`, `claude.ai`, `gemini.google.com`
 
 ## License
@@ -255,7 +263,6 @@ MIT License - see [LICENSE](./LICENSE) file for details
 
 - 🐛 [Report a Bug](https://github.com/nuncaeslupus/ai-chat-exporter/issues)
 - 💡 [Request a Feature](https://github.com/nuncaeslupus/ai-chat-exporter/issues)
-- 📧 [Contact](mailto:your.email@example.com)
 
 ## Acknowledgments
 
