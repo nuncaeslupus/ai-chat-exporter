@@ -552,14 +552,18 @@ export class ClaudeParser extends BaseParser {
         const domainElement = link.querySelector('p.text-\\[0\\.75rem\\].text-text-500');
         const domain = domainElement?.textContent?.trim() || '';
 
-        const faviconImg = link.querySelector('img');
-        const favicon = faviconImg?.getAttribute('src');
-
+        // ponytail: the citation favicon <img src> is taken straight off
+        // claude.ai's DOM, and chat UIs serve those from third-party hosts
+        // (ChatGPT's citation pills use logo.clearbit.com -- see
+        // tests/fixtures/dom-snapshots/chatgpt/citations.html). Carrying it
+        // into the export would make the exported file phone out to that host
+        // every time it is opened, leaking the cited domains and the reader's
+        // IP. Favicons are decorative, so drop them -- same resolution as
+        // lo-8312 took for ChatGPT.
         const result: { title: string; url: string; favicon?: string; domain?: string } = {
           title,
           url: href,
         };
-        if (favicon) result.favicon = favicon;
         if (domain) result.domain = domain;
 
         results.push(result);

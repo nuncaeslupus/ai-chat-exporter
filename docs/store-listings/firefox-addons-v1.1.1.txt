@@ -65,7 +65,7 @@ Rich Content Preservation:
 • Mathematical formulas and equations
 • Images and visual content (properly sized thumbnails at 200px max)
 • Tables and lists with formatting
-• Web citations with links and favicons (ChatGPT)
+• Web citations with links, titles, and source domains (ChatGPT)
 • File attachments from Claude Projects
 • SVG artifacts with rendered previews
 • Code artifacts from ChatGPT responses
@@ -95,9 +95,10 @@ Gemini (gemini.google.com)
 
 🔒 Privacy & Security
 
-• No Data Collection - We never see, store, or receive your conversations
+• No Data Collection - The extension has no backend. We never see, store, or receive your conversations
 • No Tracking - No analytics, no telemetry
-• Limited Network Use - The extension contacts claude.ai (with your own session) to fetch Claude conversation data, and Google's favicon service to show icons for ChatGPT web search citations. See our Privacy Policy for details.
+• Local Processing - Reading the page, formatting the export, and generating the file all happen in your browser
+• No Third Parties - The extension sends nothing to any third party. Its only network requests go to the chat provider whose page you are already on: claude.ai's own API (using your existing session) to fetch Claude conversation data, and, for PDF exports, the images already in your conversation so they can be embedded in the file. See our Privacy Policy for details.
 • Open Source - Full transparency with publicly available source code
 • No Account Required - Works immediately, no sign-up needed
 
@@ -230,7 +231,7 @@ https://github.com/ivansaul/ai-chat-exporter/issues
 PRIVACY POLICY
 ========================================
 
-We never collect, store, or receive your conversations. Export formatting happens locally in your browser; the extension does contact claude.ai and Google's favicon service for the reasons described in our Privacy Policy: https://github.com/nuncaeslupus/ai-chat-exporter/blob/main/docs/PRIVACY.md
+We never collect, store, or receive your conversations, and the extension has no backend, analytics, or telemetry. Reading the page, formatting the export, and generating the file all happen locally in your browser. The extension sends nothing to any third party; its only network requests go to the chat provider whose page you are already on, as described in our Privacy Policy: https://github.com/nuncaeslupus/ai-chat-exporter/blob/main/docs/PRIVACY.md
 
 ========================================
 SCREENSHOTS

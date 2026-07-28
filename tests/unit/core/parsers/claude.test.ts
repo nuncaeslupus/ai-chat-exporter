@@ -204,6 +204,21 @@ describe('ClaudeParser', () => {
       expect(search?.resultCount).toBe(10);
     });
 
+    it('does not carry citation favicons out of the page DOM (lo-31e6)', () => {
+      // The fixture's search result carries a third-party favicon <img>, the
+      // shape claude.ai's citation rows use. Keeping that src would make the
+      // exported HTML fetch it from that host every time the file is opened,
+      // leaking the cited domains and the reader's IP. Same resolution as
+      // lo-8312 took for ChatGPT: drop the decorative favicon.
+      const result = parser.parse();
+      const results = result.conversation?.pairs[0]?.answer.metadata?.webSearches?.[0]?.results;
+
+      expect(results?.length).toBeGreaterThan(0);
+      for (const searchResult of results ?? []) {
+        expect(searchResult.favicon).toBeUndefined();
+      }
+    });
+
     it('extracts artifacts', () => {
       const result = parser.parse();
       const firstPair = result.conversation?.pairs[0];
