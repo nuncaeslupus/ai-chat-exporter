@@ -89,11 +89,13 @@ describe('ClaudeApiService', () => {
         ],
       };
 
-      const enriched = ClaudeApiService.enrichConversationWithArtifacts(conversation, apiData);
+      const { conversation: enriched, warning } =
+        ClaudeApiService.enrichConversationWithArtifacts(conversation, apiData);
 
       expect(enriched.pairs[0]?.answer.metadata?.artifacts ?? []).toHaveLength(0);
       expect(enriched.pairs[1]?.answer.metadata?.artifacts).toHaveLength(1);
       expect(enriched.pairs[1]?.answer.metadata?.artifacts?.[0]?.content).toBe('second content');
+      expect(warning).toBeUndefined();
     });
 
     it('does not misattribute artifacts when the DOM pair count and API assistant-message count diverge (edited/regenerated turn)', () => {
@@ -121,12 +123,16 @@ describe('ClaudeApiService', () => {
         ],
       };
 
-      const enriched = ClaudeApiService.enrichConversationWithArtifacts(conversation, apiData);
+      const result = ClaudeApiService.enrichConversationWithArtifacts(conversation, apiData);
 
       // Enrichment must be skipped entirely rather than mis-pairing —
       // a wrong-but-confident attribution is worse than a visible failure.
-      expect(enriched.pairs[0]?.answer.metadata?.artifacts ?? []).toHaveLength(0);
-      expect(enriched.pairs[1]?.answer.metadata?.artifacts ?? []).toHaveLength(0);
+      expect(result.conversation.pairs[0]?.answer.metadata?.artifacts ?? []).toHaveLength(0);
+      expect(result.conversation.pairs[1]?.answer.metadata?.artifacts ?? []).toHaveLength(0);
+
+      // ...and the skip must be reported back to the caller so the user can be
+      // told, rather than only reaching a console.warn nobody reads (lo-872a).
+      expect(result.warning).toEqual(expect.stringContaining('artifact'));
     });
 
     it('correctly attributes two artifacts that share the same title in one message', () => {
@@ -146,7 +152,10 @@ describe('ClaudeApiService', () => {
         ],
       };
 
-      const enriched = ClaudeApiService.enrichConversationWithArtifacts(conversation, apiData);
+      const { conversation: enriched } = ClaudeApiService.enrichConversationWithArtifacts(
+        conversation,
+        apiData
+      );
       const artifacts = enriched.pairs[0]?.answer.metadata?.artifacts ?? [];
 
       expect(artifacts).toHaveLength(2);
@@ -167,8 +176,9 @@ describe('ClaudeApiService', () => {
         ],
       };
 
-      const enriched = ClaudeApiService.enrichConversationWithArtifacts(conversation, apiData);
-      expect(enriched).toEqual(conversation);
+      const result = ClaudeApiService.enrichConversationWithArtifacts(conversation, apiData);
+      expect(result.conversation).toEqual(conversation);
+      expect(result.warning).toBeUndefined();
     });
   });
 });

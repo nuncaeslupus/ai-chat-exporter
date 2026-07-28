@@ -12,6 +12,18 @@ import type {
 import { isArtifactContent } from '../types';
 
 /**
+ * Outcome of an enrichment attempt.
+ *
+ * `warning` is set when the export is degraded — artifact contents could not
+ * be recovered — so the caller can tell the user rather than shipping an
+ * export that is silently missing them.
+ */
+export interface EnrichmentResult {
+  conversation: Conversation;
+  warning?: string;
+}
+
+/**
  * Service for enriching conversations with Claude API data
  */
 export class ClaudeApiService {
@@ -275,10 +287,12 @@ export class ClaudeApiService {
    * message *positionally* — by assuming the Nth DOM pair corresponds to the
    * Nth assistant message in the API response.
    *
-   * That assumption breaks silently when the two disagree in shape (an
-   * edited or regenerated turn, a deleted message, ...). Rather than guess,
-   * this bails out of enrichment entirely when the counts don't match, and
-   * logs why. Once a pair IS matched to its API message, all further
+   * That assumption breaks when the two disagree in shape (an edited or
+   * regenerated turn, a deleted message, ...). Rather than guess, this bails
+   * out of enrichment entirely when the counts don't match and returns a
+   * `warning` so the caller can surface the degraded export to the user — a
+   * console.warn alone left the user with an artifact-less export and no
+   * signal at all. Once a pair IS matched to its API message, all further
    * artifact data for that pair comes straight from the API's own artifact
    * list (keyed by the API's own stable message uuid) — never from
    * title-matching, which silently collides when two artifacts share a
@@ -287,12 +301,12 @@ export class ClaudeApiService {
   static enrichConversationWithArtifacts(
     conversation: Conversation,
     apiData: ClaudeApiConversationResponse
-  ): Conversation {
+  ): EnrichmentResult {
     const artifactsByMessageUuid = this.extractArtifacts(apiData);
 
     if (artifactsByMessageUuid.size === 0) {
       console.log('[Claude API Service] No artifacts found in API response');
-      return conversation;
+      return { conversation };
     }
 
     console.log(
@@ -304,15 +318,13 @@ export class ClaudeApiService {
     );
 
     if (assistantMessages.length !== conversation.pairs.length) {
-      console.warn(
-        '[Claude API Service] Assistant message count from the API ' +
-          `(${assistantMessages.length}) does not match the DOM pair count ` +
-          `(${conversation.pairs.length}). The API response has no id shared ` +
-          'with the DOM scrape, so pairs cannot be safely matched to API ' +
-          'messages (likely an edited or regenerated turn) — skipping artifact ' +
-          'enrichment rather than risk misattributing artifacts.'
-      );
-      return conversation;
+      const warning =
+        `Artifact contents were left out of this export: the page shows ${String(conversation.pairs.length)} ` +
+        `replies but Claude reports ${String(assistantMessages.length)}, so artifacts could not be ` +
+        'matched to the right reply (this happens when a turn was edited, regenerated ' +
+        'or deleted). Reload the conversation and export again.';
+      console.warn(`[Claude API Service] ${warning}`);
+      return { conversation, warning };
     }
 
     // Enrich conversation pairs with artifact content, matching each pair to
@@ -345,8 +357,10 @@ export class ClaudeApiService {
     });
 
     return {
-      ...conversation,
-      pairs: enrichedPairs,
+      conversation: {
+        ...conversation,
+        pairs: enrichedPairs,
+      },
     };
   }
 }

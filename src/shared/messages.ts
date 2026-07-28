@@ -76,6 +76,8 @@ export interface MessageResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;
+  /** Set when the operation succeeded but the result is degraded. */
+  warning?: string;
 }
 
 /**
