@@ -13,6 +13,7 @@ import type {
   StructuredContentBlock,
   Artifact,
   WebSearchResult,
+  ImageBlock,
 } from '../types';
 import { HtmlContentParser } from './html-content-parser';
 
@@ -97,8 +98,8 @@ export class ConversationStructureService {
     if (message.metadata?.images && Array.isArray(message.metadata.images)) {
       for (const image of message.metadata.images) {
         if (image.src) {
-          const imageBlock: any = {
-            type: 'image' as const,
+          const imageBlock: ImageBlock = {
+            type: 'image',
             url: image.src,
             alt: image.alt || 'Image',
           };

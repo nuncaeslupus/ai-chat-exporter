@@ -14,8 +14,10 @@ export class StorageService {
    */
   static async getUserPreferences(): Promise<UserPreferences> {
     try {
-      const result = await chrome.storage.sync.get(STORAGE_KEYS.USER_PREFERENCES);
-      return result[STORAGE_KEYS.USER_PREFERENCES] || DEFAULT_PREFERENCES;
+      const result: Record<string, unknown> = await chrome.storage.sync.get(
+        STORAGE_KEYS.USER_PREFERENCES
+      );
+      return (result[STORAGE_KEYS.USER_PREFERENCES] as UserPreferences | undefined) || DEFAULT_PREFERENCES;
     } catch (error) {
       console.error('Failed to get user preferences:', error);
       return DEFAULT_PREFERENCES;
@@ -43,8 +45,10 @@ export class StorageService {
    */
   static async getLastExportFormat(): Promise<string | null> {
     try {
-      const result = await chrome.storage.local.get(STORAGE_KEYS.LAST_EXPORT_FORMAT);
-      return result[STORAGE_KEYS.LAST_EXPORT_FORMAT] || null;
+      const result: Record<string, unknown> = await chrome.storage.local.get(
+        STORAGE_KEYS.LAST_EXPORT_FORMAT
+      );
+      return (result[STORAGE_KEYS.LAST_EXPORT_FORMAT] as string | undefined) || null;
     } catch (error) {
       console.error('Failed to get last export format:', error);
       return null;
@@ -70,8 +74,8 @@ export class StorageService {
   static async getSelectionState(conversationId: string): Promise<string[] | null> {
     try {
       const key = `${STORAGE_KEYS.SELECTION_STATE}_${conversationId}`;
-      const result = await chrome.storage.local.get(key);
-      return result[key] || null;
+      const result: Record<string, unknown> = await chrome.storage.local.get(key);
+      return (result[key] as string[] | undefined) || null;
     } catch (error) {
       console.error('Failed to get selection state:', error);
       return null;

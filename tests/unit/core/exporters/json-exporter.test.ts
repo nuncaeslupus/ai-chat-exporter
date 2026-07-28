@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { Conversation, QAPair } from '../../../../src/core/types';
-import { JsonExporter } from '../../../../src/core/exporters/json-exporter';
+import { JsonExporter, type JsonExport } from '../../../../src/core/exporters/json-exporter';
 import {
   blobToText,
   createTestQAPair,
@@ -65,7 +65,7 @@ describe('JsonExporter', () => {
         includeTimestamps: true,
       });
       const text = await blobToText(result.blob!);
-      expect(() => JSON.parse(text)).not.toThrow();
+      expect(() => JSON.parse(text) as JsonExport).not.toThrow();
     });
 
     it('includes conversation metadata', async () => {
@@ -76,7 +76,7 @@ describe('JsonExporter', () => {
         includeTimestamps: true,
       });
       const text = await blobToText(result.blob!);
-      const parsed = JSON.parse(text);
+      const parsed = JSON.parse(text) as JsonExport;
       expect(parsed.title).toBe('Test Conversation');
       expect(parsed.platform).toBe('chatgpt');
       expect(parsed.model).toBe('gpt-4');
@@ -90,10 +90,10 @@ describe('JsonExporter', () => {
         includeTimestamps: true,
       });
       const text = await blobToText(result.blob!);
-      const parsed = JSON.parse(text);
+      const parsed = JSON.parse(text) as JsonExport;
       expect(parsed.pairs).toHaveLength(2);
-      expect(parsed.pairs[0].question.content).toBe('What is TypeScript?');
-      expect(parsed.pairs[0].answer.content).toBe('TypeScript is a typed superset of JavaScript.');
+      expect(parsed.pairs[0]?.question.content).toBe('What is TypeScript?');
+      expect(parsed.pairs[0]?.answer.content).toBe('TypeScript is a typed superset of JavaScript.');
     });
 
     it('formats output with indentation', async () => {
@@ -118,7 +118,7 @@ describe('JsonExporter', () => {
         includeTimestamps: true,
       });
       const text = await blobToText(result.blob!);
-      const parsed = JSON.parse(text);
+      const parsed = JSON.parse(text) as JsonExport;
       expect(parsed.title).toBeUndefined();
       expect(parsed.platform).toBeUndefined();
       expect(parsed.url).toBeUndefined();
@@ -134,7 +134,7 @@ describe('JsonExporter', () => {
         includeTimestamps: true,
       });
       const text = await blobToText(result.blob!);
-      const parsed = JSON.parse(text);
+      const parsed = JSON.parse(text) as JsonExport;
       expect(parsed.title).toBe('Test Conversation');
       expect(parsed.platform).toBe('chatgpt');
       expect(parsed.url).toBe('https://chatgpt.com/c/test');

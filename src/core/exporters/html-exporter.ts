@@ -10,10 +10,14 @@ import type {
   Conversation,
   QAPair,
   StructuredContentBlock,
+  StructuredConversation,
+  StructuredQAPair,
   InlineContent,
   ListBlock,
   ListItem,
   TableBlock,
+  Artifact,
+  WebSearchResult,
 } from '../types';
 import { BaseExporter } from './base-exporter';
 import { ConversationStructureService } from '../services';
@@ -48,7 +52,7 @@ export class HtmlExporter extends BaseExporter {
     }
   }
 
-  private generateHTML(conversation: any, options: ExportOptions): string {
+  private generateHTML(conversation: StructuredConversation, options: ExportOptions): string {
     const title = this.escapeHtml(conversation.title);
     const platform = this.escapeHtml(this.formatPlatformName(conversation.platform));
     const model = conversation.model ? this.escapeHtml(conversation.model) : '';
@@ -106,7 +110,7 @@ export class HtmlExporter extends BaseExporter {
             </div>`;
   }
 
-  private generatePairs(pairs: any[], platform: string, options: ExportOptions): string {
+  private generatePairs(pairs: StructuredQAPair[], platform: string, options: ExportOptions): string {
     const assistantName = this.getRoleName('assistant', platform);
 
     return pairs.map(pair => `
@@ -138,7 +142,7 @@ export class HtmlExporter extends BaseExporter {
     return suffix ? `<span class="message-timestamp">${this.escapeHtml(suffix)}</span>` : '';
   }
 
-  private renderArtifacts(artifacts?: any[]): string {
+  private renderArtifacts(artifacts?: Artifact[]): string {
     if (!artifacts || !Array.isArray(artifacts)) {
       return '';
     }
@@ -160,7 +164,7 @@ export class HtmlExporter extends BaseExporter {
                         </div>`;
   }
 
-  private renderWebSearches(webSearches?: any[]): string {
+  private renderWebSearches(webSearches?: WebSearchResult[]): string {
     if (!webSearches || !Array.isArray(webSearches) || webSearches.length === 0) {
       return '';
     }
@@ -174,7 +178,7 @@ export class HtmlExporter extends BaseExporter {
                                 ${search.resultCount ? `<p class="search-count"><em>${search.resultCount} results found</em></p>` : ''}
                                 ${search.results && search.results.length > 0 ? `
                                 <ul class="search-results">
-                                    ${search.results.map((result: any) => `
+                                    ${search.results.map((result) => `
                                     <li class="search-result">
                                         <div class="result-content">
                                             <a href="${this.escapeHtml(result.url)}" target="_blank" rel="noopener noreferrer" class="result-title">${this.escapeHtml(result.title)}</a>
@@ -189,19 +193,22 @@ export class HtmlExporter extends BaseExporter {
   private renderBlocks(blocks: StructuredContentBlock[]): string {
     return blocks.map(block => {
       switch (block.type) {
-        case 'paragraph':
+        case 'paragraph': {
           const content = this.renderInline(block.content).trim();
           return content ? `<p>${content}</p>` : '';
+        }
 
-        case 'heading':
+        case 'heading': {
           const level = Math.min(block.level + 2, 6); // Shift down since title is h1
           const headingContent = this.renderInline(block.content).trim();
           return headingContent ? `<h${level}>${headingContent}</h${level}>` : '';
+        }
 
-        case 'code':
+        case 'code': {
           const language = this.escapeHtml(block.language);
           const code = this.escapeHtml(block.code);
           return `<pre><code class="language-${language}">${code}</code></pre>`;
+        }
 
         case 'list':
           return this.renderList(block);
@@ -212,13 +219,14 @@ export class HtmlExporter extends BaseExporter {
         case 'hr':
           return '<hr>';
 
-        case 'image':
+        case 'image': {
           const alt = this.escapeHtml(block.alt || 'image');
           const imgUrl = this.escapeHtml(block.url);
           const imgTitle = block.title ? ` title="${this.escapeHtml(block.title)}"` : '';
           const imgWidth = block.width ? ` width="${block.width}"` : '';
           const imgHeight = block.height ? ` height="${block.height}"` : '';
           return `<img src="${imgUrl}" alt="${alt}"${imgTitle}${imgWidth}${imgHeight}>`;
+        }
 
         case 'table':
           return this.renderTable(block);
@@ -246,9 +254,10 @@ export class HtmlExporter extends BaseExporter {
         case 'code':
           return `<code class="inline-code">${text}</code>`;
 
-        case 'link':
+        case 'link': {
           const linkUrl = this.escapeHtml(item.url || '#');
           return `<a href="${linkUrl}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+        }
 
         case 'strikethrough':
           return `<del>${text}</del>`;

@@ -31,7 +31,7 @@ Object.defineProperty(globalThis, 'chrome', {
   value: {
     storage: mockStorage,
     runtime: mockRuntime,
-  } as unknown as typeof chrome,
+  },
   writable: true,
 });
 

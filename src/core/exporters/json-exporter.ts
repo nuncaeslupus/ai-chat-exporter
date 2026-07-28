@@ -8,13 +8,14 @@ import type {
   ExportResult,
   Conversation,
   QAPair,
+  MessageMetadata,
 } from '../types';
 import { BaseExporter } from './base-exporter';
 
 /**
  * JSON export structure
  */
-interface JsonExport {
+export interface JsonExport {
   title?: string;
   platform?: string;
   model?: string;
@@ -35,7 +36,7 @@ interface JsonMessage {
   content: string;
   htmlContent?: string;
   timestamp?: string;
-  metadata?: any; // Include images, artifacts, web searches, etc.
+  metadata?: MessageMetadata; // Include images, artifacts, web searches, etc.
 }
 
 /**

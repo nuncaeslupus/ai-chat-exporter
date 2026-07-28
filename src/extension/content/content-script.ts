@@ -665,15 +665,15 @@ const contentScript = new ContentScript();
 // Wait for DOM to be ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
-    contentScript.initialize();
+    void contentScript.initialize();
   });
 } else {
-  contentScript.initialize();
+  void contentScript.initialize();
 }
 
 // Set up message listener for communication with popup
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  (async () => {
+  void (async () => {
     try {
       if (isGetConversationMessage(message)) {
         // Re-parse conversation to get latest content
@@ -698,7 +698,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       } else {
         sendResponse({
           success: false,
-          error: `Unknown message type: ${message.type}`,
+          error: `Unknown message type: ${String((message as { type?: unknown }).type)}`,
         });
       }
     } catch (error) {

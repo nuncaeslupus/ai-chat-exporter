@@ -192,8 +192,8 @@ export class HtmlContentParser {
     let language = 'code';
     const codeEl = pre.querySelector('code');
     if (codeEl) {
-      const classMatch = codeEl.className.match(/language-(\w+)/);
-      if (classMatch && classMatch[1]) {
+      const classMatch = /language-(\w+)/.exec(codeEl.className);
+      if (classMatch?.[1]) {
         language = classMatch[1];
       }
     }

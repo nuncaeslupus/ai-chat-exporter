@@ -46,12 +46,12 @@ export interface WebSearchResult {
   /** Number of results */
   resultCount?: number;
   /** Individual search results */
-  results?: Array<{
+  results?: {
     title: string;
     url: string;
     favicon?: string;
     domain?: string;
-  }>;
+  }[];
 }
 
 /**
@@ -59,12 +59,12 @@ export interface WebSearchResult {
  */
 export interface MessageMetadata {
   /** Images in the message */
-  images?: Array<{
+  images?: {
     src: string;
     alt?: string;
     width?: number;
     height?: number;
-  }>;
+  }[];
   /** Artifacts/Canvases (Claude) */
   artifacts?: Artifact[];
   /** Web search results (Claude) */

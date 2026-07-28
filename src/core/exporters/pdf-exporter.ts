@@ -2,6 +2,7 @@
  * PDF exporter using jsPDF with structured content rendering
  */
 
+import type { jsPDF } from 'jspdf';
 import type {
   ExportFormat,
   ExportOptions,
@@ -10,10 +11,13 @@ import type {
   QAPair,
   PDFExportOptions,
   StructuredContentBlock,
+  StructuredConversation,
   InlineContent,
   ListBlock,
   TableBlock,
   ImageBlock,
+  Artifact,
+  WebSearchResult,
 } from '../types';
 import { DEFAULT_PDF_OPTIONS } from '../types';
 import { BaseExporter } from './base-exporter';
@@ -31,6 +35,13 @@ import {
 } from './style-tokens';
 
 /**
+ * jsPDF types `splitTextToSize` as returning `any`; it returns the wrapped lines.
+ */
+function splitLines(doc: jsPDF, text: string, width: number): string[] {
+  return doc.splitTextToSize(text, width) as string[];
+}
+
+/**
  * Exports conversations to PDF format
  */
 export class PdfExporter extends BaseExporter {
@@ -38,7 +49,7 @@ export class PdfExporter extends BaseExporter {
   readonly extension = 'pdf';
   readonly mimeType = 'application/pdf';
 
-  private imageCache: Map<string, LoadedImage | null> = new Map();
+  private imageCache = new Map<string, LoadedImage | null>();
 
   /**
    * Export selected Q&A pairs to PDF
@@ -87,7 +98,7 @@ export class PdfExporter extends BaseExporter {
   /**
    * Extract all image URLs from the structured conversation
    */
-  private extractImageUrls(conversation: any): string[] {
+  private extractImageUrls(conversation: StructuredConversation): string[] {
     const urls: string[] = [];
 
     for (const pair of conversation.pairs) {
@@ -117,9 +128,8 @@ export class PdfExporter extends BaseExporter {
    * Render content to the PDF document with improved formatting
    */
   private renderContent(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
-    conversation: any, // StructuredConversation
+    doc: jsPDF,
+    conversation: StructuredConversation,
     options: ExportOptions,
     pdfOptions: PDFExportOptions
   ): void {
@@ -212,7 +222,7 @@ export class PdfExporter extends BaseExporter {
 
       // Render artifacts if present
       if (pair.answer.metadata?.artifacts && Array.isArray(pair.answer.metadata.artifacts)) {
-        const artifactsWithContent = pair.answer.metadata.artifacts.filter((a: any) => a.content);
+        const artifactsWithContent = pair.answer.metadata.artifacts.filter((a) => a.content);
         if (artifactsWithContent.length > 0) {
           y += lineHeight * 0.5;
           y = this.renderArtifacts(doc, artifactsWithContent, y, margins, contentWidth, lineHeight, pageHeight);
@@ -253,8 +263,7 @@ export class PdfExporter extends BaseExporter {
    * Render a single message (user or assistant)
    */
   private renderMessage(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     role: string,
     blocks: StructuredContentBlock[],
     startY: number,
@@ -283,8 +292,7 @@ export class PdfExporter extends BaseExporter {
    * Render structured content blocks
    */
   private renderBlocks(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     blocks: StructuredContentBlock[],
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
@@ -343,9 +351,8 @@ export class PdfExporter extends BaseExporter {
    * Render artifacts section
    */
   private renderArtifacts(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
-    artifacts: any[],
+    doc: jsPDF,
+    artifacts: Artifact[],
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
     contentWidth: number,
@@ -373,7 +380,7 @@ export class PdfExporter extends BaseExporter {
       doc.setFont(FONT_FAMILY.body.pdf, 'bold');
       doc.setFontSize(PDF_FONT_SIZE_PT.artifactTitle);
       doc.setTextColor(...hexToRgbTuple(COLOR.textPrimary));
-      const titleLines = doc.splitTextToSize(sanitizeTextForPDF(artifact.title), contentWidth);
+      const titleLines = splitLines(doc, sanitizeTextForPDF(artifact.title), contentWidth);
       for (const line of titleLines) {
         doc.text(line, margins.left, y);
         y += lineHeight;
@@ -401,7 +408,7 @@ export class PdfExporter extends BaseExporter {
           doc.addPage();
           y = margins.top;
         }
-        const wrappedLines = doc.splitTextToSize(sanitizeTextForPDF(line || ' '), contentWidth);
+        const wrappedLines = splitLines(doc, sanitizeTextForPDF(line || ' '), contentWidth);
         for (const wrappedLine of wrappedLines) {
           doc.text(wrappedLine, margins.left + 5, y);
           y += lineHeight * 0.8;
@@ -422,9 +429,8 @@ export class PdfExporter extends BaseExporter {
    * Render web search results
    */
   private renderWebSearches(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
-    webSearches: any[],
+    doc: jsPDF,
+    webSearches: WebSearchResult[],
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
     contentWidth: number,
@@ -479,7 +485,7 @@ export class PdfExporter extends BaseExporter {
 
           // Result title (as link)
           doc.setTextColor(...hexToRgbTuple(COLOR.link));
-          const titleLines = doc.splitTextToSize(sanitizeTextForPDF(result.title), contentWidth - 10);
+          const titleLines = splitLines(doc, sanitizeTextForPDF(result.title), contentWidth - 10);
           for (const line of titleLines) {
             doc.text('• ' + line, margins.left + 5, y);
             y += lineHeight * 0.9;
@@ -508,8 +514,7 @@ export class PdfExporter extends BaseExporter {
    * Render a paragraph with inline formatting
    */
   private renderParagraph(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     content: InlineContent[],
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
@@ -532,8 +537,7 @@ export class PdfExporter extends BaseExporter {
    * Render a heading
    */
   private renderHeading(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     block: { level: number; content: InlineContent[] },
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
@@ -549,14 +553,15 @@ export class PdfExporter extends BaseExporter {
       y += lineHeight * 0.5;
 
       // Set font size based on heading level
-      const fontSize = PDF_FONT_SIZE_PT.headingByLevel[
-        Math.min(block.level - 1, PDF_FONT_SIZE_PT.headingByLevel.length - 1)
-      ];
+      const fontSize =
+        PDF_FONT_SIZE_PT.headingByLevel[
+          Math.min(Math.max(block.level - 1, 0), PDF_FONT_SIZE_PT.headingByLevel.length - 1)
+        ] ?? PDF_FONT_SIZE_PT.sectionLabel;
       doc.setFontSize(fontSize);
       doc.setFont(FONT_FAMILY.body.pdf, 'bold');
       doc.setTextColor(...hexToRgbTuple(COLOR.textStrong));
 
-      const lines = doc.splitTextToSize(sanitizeTextForPDF(text), contentWidth);
+      const lines = splitLines(doc, sanitizeTextForPDF(text), contentWidth);
       for (const line of lines) {
         if (y > pageHeight - margins.bottom) {
           doc.addPage();
@@ -580,8 +585,7 @@ export class PdfExporter extends BaseExporter {
    * Render a list
    */
   private renderList(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     block: ListBlock,
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
@@ -616,10 +620,10 @@ export class PdfExporter extends BaseExporter {
         const textWidth = contentWidth - indent - 8;
 
         // Split ONLY the text (not the prefix) to avoid breaking the bullet
-        const lines = doc.splitTextToSize(text, textWidth);
+        const lines = splitLines(doc, text, textWidth);
 
         // Render all lines
-        for (let j = 0; j < lines.length; j++) {
+        for (const [j, line] of lines.entries()) {
           if (y > pageHeight - margins.bottom) {
             doc.addPage();
             y = margins.top;
@@ -628,17 +632,15 @@ export class PdfExporter extends BaseExporter {
           if (j === 0) {
             // First line: render bullet and text
             doc.text(prefix, bulletX, y);
-            doc.text(lines[j], textX, y);
-          } else {
-            // Continuation lines: indent to align with first line text
-            doc.text(lines[j], textX, y);
           }
+          // Continuation lines: indent to align with first line text
+          doc.text(line, textX, y);
           y += lineHeight;
         }
       }
 
       // Render nested list if present
-      if (item && item.nested) {
+      if (item?.nested) {
         y = this.renderList(doc, item.nested, y, margins, contentWidth, lineHeight, pageHeight, depth + 1);
       }
     }
@@ -652,8 +654,7 @@ export class PdfExporter extends BaseExporter {
    * Render a blockquote
    */
   private renderBlockquote(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     content: StructuredContentBlock[],
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
@@ -696,8 +697,7 @@ export class PdfExporter extends BaseExporter {
    * Render a horizontal rule
    */
   private renderHorizontalRule(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
     contentWidth: number,
@@ -726,8 +726,7 @@ export class PdfExporter extends BaseExporter {
    * Render an image block
    */
   private renderImage(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     block: ImageBlock,
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
@@ -806,7 +805,7 @@ export class PdfExporter extends BaseExporter {
         doc.setFont(FONT_FAMILY.body.pdf, 'italic');
         doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
         const altText = sanitizeTextForPDF(block.alt);
-        const altLines = doc.splitTextToSize(altText, contentWidth);
+        const altLines = splitLines(doc, altText, contentWidth);
         for (const line of altLines) {
           if (y > pageHeight - margins.bottom) {
             doc.addPage();
@@ -844,8 +843,7 @@ export class PdfExporter extends BaseExporter {
    * Render a table
    */
   private renderTable(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     table: TableBlock,
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
@@ -868,7 +866,7 @@ export class PdfExporter extends BaseExporter {
       for (const cell of cells) {
         if (!cell) continue;
         const cellText = this.inlineToPlainText(cell);
-        const lines = doc.splitTextToSize(cellText, colWidth - cellPadding * 2);
+        const lines = splitLines(doc, cellText, colWidth - cellPadding * 2);
         maxLines = Math.max(maxLines, lines.length);
       }
       return Math.max(minRowHeight, maxLines * lineHeight + cellPadding);
@@ -998,8 +996,7 @@ export class PdfExporter extends BaseExporter {
    * Render a code block with background
    */
   private renderCodeBlock(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     code: string,
     language: string,
     startY: number,
@@ -1035,7 +1032,7 @@ export class PdfExporter extends BaseExporter {
 
     for (const line of codeLines) {
       const sanitized = sanitizeTextForPDF(line || ' ');
-      const wrapped = doc.splitTextToSize(sanitized, codeContentWidth);
+      const wrapped = splitLines(doc, sanitized, codeContentWidth);
       wrappedLines.push(...wrapped);
       totalCodeHeight += wrapped.length * lineHeight * 0.9;
     }
@@ -1079,15 +1076,14 @@ export class PdfExporter extends BaseExporter {
    * Render regular text
    */
   private renderText(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     text: string,
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
     contentWidth: number,
     lineHeight: number,
     pageHeight: number,
-    isItalic: boolean = false
+    isItalic = false
   ): number {
     let y = startY;
 
@@ -1096,7 +1092,7 @@ export class PdfExporter extends BaseExporter {
     doc.setTextColor(...hexToRgbTuple(COLOR.textBody));
 
     const sanitized = sanitizeTextForPDF(text);
-    const lines = doc.splitTextToSize(sanitized, contentWidth);
+    const lines = splitLines(doc, sanitized, contentWidth);
     for (const line of lines) {
       if (y > pageHeight - margins.bottom) {
         doc.addPage();

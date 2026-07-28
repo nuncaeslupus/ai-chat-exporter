@@ -216,7 +216,7 @@ export abstract class BaseParser implements IParser {
     const chrome = element.querySelectorAll(
       'button, [role="button"], .sr-only, [class*="sr-only"], [class*="visually-hidden"], [style*="position: absolute"][style*="width: 1px"]'
     );
-    chrome.forEach(el => el.remove());
+    chrome.forEach(el => { el.remove(); });
 
     // Collapse rendered math (KaTeX/MathJax) to a single representation before the
     // generic aria-hidden strip below runs. KaTeX emits up to three copies of the
@@ -248,7 +248,7 @@ export abstract class BaseParser implements IParser {
     // Math's aria-hidden glyphs were already collapsed away above, so no carve-out
     // is needed here.
     const ariaHidden = element.querySelectorAll('[aria-hidden="true"]');
-    ariaHidden.forEach(el => el.remove());
+    ariaHidden.forEach(el => { el.remove(); });
 
     // Remove common ChatGPT UI artifacts
     const uiElements = element.querySelectorAll(
@@ -262,7 +262,7 @@ export abstract class BaseParser implements IParser {
     });
 
     // Clean up empty elements
-    element.querySelectorAll('div:empty, span:empty').forEach(el => el.remove());
+    element.querySelectorAll('div:empty, span:empty').forEach(el => { el.remove(); });
   }
 
   /**

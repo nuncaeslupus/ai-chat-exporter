@@ -62,7 +62,7 @@ export class ChatGPTParser extends BaseParser {
 
     // Try to extract from URL
     const url = this.getUrl();
-    const match = url.match(/\/c\/([a-f0-9-]+)/);
+    const match = /\/c\/([a-f0-9-]+)/.exec(url);
     if (match) {
       const conversationLink = this.document.querySelector(`a[href*="${match[0]}"]`);
       const title = conversationLink
@@ -269,7 +269,7 @@ export class ChatGPTParser extends BaseParser {
 
     const contentParts: string[] = [];
     const htmlParts: string[] = [];
-    const allImages: Array<{ src: string; alt?: string }> = [];
+    const allImages: { src: string; alt?: string }[] = [];
 
     // Check if this turn contains canvas content (should be extracted first)
     const canvasContent = this.extractCanvasContent(turn);
@@ -375,7 +375,7 @@ export class ChatGPTParser extends BaseParser {
       return this.createMessage('assistant', text, undefined, messageId);
     }
 
-    let { content, htmlContent } = this.extractContent(contentElement, config.preserveHtml);
+    const { content, htmlContent } = this.extractContent(contentElement, config.preserveHtml);
 
     // Extract images from the assistant's turn
     const images = this.extractImages(element);
@@ -421,8 +421,8 @@ export class ChatGPTParser extends BaseParser {
   /**
    * Extract images from a message element
    */
-  private extractImages(element: Element): Array<{ src: string; alt?: string; width?: number; height?: number }> {
-    const images: Array<{ src: string; alt?: string; width?: number; height?: number }> = [];
+  private extractImages(element: Element): { src: string; alt?: string; width?: number; height?: number }[] {
+    const images: { src: string; alt?: string; width?: number; height?: number }[] = [];
 
     // Find all img tags within the message
     const imgElements = element.querySelectorAll('img');
@@ -611,9 +611,9 @@ export class ChatGPTParser extends BaseParser {
     const text = researchButton.textContent?.trim() || '';
 
     // Parse research info (e.g., "Research completed in 6m· 18 fuentes· 60 búsquedas")
-    const durationMatch = text.match(/(\d+[msh])/);
-    const sourcesMatch = text.match(/(\d+)\s*(?:fuentes|sources)/i);
-    const searchesMatch = text.match(/(\d+)\s*(?:búsquedas|searches)/i);
+    const durationMatch = /(\d+[msh])/.exec(text);
+    const sourcesMatch = /(\d+)\s*(?:fuentes|sources)/i.exec(text);
+    const searchesMatch = /(\d+)\s*(?:búsquedas|searches)/i.exec(text);
 
     if (durationMatch || sourcesMatch || searchesMatch) {
       return {
@@ -721,12 +721,12 @@ export class ChatGPTParser extends BaseParser {
       return [];
     }
 
-    const results: Array<{
+    const results: {
       title: string;
       url: string;
       favicon?: string;
       domain?: string;
-    }> = [];
+    }[] = [];
 
     citationLinks.forEach((link) => {
       const url = link.getAttribute('href');

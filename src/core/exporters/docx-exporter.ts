@@ -17,6 +17,10 @@ import {
   TableCell,
   WidthType,
 } from 'docx';
+import type { IRunOptions } from 'docx';
+
+// IRunOptions is declared readonly; the switch below builds one field by field.
+type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 import type {
   ExportFormat,
   ExportOptions,
@@ -24,8 +28,11 @@ import type {
   Conversation,
   QAPair,
   StructuredContentBlock,
+  StructuredConversation,
+  StructuredQAPair,
   InlineContent,
   ListBlock,
+  TableBlock,
 } from '../types';
 import { BaseExporter } from './base-exporter';
 import { ConversationStructureService } from '../services';
@@ -78,7 +85,7 @@ export class DocxExporter extends BaseExporter {
    * Create a DOCX document
    */
   private createDocument(
-    conversation: any, // StructuredConversation
+    conversation: StructuredConversation,
     options: ExportOptions
   ): Document {
     const sections: (Paragraph | Table)[] = [];
@@ -208,7 +215,7 @@ export class DocxExporter extends BaseExporter {
   /**
    * Format a single Q&A pair as DOCX paragraphs
    */
-  private formatPair(pair: any, options: ExportOptions, assistantName: string): (Paragraph | Table)[] {
+  private formatPair(pair: StructuredQAPair, options: ExportOptions, assistantName: string): (Paragraph | Table)[] {
     const paragraphs: (Paragraph | Table)[] = [];
 
     // User heading
@@ -229,7 +236,7 @@ export class DocxExporter extends BaseExporter {
 
     // Add artifacts if present
     if (pair.answer.metadata?.artifacts && Array.isArray(pair.answer.metadata.artifacts)) {
-      const artifactsWithContent = pair.answer.metadata.artifacts.filter((a: any) => a.content);
+      const artifactsWithContent = pair.answer.metadata.artifacts.filter((a) => a.content);
 
       if (artifactsWithContent.length > 0) {
         paragraphs.push(
@@ -578,7 +585,7 @@ export class DocxExporter extends BaseExporter {
   /**
    * Render a table
    */
-  private renderTable(block: any): Table {
+  private renderTable(block: TableBlock): Table {
     const rows: TableRow[] = [];
 
     // Render header rows
@@ -630,7 +637,7 @@ export class DocxExporter extends BaseExporter {
     overrides?: { italics?: boolean; color?: string; bold?: boolean }
   ): TextRun[] {
     return content.map((item) => {
-      const options: any = {
+      const options: Mutable<IRunOptions> = {
         text: item.text,
       };
 
