@@ -64,3 +64,6 @@ claude-arsenal/session/budget_iterations.json
 claude-arsenal/session/worktree_isolation
 
 claude-arsenal/session/host_branch
+
+# Claude Code agent worktrees (throwaway, per-session)
+.claude/worktrees/
