@@ -16,22 +16,38 @@ shadows the base value.
 `ai-chat-exporter@example.com` (an `example.com` placeholder, present since the
 initial commit — never changed in this repo's history).
 
-Querying the public AMO API for the live listing (slug `ai-chat-exporter`,
-`https://addons.mozilla.org/api/v5/addons/addon/ai-chat-exporter/`) shows the
-**actual published guid is `claude-chat-exporter@example.com`** — a different
-value than what's in this repo. The listing otherwise matches this project
-(same permissions, same host list, same feature description), so this is not
-a false match.
+There **is** an AMO listing at the slug `ai-chat-exporter`
+(`https://addons.mozilla.org/api/v5/addons/addon/ai-chat-exporter/`), and its
+guid is `claude-chat-exporter@example.com` — not the id in this repo. But the
+listing metadata does **not** establish that it belongs to this project:
 
-This means one of:
-- the id in this repo was never the one actually submitted to AMO (a manual
-  edit was made to the manifest before zipping/submitting at some point), or
-- the live listing predates/diverges from this repo's manifest history for
-  some other reason.
+| Field | Live AMO listing | This repo |
+| --- | --- | --- |
+| guid | `claude-chat-exporter@example.com` | `ai-chat-exporter@example.com` |
+| author | `Hamza` (AMO user 19601913) | `nuncaeslupus` |
+| version | 1.4.0 | 1.1.1 |
+| created | 2025-11-29 | — |
+| homepage / support URL | none set | — |
 
-Changing `manifests/manifest.firefox.json`'s gecko id to match — or shipping
-the current `ai-chat-exporter@example.com` as-is — both carry risk: Firefox
-treats a gecko id change as a **new** add-on, orphaning every existing user of
-whichever id is actually live. **Do not change this value until a maintainer
-confirms which id the next submission should carry** (likely
-`claude-chat-exporter@example.com`, to match what's already published).
+The version is three minor releases ahead of this repo and the author is a
+different account, so the more likely reading is that this is a **different
+developer's add-on** (an upstream or a sibling fork), not this project's own
+listing. Matching permissions and host patterns prove nothing here — any fork of
+the same codebase has them.
+
+**Consequence: do not adopt `claude-chat-exporter@example.com`.** Publishing
+under a guid that belongs to someone else's add-on is not a merge — AMO would
+reject it, and if it did not, it would be a hijack of their listing.
+
+What a maintainer needs to confirm before the next Firefox submission:
+1. Does this project have its OWN AMO listing? If so, under which slug and guid?
+   (The answer is not discoverable from the public API without knowing the slug.)
+2. If it has never been submitted, then `ai-chat-exporter@example.com` has no
+   installed base to orphan — and it should be replaced with a real id on a
+   domain the project controls, because `example.com` is a reserved placeholder
+   (RFC 2606) and is poor practice in a shipped manifest.
+3. If it HAS been submitted under some other id, that id must be used verbatim —
+   changing a published gecko id creates a **new** add-on and orphans every
+   existing user.
+
+Until (1) is answered, leave the value alone.
