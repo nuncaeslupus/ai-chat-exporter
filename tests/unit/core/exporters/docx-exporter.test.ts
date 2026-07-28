@@ -170,6 +170,52 @@ describe('DocxExporter', () => {
     });
   });
 
+  describe('export() table headers', () => {
+    function buildTablePair(): QAPair {
+      return {
+        id: 'pair-0',
+        index: 0,
+        selected: true,
+        question: {
+          id: 'q-0',
+          role: 'user',
+          content: 'plain question',
+          timestamp: new Date('2025-01-01T12:00:00Z'),
+        },
+        answer: {
+          id: 'a-0',
+          role: 'assistant',
+          content: 'Name Age Alice 30',
+          htmlContent:
+            '<table><thead><tr><th>Name</th><th>Age</th></tr></thead><tbody><tr><td>Alice</td><td>30</td></tr></tbody></table>',
+          timestamp: new Date('2025-01-01T12:00:00Z'),
+        },
+      } as unknown as QAPair;
+    }
+
+    it('renders header row runs bold and body row runs not bold', async () => {
+      const pair = buildTablePair();
+      const conversation = buildStructuredConversation(pair);
+
+      const result = await new DocxExporter().export(conversation, [pair], {
+        format: 'docx',
+        filename: 'test',
+        includeMetadata: false,
+        includeTimestamps: false,
+      });
+      const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
+
+      // Table rows are plain <w:tr> (no attributes); split them out so the
+      // bold check is scoped to the header row vs. the body row.
+      const rows = xml.split('<w:tr>').slice(1).map((r) => r.split('</w:tr>')[0]!);
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toContain('Name');
+      expect(rows[0]).toContain('<w:b/>');
+      expect(rows[1]).toContain('Alice');
+      expect(rows[1]).not.toContain('<w:b/>');
+    });
+  });
+
   describe('per-message timestamps', () => {
     it('renders a per-message timestamp when includeTimestamps is on', async () => {
       const pair = buildStructuredPair();

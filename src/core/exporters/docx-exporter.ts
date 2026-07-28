@@ -588,8 +588,7 @@ export class DocxExporter extends BaseExporter {
           new TableCell({
             children: [
               new Paragraph({
-                children: this.renderInline(cell),
-                ...{ bold: true },
+                children: this.renderInline(cell, { bold: true }),
               }),
             ],
             shading: { fill: hexToDocxColor(COLOR.surfaceSubtle) }, // matches pdf/html table header background
@@ -626,7 +625,10 @@ export class DocxExporter extends BaseExporter {
    * `overrides` layers extra run properties (e.g. blockquote's italic + muted
    * colour) on top of each item's own styling, without disturbing it.
    */
-  private renderInline(content: InlineContent[], overrides?: { italics?: boolean; color?: string }): TextRun[] {
+  private renderInline(
+    content: InlineContent[],
+    overrides?: { italics?: boolean; color?: string; bold?: boolean }
+  ): TextRun[] {
     return content.map((item) => {
       const options: any = {
         text: item.text,
