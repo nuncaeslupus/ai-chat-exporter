@@ -6,7 +6,10 @@
 import { detectParser } from '../../core/parsers';
 import { getExporter } from '../../core/exporters';
 import { FilenameService } from '../../core/services/filename-service';
-import { ClaudeApiService } from '../../core/services/claude-api-service';
+import {
+  ClaudeApiService,
+  type EnrichmentResult,
+} from '../../core/services/claude-api-service';
 import { StorageService } from '../../shared/storage';
 import type { Conversation, ExportFormat } from '../../core/types';
 import { marked } from 'marked';
@@ -67,16 +70,24 @@ class ContentScript {
     });
   }
 
-  async handleExport(format: ExportFormat): Promise<void> {
+  /**
+   * Export the conversation.
+   *
+   * Resolves with a user-facing warning when the export completed but is
+   * degraded (see `enrichClaudeConversation`), or `undefined` when it is
+   * complete. Failures throw.
+   */
+  async handleExport(format: ExportFormat): Promise<string | undefined> {
     // Re-parse conversation to get latest content (ChatGPT is dynamic SPA)
     await this.initialize();
 
     if (!this.conversation) {
       console.error('[AI Chat Exporter] No conversation available');
-      return;
+      return undefined;
     }
 
     console.log(`[AI Chat Exporter] Attempting to export ${this.conversation.pairs.length} pairs to ${format}`);
+    let warning: string | undefined;
 
     try {
       // Check if we have any pairs to export
@@ -86,7 +97,9 @@ class ContentScript {
 
       // Enrich Claude conversations with API data (artifacts content)
       if (this.conversation.platform === 'claude') {
-        this.conversation = await this.enrichClaudeConversation(this.conversation);
+        const enrichment = await this.enrichClaudeConversation(this.conversation);
+        this.conversation = enrichment.conversation;
+        warning = enrichment.warning;
       }
 
       // Use all pairs for export
@@ -139,6 +152,7 @@ class ContentScript {
       await StorageService.setLastExportFormat(format);
 
       console.log(`[AI Chat Exporter] Successfully exported to ${format.toUpperCase()}`);
+      return warning;
     } catch (error) {
       console.error('[AI Chat Exporter] Export failed:', error);
       throw error;
@@ -146,9 +160,17 @@ class ContentScript {
   }
 
   /**
-   * Enrich Claude conversation with artifact content from API
+   * Enrich Claude conversation with artifact content from API.
+   *
+   * Every path that skips enrichment returns a `warning`: the export still
+   * succeeds, but it is missing artifact contents and the user has to be told
+   * — a console log alone leaves them with a silently degraded file.
    */
-  private async enrichClaudeConversation(conversation: Conversation): Promise<Conversation> {
+  private async enrichClaudeConversation(conversation: Conversation): Promise<EnrichmentResult> {
+    const degraded =
+      'Artifact contents were left out of this export because Claude’s conversation data ' +
+      'could not be read. Make sure you are signed in to claude.ai, reload the page and try again.';
+
     try {
       console.log('[AI Chat Exporter] Enriching Claude conversation with API data...');
 
@@ -156,14 +178,14 @@ class ContentScript {
 
       if (!ids) {
         console.log('[AI Chat Exporter] Could not extract IDs for API enrichment');
-        return conversation;
+        return { conversation, warning: degraded };
       }
 
       const apiData = await ClaudeApiService.fetchConversationData(ids);
 
       if (!apiData) {
         console.log('[AI Chat Exporter] API data not available');
-        return conversation;
+        return { conversation, warning: degraded };
       }
 
       const enriched = ClaudeApiService.enrichConversationWithArtifacts(conversation, apiData);
@@ -172,8 +194,8 @@ class ContentScript {
       return enriched;
     } catch (error) {
       console.warn('[AI Chat Exporter] Failed to enrich Claude conversation:', error);
-      // Return original conversation if enrichment fails
-      return conversation;
+      // Export the un-enriched conversation, but say so.
+      return { conversation, warning: degraded };
     }
   }
 
@@ -188,27 +210,30 @@ class ContentScript {
     URL.revokeObjectURL(url);
   }
 
-  async handlePrint(format: ExportFormat): Promise<void> {
+  async handlePrint(format: ExportFormat): Promise<string | undefined> {
     // Re-parse conversation to get latest content
     await this.initialize();
 
     if (!this.conversation) {
       console.error('[AI Chat Exporter] No conversation available');
-      return;
+      return undefined;
     }
 
     console.log(`[AI Chat Exporter] Attempting to print ${this.conversation.pairs.length} pairs as ${format}`);
+    let warning: string | undefined;
 
     try {
       // Check if we have any pairs to print
       if (this.conversation.pairs.length === 0) {
         console.warn('[AI Chat Exporter] No conversation pairs found');
-        return;
+        return undefined;
       }
 
       // Enrich Claude conversations with API data (artifacts content)
       if (this.conversation.platform === 'claude') {
-        this.conversation = await this.enrichClaudeConversation(this.conversation);
+        const enrichment = await this.enrichClaudeConversation(this.conversation);
+        this.conversation = enrichment.conversation;
+        warning = enrichment.warning;
       }
 
       const pairsToExport = this.conversation.pairs;
@@ -254,8 +279,10 @@ class ContentScript {
       }
 
       console.log(`[AI Chat Exporter] Successfully opened ${format.toUpperCase()} for printing`);
+      return warning;
     } catch (error) {
       console.error('[AI Chat Exporter] Print failed:', error);
+      return undefined;
     }
   }
 
@@ -597,14 +624,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           data: conversation,
         });
       } else if (message.type === 'export_conversation') {
-        await contentScript.handleExport(message.format);
+        const warning = await contentScript.handleExport(message.format);
         sendResponse({
           success: true,
+          ...(warning && { warning }),
         });
       } else if (message.type === 'print_conversation') {
-        await contentScript.handlePrint(message.format);
+        const warning = await contentScript.handlePrint(message.format);
         sendResponse({
           success: true,
+          ...(warning && { warning }),
         });
       } else {
         sendResponse({

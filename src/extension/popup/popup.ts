@@ -202,13 +202,23 @@ class PopupController {
     }
   }
 
-  private updateStatus(status: 'active' | 'inactive' | 'warning' | 'error', text: string): void {
+  /**
+   * `text` goes in the header badge, which is a narrow no-wrap 10px label —
+   * keep it to a word or two. Anything longer belongs in `detail`, which
+   * becomes the badge's tooltip.
+   */
+  private updateStatus(
+    status: 'active' | 'inactive' | 'warning' | 'error',
+    text: string,
+    detail?: string
+  ): void {
     const indicator = document.getElementById('status-indicator');
     const statusText = document.getElementById('status-text');
 
     if (indicator && statusText) {
       indicator.className = `status-indicator ${status}`;
       statusText.textContent = text;
+      indicator.title = detail ?? text;
     }
   }
 
@@ -354,6 +364,12 @@ class PopupController {
       if (!response?.success) {
         throw new Error(response?.error ?? 'Export failed');
       }
+      if (response.warning) {
+        // Degraded export (e.g. artifact contents missing) — keep the popup
+        // open so the user actually sees it. Full reason is in the tooltip.
+        this.updateStatus('warning', 'Artifacts missing', response.warning);
+        return;
+      }
       window.close(); // Close popup after triggering export
     } catch (error) {
       console.error('Export failed:', error);
@@ -374,7 +390,11 @@ class PopupController {
         timestamp: Date.now(),
       };
 
-      await chrome.tabs.sendMessage(tab.id, message);
+      const response: MessageResponse | undefined = await chrome.tabs.sendMessage(tab.id, message);
+      if (response?.warning) {
+        this.updateStatus('warning', 'Artifacts missing', response.warning);
+        return;
+      }
       window.close(); // Close popup after triggering print
     } catch (error) {
       console.error('Print failed:', error);
