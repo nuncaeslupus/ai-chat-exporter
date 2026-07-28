@@ -29,7 +29,7 @@ jobs:
       - run: pnpm audit
         continue-on-error: true
       - run: pnpm package:all
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: extension-zips
           path: dist/*.zip
