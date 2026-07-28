@@ -213,15 +213,37 @@ export abstract class BaseParser implements IParser {
     const srOnly = element.querySelectorAll('.sr-only, [class*="sr-only"], [style*="position: absolute"][style*="width: 1px"]');
     srOnly.forEach(el => el.remove());
 
-    // Remove any elements with aria-hidden="true", except rendered math (KaTeX/MathJax
-    // mark their visible glyphs aria-hidden, and often ship with no non-hidden sibling
-    // copy — stripping them unconditionally deletes the only copy of the formula).
-    const ariaHidden = element.querySelectorAll('[aria-hidden="true"]');
-    ariaHidden.forEach(el => {
-      if (!el.closest('.katex, [class*="katex"], mjx-container')) {
-        el.remove();
+    // Collapse rendered math (KaTeX/MathJax) to a single representation before the
+    // generic aria-hidden strip below runs. KaTeX emits up to three copies of the
+    // same formula: `.katex-mathml` (with a lossless `annotation[encoding=
+    // "application/x-tex"]` LaTeX source), and `.katex-html` (visual glyphs, marked
+    // `aria-hidden="true"`). Gemini ships `.katex-html` only; ChatGPT ships all three.
+    // Treating `.katex`/`mjx-container` as an atomic unit and replacing it with one
+    // chosen text representation handles both platforms with one rule, so the
+    // generic aria-hidden strip no longer needs a math carve-out (see below).
+    const mathUnits = element.querySelectorAll('.katex, mjx-container');
+    mathUnits.forEach(mathEl => {
+      // Skip units nested inside another math unit already being collapsed.
+      if (mathEl.parentElement?.closest('.katex, mjx-container')) {
+        return;
       }
+      const annotation = mathEl.querySelector('annotation[encoding="application/x-tex"]');
+      const mathml = mathEl.querySelector('.katex-mathml');
+      const html = mathEl.querySelector('.katex-html');
+      const text =
+        annotation?.textContent?.trim() ||
+        mathml?.textContent?.trim() ||
+        html?.textContent?.trim() ||
+        mathEl.textContent?.trim() ||
+        '';
+      mathEl.replaceWith(mathEl.ownerDocument.createTextNode(text));
     });
+
+    // Remove any remaining elements with aria-hidden="true" (decorative icons, etc).
+    // Math's aria-hidden glyphs were already collapsed away above, so no carve-out
+    // is needed here.
+    const ariaHidden = element.querySelectorAll('[aria-hidden="true"]');
+    ariaHidden.forEach(el => el.remove());
 
     // Remove common ChatGPT UI artifacts
     const uiElements = element.querySelectorAll(
