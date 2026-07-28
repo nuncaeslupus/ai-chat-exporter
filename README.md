@@ -216,10 +216,16 @@ See [DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md) for detailed roadmap.
 
 ## Privacy & Security
 
-- **No Data Collection**: This extension does not collect, store, or transmit any of your conversations
-- **Local Processing**: All parsing and export happens locally in your browser
-- **No Analytics**: We don't track usage or collect analytics
+- **No Data Collection**: The extension has no backend. It never sends your conversations anywhere, and we never see, store, or receive them
+- **Local Processing**: Reading the page, formatting the export, and generating the output file all happen locally in your browser
+- **No Analytics**: No usage tracking, no telemetry, no third-party SDKs
+- **No Third-Party Requests**: The only network requests are to the chat provider whose page you are already on — `claude.ai`'s own API (using your existing session) for message content the DOM doesn't render, and, for PDF exports, the conversation's images so they can be embedded in the file
 - **Open Source**: Full source code available for review
+
+Exported HTML and Markdown reference conversation images by their original URL
+rather than embedding them, so opening one asks the provider for those images.
+Everything else in an exported file is inlined — no external stylesheet, script,
+web font, or tracking pixel. Full details in [docs/PRIVACY.md](./docs/PRIVACY.md).
 
 ## Technical Details
 
