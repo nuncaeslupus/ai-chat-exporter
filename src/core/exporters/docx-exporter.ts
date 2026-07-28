@@ -5,6 +5,7 @@
  */
 
 import {
+  AlignmentType,
   Document,
   Paragraph,
   TextRun,
@@ -147,6 +148,22 @@ export class DocxExporter extends BaseExporter {
         );
       }
 
+      const dateRange = this.formatDateRange(conversation.pairs);
+      if (dateRange) {
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: `${this.getMetadataLabel('dateRange')}: ${dateRange}`,
+                size: ptToHalfPt(FONT_SIZE_PT.meta),
+                color: hexToDocxColor(COLOR.textMuted),
+              }),
+            ],
+            spacing: { after: 100 },
+          })
+        );
+      }
+
       if (conversation.createdAt) {
         sections.push(
           new Paragraph({
@@ -178,8 +195,9 @@ export class DocxExporter extends BaseExporter {
 
     // Q&A pairs
     const assistantName = this.getAssistantName(conversation.platform);
+    const daySeparator = this.daySeparator(options.includeTimestamps);
     for (const pair of conversation.pairs) {
-      sections.push(...this.formatPair(pair, options, assistantName));
+      sections.push(...this.formatPair(pair, options, assistantName, daySeparator));
     }
 
     return new Document({
@@ -226,12 +244,42 @@ export class DocxExporter extends BaseExporter {
   }
 
   /**
+   * A day-change marker, centred and de-emphasized like the timestamps it
+   * replaces. Not a heading: it carries no outline weight.
+   */
+  private renderDaySeparator(separator: string): Paragraph {
+    return new Paragraph({
+      children: [
+        new TextRun({
+          text: separator,
+          size: ptToHalfPt(FONT_SIZE_PT.meta),
+          color: hexToDocxColor(COLOR.textMuted),
+        }),
+      ],
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 300, after: 150 },
+    });
+  }
+
+  /**
    * Format a single Q&A pair as DOCX paragraphs
    */
-  private formatPair(pair: StructuredQAPair, options: ExportOptions, assistantName: string): (Paragraph | Table)[] {
+  private formatPair(
+    pair: StructuredQAPair,
+    options: ExportOptions,
+    assistantName: string,
+    daySeparator: (date?: Date) => string
+  ): (Paragraph | Table)[] {
     const paragraphs: (Paragraph | Table)[] = [];
+    const pushDaySeparator = (date?: Date): void => {
+      const separator = daySeparator(date);
+      if (separator) {
+        paragraphs.push(this.renderDaySeparator(separator));
+      }
+    };
 
     // User heading
+    pushDaySeparator(pair.question.timestamp);
     paragraphs.push(
       this.renderRoleHeading('User', this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps))
     );
@@ -240,6 +288,7 @@ export class DocxExporter extends BaseExporter {
     paragraphs.push(...this.renderBlocks(pair.question.blocks));
 
     // Assistant heading
+    pushDaySeparator(pair.answer.timestamp);
     paragraphs.push(
       this.renderRoleHeading(assistantName, this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps))
     );

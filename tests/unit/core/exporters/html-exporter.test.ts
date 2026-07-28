@@ -261,7 +261,9 @@ describe('HtmlExporter per-message timestamps', () => {
       includeTimestamps: true,
     });
     const html = await blobToText(result.blob!);
-    expect(html).toContain('2025-01-01 12:00:00');
+    expect(html).toContain('(12:00:00)');
+    // The day is announced once by a day separator, not repeated per message.
+    expect(html).not.toContain('2025-01-01 12:00:00');
   });
 
   it('omits the timestamp when includeTimestamps is off', async () => {
@@ -274,7 +276,7 @@ describe('HtmlExporter per-message timestamps', () => {
       includeTimestamps: false,
     });
     const html = await blobToText(result.blob!);
-    expect(html).not.toContain('2025-01-01 12:00:00');
+    expect(html).not.toContain('12:00:00');
   });
 
   it('emits no stray label or "undefined" when a message has no timestamp', async () => {
