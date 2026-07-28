@@ -180,11 +180,29 @@ describe('HtmlExporter structural contract', () => {
     const dom = new JSDOM(html, { runScripts: 'dangerously', url: 'https://example.com/export.html' });
     await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
     const codeBlock = dom.window.document.querySelector('pre code');
-    // Not asserting on the injected <span class="hljs-keyword"> markup itself:
-    // the highlighter's later "strings" regex re-matches the quoted class
-    // attribute the keyword pass just inserted and corrupts it (see reported
-    // bug in the worker outcome). The 'hljs' class toggle is unaffected.
     expect(codeBlock?.classList.contains('hljs')).toBe(true);
+  });
+
+  it('highlights a keyword and a quoted string in the same code block without corrupting markup', async () => {
+    // A code sample with BOTH a keyword and a quoted string: the keyword
+    // pass injects `<span class="hljs-keyword">...</span>` and a later
+    // "strings" pass must not re-match the quoted `"hljs-keyword"` class
+    // attribute value it just wrote.
+    const dom = await exportAndRun('function foo() { return "hi"; }');
+    const codeBlock = dom.window.document.querySelector('pre code');
+    expect(codeBlock).not.toBeNull();
+
+    // No <span> markup ever nested inside another element's class attribute
+    // value -- the reported corruption pattern.
+    for (const el of Array.from(codeBlock!.querySelectorAll('*'))) {
+      expect(el.getAttribute('class')).not.toContain('<span');
+    }
+
+    const keywordText = Array.from(codeBlock!.querySelectorAll('.hljs-keyword')).map((el) => el.textContent);
+    expect(keywordText).toEqual(expect.arrayContaining(['function', 'return']));
+
+    const stringText = Array.from(codeBlock!.querySelectorAll('.hljs-string')).map((el) => el.textContent);
+    expect(stringText).toEqual(['"hi"']);
   });
 
   it('keeps message order, heading level, and code placement consistent', async () => {
