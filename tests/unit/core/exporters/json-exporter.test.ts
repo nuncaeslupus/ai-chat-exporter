@@ -109,6 +109,40 @@ describe('JsonExporter', () => {
     });
   });
 
+  describe('includeMetadata gating', () => {
+    it('omits title/platform/url/model/createdAt when includeMetadata is false', async () => {
+      const result = await exporter.export(conversation, selectedPairs, {
+        format: 'json',
+        filename: 'test',
+        includeMetadata: false,
+        includeTimestamps: true,
+      });
+      const text = await blobToText(result.blob!);
+      const parsed = JSON.parse(text);
+      expect(parsed.title).toBeUndefined();
+      expect(parsed.platform).toBeUndefined();
+      expect(parsed.url).toBeUndefined();
+      expect(parsed.model).toBeUndefined();
+      expect(parsed.createdAt).toBeUndefined();
+    });
+
+    it('includes title/platform/url/model/createdAt when includeMetadata is true', async () => {
+      const result = await exporter.export(conversation, selectedPairs, {
+        format: 'json',
+        filename: 'test',
+        includeMetadata: true,
+        includeTimestamps: true,
+      });
+      const text = await blobToText(result.blob!);
+      const parsed = JSON.parse(text);
+      expect(parsed.title).toBe('Test Conversation');
+      expect(parsed.platform).toBe('chatgpt');
+      expect(parsed.url).toBe('https://chatgpt.com/c/test');
+      expect(parsed.model).toBe('gpt-4');
+      expect(parsed.createdAt).toBeDefined();
+    });
+  });
+
   describe('validateOptions()', () => {
     it('returns true for valid options', () => {
       const valid = exporter.validateOptions({

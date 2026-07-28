@@ -15,10 +15,10 @@ import { BaseExporter } from './base-exporter';
  * JSON export structure
  */
 interface JsonExport {
-  title: string;
-  platform: string;
+  title?: string;
+  platform?: string;
   model?: string;
-  url: string;
+  url?: string;
   exportedAt: string;
   createdAt?: string;
   pairs: JsonPair[];
@@ -73,19 +73,21 @@ export class JsonExporter extends BaseExporter {
     options: ExportOptions
   ): string {
     const exportData: JsonExport = {
-      title: conversation.title,
-      platform: conversation.platform,
-      url: conversation.url,
       exportedAt: new Date().toISOString(),
       pairs: pairs.map((pair, index) => this.formatPair(pair, index, options)),
     };
 
-    // Add optional metadata
-    if (conversation.model) {
-      exportData.model = conversation.model;
-    }
-    if (conversation.createdAt) {
-      exportData.createdAt = conversation.createdAt.toISOString();
+    // Add conversation metadata, gated on includeMetadata
+    if (options.includeMetadata) {
+      exportData.title = conversation.title;
+      exportData.platform = conversation.platform;
+      exportData.url = conversation.url;
+      if (conversation.model) {
+        exportData.model = conversation.model;
+      }
+      if (conversation.createdAt) {
+        exportData.createdAt = conversation.createdAt.toISOString();
+      }
     }
 
     return JSON.stringify(exportData, null, 2);

@@ -169,4 +169,63 @@ describe('DocxExporter', () => {
       expect(idx('Some text')).toBeLessThan(idx('function foo() { return 1; }')); // paragraph before code
     });
   });
+
+  describe('per-message timestamps', () => {
+    it('renders a per-message timestamp when includeTimestamps is on', async () => {
+      const pair = buildStructuredPair();
+      const conversation = buildStructuredConversation(pair);
+
+      const result = await new DocxExporter().export(conversation, [pair], {
+        format: 'docx',
+        filename: 'test',
+        includeMetadata: false,
+        includeTimestamps: true,
+      });
+      const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
+      expect(xml).toContain('2025-01-01 12:00:00');
+    });
+
+    it('omits the timestamp when includeTimestamps is off', async () => {
+      const pair = buildStructuredPair();
+      const conversation = buildStructuredConversation(pair);
+
+      const result = await new DocxExporter().export(conversation, [pair], {
+        format: 'docx',
+        filename: 'test',
+        includeMetadata: false,
+        includeTimestamps: false,
+      });
+      const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
+      expect(xml).not.toContain('2025-01-01 12:00:00');
+    });
+
+    it('emits no stray label or "undefined" when a message has no timestamp', async () => {
+      const pair: QAPair = {
+        id: 'pair-no-ts',
+        index: 0,
+        selected: true,
+        question: {
+          id: 'q-no-ts',
+          role: 'user',
+          content: 'question',
+        },
+        answer: {
+          id: 'a-no-ts',
+          role: 'assistant',
+          content: 'answer',
+        },
+      } as unknown as QAPair;
+      const conversation = buildStructuredConversation(pair);
+
+      const result = await new DocxExporter().export(conversation, [pair], {
+        format: 'docx',
+        filename: 'test',
+        includeMetadata: false,
+        includeTimestamps: true,
+      });
+      const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
+      expect(xml).not.toContain('undefined');
+      expect(xml).not.toMatch(/\(\s*\)/);
+    });
+  });
 });

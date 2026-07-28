@@ -170,18 +170,29 @@ export class DocxExporter extends BaseExporter {
   }
 
   /**
+   * Render a role heading, appending a de-emphasized timestamp run when non-empty.
+   */
+  private renderRoleHeading(label: string, timestampSuffix: string): Paragraph {
+    const children: TextRun[] = [new TextRun({ text: label })];
+    if (timestampSuffix) {
+      children.push(new TextRun({ text: timestampSuffix, italics: true, size: 20, color: '6B7280' }));
+    }
+    return new Paragraph({
+      children,
+      heading: HeadingLevel.HEADING_2,
+      spacing: { before: 300, after: 150 },
+    });
+  }
+
+  /**
    * Format a single Q&A pair as DOCX paragraphs
    */
-  private formatPair(pair: any, _options: ExportOptions, assistantName: string): (Paragraph | Table)[] {
+  private formatPair(pair: any, options: ExportOptions, assistantName: string): (Paragraph | Table)[] {
     const paragraphs: (Paragraph | Table)[] = [];
 
     // User heading
     paragraphs.push(
-      new Paragraph({
-        text: 'User',
-        heading: HeadingLevel.HEADING_2,
-        spacing: { before: 300, after: 150 },
-      })
+      this.renderRoleHeading('User', this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps))
     );
 
     // User content
@@ -189,11 +200,7 @@ export class DocxExporter extends BaseExporter {
 
     // Assistant heading
     paragraphs.push(
-      new Paragraph({
-        text: assistantName,
-        heading: HeadingLevel.HEADING_2,
-        spacing: { before: 300, after: 150 },
-      })
+      this.renderRoleHeading(assistantName, this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps))
     );
 
     // Assistant content

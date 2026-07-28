@@ -79,7 +79,7 @@ export class TextExporter extends BaseExporter {
     for (let i = 0; i < conversation.pairs.length; i++) {
       const pair = conversation.pairs[i];
       if (pair) {
-        lines.push(...this.formatPair(pair, assistantName));
+        lines.push(...this.formatPair(pair, assistantName, options));
         if (i < conversation.pairs.length - 1) {
           lines.push('');
           lines.push('-'.repeat(40));
@@ -94,16 +94,16 @@ export class TextExporter extends BaseExporter {
   /**
    * Format a single Q&A pair
    */
-  private formatPair(pair: any, assistantName: string): string[] {
+  private formatPair(pair: any, assistantName: string, options: ExportOptions): string[] {
     const lines: string[] = [];
 
     // User message
-    lines.push('User:');
+    lines.push(`User${this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps)}:`);
     lines.push(...this.renderBlocks(pair.question.blocks));
     lines.push('');
 
     // Assistant message
-    lines.push(`${assistantName}:`);
+    lines.push(`${assistantName}${this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps)}:`);
     lines.push(...this.renderBlocks(pair.answer.blocks));
 
     // Add artifacts if present

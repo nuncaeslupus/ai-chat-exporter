@@ -73,12 +73,12 @@ export class StructuredMarkdownExporter extends BaseExporter {
       const pair = conversation.pairs[i];
 
       // User question
-      lines.push(`### 👤 ${this.getRoleName('user')}`);
+      lines.push(`### 👤 ${this.getRoleName('user')}${this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps)}`);
       lines.push('');
       lines.push(...this.renderBlocks(pair.question.blocks));
 
       // Assistant answer
-      lines.push(`### 🤖 ${this.getRoleName('assistant', conversation.platform)}`);
+      lines.push(`### 🤖 ${this.getRoleName('assistant', conversation.platform)}${this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps)}`);
       lines.push('');
       lines.push(...this.renderBlocks(pair.answer.blocks));
 

@@ -202,6 +202,87 @@ describe('HtmlExporter structural contract', () => {
   });
 });
 
+describe('HtmlExporter per-message timestamps', () => {
+  function buildStructuredConversation(): Conversation {
+    return {
+      id: 'test-conversation',
+      title: 'HTML Structure Test',
+      platform: 'claude',
+      model: 'claude-3',
+      url: 'https://claude.ai/chat/html-structure-test',
+      createdAt: new Date('2025-01-01T12:00:00Z'),
+      pairs: [
+        {
+          id: 'pair-0',
+          index: 0,
+          selected: true,
+          question: {
+            id: 'q-0',
+            role: 'user',
+            content: 'plain question',
+            timestamp: new Date('2025-01-01T12:00:00Z'),
+          },
+          answer: {
+            id: 'a-0',
+            role: 'assistant',
+            content: 'plain answer',
+            timestamp: new Date('2025-01-01T12:00:00Z'),
+          },
+        },
+      ],
+    } as unknown as Conversation;
+  }
+
+  it('renders a per-message timestamp when includeTimestamps is on', async () => {
+    const exporter = new HtmlExporter();
+    const conversation = buildStructuredConversation();
+    const result = await exporter.export(conversation, conversation.pairs, {
+      format: 'html',
+      filename: 'test',
+      includeMetadata: false,
+      includeTimestamps: true,
+    });
+    const html = await blobToText(result.blob!);
+    expect(html).toContain('2025-01-01 12:00:00');
+  });
+
+  it('omits the timestamp when includeTimestamps is off', async () => {
+    const exporter = new HtmlExporter();
+    const conversation = buildStructuredConversation();
+    const result = await exporter.export(conversation, conversation.pairs, {
+      format: 'html',
+      filename: 'test',
+      includeMetadata: false,
+      includeTimestamps: false,
+    });
+    const html = await blobToText(result.blob!);
+    expect(html).not.toContain('2025-01-01 12:00:00');
+  });
+
+  it('emits no stray label or "undefined" when a message has no timestamp', async () => {
+    const conversation = buildStructuredConversation();
+    delete (conversation.pairs[0]!.question as { timestamp?: Date }).timestamp;
+    delete (conversation.pairs[0]!.answer as { timestamp?: Date }).timestamp;
+    const exporter = new HtmlExporter();
+    const result = await exporter.export(conversation, conversation.pairs, {
+      format: 'html',
+      filename: 'test',
+      includeMetadata: false,
+      includeTimestamps: true,
+    });
+    const html = await blobToText(result.blob!);
+    expect(html).not.toContain('undefined');
+    // Scope to the message-header sections -- the embedded highlighter
+    // <script> legitimately contains empty-paren arrow functions elsewhere
+    // in the document.
+    const headers = html.match(/<div class="message-header">[\s\S]*?<\/div>/g) ?? [];
+    expect(headers.length).toBeGreaterThan(0);
+    for (const header of headers) {
+      expect(header).not.toMatch(/\(\s*\)/);
+    }
+  });
+});
+
 describe('exported HTML makes no third-party requests', () => {
   /**
    * PR #49 removed citation favicons at the parser, but the exporter's <img>

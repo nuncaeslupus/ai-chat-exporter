@@ -81,6 +81,18 @@ export abstract class BaseExporter implements IExporter {
   }
 
   /**
+   * Format a per-message timestamp suffix to append after a role label,
+   * e.g. " (2025-01-01 12:00:00)". Returns '' when timestamps are disabled
+   * or the message has no timestamp, so callers can always append the
+   * result directly without a separate presence check.
+   */
+  protected formatTimestampSuffix(date: Date | undefined, includeTimestamps: boolean): string {
+    if (!includeTimestamps) return '';
+    const formatted = this.formatTimestamp(date);
+    return formatted ? ` (${formatted})` : '';
+  }
+
+  /**
    * Format platform name for display
    */
   protected formatPlatformName(platform: string): string {
