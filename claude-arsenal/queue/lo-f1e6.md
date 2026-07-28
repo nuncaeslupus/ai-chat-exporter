@@ -83,3 +83,20 @@ value on that basis.
 
 `src/extension/popup/popup.css`, `popup.html`, `popup.ts`,
 `tests/unit/extension/popup/*`, `docs/design/popup-redesign.md`.
+
+## Author correction (2026-07-29): the action bar is already big enough
+
+Direct feedback: *"Button is big enough."*
+
+**Do not scale the action bar.** The split export button and the print button keep
+their current geometry and label size — 50 px tall, 42 px right half, 50×50 print,
+16 px icon, and the 14 px button label stays 14 px. They are the one part of the
+5a design that reads at the right size today.
+
+Everything else in the table above still scales: the box, the header, the
+conversation title, the setting rows, the submenu type, the pair list, the format
+rows, the footers.
+
+Practical consequence worth noticing: the action bar not growing gives the body
+*more* slack than the +60 px the taller box already buys, so re-measure the
+constraints listed above rather than assuming they merely shift.
