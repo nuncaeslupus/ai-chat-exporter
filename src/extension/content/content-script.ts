@@ -10,9 +10,28 @@ import {
   ClaudeApiService,
   type EnrichmentResult,
 } from '../../core/services/claude-api-service';
+import { SelectionService } from '../../core/services/selection-service';
 import { StorageService } from '../../shared/storage';
 import type { Conversation, ExportFormat } from '../../core/types';
 import { sanitizeHtml } from '../../core/utils/sanitize-html';
+
+/**
+ * Apply the popup's per-pair selection (by `pair.index`, the only identifier
+ * stable across a re-parse — `pair.id` is regenerated every call) to a freshly
+ * parsed conversation. `undefined` means the popup sent no selection (e.g. an
+ * older popup, or a direct/test caller) — leave the parser's own `selected`
+ * defaults untouched.
+ */
+function applySelection(conversation: Conversation, selectedIndices?: number[]): Conversation {
+  if (!selectedIndices) {
+    return conversation;
+  }
+  const selected = new Set(selectedIndices);
+  return {
+    ...conversation,
+    pairs: conversation.pairs.map((pair) => ({ ...pair, selected: selected.has(pair.index) })),
+  };
+}
 
 /**
  * Main content script controller
@@ -89,7 +108,7 @@ class ContentScript {
    * degraded (see `enrichClaudeConversation`), or `undefined` when it is
    * complete. Failures throw.
    */
-  async handleExport(format: ExportFormat): Promise<string | undefined> {
+  async handleExport(format: ExportFormat, selectedIndices?: number[]): Promise<string | undefined> {
     // Re-parse conversation to get latest content (ChatGPT is dynamic SPA).
     // Operate on a local snapshot, not `this.conversation` — a concurrent
     // export/print call must never see or clobber this call's data (lo-08b0).
@@ -99,6 +118,8 @@ class ContentScript {
       console.error('[AI Chat Exporter] No conversation available');
       return undefined;
     }
+
+    conversation = applySelection(conversation, selectedIndices);
 
     console.log(`[AI Chat Exporter] Attempting to export ${conversation.pairs.length} pairs to ${format}`);
     let warning: string | undefined;
@@ -116,8 +137,8 @@ class ContentScript {
         warning = enrichment.warning;
       }
 
-      // Use all pairs for export
-      const pairsToExport = conversation.pairs;
+      // Only the pairs the user left selected in the popup go into the export.
+      const pairsToExport = SelectionService.getSelectedPairs(conversation.pairs);
 
       // Debug: Check if artifacts have content before export
       console.log('[AI Chat Exporter] Pairs to export:', pairsToExport.length);
@@ -224,7 +245,7 @@ class ContentScript {
     URL.revokeObjectURL(url);
   }
 
-  async handlePrint(format: ExportFormat): Promise<string | undefined> {
+  async handlePrint(format: ExportFormat, selectedIndices?: number[]): Promise<string | undefined> {
     // Open the print window synchronously, before any `await` — opening it
     // after the re-parse/API/export awaits below loses the user-gesture
     // context and gets popup-blocked.
@@ -247,6 +268,8 @@ class ContentScript {
       return undefined;
     }
 
+    conversation = applySelection(conversation, selectedIndices);
+
     console.log(`[AI Chat Exporter] Attempting to print ${conversation.pairs.length} pairs as ${format}`);
     let warning: string | undefined;
 
@@ -266,7 +289,7 @@ class ContentScript {
       // Freeze the final snapshot in a `const` so the closures below (which
       // outlive this function's execution) keep a stable, non-null reference.
       const finalConversation = conversation;
-      const pairsToExport = finalConversation.pairs;
+      const pairsToExport = SelectionService.getSelectedPairs(finalConversation.pairs);
 
       // Get exporter for format
       const exporter = await getExporter(format);
@@ -656,13 +679,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           data: conversation,
         });
       } else if (message.type === 'export_conversation') {
-        const warning = await contentScript.handleExport(message.format);
+        const selectedIndices = (message as { selectedIndices?: number[] }).selectedIndices;
+        const warning = await contentScript.handleExport(message.format, selectedIndices);
         sendResponse({
           success: true,
           ...(warning && { warning }),
         });
       } else if (message.type === 'print_conversation') {
-        const warning = await contentScript.handlePrint(message.format);
+        const selectedIndices = (message as { selectedIndices?: number[] }).selectedIndices;
+        const warning = await contentScript.handlePrint(message.format, selectedIndices);
         sendResponse({
           success: true,
           ...(warning && { warning }),

@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { createTestQAPair } from '../../../utils/exporter-helpers';
 
 const mockTabsQuery = vi.fn();
 const mockTabsSendMessage = vi.fn();
@@ -31,10 +32,23 @@ const EN_MESSAGES: Record<string, string> = {
   statusPrintFailed: 'Print failed',
   errorNoActiveTabFound: 'No active tab found',
   conversationUntitled: 'Untitled',
+  qaSelectionSelectAll: 'Select all',
+  qaSelectionDeselectAll: 'Deselect all',
 };
 
 function mockI18n(messages: Record<string, string> = EN_MESSAGES) {
-  return { getUILanguage: () => 'en', getMessage: (key: string) => messages[key] ?? key };
+  return {
+    getUILanguage: () => 'en',
+    getMessage: (key: string, substitutions?: string | string[]) => {
+      const message = messages[key] ?? key;
+      if (!substitutions) return message;
+      const values = Array.isArray(substitutions) ? substitutions : [substitutions];
+      return values.reduce(
+        (text, value, i) => text.replace(`$${String(i + 1)}`, value),
+        message
+      );
+    },
+  };
 }
 
 /** The subset of popup.html that popup.ts touches. */
@@ -50,6 +64,11 @@ const POPUP_DOM = `
     <img id="platform-icon" />
     <div id="conversation-title">-</div>
     <div id="conversation-meta">-</div>
+    <section id="qa-selection-section" style="display: none;">
+      <button type="button" id="qa-selection-toggle-all"></button>
+      <ul id="qa-selection-list"></ul>
+      <div id="qa-selection-count"></div>
+    </section>
     <img id="format-icon" />
     <select id="format-select" disabled><option value="md">Markdown</option></select>
     <button id="export-button" disabled></button>
@@ -301,5 +320,155 @@ describe('popup platform gate', () => {
     await vi.waitFor(() => {
       expect(document.getElementById('popup-version')?.textContent).toBe('v9.9.9');
     });
+  });
+});
+
+describe('popup Q&A pair selection (lo-adf1)', () => {
+  const CONVERSATION_WITH_PAIRS = {
+    ...CONVERSATION,
+    pairs: [
+      createTestQAPair(0, 'First question', 'First answer'),
+      createTestQAPair(1, 'Second question', 'Second answer'),
+      createTestQAPair(2, 'Third question', 'Third answer'),
+    ],
+  };
+
+  function checkboxes(): HTMLInputElement[] {
+    return Array.from(
+      document.querySelectorAll<HTMLInputElement>('#qa-selection-list input[type="checkbox"]')
+    );
+  }
+
+  beforeEach(() => {
+    mockTabsQuery.mockReset();
+    mockTabsSendMessage.mockReset();
+    Object.assign(chrome, {
+      tabs: { query: mockTabsQuery, sendMessage: mockTabsSendMessage, create: vi.fn() },
+      i18n: mockI18n(),
+    });
+    mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://claude.ai/chat/abc' }]);
+    mockTabsSendMessage.mockImplementation((_tabId: number, message: { type: string }) => {
+      if (message.type === 'get_conversation') {
+        return Promise.resolve({ success: true, data: CONVERSATION_WITH_PAIRS });
+      }
+      return Promise.resolve({ success: true });
+    });
+  });
+
+  it('renders one checkbox per pair, all selected by default', async () => {
+    await loadPopup();
+    await vi.waitFor(() => {
+      expect(checkboxes()).toHaveLength(3);
+    });
+    expect(checkboxes().every((cb) => cb.checked)).toBe(true);
+    expect(document.getElementById('qa-selection-section')?.style.display).toBe('block');
+  });
+
+  it('select-all / select-none toggle every pair', async () => {
+    await loadPopup();
+    await vi.waitFor(() => {
+      expect(checkboxes()).toHaveLength(3);
+    });
+
+    const toggleAll = document.getElementById('qa-selection-toggle-all') as HTMLButtonElement;
+    expect(toggleAll.textContent).toBe('Deselect all');
+
+    toggleAll.click();
+    await vi.waitFor(() => {
+      expect(checkboxes().every((cb) => !cb.checked)).toBe(true);
+    });
+    expect(toggleAll.textContent).toBe('Select all');
+
+    toggleAll.click();
+    await vi.waitFor(() => {
+      expect(checkboxes().every((cb) => cb.checked)).toBe(true);
+    });
+    expect(toggleAll.textContent).toBe('Deselect all');
+  });
+
+  it('sends only the indices of the pairs still checked when exporting', async () => {
+    await loadPopup();
+    await vi.waitFor(() => {
+      expect(checkboxes()).toHaveLength(3);
+    });
+
+    // Uncheck the middle pair by hand.
+    checkboxes()[1]!.checked = false;
+    checkboxes()[1]!.dispatchEvent(new Event('change'));
+
+    document.getElementById('export-button')?.click();
+
+    await vi.waitFor(() => {
+      const calls = mockTabsSendMessage.mock.calls as [number, { type: string; selectedIndices?: number[] }][];
+      const exportCalls = calls.filter(([, message]) => message.type === 'export_conversation');
+      expect(exportCalls.length).toBeGreaterThan(0);
+      expect(exportCalls.at(-1)?.[1].selectedIndices).toEqual([0, 2]);
+    });
+  });
+
+  it('toggling a single checkbox off then on again leaves every pair selected', async () => {
+    await loadPopup();
+    await vi.waitFor(() => {
+      expect(checkboxes()).toHaveLength(3);
+    });
+
+    checkboxes()[0]!.checked = false;
+    checkboxes()[0]!.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => {
+      expect(checkboxes()[0]!.checked).toBe(false);
+    });
+
+    checkboxes()[0]!.checked = true;
+    checkboxes()[0]!.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => {
+      expect(checkboxes().every((cb) => cb.checked)).toBe(true);
+    });
+  });
+});
+
+describe('popup Q&A pair selection accessibility (lo-adf1)', () => {
+  const CONVERSATION_WITH_PAIRS = {
+    ...CONVERSATION,
+    pairs: [createTestQAPair(0, 'A real question', 'An answer')],
+  };
+
+  beforeEach(() => {
+    mockTabsQuery.mockReset();
+    mockTabsSendMessage.mockReset();
+    Object.assign(chrome, {
+      tabs: { query: mockTabsQuery, sendMessage: mockTabsSendMessage, create: vi.fn() },
+      i18n: mockI18n(),
+    });
+    mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://claude.ai/chat/abc' }]);
+    mockTabsSendMessage.mockImplementation((_tabId: number, message: { type: string }) => {
+      if (message.type === 'get_conversation') {
+        return Promise.resolve({ success: true, data: CONVERSATION_WITH_PAIRS });
+      }
+      return Promise.resolve({ success: true });
+    });
+  });
+
+  it('associates every pair checkbox with a real <label for>', async () => {
+    await loadPopup();
+    const checkbox = await vi.waitFor(() => {
+      const el = document.querySelector<HTMLInputElement>('#qa-selection-list input[type="checkbox"]');
+      expect(el).not.toBeNull();
+      return el!;
+    });
+
+    expect(checkbox.id).not.toBe('');
+    const label = document.querySelector(`label[for="${checkbox.id}"]`);
+    expect(label).not.toBeNull();
+    expect(label?.textContent).toBe('A real question');
+  });
+
+  it('gives the select-all/select-none toggle a non-empty accessible name', async () => {
+    await loadPopup();
+    const toggleAll = await vi.waitFor(() => {
+      const el = document.getElementById('qa-selection-toggle-all');
+      expect(el?.textContent).toBeTruthy();
+      return el!;
+    });
+    expect(toggleAll.textContent).toBe('Deselect all');
   });
 });

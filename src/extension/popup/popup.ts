@@ -3,11 +3,12 @@
  */
 
 import { createMessage, type GetConversationMessage, type MessageResponse } from '../../shared/messages';
-import type { Conversation } from '../../core/types/conversation';
+import type { Conversation, QAPair } from '../../core/types/conversation';
 import type { ExportFormat } from '../../core/types/exporter';
-import { getMessage, formatNumber, getPlatformName } from '../../shared/i18n';
+import { getMessage, getMessageWithValues, formatNumber, getPlatformName } from '../../shared/i18n';
 import { parserRegistry } from '../../core/parsers';
 import { StorageService } from '../../shared/storage';
+import { SelectionService } from '../../core/services/selection-service';
 
 /**
  * Platform information for display
@@ -84,6 +85,7 @@ function localizeHtmlPage(): void {
 
 class PopupController {
   private selectedFormat: ExportFormat = 'md';
+  private pairs: QAPair[] = [];
 
   async initialize(): Promise<void> {
     // Localize all static text in the HTML
@@ -143,6 +145,11 @@ class PopupController {
     // Export button
     document.getElementById('export-button')?.addEventListener('click', () => {
       this.handleExport(this.selectedFormat);
+    });
+
+    // Q&A pair select-all / select-none toggle
+    document.getElementById('qa-selection-toggle-all')?.addEventListener('click', () => {
+      this.handleToggleAllPairs();
     });
 
     // Print button
@@ -284,6 +291,86 @@ class PopupController {
       const stats = this.calculateConversationStats(conversation);
       meta.innerHTML = this.formatConversationStats(stats);
     }
+
+    // Own copy: toggling a checkbox must not mutate the conversation object
+    // shared with the rest of the popup.
+    this.pairs = conversation.pairs.map((pair) => ({ ...pair }));
+    this.renderSelectionList();
+  }
+
+  /**
+   * Render the per-pair checkbox list plus the select-all/select-none toggle
+   * and the "N of M selected" summary.
+   */
+  private renderSelectionList(): void {
+    const section = document.getElementById('qa-selection-section');
+    const list = document.getElementById('qa-selection-list');
+    if (!section || !list) return;
+
+    if (this.pairs.length === 0) {
+      section.style.display = 'none';
+      return;
+    }
+    section.style.display = 'block';
+
+    list.innerHTML = '';
+    this.pairs.forEach((pair) => {
+      const item = document.createElement('li');
+      item.className = 'qa-selection-item';
+
+      const checkboxId = `qa-pair-${pair.id}`;
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.id = checkboxId;
+      checkbox.checked = pair.selected;
+      checkbox.addEventListener('change', () => {
+        this.pairs = SelectionService.toggleSelection(this.pairs, pair.id);
+        this.renderSelectionList();
+      });
+
+      const label = document.createElement('label');
+      label.htmlFor = checkboxId;
+      const preview = pair.question.content.trim();
+      label.textContent = preview || getMessageWithValues('qaSelectionPairFallbackLabel', pair.index + 1);
+      label.title = label.textContent;
+
+      item.appendChild(checkbox);
+      item.appendChild(label);
+      list.appendChild(item);
+    });
+
+    this.updateSelectionSummary();
+  }
+
+  private updateSelectionSummary(): void {
+    const countEl = document.getElementById('qa-selection-count');
+    const toggleAllButton = document.getElementById('qa-selection-toggle-all');
+
+    if (countEl) {
+      countEl.textContent = getMessageWithValues(
+        'qaSelectionCount',
+        SelectionService.getSelectionCount(this.pairs),
+        this.pairs.length
+      );
+    }
+    if (toggleAllButton) {
+      const allSelected = SelectionService.isAllSelected(this.pairs);
+      toggleAllButton.textContent = allSelected
+        ? getMessage('qaSelectionDeselectAll')
+        : getMessage('qaSelectionSelectAll');
+    }
+  }
+
+  private handleToggleAllPairs(): void {
+    this.pairs = SelectionService.isAllSelected(this.pairs)
+      ? SelectionService.deselectAll(this.pairs)
+      : SelectionService.selectAll(this.pairs);
+    this.renderSelectionList();
+  }
+
+  /** Indices of the currently selected pairs, sent along with export/print. */
+  private selectedPairIndices(): number[] {
+    return SelectionService.getSelectedPairs(this.pairs).map((pair) => pair.index);
   }
 
   private calculateConversationStats(conversation: Conversation) {
@@ -390,6 +477,7 @@ class PopupController {
       const message = {
         type: 'export_conversation',
         format,
+        selectedIndices: this.selectedPairIndices(),
         timestamp: Date.now(),
       };
 
@@ -420,6 +508,7 @@ class PopupController {
       const message = {
         type: 'print_conversation',
         format: this.selectedFormat,
+        selectedIndices: this.selectedPairIndices(),
         timestamp: Date.now(),
       };
 
