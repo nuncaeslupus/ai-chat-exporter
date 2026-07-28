@@ -145,16 +145,6 @@ class ContentScript {
       // Only the pairs the user left selected in the popup go into the export.
       const pairsToExport = SelectionService.getSelectedPairs(conversation.pairs);
 
-      // Debug: Check if artifacts have content before export
-      console.log('[AI Chat Exporter] Pairs to export:', pairsToExport.length);
-      pairsToExport.forEach((pair, i) => {
-        const artifacts = pair.answer.metadata?.artifacts || [];
-        console.log(`[AI Chat Exporter] Pair ${i}: ${artifacts.length} artifacts`);
-        artifacts.forEach((a, j) => {
-          console.log(`[AI Chat Exporter] Pair ${i}, Artifact ${j}: "${a.title}", hasContent:`, !!a.content, 'length:', a.content?.length || 0);
-        });
-      });
-
       // Get exporter for format
       const exporter = await getExporter(format);
       if (!exporter) {

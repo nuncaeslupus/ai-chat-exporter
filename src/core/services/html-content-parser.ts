@@ -24,15 +24,6 @@ export class HtmlContentParser {
    * Parse HTML string into structured content blocks
    */
   static parse(html: string): StructuredContentBlock[] {
-    // DEBUG: Check what HTML is being received for parsing
-    console.log('🔍 HtmlContentParser.parse called with:', {
-      htmlLength: html.length,
-      htmlPreview: html.substring(0, 300),
-      hasTables: html.includes('<table'),
-      hasCode: html.includes('<code'),
-      hasNewlines: html.includes('\n')
-    });
-
     const parser = new DOMParser();
 
     // Wrap content in a div to prevent root-level text/inline elements
@@ -357,14 +348,6 @@ export class HtmlContentParser {
     excludeElements: Element[] = []
   ): InlineContent[] {
     const result: InlineContent[] = [];
-
-    // DEBUG: Check inline content parsing
-    console.log('🔍 parseInlineContent:', {
-      tagName: element.tagName,
-      childNodeCount: element.childNodes.length,
-      textContent: element.textContent?.substring(0, 100),
-      hasCodeChildren: Array.from(element.children).some(c => c.tagName === 'CODE')
-    });
 
     for (const child of Array.from(element.childNodes)) {
       // Skip excluded elements

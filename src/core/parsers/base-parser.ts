@@ -152,12 +152,6 @@ export abstract class BaseParser implements IParser {
     answer: Message,
     id?: string
   ): QAPair {
-    console.log(`[BaseParser] Creating QAPair ${index}:`);
-    console.log(`[BaseParser] Answer content preview (first 500 chars):`, answer.content.substring(0, 500));
-    console.log(`[BaseParser] Answer content includes [Web Search:`, answer.content.includes('[Web Search:'));
-    console.log(`[BaseParser] Answer content includes [Imagen:`, answer.content.includes('[Imagen:'));
-    console.log(`[BaseParser] Answer metadata:`, answer.metadata);
-
     return {
       id: id ?? this.generateId(),
       index,
@@ -181,16 +175,6 @@ export abstract class BaseParser implements IParser {
     this.cleanupElement(clone);
 
     const content = clone.textContent?.trim() ?? '';
-
-    // DEBUG: Check what HTML is being captured
-    console.log('🔍 Parser extractContent:', {
-      preserveHtml,
-      contentLength: content.length,
-      htmlLength: clone.innerHTML.length,
-      htmlPreview: clone.innerHTML.substring(0, 200),
-      hasCodeTags: clone.innerHTML.includes('<code'),
-      hasTableTags: clone.innerHTML.includes('<table')
-    });
 
     if (preserveHtml) {
       return { content, htmlContent: clone.innerHTML };
