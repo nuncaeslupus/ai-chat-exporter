@@ -8,7 +8,7 @@
   </head>
   <body>
     <div class="popup-container">
-      <!-- Fixed 48px header. -->
+      <!-- Fixed 56px header. -->
       <header class="popup-header">
         <img src="../assets/icons/icon-header.svg" alt="" class="header-logo" />
         <div class="header-title">
@@ -22,8 +22,8 @@
       </header>
 
       <!--
-        Fixed 260px body. Every view and every UI state paints inside this box,
-        so the popup is always 310px tall and never jumps. Anything that grows
+        Fixed 320px body. Every view and every UI state paints inside this box,
+        so the popup is always 378px tall and never jumps. Anything that grows
         scrolls in a `.view-scroll` child, never stretches the box.
       -->
       <main class="popup-body" id="popup-body" data-view="main" data-ui-state="detecting">
@@ -242,7 +242,7 @@
           header/footer shape so it scrolls inside the box.
         -->
         <!--
-          Pair chooser. Three bands inside the same 260px box: header and
+          Pair chooser. Three bands inside the same 320px box: header and
           footer are `flex:none`, only the list scrolls. Back and Done are pure
           navigation triggers — `data-nav` is all the R1 router needs.
         -->
