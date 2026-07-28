@@ -445,11 +445,18 @@ export class ChatGPTParser extends BaseParser {
           imageData.height = parseInt(heightAttr, 10);
         }
 
-        // If no attributes, get computed dimensions (actual rendered size)
+        // If no attributes, get computed dimensions (actual rendered size).
+        // clientWidth/clientHeight already force a layout read; only reach for
+        // getComputedStyle() -- a second forced style recalc -- when those come
+        // back empty (e.g. a hidden or zero-box image), instead of every image.
         if (!imageData.width || !imageData.height) {
-          const computed = window.getComputedStyle(img);
-          const computedWidth = img.clientWidth || parseInt(computed.width, 10);
-          const computedHeight = img.clientHeight || parseInt(computed.height, 10);
+          let computedWidth = img.clientWidth;
+          let computedHeight = img.clientHeight;
+          if (!computedWidth || !computedHeight) {
+            const computed = window.getComputedStyle(img);
+            computedWidth ||= parseInt(computed.width, 10);
+            computedHeight ||= parseInt(computed.height, 10);
+          }
 
           if (computedWidth && !isNaN(computedWidth)) {
             imageData.width = computedWidth;
@@ -525,11 +532,18 @@ export class ChatGPTParser extends BaseParser {
       result.height = parseInt(heightAttr, 10);
     }
 
-    // If no attributes, get computed dimensions (actual rendered size)
+    // If no attributes, get computed dimensions (actual rendered size).
+    // clientWidth/clientHeight already force a layout read; only reach for
+    // getComputedStyle() -- a second forced style recalc -- when those come
+    // back empty (e.g. a hidden or zero-box image), instead of every image.
     if (!result.width || !result.height) {
-      const computed = window.getComputedStyle(img);
-      const computedWidth = img.clientWidth || parseInt(computed.width, 10);
-      const computedHeight = img.clientHeight || parseInt(computed.height, 10);
+      let computedWidth = img.clientWidth;
+      let computedHeight = img.clientHeight;
+      if (!computedWidth || !computedHeight) {
+        const computed = window.getComputedStyle(img);
+        computedWidth ||= parseInt(computed.width, 10);
+        computedHeight ||= parseInt(computed.height, 10);
+      }
 
       if (computedWidth && !isNaN(computedWidth)) {
         result.width = computedWidth;
