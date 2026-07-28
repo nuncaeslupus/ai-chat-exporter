@@ -8,6 +8,7 @@
   </head>
   <body>
     <div class="popup-container">
+      <!-- Fixed 48px header. -->
       <header class="popup-header">
         <img src="../assets/icons/icon-128.png" alt="Logo" class="header-logo" />
         <div class="header-title">
@@ -20,100 +21,119 @@
         </div>
       </header>
 
-      <main class="popup-main">
-        <!-- Not supported message -->
-        <section class="not-supported-section" id="not-supported-section" style="display: none;">
-          <div class="not-supported-message">
-            <svg class="not-supported-icon" width="48" height="48" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-              <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            <h3 class="not-supported-title" data-i18n="noChatbotDetectedTitle">No Chatbot Detected</h3>
-            <p class="not-supported-text">
-              <span data-i18n="noChatbotDetectedMessage">This page doesn't appear to have a supported chatbot conversation.</span>
-              <br><br>
-              <strong data-i18n="supportedPlatforms">Supported platforms:</strong>
-              <span id="supported-platforms-list"></span>
-            </p>
+      <!--
+        Fixed 260px body. Every view and every UI state paints inside this box,
+        so the popup is always 310px tall and never jumps. Anything that grows
+        scrolls in a `.view-scroll` child, never stretches the box.
+      -->
+      <main class="popup-body" id="popup-body" data-view="main" data-ui-state="detecting">
+        <section class="popup-view" id="view-main">
+          <div class="view-scroll">
+            <!-- Not supported message -->
+            <section class="not-supported-section" id="not-supported-section" style="display: none;">
+              <div class="not-supported-message">
+                <svg class="not-supported-icon" width="48" height="48" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                  <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <h3 class="not-supported-title" data-i18n="noChatbotDetectedTitle">No Chatbot Detected</h3>
+                <p class="not-supported-text">
+                  <span data-i18n="noChatbotDetectedMessage">This page doesn't appear to have a supported chatbot conversation.</span>
+                  <br><br>
+                  <strong data-i18n="supportedPlatforms">Supported platforms:</strong>
+                  <span id="supported-platforms-list"></span>
+                </p>
+              </div>
+            </section>
+
+            <!-- Main content (shown when supported) -->
+            <div id="main-content">
+              <!-- Conversation info -->
+              <div class="conversation-info">
+                <div class="conversation-header">
+                  <img class="platform-icon" id="platform-icon" alt="Platform" style="display: none;" />
+                  <div class="conversation-title" id="conversation-title">-</div>
+                </div>
+                <div class="conversation-meta" id="conversation-meta">-</div>
+              </div>
+
+              <!-- Q&A pair selection -->
+              <section class="qa-selection" id="qa-selection-section" style="display: none;">
+                <div class="qa-selection-header">
+                  <span class="qa-selection-title" data-i18n="qaSelectionTitle">Select Q&amp;A pairs to export</span>
+                  <button type="button" class="qa-selection-toggle-all" id="qa-selection-toggle-all"></button>
+                </div>
+                <ul class="qa-selection-list" id="qa-selection-list"></ul>
+                <div class="qa-selection-count" id="qa-selection-count"></div>
+              </section>
+
+              <!-- Export controls -->
+              <div class="export-controls">
+                <div class="format-select-wrapper">
+                  <img src="../assets/icons/md-icon.svg" alt="" class="format-icon" id="format-icon" />
+                  <select class="format-select" id="format-select" disabled>
+                    <option value="md" data-i18n="formatMarkdown">Markdown</option>
+                    <option value="html" data-i18n="formatHTML">HTML Document</option>
+                    <option value="pdf" data-i18n="formatPDF">PDF Document</option>
+                    <option value="docx" data-i18n="formatDOCX">Word Document</option>
+                    <option value="txt" data-i18n="formatTXT">Plain Text</option>
+                    <option value="json" data-i18n="formatJSON">JSON Data</option>
+                  </select>
+                </div>
+                <div class="button-row">
+                  <button class="action-button" id="export-button" disabled>
+                    <svg class="button-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M8 1v10M8 11l3-3M8 11l-3-3M2 14h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span class="button-label" data-i18n="exportButton">Export</span>
+                  </button>
+                  <button class="action-button" id="print-button" disabled>
+                    <svg class="button-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M4 5V2h8v3M4 11H2V7h12v4h-2M4 9h8v5H4V9z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span class="button-label" data-i18n="printButton">Print</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Export options -->
+              <div class="settings-grid">
+                <label class="setting-item" for="option-include-metadata">
+                  <input type="checkbox" id="option-include-metadata" />
+                  <span data-i18n="optionIncludeMetadata">Include metadata</span>
+                </label>
+                <label class="setting-item" for="option-include-timestamps">
+                  <input type="checkbox" id="option-include-timestamps" />
+                  <span data-i18n="optionIncludeTimestamps">Include timestamps</span>
+                </label>
+              </div>
+            </div> <!-- End main-content -->
           </div>
+
+          <footer class="popup-footer">
+            <a
+              href="https://github.com/nuncaeslupus/ai-chat-exporter"
+              target="_blank"
+              class="footer-link"
+              data-i18n="footerGitHub"
+            >
+              GitHub
+            </a>
+            <span class="footer-separator">•</span>
+            <a href="#" class="footer-link" id="report-issue" data-i18n="footerReportIssue">Report Issue</a>
+          </footer>
         </section>
 
-        <!-- Main content (shown when supported) -->
-        <div id="main-content">
-        <!-- Conversation info -->
-        <div class="conversation-info">
-          <div class="conversation-header">
-            <img class="platform-icon" id="platform-icon" alt="Platform" style="display: none;" />
-            <div class="conversation-title" id="conversation-title">-</div>
-          </div>
-          <div class="conversation-meta" id="conversation-meta">-</div>
-        </div>
-
-        <!-- Q&A pair selection -->
-        <section class="qa-selection" id="qa-selection-section" style="display: none;">
-          <div class="qa-selection-header">
-            <span class="qa-selection-title" data-i18n="qaSelectionTitle">Select Q&amp;A pairs to export</span>
-            <button type="button" class="qa-selection-toggle-all" id="qa-selection-toggle-all"></button>
-          </div>
-          <ul class="qa-selection-list" id="qa-selection-list"></ul>
-          <div class="qa-selection-count" id="qa-selection-count"></div>
-        </section>
-
-        <!-- Export controls -->
-        <div class="export-controls">
-          <div class="format-select-wrapper">
-            <img src="../assets/icons/md-icon.svg" alt="" class="format-icon" id="format-icon" />
-            <select class="format-select" id="format-select" disabled>
-              <option value="md" data-i18n="formatMarkdown">Markdown</option>
-              <option value="html" data-i18n="formatHTML">HTML Document</option>
-              <option value="pdf" data-i18n="formatPDF">PDF Document</option>
-              <option value="docx" data-i18n="formatDOCX">Word Document</option>
-              <option value="txt" data-i18n="formatTXT">Plain Text</option>
-              <option value="json" data-i18n="formatJSON">JSON Data</option>
-            </select>
-          </div>
-          <div class="button-row">
-            <button class="action-button" id="export-button" disabled>
-              <svg class="button-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M8 1v10M8 11l3-3M8 11l-3-3M2 14h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              <span class="button-label" data-i18n="exportButton">Export</span>
-            </button>
-            <button class="action-button" id="print-button" disabled>
-              <svg class="button-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M4 5V2h8v3M4 11H2V7h12v4h-2M4 9h8v5H4V9z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              <span class="button-label" data-i18n="printButton">Print</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Export options -->
-        <div class="settings-grid">
-          <label class="setting-item" for="option-include-metadata">
-            <input type="checkbox" id="option-include-metadata" />
-            <span data-i18n="optionIncludeMetadata">Include metadata</span>
-          </label>
-          <label class="setting-item" for="option-include-timestamps">
-            <input type="checkbox" id="option-include-timestamps" />
-            <span data-i18n="optionIncludeTimestamps">Include timestamps</span>
-          </label>
-        </div>
-        </div> <!-- End main-content -->
+        <!--
+          Submenu views. Empty on purpose: the router owns visibility, the
+          content lands with the Content / Options / Filename tasks. Anything
+          added here must keep the `.view-scroll` (flex:1) + flex:none
+          header/footer shape so it scrolls inside the box.
+        -->
+        <section class="popup-view" id="view-content" hidden></section>
+        <section class="popup-view" id="view-options" hidden></section>
+        <section class="popup-view" id="view-filename" hidden></section>
       </main>
-
-      <footer class="popup-footer">
-        <a
-          href="https://github.com/nuncaeslupus/ai-chat-exporter"
-          target="_blank"
-          class="footer-link"
-          data-i18n="footerGitHub"
-        >
-          GitHub
-        </a>
-        <span class="footer-separator">•</span>
-        <a href="#" class="footer-link" id="report-issue" data-i18n="footerReportIssue">Report Issue</a>
-      </footer>
     </div>
 
     <script src="popup.js" type="module"></script>

@@ -1,23 +1,99 @@
 /**
  * Popup styles for AI Chat Exporter extension
+ *
+ * Layout contract (docs/design/popup-redesign.md, direction 5a):
+ * fixed 48px header + fixed 260px body. Every state paints inside that box,
+ * so the popup never changes height. Growing content scrolls in a
+ * `flex:1; overflow-y:auto; min-height:0` child.
  */
 
+/**
+ * Design tokens. Named by role, taken from the spec's token table.
+ * Component rules below must use these — never an inline hex — so dark mode
+ * can be added by swapping this table and nothing else.
+ */
 :root {
-  --primary-color: #0d8266;
-  --primary-hover: #0d8a6a;
-  --danger-color: #ef4444;
-  --warning-color: #f59e0b;
-  --text-primary: #1f2937;
-  --text-secondary: #6b7280;
-  --border-color: #e5e7eb;
-  --bg-primary: #ffffff;
-  --bg-secondary: #f9fafb;
-  --bg-hover: #f3f4f6;
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
+  /* Accent / actions */
+  --color-accent: #0a6b54;
+  --color-accent-pressed: #075343;
+  --color-accent-tint: #e7f1ed;
+  --color-on-accent: #ffffff;
+
+  /* Header */
+  --color-header: #06342a;
+  --color-header-muted: #0e2c25;
+  --color-header-accent: #7fd9be;
+  --color-header-text: #ffffff;
+  /* Spec says rgba(255,255,255,.5) over the header; flattened to an opaque
+     value so the WCAG contrast check can resolve it. */
+  --color-header-text-dim: #9fb3ad;
+  --color-header-pill: rgba(255, 255, 255, 0.14);
+  --color-header-pill-text: #c9ede1;
+  --color-header-dot-idle: #8fa8a0;
+
+  /* Text */
+  --color-text-primary: #16211e;
+  --color-text-body: #2b3833;
+  /* Spec value is #6E7C77, which measures 4.36:1 on white and fails the
+     repo's WCAG AA gate; darkened until it clears 4.5:1 on every surface. */
+  --color-text-secondary: #63716c;
+  --color-text-tertiary: #8a9691;
+  --color-text-muted: #9aa5a1;
+
+  /* Surfaces */
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f4f8f6;
+  --color-surface-bar: #f7faf8;
+  --color-surface-hover: #edf3f0;
+  --color-surface-key: #f1f5f3;
+
+  /* Borders */
+  --color-border: #e2e9e5;
+  --color-border-strong: #d6e0db;
+  --color-border-hairline: #ebf0ee;
+
+  /* Warning */
+  --color-warning-surface: #fdf4e7;
+  --color-warning-stroke: #b07a0f;
+  --color-warning-text: #6b4a05;
+  --color-warning-text-soft: #7a5c1b;
+  --color-warning-dot: #f0c368;
+
+  /* Error. The spec designs no error screen; provisional until it does. */
+  --color-danger: #b3261e;
+
+  /* Disabled */
+  --color-disabled-surface: #e9eeec;
+  --color-disabled-text: #a3aeaa;
+  --color-disabled-border: #e6ece9;
+
+  /* Content badges */
+  --color-badge-code-surface: #dcfce7;
+  --color-badge-code-text: #166534;
+  --color-badge-image-surface: #dbeafe;
+  --color-badge-image-text: #1e40af;
+
+  /* Geometry — the whole point of the redesign: these do not change. */
+  --popup-width: 360px;
+  --header-height: 48px;
+  --body-height: 260px;
+
+  /* Radii */
+  --radius-key: 5px;
+  --radius-chip: 7px;
+  --radius-row: 8px;
+  --radius-link: 9px;
+  --radius-field: 10px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* Type */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Elevation */
+  --shadow-menu: 0 12px 30px rgba(6, 52, 42, 0.22), 0 0 0 1px #e2e9e5;
 }
 
 * {
@@ -27,100 +103,131 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
-    Arial, sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
-  color: var(--text-primary);
-  background: var(--bg-primary);
-  width: 360px;
+  color: var(--color-text-primary);
+  background: var(--color-surface);
+  width: var(--popup-width);
 }
 
 .popup-container {
   display: flex;
   flex-direction: column;
-  height: 100%;
 }
 
-/* Header */
+/* Header — fixed 48px */
 .popup-header {
+  flex: none;
+  height: var(--header-height);
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  background: var(--color-header);
 }
 
 .header-logo {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   flex-shrink: 0;
 }
 
 .header-title {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: 8px;
   flex: 1;
+  min-width: 0;
 }
 
 .popup-title {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 4px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--color-header-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .popup-version {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: 10.5px;
+  color: var(--color-header-text-dim);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 
-/* Main */
-.popup-main {
+/* Body — fixed 260px. Every view lives inside; the box never resizes. */
+.popup-body {
+  position: relative;
+  flex: none;
+  height: var(--body-height);
+  overflow: hidden;
+  min-height: 0;
+  background: var(--color-surface);
+}
+
+.popup-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.popup-view[hidden] {
+  display: none;
+}
+
+/* The only thing allowed to grow: it scrolls, the box does not. */
+.view-scroll {
   flex: 1;
-  padding: 16px;
+  min-height: 0;
   overflow-y: auto;
+  padding: 14px 16px 0;
 }
 
-/* Status in Header */
+/* Status pill in the header */
 .status-indicator {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+  padding: 3.5px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--color-header-pill);
 }
 
 .status-dot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: var(--text-secondary);
+  background: var(--color-header-dot-idle);
   flex-shrink: 0;
 }
 
 .status-indicator.active .status-dot {
-  background: var(--primary-color);
+  background: var(--color-header-accent);
   animation: pulse 2s ease-in-out infinite;
 }
 
 .status-indicator.warning .status-dot {
-  background: var(--warning-color);
+  background: var(--color-warning-dot);
 }
 
 .status-indicator.error .status-dot {
-  background: var(--danger-color);
+  background: var(--color-danger);
 }
 
 .status-indicator.inactive .status-dot {
-  background: var(--text-secondary);
+  background: var(--color-header-dot-idle);
 }
 
 .status-text {
-  font-size: 10px;
-  color: var(--text-secondary);
+  font-size: 10.5px;
+  color: var(--color-header-pill-text);
   white-space: nowrap;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 @keyframes pulse {
@@ -132,7 +239,7 @@ body {
 .conversation-info {
   margin-bottom: 16px;
   padding-bottom: 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .conversation-header {
@@ -155,7 +262,7 @@ body {
 .conversation-title {
   font-size: 15px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--color-text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -164,7 +271,7 @@ body {
 
 .conversation-meta {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
   padding-left: 34px;
   line-height: 1.6;
   font-weight: 500;
@@ -188,7 +295,7 @@ section {
 .badge {
   display: inline-block;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-key);
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
@@ -197,20 +304,20 @@ section {
 }
 
 .badge-code {
-  background: #dcfce7;
-  color: #166534;
+  background: var(--color-badge-code-surface);
+  color: var(--color-badge-code-text);
 }
 
 .badge-image {
-  background: #dbeafe;
-  color: #1e40af;
+  background: var(--color-badge-image-surface);
+  color: var(--color-badge-image-text);
 }
 
 /* Q&A pair selection */
 .qa-selection {
   margin-bottom: 16px;
   padding-bottom: 16px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .qa-selection-header {
@@ -223,13 +330,13 @@ section {
 .qa-selection-title {
   font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--color-text-primary);
 }
 
 .qa-selection-toggle-all {
   background: none;
   border: none;
-  color: var(--primary-color);
+  color: var(--color-accent);
   font-size: 12px;
   cursor: pointer;
   padding: 2px 4px;
@@ -252,11 +359,13 @@ section {
   align-items: center;
   gap: 8px;
   padding: 4px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-chip);
+  /* Rows must not shrink inside a scrolling flex column. */
+  flex: none;
 }
 
 .qa-selection-item:hover {
-  background: var(--bg-hover);
+  background: var(--color-surface-hover);
 }
 
 .qa-selection-item input[type='checkbox'] {
@@ -264,12 +373,12 @@ section {
   height: 16px;
   flex-shrink: 0;
   cursor: pointer;
-  accent-color: var(--primary-color);
+  accent-color: var(--color-accent);
 }
 
 .qa-selection-item label {
   font-size: 12px;
-  color: var(--text-primary);
+  color: var(--color-text-primary);
   cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -279,7 +388,7 @@ section {
 .qa-selection-count {
   margin-top: 4px;
   font-size: 11px;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
 }
 
 /* Actions Section */
@@ -308,34 +417,34 @@ section {
 .format-select {
   flex: 1;
   padding: 10px 32px 10px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background: var(--bg-primary);
-  color: var(--text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-row);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%239AA5A1' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
 }
 
 .format-select:hover:not(:disabled) {
-  border-color: var(--primary-color);
+  border-color: var(--color-accent);
 }
 
 .format-select:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  background: var(--bg-secondary);
+  background: var(--color-surface-sunken);
 }
 
 .format-select:focus {
   outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.1);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-tint);
 }
 
 .button-row {
@@ -352,10 +461,10 @@ section {
   justify-content: center;
   gap: 6px;
   padding: 10px 16px;
-  border: 2px solid var(--primary-color);
-  border-radius: var(--radius-md);
-  background: var(--bg-primary);
-  color: var(--primary-color);
+  border: 2px solid var(--color-accent);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-accent);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -364,22 +473,15 @@ section {
 }
 
 .action-button:hover:not(:disabled) {
-  background: var(--primary-color);
-  color: white;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(16, 163, 127, 0.25);
-}
-
-.action-button:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow: none;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
 }
 
 .action-button:disabled {
-  opacity: 0.5;
   cursor: not-allowed;
-  border-color: var(--border-color);
-  color: var(--text-secondary);
+  background: var(--color-disabled-surface);
+  border-color: var(--color-disabled-border);
+  color: var(--color-disabled-text);
 }
 
 .button-icon {
@@ -397,6 +499,7 @@ section {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding-bottom: 14px;
 }
 
 .setting-item {
@@ -405,38 +508,39 @@ section {
   gap: 8px;
   cursor: pointer;
   padding: 4px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-row);
   transition: background 0.15s ease;
 }
 
 .setting-item:hover {
-  background: var(--bg-hover);
+  background: var(--color-surface-hover);
 }
 
 .setting-item input[type='checkbox'] {
   width: 16px;
   height: 16px;
   cursor: pointer;
-  accent-color: var(--primary-color);
+  accent-color: var(--color-accent);
 }
 
 .setting-item span {
   font-size: 13px;
-  color: var(--text-primary);
+  color: var(--color-text-primary);
 }
 
-/* Footer */
+/* Footer — pinned inside the body box, never grows it. */
 .popup-footer {
-  padding: 12px 16px;
-  border-top: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  flex: none;
+  padding: 9px 16px 11px;
+  border-top: 1px solid var(--color-border-hairline);
+  background: var(--color-surface-bar);
   text-align: center;
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: 11px;
+  color: var(--color-text-secondary);
 }
 
 .footer-link {
-  color: var(--primary-color);
+  color: var(--color-accent);
   text-decoration: none;
   transition: opacity 0.15s ease;
 }
@@ -450,26 +554,30 @@ section {
 }
 
 /* Scrollbar */
-.popup-main::-webkit-scrollbar {
+.view-scroll::-webkit-scrollbar,
+.qa-selection-list::-webkit-scrollbar {
   width: 6px;
 }
 
-.popup-main::-webkit-scrollbar-track {
+.view-scroll::-webkit-scrollbar-track,
+.qa-selection-list::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.popup-main::-webkit-scrollbar-thumb {
-  background: var(--border-color);
+.view-scroll::-webkit-scrollbar-thumb,
+.qa-selection-list::-webkit-scrollbar-thumb {
+  background: var(--color-border);
   border-radius: 3px;
 }
 
-.popup-main::-webkit-scrollbar-thumb:hover {
-  background: var(--text-secondary);
+.view-scroll::-webkit-scrollbar-thumb:hover,
+.qa-selection-list::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
 }
 
 /* Not Supported Section */
 .not-supported-section {
-  padding: 20px;
+  padding: 6px 0 14px;
   text-align: center;
 }
 
@@ -479,44 +587,49 @@ section {
   align-items: center;
   gap: 16px;
   padding: 24px;
-  background: var(--bg-secondary);
+  background: var(--color-surface-sunken);
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--color-border);
 }
 
 .not-supported-icon {
-  color: var(--warning-color);
+  color: var(--color-warning-stroke);
   flex-shrink: 0;
 }
 
 .not-supported-title {
   font-size: 16px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--color-text-primary);
   margin: 0;
 }
 
 .not-supported-text {
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--color-text-secondary);
   line-height: 1.6;
   margin: 0;
   text-align: left;
 }
 
 .not-supported-text strong {
-  color: var(--text-primary);
+  color: var(--color-text-primary);
   font-weight: 600;
 }
 
 kbd {
-  background-color: #f3f4f6;
-  border: 1px solid #d1d5db;
-  border-radius: 3px;
+  background-color: var(--color-surface-key);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-key);
   padding: 2px 6px;
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-primary);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
+  color: var(--color-text-primary);
+}
+
+/* Keyboard focus must stay visible everywhere in the popup. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }

@@ -25,6 +25,27 @@ interface PlatformInfo {
 }
 
 /**
+ * The popup's four views. Only one is visible at a time and they all render
+ * inside the same fixed-height body box, so switching never resizes the popup.
+ */
+const VIEWS = ['main', 'content', 'options', 'filename'] as const;
+type PopupView = (typeof VIEWS)[number];
+
+function isPopupView(value: string): value is PopupView {
+  return (VIEWS as readonly string[]).includes(value);
+}
+
+/** What the body box is currently showing. Mirrored to `data-ui-state`. */
+type UiState =
+  | 'detecting'
+  | 'ready'
+  | 'noSelection'
+  | 'warning'
+  | 'unsupported'
+  | 'reload'
+  | 'error';
+
+/**
  * Get URL patterns for a platform
  */
 function getUrlsForPlatform(platform: string): string[] {
@@ -92,10 +113,19 @@ function localizeHtmlPage(): void {
 class PopupController {
   private selectedFormat: ExportFormat = 'md';
   private pairs: QAPair[] = [];
+  private view: PopupView = 'main';
+  private formatMenuOpen = false;
+  private uiState: UiState = 'detecting';
+  private routerBound = false;
 
   async initialize(): Promise<void> {
     // Localize all static text in the HTML
     localizeHtmlPage();
+
+    // Start on the main view, in the detecting state
+    this.setView('main');
+    this.setFormatMenuOpen(false);
+    this.setUiState('detecting');
 
     // Populate supported platforms list dynamically
     populateSupportedPlatforms();
@@ -140,7 +170,82 @@ class PopupController {
     }
   }
 
+  /** The fixed-height box every view and state renders into. */
+  private bodyBox(): HTMLElement | null {
+    return document.getElementById('popup-body');
+  }
+
+  /**
+   * Show one view and hide the rest. Navigation is delegated, so a view added
+   * later only needs a `data-nav="<view>"` trigger — no router change.
+   */
+  private setView(view: PopupView): void {
+    this.view = view;
+    for (const name of VIEWS) {
+      const container = document.getElementById(`view-${name}`);
+      if (container) container.hidden = name !== view;
+    }
+    this.bodyBox()?.setAttribute('data-view', view);
+  }
+
+  private setFormatMenuOpen(open: boolean): void {
+    this.formatMenuOpen = open;
+    this.bodyBox()?.setAttribute('data-format-menu-open', String(open));
+  }
+
+  private setUiState(state: UiState): void {
+    this.uiState = state;
+    this.bodyBox()?.setAttribute('data-ui-state', state);
+  }
+
+  private handleRouterClick(event: MouseEvent): void {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) return;
+
+    const nav = target.closest('[data-nav]')?.getAttribute('data-nav');
+    if (nav && isPopupView(nav)) {
+      this.setView(nav);
+      return;
+    }
+
+    if (target.closest('[data-format-menu-toggle]')) {
+      this.setFormatMenuOpen(!this.formatMenuOpen);
+      return;
+    }
+
+    // A click anywhere else closes the format menu.
+    if (this.formatMenuOpen && !target.closest('[data-format-menu]')) {
+      this.setFormatMenuOpen(false);
+    }
+  }
+
+  /** Esc closes the format menu first, then backs out of any submenu. */
+  private handleRouterKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Escape') return;
+    if (this.formatMenuOpen) {
+      this.setFormatMenuOpen(false);
+      return;
+    }
+    if (this.view !== 'main') {
+      this.setView('main');
+    }
+  }
+
   private setupEventListeners(): void {
+    // View router (delegated so later views need no wiring here). These sit on
+    // the document — Esc must work with nothing focused — so they outlive a
+    // re-render of the popup markup: bind them once, or a second initialize
+    // would double-handle every click.
+    if (!this.routerBound) {
+      this.routerBound = true;
+      document.addEventListener('click', (e) => {
+        this.handleRouterClick(e);
+      });
+      document.addEventListener('keydown', (e) => {
+        this.handleRouterKeydown(e);
+      });
+    }
+
     // Format selection
     document.getElementById('format-select')?.addEventListener('change', (e) => {
       const format = (e.target as HTMLSelectElement).value as ExportFormat;
@@ -210,6 +315,7 @@ class PopupController {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id) {
+        this.setUiState('error');
         this.updateStatus('error', getMessage('statusNoActiveTab'));
         return;
       }
@@ -221,6 +327,7 @@ class PopupController {
 
       const url = tab.url ? new URL(tab.url) : null;
       if (!url || !supportedDomains.some((domain) => url.hostname.includes(domain))) {
+        this.setUiState('unsupported');
         this.updateStatus('inactive', getMessage('statusNotSupported'));
         this.showNotSupportedMessage();
         return;
@@ -234,18 +341,21 @@ class PopupController {
       );
 
       if (response?.success && response.data) {
+        this.setUiState('ready');
         this.updateConversationInfo(response.data);
         this.updateStatus('active', getMessage('statusReady'));
         this.enableButtons();
         this.showMainContent();
       } else {
         // Content script loaded but no conversation found
+        this.setUiState('unsupported');
         this.updateStatus('warning', getMessage('statusNoConversation'));
         this.showNotSupportedMessage();
       }
     } catch (error) {
       console.error('Failed to check current page:', error);
       // Content script not responding - likely needs page reload
+      this.setUiState('reload');
       this.updateStatus('warning', getMessage('statusReloadNeeded'));
       this.showReloadMessage();
     }
@@ -367,6 +477,14 @@ class PopupController {
       toggleAllButton.textContent = allSelected
         ? getMessage('qaSelectionDeselectAll')
         : getMessage('qaSelectionSelectAll');
+    }
+
+    // Only the ready/no-selection pair swaps here; a warning or error state
+    // must not be cleared by a checkbox.
+    if (this.uiState === 'ready' || this.uiState === 'noSelection') {
+      const nothingSelected =
+        this.pairs.length > 0 && SelectionService.getSelectionCount(this.pairs) === 0;
+      this.setUiState(nothingSelected ? 'noSelection' : 'ready');
     }
   }
 
@@ -495,12 +613,14 @@ class PopupController {
       if (response.warning) {
         // Degraded export (e.g. artifact contents missing) — keep the popup
         // open so the user actually sees it. Full reason is in the tooltip.
+        this.setUiState('warning');
         this.updateStatus('warning', getMessage('statusArtifactsMissing'), response.warning);
         return;
       }
       window.close(); // Close popup after triggering export
     } catch (error) {
       console.error('Export failed:', error);
+      this.setUiState('error');
       this.updateStatus('error', error instanceof Error ? error.message : getMessage('statusExportFailed'));
     }
   }
@@ -519,12 +639,14 @@ class PopupController {
 
       const response: MessageResponse | undefined = await chrome.tabs.sendMessage(tab.id, message);
       if (response?.warning) {
+        this.setUiState('warning');
         this.updateStatus('warning', getMessage('statusArtifactsMissing'), response.warning);
         return;
       }
       window.close(); // Close popup after triggering print
     } catch (error) {
       console.error('Print failed:', error);
+      this.setUiState('error');
       this.updateStatus('error', getMessage('statusPrintFailed'));
     }
   }
