@@ -50,7 +50,7 @@ export class HtmlContentParser {
     const hasBlockElements = Array.from(wrapper.children).some(child => {
       const tag = child.tagName.toLowerCase();
       return ['p', 'div', 'pre', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-              'ul', 'ol', 'blockquote', 'table', 'hr'].includes(tag);
+              'ul', 'ol', 'blockquote', 'table', 'hr', 'img'].includes(tag);
     });
 
     // If it contains only inline content, treat the whole thing as a single paragraph
@@ -131,7 +131,9 @@ export class HtmlContentParser {
         case 'div': {
           // Check if this div contains block-level elements (like tables)
           // If so, recursively parse its children rather than treating as inline
-          const hasNestedBlocks = el.querySelector('table, pre, h1, h2, h3, h4, h5, h6, ul, ol, blockquote, hr');
+          // 'img' belongs here: parseInlineContent has no image case, so an image
+          // left to the inline path is read as textContent ('') and silently dropped.
+          const hasNestedBlocks = el.querySelector('table, pre, h1, h2, h3, h4, h5, h6, ul, ol, blockquote, hr, img');
           if (hasNestedBlocks) {
             // Recursively parse children as blocks
             const nestedBlocks = this.parseElement(el);
