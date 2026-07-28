@@ -3,6 +3,7 @@ import { resolve } from 'path';
 import { describe, expect, it } from 'vitest';
 
 interface Manifest {
+  name?: string;
   host_permissions?: string[];
   content_scripts?: { matches: string[] }[];
   web_accessible_resources?: { matches: string[] }[];
@@ -44,5 +45,18 @@ describe('manifest host patterns', () => {
   // Bard redirects to Gemini; no permission justification worth writing for it.
   it.each(hostArrays)('%s does not include legacy Bard', (_name, patterns) => {
     expect(patterns.some((p) => p.includes('bard.google.com'))).toBe(false);
+  });
+});
+
+describe('firefox manifest localized name', () => {
+  it('does not override the base name with a hardcoded string', () => {
+    // A hardcoded "name" here would win the build/vite.firefox.ts merge and
+    // shadow __MSG_extensionName__, breaking localization for all locales.
+    expect(firefox.name).toBeUndefined();
+  });
+
+  it('the built manifest uses the localized name after merging with base', () => {
+    const merged = { ...base, ...firefox };
+    expect(merged.name).toBe('__MSG_extensionName__');
   });
 });
