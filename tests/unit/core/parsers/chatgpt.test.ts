@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { CHATGPT_SELECTORS, isChatGPTUrl } from '../../../../src/core/parsers/chatgpt/selectors';
 import { ChatGPTParser } from '../../../../src/core/parsers/chatgpt/parser';
@@ -49,20 +49,86 @@ describe('ChatGPT Selectors', () => {
 
     it('has custom ChatGPT-specific selectors', () => {
       expect(CHATGPT_SELECTORS.custom).toBeDefined();
-      expect(CHATGPT_SELECTORS.custom?.conversationTurn).toBeDefined();
-      expect(CHATGPT_SELECTORS.custom?.userMessageContent).toBeDefined();
-      expect(CHATGPT_SELECTORS.custom?.assistantMessageContent).toBeDefined();
+      expect(CHATGPT_SELECTORS.custom.conversationTurn).toBeDefined();
+      expect(CHATGPT_SELECTORS.custom.userMessageContent).toBeDefined();
+      expect(CHATGPT_SELECTORS.custom.assistantMessageContent).toBeDefined();
     });
 
     it('has code artifact selectors', () => {
-      expect(CHATGPT_SELECTORS.custom?.codeArtifactContainer).toBeDefined();
-      expect(CHATGPT_SELECTORS.custom?.codeArtifactLanguage).toBeDefined();
-      expect(CHATGPT_SELECTORS.custom?.codeArtifactContent).toBeDefined();
+      expect(CHATGPT_SELECTORS.custom.codeArtifactContainer).toBeDefined();
+      expect(CHATGPT_SELECTORS.custom.codeArtifactLanguage).toBeDefined();
+      expect(CHATGPT_SELECTORS.custom.codeArtifactContent).toBeDefined();
     });
 
     it('has web citation selectors', () => {
-      expect(CHATGPT_SELECTORS.custom?.citationPill).toBeDefined();
-      expect(CHATGPT_SELECTORS.custom?.citationLink).toBeDefined();
+      expect(CHATGPT_SELECTORS.custom.citationPill).toBeDefined();
+      expect(CHATGPT_SELECTORS.custom.citationLink).toBeDefined();
+    });
+  });
+
+  // Selector liveness. Guards the failure mode that silently zeroed this parser
+  // once already: ChatGPT renamed the turn wrapper, every selector kept its
+  // shape, and all 61 tests stayed green because none of them asserted that a
+  // selector still matches anything (docs/dev/parser-gotchas.md #1).
+  describe('selector liveness against the committed fixtures', () => {
+    const FIXTURE_DIR = join(__dirname, '../../../fixtures/dom-snapshots/chatgpt');
+
+    // Attribute *names*, not CSS selectors -- they are read with getAttribute().
+    const isAttrKey = (key: string): boolean => key.endsWith('Attr');
+
+    // Selectors whose markup no committed fixture contains, each for a reason
+    // that is a property of the fixtures, not of the selector. Asserted to match
+    // ZERO below, so the list cannot silently grow into an excuse list: add a
+    // fixture covering one and this test tells you to drop it from here.
+    const NO_FIXTURE_COVERAGE: Record<string, string> = {
+      canvasContainer: 'no fixture contains a canvas/textdoc turn',
+      generatedImageContainer: 'no fixture contains an image-generation turn',
+    };
+
+    const documents = readdirSync(FIXTURE_DIR)
+      .filter((f) => f.endsWith('.html'))
+      .map((f) => new JSDOM(readFileSync(join(FIXTURE_DIR, f), 'utf-8')).window.document);
+
+    const entries: [string, string][] = Object.entries({
+      conversationContainer: CHATGPT_SELECTORS.conversationContainer,
+      messageElement: CHATGPT_SELECTORS.messageElement,
+      userMessage: CHATGPT_SELECTORS.userMessage,
+      assistantMessage: CHATGPT_SELECTORS.assistantMessage,
+      messageContent: CHATGPT_SELECTORS.messageContent,
+      conversationTitle: CHATGPT_SELECTORS.conversationTitle,
+      modelIndicator: CHATGPT_SELECTORS.modelIndicator,
+      ...CHATGPT_SELECTORS.custom,
+    }).filter((entry): entry is [string, string] => Boolean(entry[1]) && !isAttrKey(entry[0]));
+
+    const matchCount = (selector: string): number =>
+      documents.reduce((total, doc) => total + doc.querySelectorAll(selector).length, 0);
+
+    it.each(entries.filter(([key]) => !(key in NO_FIXTURE_COVERAGE)))(
+      '%s matches at least one node in the fixtures',
+      (_key, selector) => {
+        expect(matchCount(selector)).toBeGreaterThan(0);
+      }
+    );
+
+    it.each(entries.filter(([key]) => key in NO_FIXTURE_COVERAGE))(
+      '%s has no fixture coverage yet, as documented',
+      (key, selector) => {
+        expect(matchCount(selector), `${key}: ${NO_FIXTURE_COVERAGE[key] ?? ''}`).toBe(0);
+      }
+    );
+
+    it('covers every parser selector', () => {
+      // The parser reads selectors only from CHATGPT_SELECTORS, so this list
+      // being complete is what makes the guard above meaningful.
+      const parserSource = readFileSync(
+        join(__dirname, '../../../../src/core/parsers/chatgpt/parser.ts'),
+        'utf-8'
+      );
+      // No querySelector(All) call in the parser may take a quoted selector
+      // literal -- that is the hardcoded-selector defect this guard cannot see
+      // past. Bare tag names ('img', 'button') are plain HTML, not platform
+      // markup, so the pattern only fires on . # or [ .
+      expect(parserSource).not.toMatch(/querySelector(All)?\(\s*['"][^'"]*[.#[][^'"]*['"]/);
     });
   });
 });
@@ -128,19 +194,19 @@ describe('ChatGPT Parser', () => {
     });
 
     it('finds model indicator on assistant messages', () => {
-      const modelIndicator = document.querySelector(CHATGPT_SELECTORS.modelIndicator!);
+      const modelIndicator = document.querySelector(CHATGPT_SELECTORS.modelIndicator);
       expect(modelIndicator).not.toBeNull();
       expect(modelIndicator?.getAttribute('data-message-model-slug')).toBeDefined();
     });
 
     it('finds content within user messages', () => {
-      const userContent = document.querySelector(CHATGPT_SELECTORS.custom!.userMessageContent!);
+      const userContent = document.querySelector(CHATGPT_SELECTORS.custom.userMessageContent);
       expect(userContent).not.toBeNull();
       expect(userContent?.textContent?.trim().length).toBeGreaterThan(0);
     });
 
     it('finds content within assistant messages', () => {
-      const assistantContent = document.querySelector(CHATGPT_SELECTORS.custom!.assistantMessageContent!);
+      const assistantContent = document.querySelector(CHATGPT_SELECTORS.custom.assistantMessageContent);
       expect(assistantContent).not.toBeNull();
     });
   });
