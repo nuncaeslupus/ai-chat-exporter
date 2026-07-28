@@ -54,37 +54,49 @@
   },
 
   "noChatbotDetectedTitle": {
-    "message": "No Chatbot Detected",
+    "message": "There's no conversation to export here",
     "description": "Title for no chatbot detected message"
   },
   "noChatbotDetectedMessage": {
-    "message": "This page doesn't appear to have a supported chatbot conversation.",
+    "message": "Open a chat on one of these pages — it opens in a new tab.",
     "description": "Message when no chatbot is detected"
-  },
-  "supportedPlatforms": {
-    "message": "Supported platforms:",
-    "description": "Label for supported platforms list"
   },
 
   "reloadRequiredTitle": {
-    "message": "Page Reload Required",
+    "message": "Reload the page to export this conversation",
     "description": "Title for reload required message"
   },
   "reloadRequiredMessage": {
-    "message": "Please reload this page to enable the AI Chat Exporter extension.",
+    "message": "The extension was updated after this tab was opened.",
     "description": "Message when page reload is required"
   },
-  "howToReload": {
-    "message": "How to reload:",
-    "description": "Label for reload instructions"
+  "reloadPageButton": {
+    "message": "Reload the page",
+    "description": "Label of the button that reloads the tab from the reload state"
   },
-  "reloadInstructionKeyboard": {
-    "message": "Press Ctrl+R (Windows/Linux) or ⌘+R (Mac)",
-    "description": "Keyboard shortcut instruction for reloading"
+  "platformLinkOpen": {
+    "message": "Open $1 in a new tab",
+    "description": "Tooltip of a platform link on the unsupported page state"
   },
-  "reloadInstructionButton": {
-    "message": "Or click the reload button in your browser",
-    "description": "Button instruction for reloading"
+  "rowContentNoSelection": {
+    "message": "No pairs selected",
+    "description": "Content row label when no Q&A pair is selected"
+  },
+  "rowContentChoosePairs": {
+    "message": "Choose pairs",
+    "description": "Content row action when no Q&A pair is selected"
+  },
+  "exportWarningTitle": {
+    "message": "Saved, but incomplete",
+    "description": "Title of the card shown after an export that came back degraded"
+  },
+  "exportWarningRetry": {
+    "message": "Retry",
+    "description": "Link that runs the degraded export again"
+  },
+  "exportButtonAgain": {
+    "message": "Export again",
+    "description": "Main button label after a degraded export"
   },
 
   "actionsTitle": {

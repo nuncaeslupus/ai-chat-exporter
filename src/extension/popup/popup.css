@@ -64,7 +64,18 @@
   --color-warning-stroke: #b07a0f;
   --color-warning-text: #6b4a05;
   --color-warning-text-soft: #7a5c1b;
+  --color-warning-text-strong: #7a5406;
+  /* Spec value is #96702A, which measures 4.15:1 on the amber surface and
+     fails the repo's WCAG AA gate; darkened until it clears 4.5:1. Doubles as
+     the chevron colour of the same row — spec's #B08A3F is 2.94:1, under even
+     the 3:1 non-text bar. */
+  --color-warning-action: #8b6725;
+  --color-warning-link: #8a6a12;
   --color-warning-dot: #f0c368;
+
+  /* Skeletons (detecting) */
+  --color-skeleton: #edf1ef;
+  --color-skeleton-soft: #f2f5f3;
 
   /* Error. The spec designs no error screen; provisional until it does. */
   --color-danger: #b3261e;
@@ -661,46 +672,309 @@ section {
   background: var(--color-border-strong);
 }
 
-/* Not Supported Section */
-.not-supported-section {
-  padding: 6px 0 14px;
+/*
+ * ── Secondary states ──────────────────────────────────────────────────────
+ * Exactly one block paints, picked by `data-ui-state` on the body box. No JS
+ * display juggling, so two states can never be visible at once — and each one
+ * still lives inside the same 260px, so the popup does not resize.
+ */
+.state-block {
+  display: none;
+}
+
+.popup-body[data-ui-state='detecting'] #state-detecting,
+.popup-body[data-ui-state='unsupported'] #state-unsupported,
+.popup-body[data-ui-state='reload'] #state-reload {
+  display: flex;
+}
+
+.popup-body[data-ui-state='detecting'] #main-content,
+.popup-body[data-ui-state='unsupported'] #main-content,
+.popup-body[data-ui-state='reload'] #main-content {
+  display: none;
+}
+
+/* Detecting — skeletons where the conversation text is about to land. */
+.state-skeleton {
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton {
+  display: block;
+  flex: none;
+  height: 16px;
+  width: 74%;
+  border-radius: var(--radius-chip);
+  background: var(--color-skeleton);
+}
+
+.skeleton--meta {
+  height: 10px;
+  width: 48%;
+  border-radius: var(--radius-key);
+  background: var(--color-skeleton-soft);
+}
+
+.skeleton--row {
+  height: 12px;
+  width: 56%;
+  border-radius: 6px;
+  background: var(--color-skeleton-soft);
+}
+
+.skeleton--short {
+  width: 36%;
+}
+
+/* Sits where the setting rows will, once there is something to configure. */
+.skeleton--push {
+  margin-top: auto;
+}
+
+.popup-body[data-ui-state='detecting'] .setting-rows {
+  display: none;
+}
+
+/*
+ * Warning state: the card takes the room the setting rows had. Without this
+ * the card's own Retry link is the part that scrolls out of the box — and it
+ * is the whole point of the screen. The mock shows no rows here either.
+ */
+.popup-body[data-ui-state='warning'] .setting-rows {
+  display: none;
+}
+
+.popup-body[data-ui-state='detecting'] .privacy-line {
+  visibility: hidden;
+}
+
+/* Unsupported / reload — one centred column inside the box. */
+.state-centered {
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 4px 6px;
   text-align: center;
 }
 
-.not-supported-message {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  padding: 24px;
-  background: var(--color-surface-sunken);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border);
+.state-title {
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.4;
+  max-width: 255px;
+  text-wrap: pretty;
+  color: var(--color-text-primary);
 }
 
-.not-supported-icon {
-  color: var(--color-warning-stroke);
+.state-title--reload {
+  font-size: 14.5px;
+  max-width: 265px;
+}
+
+.state-help {
+  font-size: 12px;
+  line-height: 1.5;
+  max-width: 250px;
+  color: var(--color-text-secondary);
+}
+
+#state-reload .state-help {
+  font-size: 11.5px;
+}
+
+/* Platform links — one row per registered parser, opened in a new tab. */
+.platform-links {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+}
+
+.platform-link {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border-radius: var(--radius-link);
+  background: var(--color-surface-sunken);
+  text-decoration: none;
+}
+
+.platform-link:hover {
+  background: var(--color-surface-hover);
+}
+
+.platform-link-icon {
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
 }
 
-.not-supported-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  margin: 0;
-}
-
-.not-supported-text {
-  font-size: 13px;
-  color: var(--color-text-secondary);
-  line-height: 1.6;
-  margin: 0;
+.platform-link-name {
+  flex: 1;
   text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-body);
 }
 
-.not-supported-text strong {
-  color: var(--color-text-primary);
+.platform-link-external {
+  flex-shrink: 0;
+  color: var(--color-text-tertiary);
+}
+
+/* Reload — amber circle, the real button, then the keyboard shortcut. */
+.state-circle {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--color-warning-surface);
+  color: var(--color-warning-stroke);
+}
+
+.state-button {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 18px;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.state-button:hover {
+  background: var(--color-accent-pressed);
+}
+
+.key-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Exported with warnings — amber card above the conversation block. */
+.warning-card {
+  display: none;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--color-warning-surface);
+}
+
+.popup-body[data-ui-state='warning'] .warning-card {
+  display: flex;
+}
+
+.warning-card-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--color-warning-stroke);
+}
+
+.warning-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.warning-card-title {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--color-warning-text);
+}
+
+/* Two lines, then the tooltip: a long reason must not grow the box. */
+.warning-card-detail {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--color-warning-text-soft);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.warning-card-retry {
+  align-self: flex-start;
+  padding: 2px 0 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--color-warning-link);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/*
+ * Nothing selected — the Content row *is* the warning, since the export
+ * button next to it has just gone inert and needs to say why.
+ */
+.popup-body[data-ui-state='noSelection'] .setting-row[data-nav='content'] {
+  padding: 0 10px;
+  border-radius: var(--radius-link);
+  background: var(--color-warning-surface);
+}
+
+.popup-body[data-ui-state='noSelection'] .setting-row[data-nav='content'] .setting-row-label {
   font-weight: 600;
+  color: var(--color-warning-text-strong);
+}
+
+.popup-body[data-ui-state='noSelection'] .setting-row[data-nav='content'] .setting-row-value {
+  color: var(--color-warning-action);
+}
+
+.popup-body[data-ui-state='noSelection'] .setting-row[data-nav='content'] .setting-row-chevron {
+  color: var(--color-warning-action);
+}
+
+/* Inert export button: detecting has nothing yet, noSelection has nothing left. */
+.popup-body[data-ui-state='detecting'] .split-button,
+.popup-body[data-ui-state='noSelection'] .split-button {
+  background: var(--color-disabled-surface);
+  color: var(--color-disabled-text);
+}
+
+.popup-body[data-ui-state='detecting'] .split-toggle,
+.popup-body[data-ui-state='noSelection'] .split-toggle {
+  border-left-color: var(--color-disabled-border);
+}
+
+.split-export:disabled {
+  cursor: not-allowed;
+}
+
+/*
+ * Unsupported page: the header goes quiet with the rest of the box. It sits
+ * outside `.popup-body`, so the state is mirrored onto `<body>` to reach it.
+ */
+body[data-ui-state='unsupported'] .popup-header {
+  background: var(--color-header-muted);
+}
+
+body[data-ui-state='unsupported'] .header-logo {
+  opacity: 0.75;
 }
 
 kbd {
@@ -712,6 +986,11 @@ kbd {
   font-size: 12px;
   font-weight: 600;
   color: var(--color-text-primary);
+}
+
+/* The reload state's shortcut hint runs a size down. */
+.key-hint kbd {
+  font-size: 10.5px;
 }
 
 /* Keyboard focus must stay visible everywhere in the popup. */

@@ -169,10 +169,34 @@ const popupPairs: Pair[] = [
   { label: 'setting-item span (hover bg)', fg: popupColor('.setting-item span {', 'color'), bg: popupColor('.setting-item:hover {', 'background'), threshold: 4.5 },
   { label: 'popup-footer text', fg: popupColor('.popup-footer {', 'color'), bg: popupColor('.popup-footer {', 'background'), threshold: 4.5 },
   { label: 'footer-link', fg: popupColor('.footer-link {', 'color'), bg: popupColor('.popup-footer {', 'background'), threshold: 4.5 },
-  { label: 'not-supported-title', fg: popupColor('.not-supported-title {', 'color'), bg: popupColor('.not-supported-message {', 'background'), threshold: 4.5 },
-  { label: 'not-supported-text', fg: popupColor('.not-supported-text {', 'color'), bg: popupColor('.not-supported-message {', 'background'), threshold: 4.5 },
-  { label: 'not-supported-text strong', fg: popupColor('.not-supported-text strong {', 'color'), bg: popupColor('.not-supported-message {', 'background'), threshold: 4.5 },
   { label: 'kbd text', fg: popupColor('kbd {', 'color'), bg: popupColor('kbd {', 'background-color'), threshold: 4.5 },
+  // Secondary states (R7). The spec's amber palette is only partly AA-safe,
+  // so these pairs are the gate that keeps the darkened values in place.
+  { label: 'state-title', fg: popupColor('.state-title {', 'color'), bg: popupColor('body {', 'background'), threshold: 4.5 },
+  { label: 'state-help', fg: popupColor('.state-help {', 'color'), bg: popupColor('body {', 'background'), threshold: 4.5 },
+  { label: 'state-button label', fg: popupColor('.state-button {', 'color'), bg: popupColor('.state-button {', 'background'), threshold: 4.5 },
+  { label: 'state-button label (hover bg)', fg: popupColor('.state-button {', 'color'), bg: popupColor('.state-button:hover {', 'background'), threshold: 4.5 },
+  { label: 'platform-link name', fg: popupColor('.platform-link-name {', 'color'), bg: popupColor('.platform-link {', 'background'), threshold: 4.5 },
+  { label: 'platform-link name (hover bg)', fg: popupColor('.platform-link-name {', 'color'), bg: popupColor('.platform-link:hover {', 'background'), threshold: 4.5 },
+  { label: 'warning-card title', fg: popupColor('.warning-card-title {', 'color'), bg: popupColor('.warning-card {', 'background'), threshold: 4.5 },
+  { label: 'warning-card detail', fg: popupColor('.warning-card-detail {', 'color'), bg: popupColor('.warning-card {', 'background'), threshold: 4.5 },
+  { label: 'warning-card retry link', fg: popupColor('.warning-card-retry {', 'color'), bg: popupColor('.warning-card {', 'background'), threshold: 4.5 },
+  {
+    label: 'no-selection row label',
+    fg: popupColor(".popup-body[data-ui-state='noSelection'] .setting-row[data-nav='content'] .setting-row-label {", 'color'),
+    bg: popupColor(".popup-body[data-ui-state='noSelection'] .setting-row[data-nav='content'] {", 'background'),
+    threshold: 4.5,
+  },
+  {
+    label: 'no-selection row action',
+    fg: popupColor(".popup-body[data-ui-state='noSelection'] .setting-row[data-nav='content'] .setting-row-value {", 'color'),
+    bg: popupColor(".popup-body[data-ui-state='noSelection'] .setting-row[data-nav='content'] {", 'background'),
+    threshold: 4.5,
+  },
+  // Unsupported page dims the header; the same text tokens ride on it.
+  { label: 'popup-version (dimmed header)', fg: popupColor('.popup-version {', 'color'), bg: popupColor("body[data-ui-state='unsupported'] .popup-header {", 'background'), threshold: 4.5 },
+  { label: 'status-text (dimmed header)', fg: popupColor('.status-text {', 'color'), bg: popupColor("body[data-ui-state='unsupported'] .popup-header {", 'background'), threshold: 4.5 },
+  { label: 'popup-title (dimmed header)', fg: popupColor('.popup-title {', 'color'), bg: popupColor("body[data-ui-state='unsupported'] .popup-header {", 'background'), threshold: 4.5 },
 ];
 
 const exporterPairs: Pair[] = [
