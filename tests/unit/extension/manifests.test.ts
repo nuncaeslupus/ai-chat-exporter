@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 interface Manifest {
   name?: string;
+  permissions?: string[];
   host_permissions?: string[];
   content_scripts?: { matches: string[] }[];
   web_accessible_resources?: { matches: string[] }[];
@@ -45,6 +46,14 @@ describe('manifest host patterns', () => {
   // Bard redirects to Gemini; no permission justification worth writing for it.
   it.each(hostArrays)('%s does not include legacy Bard', (_name, patterns) => {
     expect(patterns.some((p) => p.includes('bard.google.com'))).toBe(false);
+  });
+});
+
+describe('manifest permissions', () => {
+  // Without it `chrome.scripting.executeScript` is undefined at runtime and the
+  // popup can only ever ask the user to reload the page by hand.
+  it('declares scripting, which the missing-content-script recovery needs', () => {
+    expect(base.permissions).toContain('scripting');
   });
 });
 

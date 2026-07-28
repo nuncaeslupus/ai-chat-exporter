@@ -9,6 +9,7 @@ import {
   type PrintConversationMessage,
   type MessageResponse,
 } from '../../shared/messages';
+import { sendTabMessage } from '../../shared/tab-messaging';
 import type { Conversation, QAPair } from '../../core/types/conversation';
 import type { ExportFormat } from '../../core/types/exporter';
 import {
@@ -434,13 +435,32 @@ class PopupController {
         return;
       }
 
-      // Try to get conversation from content script
+      // Try to get conversation from content script. `sendTabMessage` injects
+      // one and retries when the tab has none, so the reload screen below is
+      // the fallback for when even that fails, not the first answer.
       const message = createMessage<GetConversationMessage>('get_conversation', {});
-      const response = await chrome.tabs.sendMessage<unknown, MessageResponse<Conversation> | undefined>(
+      const result = await sendTabMessage<MessageResponse<Conversation> | undefined>(
         tab.id,
         message
       );
 
+      if (!result.ok) {
+        if (result.reason === 'failed') {
+          console.error('Failed to check current page:', result.error);
+          this.setUiState('error');
+          this.updateStatus('error', getMessage('statusPageCheckFailed'), result.error);
+          return;
+        }
+        // Expected every time the extension is installed, updated or reloaded
+        // with a chat tab already open — not an error, just a page that has to
+        // come back before it can be read.
+        console.debug('No content script in this tab:', result.error);
+        this.setUiState('reload');
+        this.updateStatus('warning', getMessage('statusReloadNeeded'));
+        return;
+      }
+
+      const response = result.response;
       if (response?.success && response.data) {
         this.setUiState('ready');
         this.updateConversationInfo(response.data);
@@ -452,12 +472,11 @@ class PopupController {
         this.updateStatus('warning', getMessage('statusNoConversation'));
       }
     } catch (error) {
+      // Only the tab lookup and URL parsing reach here now — messaging failures
+      // come back as a result above. Nothing a page reload would fix.
       console.error('Failed to check current page:', error);
-      // Content script not responding - likely needs page reload. Not the only
-      // possible answer here: an injection retry may land in front of it later,
-      // which is why the reload screen is a plain state like any other.
-      this.setUiState('reload');
-      this.updateStatus('warning', getMessage('statusReloadNeeded'));
+      this.setUiState('error');
+      this.updateStatus('error', getMessage('statusPageCheckFailed'));
     }
   }
 

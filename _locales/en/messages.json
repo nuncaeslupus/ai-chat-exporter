@@ -32,6 +32,10 @@
     "message": "No active tab",
     "description": "Status message when no active browser tab is found"
   },
+  "statusPageCheckFailed": {
+    "message": "Check failed",
+    "description": "Status message when reading the current page failed for a reason a reload would not fix"
+  },
   "statusArtifactsMissing": {
     "message": "Artifacts missing",
     "description": "Status message when export or print completes but some content was left out"

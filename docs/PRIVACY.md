@@ -71,9 +71,14 @@ the chat provider whose page you are already on:
 
 ## Permissions
 
-The extension requests `activeTab`, `storage`, and `contextMenus`, plus host
-access limited to `chat.openai.com`, `chatgpt.com`, `claude.ai`, and
+The extension requests `activeTab`, `storage`, `contextMenus`, and `scripting`,
+plus host access limited to `chat.openai.com`, `chatgpt.com`, `claude.ai`, and
 `gemini.google.com`. It cannot read or make requests to any other site.
+
+`scripting` is used for one thing: putting the content script back into a chat
+tab that was already open when the extension was installed, updated or reloaded.
+It is bounded by the same four hosts — there is no site it can reach that it
+could not already read.
 
 ## Questions
 

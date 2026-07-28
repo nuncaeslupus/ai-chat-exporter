@@ -32,6 +32,10 @@
     "message": "Sin pestaña activa",
     "description": "Status message when no active browser tab is found"
   },
+  "statusPageCheckFailed": {
+    "message": "Comprobación fallida",
+    "description": "Status message when reading the current page failed for a reason a reload would not fix"
+  },
   "statusArtifactsMissing": {
     "message": "Faltan artefactos",
     "description": "Status message when export or print completes but some content was left out"
