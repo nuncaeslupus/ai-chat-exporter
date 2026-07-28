@@ -55,21 +55,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true; // Keep channel open for async response
   }
 
-  // Forward messages to active tab if needed
-  if (message.type === 'export_conversation' || message.type === 'print_conversation') {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const activeTab = tabs[0];
-      if (activeTab?.id) {
-        chrome.tabs.sendMessage(activeTab.id, message, (response) => {
-          sendResponse(response);
-        });
-      } else {
-        sendResponse({ success: false, error: 'No active tab found' });
-      }
-    });
-    return true; // Keep channel open for async response
-  }
-
   // Handle other message types here
   sendResponse({ success: true });
   return false;
