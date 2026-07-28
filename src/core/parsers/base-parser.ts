@@ -212,8 +212,11 @@ export abstract class BaseParser implements IParser {
     const allButtons = element.querySelectorAll('button, [role="button"]');
     allButtons.forEach(btn => btn.remove());
 
-    // Remove screenreader-only elements
-    const srOnly = element.querySelectorAll('.sr-only, [class*="sr-only"], [style*="position: absolute"][style*="width: 1px"]');
+    // Remove screenreader-only elements. Naming is per design system, not
+    // universal: ChatGPT ships `.sr-only`, Gemini (Angular CDK) ships
+    // `.cdk-visually-hidden` — which is how "You said" prefixed every Gemini
+    // question and "Opens in a new window" trailed every citation.
+    const srOnly = element.querySelectorAll('.sr-only, [class*="sr-only"], [class*="visually-hidden"], [style*="position: absolute"][style*="width: 1px"]');
     srOnly.forEach(el => el.remove());
 
     // Collapse rendered math (KaTeX/MathJax) to a single representation before the

@@ -231,6 +231,69 @@ Related: prefer an allow-list when the legitimate cases have a distinguishing
 wrapper, and an exclusion list when they do not. Here the illegitimate cases were the
 ones with stable containers, so exclusion was the smaller, more honest diff.
 
+## 12b. A turn's content is not always inside the turn
+
+Gemini Deep Research renders the report **outside** `.conversation-container`.
+Measured on a live capture (2026-07-28):
+
+```
+chat-window
+├── …/infinite-scroller
+│     ├── .conversation-container   turn 1: question + deep-research-confirmation-widget (the plan)
+│     └── .conversation-container   turn 2: "Start research" + "I've completed your research" + immersive-entry-chip
+└── immersive-panel                                          <- SIBLING of the chat history
+      └── deep-research-immersive-panel
+            ├── toolbar … h2.title-text                      report title
+            ├── structured-content-container
+            │     └── message-content > div.markdown         REPORT BODY (32k chars)
+            ├── deep-research-source-lists
+            │     ├── div.source-list.used-sources    ×55 browse-web-item   cited
+            │     └── div.source-list.unused-sources  ×144 browse-web-item  read, not cited
+            └── thinking-panel > div.thinking-panel   ×42 div.item-container (60k chars)
+```
+
+`GeminiParser.extractQAPairs` iterates `.conversation-container` only, so the
+entire report, its sources and its research steps were missing from every export
+— with no warning, because both turns *did* have a question and a
+`message-content .markdown`, so the loop's early `return` never even fired.
+
+**Rules:**
+
+- Enumerating turn wrappers finds the *conversation*, not necessarily the
+  *content*. Before assuming a wrapper is complete, diff what is inside it
+  against what the page shows.
+- The predicted failure mode (the early `return` swallowing the pair) was not
+  the actual one. Gotcha 4 again: measure which selector matches what, do not
+  reason from the shape of the code.
+- A turn missing one expected part should degrade — emit what exists and warn —
+  never drop the pair. The question is data too.
+- The fix reuses `Message.content`/`htmlContent` and `metadata.webSearches`
+  rather than adding a field: content merged into the answer renders in all six
+  registered exporters for free, and `webSearches` is the shape ChatGPT and
+  Claude already emit for citations. Prefer an existing field over a new one —
+  a new field is six exporters of work and five places to forget it (see
+  gotcha 16).
+
+## 12c. Screen-reader-only classes are per design system
+
+Gotcha 7 said "scrape the narrowest content root". True, but insufficient: the
+cleanup only stripped `.sr-only`. Gemini is Angular CDK, which names the same
+thing `.cdk-visually-hidden`, so **every** Gemini question exported as
+`"You said <question>"` and every citation trailed `"Opens in a new window"`.
+`.sr-only` is a Tailwind convention, not a web standard. Match on
+`[class*="visually-hidden"]` as well, and check the target platform's own
+convention before assuming one name covers it.
+
+## 12d. Live-capture drift found in passing (2026-07-28, gemini.google.com)
+
+`.conversation-title` and `[data-test-id="bard-text"]` match **zero** elements
+on a current Gemini page: the top bar no longer carries the conversation title,
+and `bard-mode-switcher` moved into the composer (`input-container`), where it
+reads "Pro"/"Extended" rather than a model name. `getTitle()` and `getModel()`
+therefore silently fall back. Not fixed here — recorded so it is not
+rediscovered. Exactly the gotcha-1 failure mode: the January fixture still has
+both, so the selector-liveness test stays green.
+
 ## 13. Orchestration: worktrees can start from a stale base
 
 Observed on three workers in one session. A worker's worktree was cut from a commit
@@ -275,3 +338,23 @@ elements that appear seconds later. Wait for the stop-button to disappear **and*
 text length to hold steady across several polls. And keep each in-page wait loop under
 the CDP call timeout (~45s) — a long `await` loop inside one evaluation kills the tab
 connection rather than returning.
+
+## 16. A metadata field implemented in one exporter is a bug in five
+
+`metadata.webSearches` had been read by `html`, `pdf` and `json` since it was
+added, and never by `md`, `txt` or `docx` — a gap the integration suite pinned
+as *expected* behaviour (`does NOT carry a web-search result URL through (known
+bug lo-23fb)`) rather than fixing. Any parser that filed citations there shipped
+them to half the formats. Closed while wiring Gemini Deep Research, which uses
+the same field.
+
+**Rules:**
+
+- `src/core/exporters/index.ts` is the authority on what "every exporter" means:
+  `md` (structured), `txt`, `json`, `pdf`, `docx`, `html`. `md-exporter.ts` and
+  `html-pdf-exporter.ts` are **not registered** — code there ships to nobody.
+- The integration suite's `describe.each(exporterRegistry.keys())` block is the
+  cheapest place to enforce it: assert the new field for *all* formats, not for
+  the subset that happens to pass.
+- Pinning a known gap as an assertion is better than a silent hole, but only if
+  the assertion is flipped when the gap closes — the failing test is the point.
