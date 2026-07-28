@@ -2,6 +2,8 @@
  * Image loading utilities for PDF export
  */
 
+import { TOAST_DURATION } from '../../shared/constants';
+
 /**
  * Loaded image data for PDF embedding
  */
@@ -94,9 +96,46 @@ export async function loadImageAsDataUrl(
       height,
     };
   } catch (error) {
-    console.error('Failed to load image:', url, error);
+    // A tainted canvas (drawImage succeeded but the CDN didn't grant this
+    // origin CORS access) throws a SecurityError specifically from
+    // toDataURL(), distinct from a network/decode failure -- call it out so
+    // it's diagnosable instead of looking like every other failure.
+    if (error instanceof DOMException && error.name === 'SecurityError') {
+      console.error(
+        `Failed to load image (blocked by CORS policy -- the source did not grant this page permission to read the image data): ${url}`,
+        error
+      );
+    } else {
+      console.error('Failed to load image:', url, error);
+    }
     return null;
   }
+}
+
+/**
+ * Show a brief, self-dismissing in-page notice so a user actually sees that
+ * some images couldn't be embedded, instead of them silently vanishing from
+ * the export with only a console.error nobody looks at (see lo-cef8).
+ */
+function notifyEmbedFailures(failedCount: number): void {
+  if (typeof document === 'undefined' || failedCount === 0) {
+    return;
+  }
+
+  const notice = document.createElement('div');
+  notice.setAttribute('role', 'alert');
+  notice.textContent =
+    failedCount === 1
+      ? '1 image could not be embedded in the export and was replaced with a text placeholder.'
+      : `${String(failedCount)} images could not be embedded in the export and were replaced with text placeholders.`;
+  notice.style.cssText =
+    'position:fixed;bottom:16px;right:16px;z-index:2147483647;max-width:320px;' +
+    'padding:10px 14px;background:#7c2d12;color:#fff;font:13px sans-serif;' +
+    'border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.3);';
+  document.body.appendChild(notice);
+  setTimeout(() => {
+    notice.remove();
+  }, TOAST_DURATION);
 }
 
 /**
@@ -128,6 +167,9 @@ export async function loadImagesParallel(
       results.set(url, image);
     }
   }
+
+  const failedCount = Array.from(results.values()).filter((image) => image === null).length;
+  notifyEmbedFailures(failedCount);
 
   return results;
 }
