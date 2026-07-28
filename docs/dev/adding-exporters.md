@@ -12,7 +12,11 @@ Guide for implementing exporters for new file formats.
 
 ## Overview
 
-An exporter converts normalized `StructuredConversation` data into a specific file format.
+An exporter converts a normalized `Conversation` (plus the `QAPair`s the user
+selected) into a specific file format. Most exporters convert that
+`Conversation` to a `StructuredConversation` first (via
+`ConversationStructureService`) to get rich, block-based content instead of
+raw HTML/text — see Step 3.
 
 **Required components:**
 1. Exporter class extending `BaseExporter`
@@ -21,7 +25,7 @@ An exporter converts normalized `StructuredConversation` data into a specific fi
 4. Dependencies (if needed)
 
 **Reference files:**
-- `src/core/types/structured-content.ts` - Content data model
+- `src/core/types/structured-content.ts` - Structured content data model
 - `src/core/exporters/base-exporter.ts` - Base class
 - `src/core/exporters/txt-exporter.ts` - Simple example
 - `src/core/exporters/pdf-exporter.ts` - Complex example
@@ -41,38 +45,42 @@ touch tests/unit/core/exporters/format.test.ts
 
 ```typescript
 // src/core/exporters/format-exporter.ts
-import type { ExportOptions, ExportFormat } from '../types/exporter';
-import type { StructuredConversation } from '../types/structured-content';
+import type { ExportFormat, ExportOptions, ExportResult, Conversation, QAPair } from '../types';
 import { BaseExporter } from './base-exporter';
 
 export class FormatExporter extends BaseExporter {
-  protected formatName: ExportFormat = 'format';
-  protected mimeType = 'application/format';
-  protected fileExtension = '.fmt';
+  readonly format: ExportFormat = 'format';
+  readonly extension = 'fmt';
+  readonly mimeType = 'application/format';
 
   async export(
-    conversation: StructuredConversation,
-    options?: ExportOptions
-  ): Promise<Blob> {
-    this.validateConversation(conversation);
-    const content = this.generateContent(conversation, options);
-    return new Blob([content], { type: this.mimeType });
+    conversation: Conversation,
+    selectedPairs: QAPair[],
+    options: ExportOptions
+  ): Promise<ExportResult> {
+    try {
+      const content = this.generateContent(conversation, selectedPairs, options);
+      return this.createSuccessResult(content, options.filename);
+    } catch (error) {
+      return this.createErrorResult(
+        error instanceof Error ? error.message : 'Failed to export'
+      );
+    }
   }
 
   private generateContent(
-    conversation: StructuredConversation,
-    options?: ExportOptions
+    conversation: Conversation,
+    pairs: QAPair[],
+    options: ExportOptions
   ): string {
     let output = '';
 
-    if (options?.includeMetadata !== false) {
-      output += this.generateMetadata(conversation);
+    if (options.includeMetadata) {
+      output += `${conversation.title}\n${conversation.platform}\n\n`;
     }
 
-    for (const pair of conversation.pairs) {
-      if (!pair.selected) continue;
-      output += this.renderMessage(pair.question);
-      output += this.renderMessage(pair.answer);
+    for (const pair of pairs) {
+      output += `${pair.question.content}\n${pair.answer.content}\n\n`;
     }
 
     return output;
@@ -80,48 +88,138 @@ export class FormatExporter extends BaseExporter {
 }
 ```
 
+Note the three abstract members are `format`, `extension` (no leading dot —
+`createSuccessResult` appends it for you), and `mimeType`. `export()` takes
+the *already-selected* pairs as its own `selectedPairs` argument — callers
+decide selection upstream, so there is nothing to filter by `pair.selected`
+inside the exporter. `createSuccessResult`/`createErrorResult` (both on
+`BaseExporter`) build the `ExportResult` for you.
+
 ### 3. Add Structured Content Support
 
+The example above only reads each message's plain-text `content`. To render
+rich formatting (headings, code blocks, tables, images…), convert the
+conversation to `StructuredConversation` with `ConversationStructureService`
+first, then walk each pair's `StructuredMessage.blocks`:
+
 ```typescript
-private renderMessage(message: StructuredMessage): string {
-  if (!message.structuredContent) return message.content;
+import type {
+  ExportFormat,
+  ExportOptions,
+  ExportResult,
+  Conversation,
+  QAPair,
+  StructuredContentBlock,
+  InlineContent,
+} from '../types';
+import { BaseExporter } from './base-exporter';
+import { ConversationStructureService } from '../services';
 
-  return message.structuredContent.map(block => this.renderBlock(block)).join('');
-}
+export class FormatExporter extends BaseExporter {
+  readonly format: ExportFormat = 'format';
+  readonly extension = 'fmt';
+  readonly mimeType = 'application/format';
 
-private renderBlock(block: StructuredContentBlock): string {
-  switch (block.type) {
-    case 'paragraph': return this.renderParagraph(block);
-    case 'heading': return this.renderHeading(block);
-    case 'code': return this.renderCodeBlock(block);
-    case 'list': return this.renderList(block);
-    case 'blockquote': return this.renderBlockquote(block);
-    case 'table': return this.renderTable(block);
-    case 'horizontal_rule': return this.renderHorizontalRule();
-    default: return '';
+  async export(
+    conversation: Conversation,
+    selectedPairs: QAPair[],
+    options: ExportOptions
+  ): Promise<ExportResult> {
+    try {
+      const content = this.generateContent(conversation, selectedPairs, options);
+      return this.createSuccessResult(content, options.filename);
+    } catch (error) {
+      return this.createErrorResult(
+        error instanceof Error ? error.message : 'Failed to export'
+      );
+    }
+  }
+
+  private generateContent(
+    conversation: Conversation,
+    pairs: QAPair[],
+    options: ExportOptions
+  ): string {
+    const structured = ConversationStructureService.toStructured({
+      ...conversation,
+      pairs,
+    });
+
+    let output = '';
+
+    if (options.includeMetadata) {
+      output += `${structured.title}\n${structured.platform}\n\n`;
+    }
+
+    for (const pair of structured.pairs) {
+      output += this.renderBlocks(pair.question.blocks);
+      output += this.renderBlocks(pair.answer.blocks);
+    }
+
+    return output;
+  }
+
+  private renderBlocks(blocks: StructuredContentBlock[]): string {
+    return blocks.map(block => this.renderBlock(block)).join('');
+  }
+
+  private renderBlock(block: StructuredContentBlock): string {
+    switch (block.type) {
+      case 'paragraph':
+      case 'heading':
+        return `${this.renderInline(block.content)}\n\n`;
+      case 'code':
+        return `${block.code}\n\n`;
+      case 'list':
+        return block.items.map(item => this.renderInline(item.content)).join('\n') + '\n\n';
+      case 'blockquote':
+        return this.renderBlocks(block.content);
+      case 'table':
+        return ''; // format-specific table rendering
+      case 'hr':
+        return '---\n\n';
+      case 'image':
+        return `[Image: ${block.alt}]\n\n`;
+      default:
+        return '';
+    }
+  }
+
+  private renderInline(content: InlineContent[]): string {
+    return content
+      .map(item => {
+        switch (item.type) {
+          case 'bold':
+            return `**${item.text}**`;
+          case 'italic':
+            return `*${item.text}*`;
+          case 'code':
+            return `\`${item.text}\``;
+          case 'link':
+            return `[${item.text}](${item.url})`;
+          case 'strikethrough':
+            return `~~${item.text}~~`;
+          default:
+            return item.text;
+        }
+      })
+      .join('');
   }
 }
-
-private renderInlineContent(content: InlineContent[]): string {
-  return content.map(item => {
-    switch (item.type) {
-      case 'text': return item.content;
-      case 'bold': return `**${item.content}**`;
-      case 'italic': return `*${item.content}*`;
-      case 'code': return `\`${item.content}\``;
-      case 'link': return `[${item.content}](${item.url})`;
-      case 'strikethrough': return `~~${item.content}~~`;
-      default: return item.content || '';
-    }
-  }).join('');
-}
 ```
+
+`StructuredMessage` carries its rich content in `blocks`, not
+`structuredContent`; each `InlineContent` item carries its text in `text`, not
+`content`; and the horizontal-rule block's `type` discriminant is `'hr'`, not
+`'horizontal_rule'` (the interface name is still `HorizontalRuleBlock` — see
+Content Types below).
 
 ### 4. Write Tests
 
 ```typescript
 // tests/unit/core/exporters/format.test.ts
 import { describe, it, expect } from 'vitest';
+import type { ExportFormat } from '../../../../src/core/types/exporter';
 import { FormatExporter } from '../../../../src/core/exporters/format-exporter';
 
 describe('FormatExporter', () => {
@@ -131,40 +229,64 @@ describe('FormatExporter', () => {
     const conversation = {
       id: 'test-1',
       title: 'Test',
-      platform: 'chatgpt',
+      platform: 'chatgpt' as const,
+      url: 'https://chatgpt.com/c/test-1',
       pairs: [{
         id: 'pair-1',
         index: 0,
         selected: true,
-        question: { id: 'q1', role: 'user', content: 'Hello' },
-        answer: { id: 'a1', role: 'assistant', content: 'Hi!' }
-      }]
+        question: { id: 'q1', role: 'user' as const, content: 'Hello' },
+        answer: { id: 'a1', role: 'assistant' as const, content: 'Hi!' },
+      }],
     };
 
-    const blob = await exporter.export(conversation);
-    expect(blob.type).toBe('application/format');
-    const text = await blob.text();
+    const result = await exporter.export(conversation, conversation.pairs, {
+      // 'format' as ExportFormat until Step 5 adds it to the union.
+      format: 'format' as ExportFormat,
+      filename: 'test',
+      includeMetadata: true,
+      includeTimestamps: false,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.blob?.type).toBe('application/format');
+    const text = await result.blob!.text();
     expect(text).toContain('Hello');
   });
 });
 ```
 
+`Conversation` requires `url` (there is no default), and `export()` returns an
+`ExportResult` — `{ success, blob?, filename?, mimeType?, error? }` — rather
+than a bare `Blob`, so tests read the file off `result.blob`.
+
 Test scenarios: simple conversation, code blocks, tables, selection filtering, edge cases.
 
 ### 5. Register Exporter
 
+Exporters are dynamically `import()`ed on demand (`pdf`/`docx` pull in ~700 KB
+of dependencies that must not sit in the content script's eager bundle), so
+the registry stores async factories rather than classes:
+
 ```typescript
 // src/core/exporters/index.ts
-import { FormatExporter } from './format-exporter.js';
-
-export const EXPORTERS: Record<ExportFormat, typeof BaseExporter> = {
-  // ... existing exporters
-  format: FormatExporter,
-};
+export const exporterRegistry: ExporterRegistry = new Map<ExportFormat, ExporterFactory>([
+  ['md', async () => new (await import('./structured-md-exporter')).StructuredMarkdownExporter()],
+  ['txt', async () => new (await import('./txt-exporter')).TextExporter()],
+  ['json', async () => new (await import('./json-exporter')).JsonExporter()],
+  ['pdf', async () => new (await import('./pdf-exporter')).PdfExporter()],
+  ['docx', async () => new (await import('./docx-exporter')).DocxExporter()],
+  ['html', async () => new (await import('./html-exporter')).HtmlExporter()],
+  ['format', async () => new (await import('./format-exporter')).FormatExporter()], // Add
+]);
 
 // src/core/types/exporter.ts
-export type ExportFormat = 'pdf' | 'md' | 'html' | 'docx' | 'txt' | 'json' | 'format';
+export type ExportFormat = 'pdf' | 'md' | 'txt' | 'json' | 'docx' | 'html' | 'format';
 ```
+
+`getExporter(format)` (in the same `index.ts`) is `async` and awaits the
+matching factory — there is no `EXPORTERS` record of exporter classes to look
+up synchronously.
 
 ### 6. Add to UI
 
@@ -197,46 +319,62 @@ pnpm build:chrome       # Build extension
 
 **Inherited methods:**
 ```typescript
-protected validateConversation(conversation: StructuredConversation): void
-protected getMetadata(conversation: StructuredConversation): ConversationMetadata
-protected getSelectedPairs(conversation: StructuredConversation): QAPair[]
+protected validateOptions(options: ExportOptions): boolean
+protected createSuccessResult(content: string | Blob, filename: string): ExportResult
+protected createErrorResult(error: string): ExportResult
+protected formatTimestamp(date?: Date): string
+protected formatPlatformName(platform: string): string
+protected getMetadataLabel(field: 'platform' | 'model' | 'exported' | 'url'): string
+protected getRoleName(role: 'user' | 'assistant' | string, platform?: string): string
 ```
+
+There is no `validateConversation`/`getMetadata`/`getSelectedPairs` on the
+base class — pair selection happens before `export()` is called (the caller
+passes only the selected `QAPair[]`), and any conversation validation an
+exporter needs is its own responsibility (see Best Practices below).
 
 **Must implement:**
 ```typescript
-abstract export(conversation: StructuredConversation, options?: ExportOptions): Promise<Blob>
+abstract export(
+  conversation: Conversation,
+  selectedPairs: QAPair[],
+  options: ExportOptions
+): Promise<ExportResult>
 ```
 
 ---
 
 ## Content Types
 
-**Structured blocks:**
-- `ParagraphBlock` - Text paragraphs with inline formatting
-- `HeadingBlock` - Headers (levels 1-6)
-- `CodeBlock` - Code with syntax highlighting
-- `ListBlock` - Ordered/unordered lists
-- `BlockquoteBlock` - Quoted text
-- `TableBlock` - Tables with headers
-- `HorizontalRuleBlock` - Horizontal dividers
-- `ImageBlock` - Images
+**Structured blocks** (`StructuredContentBlock`, discriminated by `type`):
+- `ParagraphBlock` (`type: 'paragraph'`) - Text paragraphs with inline formatting
+- `HeadingBlock` (`type: 'heading'`) - Headers (`level: 1-6`)
+- `CodeBlock` (`type: 'code'`) - Code with a `language` and `code` string
+- `ListBlock` (`type: 'list'`) - Ordered/unordered lists (`items`, each with optional `nested`)
+- `BlockquoteBlock` (`type: 'blockquote'`) - Quoted text (nested `StructuredContentBlock[]`)
+- `TableBlock` (`type: 'table'`) - Tables (`headers`/`rows` of `InlineContent[]`)
+- `HorizontalRuleBlock` (`type: 'hr'`) - Horizontal dividers
+- `ImageBlock` (`type: 'image'`) - Images (`url`, `alt`, optional `width`/`height`)
 
-**Inline content:**
-- `TextContent` - Plain text
-- `BoldContent` - Bold text
-- `ItalicContent` - Italic text
-- `CodeContent` - Inline code
-- `LinkContent` - Hyperlinks
-- `StrikethroughContent` - Strikethrough text
+**Inline content:** a single `InlineContent` interface, not one type per kind —
+`{ type: 'text' | 'bold' | 'italic' | 'code' | 'link' | 'strikethrough'; text: string; url?: string; children?: InlineContent[] }`.
+`url` is only set for `'link'`.
 
-**Export options:**
+**Export options** (`ExportOptions`, all required unless marked `?`):
 ```typescript
 interface ExportOptions {
-  includeMetadata?: boolean;    // Include title, platform, date
-  preserveHtml?: boolean;        // Preserve HTML formatting
-  selectedOnly?: boolean;        // Export selected pairs only
+  format: ExportFormat;
+  filename: string;
+  includeMetadata: boolean;     // Include title, platform, date
+  includeTimestamps: boolean;
+  pdfOptions?: PDFExportOptions;
+  docxOptions?: DOCXExportOptions;
 }
 ```
+
+There is no `preserveHtml`/`selectedOnly` flag — HTML is preserved per-message
+via `Message.htmlContent` upstream in parsing, and pair selection is already
+resolved into the `selectedPairs` argument before `export()` runs.
 
 ---
 
@@ -244,39 +382,45 @@ interface ExportOptions {
 
 **Error handling:**
 ```typescript
-async export(conversation: StructuredConversation): Promise<Blob> {
+async export(
+  conversation: Conversation,
+  selectedPairs: QAPair[],
+  options: ExportOptions
+): Promise<ExportResult> {
   try {
-    this.validateConversation(conversation);
-    if (conversation.pairs.length === 0) {
+    if (selectedPairs.length === 0) {
       throw new Error('No conversation pairs to export');
     }
-    // ... export logic
+    const content = this.generateContent(conversation, selectedPairs, options);
+    return this.createSuccessResult(content, options.filename);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    throw new Error(`Export failed: ${message}`);
+    return this.createErrorResult(`Export failed: ${message}`);
   }
 }
 ```
 
 **Performance for large conversations:**
 ```typescript
-// Good: Stream content
-private async generateContent(conversation: StructuredConversation): Promise<Blob> {
+// Good: build a Blob directly -- createSuccessResult(content, filename)
+// accepts a Blob as well as a string, so large exports skip the
+// intermediate string concatenation.
+private buildBlob(pairs: QAPair[]): Blob {
   const chunks: BlobPart[] = [];
-  for (const pair of conversation.pairs) {
+  for (const pair of pairs) {
     chunks.push(this.renderPair(pair));
   }
   return new Blob(chunks, { type: this.mimeType });
 }
 
-// Avoid: Build entire string in memory
+// Avoid: building one giant string in memory first
 ```
 
 **Validation:**
 ```typescript
-private validateConversation(conversation: StructuredConversation): void {
-  if (!conversation?.pairs || !Array.isArray(conversation.pairs)) {
-    throw new Error('Invalid conversation structure');
+private assertHasPairs(pairs: QAPair[]): void {
+  if (!Array.isArray(pairs) || pairs.length === 0) {
+    throw new Error('No conversation pairs to export');
   }
   // Format-specific validation
 }
@@ -313,4 +457,4 @@ pnpm add -D @types/library-name
 
 ---
 
-**Last Updated**: 2026-01-04
+**Last Updated**: 2026-07-28

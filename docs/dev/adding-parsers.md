@@ -19,9 +19,9 @@ A parser extracts conversation data from platform-specific DOM and converts it t
 2. Parser class - Extends `BaseParser`
 3. Tests - Unit tests with DOM fixtures
 4. Theme - Optional CSS
-5. URL Configuration - Must update 6 locations (see Step 9)
+5. URL Configuration - Must update 5 locations (see Step 9)
 
-**Critical Pitfall:** Forgetting to update URLs in all 6 required locations will break the parser.
+**Critical Pitfall:** Forgetting to update URLs in all 5 required locations will break the parser.
 
 ## Prerequisites
 
@@ -59,7 +59,7 @@ Identify:
 Create `src/core/parsers/{platform}/selectors.ts`:
 
 ```typescript
-import { SelectorSet } from '../../types/parser.js';
+import type { SelectorSet } from '../../types';
 
 export const CLAUDE_SELECTORS: SelectorSet = {
   conversationContainer: 'main',
@@ -69,10 +69,19 @@ export const CLAUDE_SELECTORS: SelectorSet = {
   messageContent: '.message-content',
   conversationTitle: 'header h1',
   modelIndicator: '.model-badge',
-  buttonContainer: 'header .actions',
-  timestamp: '.message-timestamp'
+  // Anything that isn't one of the fixed SelectorSet fields above
+  // (button injection point, timestamps, etc.) goes in `custom`.
+  custom: {
+    buttonArea: 'header .actions',
+    timestamp: '.message-timestamp',
+  },
 };
 ```
+
+`SelectorSet` only declares `conversationContainer`, `messageElement`, `userMessage`,
+`assistantMessage`, `messageContent`, `conversationTitle?`, `modelIndicator?`, and
+`custom?: Record<string, string>` — there is no top-level `buttonContainer` or
+`timestamp` field, so platform-specific selectors like those must live under `custom`.
 
 ### Step 4: Write Tests
 
@@ -80,7 +89,8 @@ Create `tests/unit/core/parsers/{platform}.test.ts`:
 
 ```typescript
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ClaudeParser } from '../../../src/core/parsers/claude/parser.js';
+import { JSDOM } from 'jsdom';
+import { ClaudeParser } from '../../../src/core/parsers/claude/parser';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -92,16 +102,16 @@ describe('ClaudeParser', () => {
       join(__dirname, '../../fixtures/dom-snapshots/claude/real-capture.html'),
       'utf-8'
     );
-    document.body.innerHTML = html;
-    parser = new ClaudeParser();
+    // JSDOM (not the global `document`) so the fixture's own URL drives
+    // canParse() — the parser reads it via this.getUrl(), never window.location.
+    const dom = new JSDOM(html, { url: 'https://claude.ai/chat/abc123' });
+    const document = dom.window.document as unknown as Document;
+    parser = new ClaudeParser(document);
   });
 
   describe('canParse', () => {
     it('returns true for platform URLs', () => {
-      Object.defineProperty(window, 'location', {
-        value: { href: 'https://claude.ai/chat/abc123' },
-        writable: true
-      });
+      // URL is already set to https://claude.ai/chat/abc123 in beforeEach.
       expect(parser.canParse()).toBe(true);
     });
   });
@@ -128,106 +138,161 @@ describe('ClaudeParser', () => {
 Create `src/core/parsers/{platform}/parser.ts`:
 
 ```typescript
-import { BaseParser } from '../base-parser.js';
-import { IParser, PlatformInfo, SelectorSet } from '../../types/parser.js';
-import { Platform, Message } from '../../types/conversation.js';
-import { CLAUDE_SELECTORS } from './selectors.js';
+import type { PlatformInfo, ParserConfig, QAPair, Message } from '../../types';
+import { BaseParser } from '../base-parser';
+import { CLAUDE_SELECTORS } from './selectors';
 
-export class ClaudeParser extends BaseParser implements IParser {
+export class ClaudeParser extends BaseParser {
   readonly platformInfo: PlatformInfo = {
+    id: 'claude',
     name: 'Claude',
-    platform: 'claude' as Platform,
-    urlPatterns: [/claude\.ai/]
+    urlPatterns: [/^https?:\/\/(www\.)?claude\.ai/],
   };
 
-  readonly selectors: SelectorSet = CLAUDE_SELECTORS;
+  readonly selectors = CLAUDE_SELECTORS;
 
   canParse(): boolean {
     const matches = this.platformInfo.urlPatterns.some(pattern =>
-      pattern.test(window.location.href)
+      pattern.test(this.getUrl())
     );
     if (!matches) return false;
-    return document.querySelector(this.selectors.conversationContainer) !== null;
+    return this.document.querySelector(this.selectors.conversationContainer) !== null;
   }
 
   getTitle(): string {
-    const elem = document.querySelector(this.selectors.conversationTitle);
+    const elem = this.document.querySelector(this.selectors.conversationTitle ?? '');
     return elem?.textContent?.trim() || 'Claude Conversation';
   }
 
   getModel(): string | null {
-    const elem = document.querySelector(this.selectors.modelIndicator);
+    const elem = this.document.querySelector(this.selectors.modelIndicator ?? '');
     if (!elem?.textContent) return null;
     const match = elem.textContent.trim().match(/claude[- ]?3?[- ]?(opus|sonnet|haiku)/i);
     return match ? match[0].toLowerCase().replace(/\s+/g, '-') : null;
   }
 
   getButtonInjectionPoint(): HTMLElement | null {
-    return document.querySelector(this.selectors.buttonContainer);
+    const selector = this.selectors.custom?.buttonArea;
+    return selector ? this.document.querySelector(selector) : null;
   }
 
-  getTheme(): string {
-    return 'claude';
-  }
-
-  protected extractMessages(): Message[] {
-    const container = document.querySelector(this.selectors.conversationContainer);
+  /**
+   * Extract Q&A pairs from the DOM. `platformInfo`, `canParse()`,
+   * `getTitle()`/`getModel()`/`getButtonInjectionPoint()`, and `parse()` are
+   * either abstract members BaseParser requires or public API it already
+   * implements for you (`getTheme()`, `getUrl()`, `parse()`) — the one piece
+   * every parser must supply itself is `extractQAPairs()`.
+   */
+  protected extractQAPairs(config: ParserConfig): QAPair[] {
+    const container = this.document.querySelector(this.selectors.conversationContainer);
     if (!container) return [];
 
     const messageElements = Array.from(
       container.querySelectorAll(this.selectors.messageElement)
     );
 
-    return messageElements.map((element, index) => {
-      const role = element.matches(this.selectors.userMessage) ? 'user' :
-                   element.matches(this.selectors.assistantMessage) ? 'assistant' : 'system';
+    const messages: Message[] = messageElements.map((element, index) => {
+      const role = element.matches(this.selectors.userMessage)
+        ? 'user'
+        : element.matches(this.selectors.assistantMessage)
+          ? 'assistant'
+          : 'system';
 
       const contentElement = element.querySelector(this.selectors.messageContent);
-      const content = contentElement?.textContent?.trim() || '';
-      const htmlContent = contentElement?.innerHTML || undefined;
+      const { content, htmlContent } = this.extractContent(
+        contentElement ?? element,
+        config.preserveHtml
+      );
 
-      const timestampElement = element.querySelector(this.selectors.timestamp);
-      const timestamp = timestampElement
-        ? new Date(timestampElement.getAttribute('datetime') || '')
-        : undefined;
-
-      return { id: `msg-${index}`, role, content, htmlContent, timestamp };
+      return this.createMessage(role, content, htmlContent, `msg-${index}`);
     });
+
+    // Pair up consecutive user/assistant messages using the base class's
+    // createQAPair() helper (it also stamps a generated id).
+    const pairs: QAPair[] = [];
+    for (let i = 0; i + 1 < messages.length; i += 2) {
+      const question = messages[i];
+      const answer = messages[i + 1];
+      if (question && answer) {
+        pairs.push(this.createQAPair(pairs.length, question, answer));
+      }
+    }
+
+    return pairs;
   }
 }
 ```
+
+Note what is **not** in this class: there is no custom constructor (the
+`BaseParser` constructor already accepts `(document: Document, config?)` and
+stores both), and `getTheme()` is not overridden (the base implementation
+returns `this.platformInfo.id`, which is exactly `'claude'` here) — only
+override it if a platform's theme name needs to differ from its platform id.
 
 ### Step 6: Create Index
 
 Create `src/core/parsers/{platform}/index.ts`:
 
 ```typescript
-export { ClaudeParser } from './parser.js';
-export { CLAUDE_SELECTORS } from './selectors.js';
+export { ClaudeParser } from './parser';
+export { CLAUDE_SELECTORS } from './selectors';
 ```
 
 ### Step 7: Register Parser
 
-Update `src/core/parsers/index.ts`:
+Update `src/core/parsers/index.ts` in two places — the registry map and the
+`createParserForDocument()` switch:
 
 ```typescript
-import { ChatGPTParser } from './chatgpt/index.js';
-import { ClaudeParser } from './claude/index.js'; // Add
-import { IParser } from '../types/parser.js';
+import type { Platform, ParserFactory, ParserRegistry } from '../types';
+import { ChatGPTParser } from './chatgpt';
+import { ClaudeParser } from './claude'; // Add
+import { GeminiParser } from './gemini';
 
-const PARSERS: IParser[] = [
-  new ChatGPTParser(),
-  new ClaudeParser() // Add
-];
+export const parserRegistry: ParserRegistry = new Map<Platform, ParserFactory>([
+  ['chatgpt', () => new ChatGPTParser(document)],
+  ['claude', () => new ClaudeParser(document)], // Add
+  ['gemini', () => new GeminiParser(document)],
+]);
 
-export function detectParser(): IParser | null {
-  return PARSERS.find(p => p.canParse()) || null;
+export function getParser(platform: Platform): ReturnType<ParserFactory> | null {
+  const factory = parserRegistry.get(platform);
+  return factory ? factory() : null;
 }
 
-export function getParserByPlatform(platform: string): IParser | null {
-  return PARSERS.find(p => p.platformInfo.platform === platform) || null;
+export function detectParser(doc: Document = document): ReturnType<ParserFactory> | null {
+  for (const [platform] of parserRegistry) {
+    const parser = createParserForDocument(platform, doc);
+    if (parser?.canParse()) {
+      return parser;
+    }
+  }
+  return null;
+}
+
+export function createParserForDocument(
+  platform: Platform,
+  doc: Document
+): ReturnType<ParserFactory> | null {
+  switch (platform) {
+    case 'chatgpt':
+      return new ChatGPTParser(doc);
+    case 'claude':
+      return new ClaudeParser(doc); // Add
+    case 'gemini':
+      return new GeminiParser(doc);
+    default:
+      return null;
+  }
 }
 ```
+
+There is no `PARSERS` array and no `getParserByPlatform()` — the registry is a
+`Map<Platform, ParserFactory>` (`parserRegistry`), platform detection goes
+through `detectParser(doc?)`, and a specific platform's parser is fetched with
+`getParser(platform)` (bound to the live `document`) or
+`createParserForDocument(platform, doc)` (for an arbitrary `Document`, e.g. in
+tests).
 
 ### Step 8: Create Theme (Optional)
 
@@ -251,7 +316,7 @@ Create `src/ui/themes/{platform}.css`:
 
 ### Step 9: Update URL Configuration
 
-**CRITICAL:** Update URLs in 6 locations:
+**CRITICAL:** Update URLs in 5 locations:
 
 #### 9.1: manifests/manifest.base.json (2 places)
 
@@ -300,17 +365,17 @@ Create `src/ui/themes/{platform}.css`:
 }
 ```
 
-#### 9.4: src/extension/popup/popup.ts (2 places)
+#### 9.4: src/extension/popup/popup.ts
+
+There is a single spot to touch here — the `getUrlsForPlatform()` switch
+(around line 22). It is the only per-platform domain list in the file: the
+popup's "supported platforms" display and its `supportedDomains` activeTab
+check both derive their domains from `parserRegistry` at runtime
+(`[...parserRegistry.keys()].flatMap(getUrlsForPlatform)`), so registering the
+parser in Step 7 is what makes the new platform show up in both places —
+`getUrlsForPlatform` just needs to know which domains that platform's id maps to:
 
 ```typescript
-// supportedDomains array (around line 172)
-const supportedDomains = [
-  'chat.openai.com',
-  'chatgpt.com',
-  'claude.ai',
-];
-
-// getUrlsForPlatform function (around line 27)
 function getUrlsForPlatform(platform: string): string[] {
   switch (platform) {
     case 'chatgpt':
@@ -448,7 +513,7 @@ conversationContainer: 'main, #conversation, [role="main"]'
 ```typescript
 getTitle(): string {
   try {
-    const element = document.querySelector(this.selectors.conversationTitle);
+    const element = this.document.querySelector(this.selectors.conversationTitle ?? '');
     return element?.textContent?.trim() || 'Untitled Conversation';
   } catch (error) {
     console.error('Error extracting title:', error);
@@ -463,7 +528,7 @@ private _container: HTMLElement | null = null;
 
 private getContainer(): HTMLElement | null {
   if (!this._container) {
-    this._container = document.querySelector(this.selectors.conversationContainer);
+    this._container = this.document.querySelector(this.selectors.conversationContainer);
   }
   return this._container;
 }
@@ -474,13 +539,13 @@ private getContainer(): HTMLElement | null {
 **Parser not detected:**
 1. Check URL pattern in `platformInfo.urlPatterns`
 2. Verify `conversationContainer` selector
-3. Verify ALL 6 URL configuration locations updated
+3. Verify ALL 5 URL configuration locations updated
 4. Rebuild: `pnpm build`
 5. Reload extension and refresh page
 
 **Extension not in popup:**
-1. Verify parser registered in `src/core/parsers/index.ts`
-2. Check `supportedDomains` and `getUrlsForPlatform` in popup.ts
+1. Verify parser registered in `src/core/parsers/index.ts` (`parserRegistry` + `createParserForDocument()`)
+2. Check `getUrlsForPlatform` in popup.ts
 3. Rebuild and reload
 
 **Messages not extracted:**
@@ -495,14 +560,13 @@ private getContainer(): HTMLElement | null {
 - [ ] Selectors file created
 - [ ] Parser class implemented
 - [ ] Tests written and passing
-- [ ] Parser registered in `src/core/parsers/index.ts`
-- [ ] URLs updated in ALL 6 locations:
+- [ ] Parser registered in `src/core/parsers/index.ts` (registry map + `createParserForDocument()` switch)
+- [ ] URLs updated in ALL 5 locations:
   - [ ] `manifests/manifest.base.json` (host_permissions)
   - [ ] `manifests/manifest.base.json` (content_scripts matches)
   - [ ] `manifests/manifest.chrome.json` (web_accessible_resources)
   - [ ] `manifests/manifest.firefox.json` (web_accessible_resources)
-  - [ ] `src/extension/popup/popup.ts` (supportedDomains)
-  - [ ] `src/extension/popup/popup.ts` (getUrlsForPlatform)
+  - [ ] `src/extension/popup/popup.ts` (`getUrlsForPlatform`)
 - [ ] Theme CSS created (optional)
 - [ ] Manual testing completed
 
