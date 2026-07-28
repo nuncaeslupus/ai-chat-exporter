@@ -18,18 +18,22 @@ const base = manifest('manifest.base.json');
 const chrome = manifest('manifest.chrome.json');
 const firefox = manifest('manifest.firefox.json');
 
+// A missing array must fail loudly: defaulting to [] would let the "no legacy
+// Bard" assertion pass vacuously on a manifest that lost the entry entirely.
+function must(name: string, patterns: string[] | undefined): [string, string[]] {
+  if (patterns === undefined) throw new Error(`manifest host array missing: ${name}`);
+  return [name, patterns];
+}
+
 // Every array in the manifests that gates the extension on a host.
 const hostArrays: [string, string[]][] = [
-  ['base host_permissions', base.host_permissions ?? []],
-  ['base content_scripts[0].matches', base.content_scripts?.[0].matches ?? []],
-  [
-    'chrome web_accessible_resources[0].matches',
-    chrome.web_accessible_resources?.[0].matches ?? [],
-  ],
-  [
+  must('base host_permissions', base.host_permissions),
+  must('base content_scripts[0].matches', base.content_scripts?.[0]?.matches),
+  must('chrome web_accessible_resources[0].matches', chrome.web_accessible_resources?.[0]?.matches),
+  must(
     'firefox web_accessible_resources[0].matches',
-    firefox.web_accessible_resources?.[0].matches ?? [],
-  ],
+    firefox.web_accessible_resources?.[0]?.matches
+  ),
 ];
 
 describe('manifest host patterns', () => {
