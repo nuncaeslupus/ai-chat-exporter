@@ -162,3 +162,69 @@ fixtures from a conversation you created for the purpose, with invented data, an
 scan the file for personal identifiers before committing. `main.outerHTML` (not
 `documentElement`) excludes the sidebar, which would otherwise leak every
 conversation title in the account.
+
+---
+
+## 11. A fixture can make a test pass for the wrong reason
+
+While fixing the citation-pill favicons (`lo-37b2`), the first fixture used a
+Google-favicon-service URL. The parser has a crude filter, `!src.includes('icon')`.
+The URL contained the substring `icon`, so the favicon was excluded **by accident** —
+the new test went green before any fix existed.
+
+Two lessons, both general:
+
+- **A test that is green before you write the fix has not been verified.** RED is not
+  a formality. If the "before" state passes, the test is measuring something other
+  than the defect. Change the fixture until it genuinely fails, then fix.
+- **Substring filters over URLs are accidental logic.** `includes('icon')` was doing
+  load-bearing work nobody designed: real favicons whose URL happens not to contain
+  `icon` always got through, and unrelated content images whose URL happens to
+  contain `icon` were always dropped. Prefer a structural test (is this `<img>` inside
+  a citation pill / artifact panel / button?) over a string sniff.
+
+## 12. Fix the misclassification once, extend it — do not add a parallel rule
+
+Three separate defects this round were the same underlying bug: *an `<img>` that is
+part of the UI being treated as conversation content*.
+
+- `lo-4b7f` — an SVG artifact's decorative preview image, which additionally hung the
+  PDF exporter forever on an image that never decodes.
+- `lo-37b2` — citation-pill favicons.
+- (adjacent) `lo-62ce` — copy buttons, the same problem for non-image chrome.
+
+The right shape was one container-exclusion check that later tasks widen, not three
+independent filters. When a second instance of a defect class appears, extend the
+first fix; a parallel mechanism guarantees the third instance gets a third one.
+
+Related: prefer an allow-list when the legitimate cases have a distinguishing
+wrapper, and an exclusion list when they do not. Here the illegitimate cases were the
+ones with stable containers, so exclusion was the smaller, more honest diff.
+
+## 13. Orchestration: worktrees can start from a stale base
+
+Observed on three workers in one session. A worker's worktree was cut from a commit
+older than both `main` and the queue branch, causing:
+
+- its own task payload to be missing from disk (readable only via
+  `git show arsenal-queue:claude-arsenal/queue/<id>.md`);
+- `open_task_pr.sh` to hard-fail at `git checkout -b <branch> FETCH_HEAD` because
+  uncommitted edits conflicted with newer content on `main` — no real conflict, just a
+  stale base. Recovery was: save a patch, reset, branch fresh off `FETCH_HEAD`, reapply;
+- a stale `node_modules` missing a newly-added devDependency (`jszip`), which broke
+  the integration test and `pnpm typecheck` in ways unrelated to the worker's change.
+
+**Mitigation until the tooling is fixed:** every worker should `git fetch origin`,
+branch off up-to-date `origin/main`, and run `pnpm install` before doing anything.
+The real fix belongs in the worktree setup and in `open_task_pr.sh`, which should
+rebase rather than hard-fail.
+
+## 14. Coverage percentages move when you add tests — in both directions
+
+Coverage counts only files the suite actually imports. A floor measured on an isolated
+branch does not survive a merge with other test-adding branches: merging this session's
+work took the function count from 138 to 224 and *dropped* functions coverage from
+81% to 75%, turning `main` red on a floor that had been correct when it was set.
+
+**Rule:** set floors from a measurement on the integration branch, not on your own; and
+re-measure before raising one. "Adding tests lowered coverage" is normal, not a bug.
