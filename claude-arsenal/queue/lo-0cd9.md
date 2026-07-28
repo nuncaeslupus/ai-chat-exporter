@@ -1,6 +1,11 @@
 # Payload: lo-0cd9 — `selectedPairs` is ignored by five of six exporters
 
+## Acceptance gate
+
 **Gate**: exporting with a subset of pairs selected produces a file containing only those pairs, in every format.
+
+
+Prose-only gate — verified by worker judgment, no script to run.
 
 `BaseExporter.export(conversation, selectedPairs, options)` takes `selectedPairs`, but only one of the six registered exporters honours it — the rest (starting at `src/core/exporters/structured-md-exporter.ts:26`) iterate `conversation.pairs` and export everything.
 

@@ -1,6 +1,11 @@
 # Payload: lo-cef8 — PDF images may silently vanish
 
+## Acceptance gate
+
 **Gate**: confirmed evidence of whether images from each platform's CDN can be embedded at all, and a visible failure when they cannot.
+
+
+Prose-only gate — verified by worker judgment, no script to run.
 
 `src/core/utils/image-loader.ts` (no tests) sets `img.crossOrigin = 'anonymous'` then calls `canvas.toDataURL()`. If the CDN serving ChatGPT/Claude/Gemini images does not return permissive CORS headers — common for signed S3/blob URLs — the canvas is tainted and `toDataURL()` throws `SecurityError`, which the existing try/catch turns into a `null` and a `console.error`. Every image silently disappears from the PDF.
 

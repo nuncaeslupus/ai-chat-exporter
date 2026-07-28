@@ -1,6 +1,11 @@
 # Payload: lo-e9b2 — Layout thrash and redundant DOM passes
 
+## Acceptance gate
+
 **Gate**: no forced layout read inside per-image loops; `cleanupElement` makes one pass, not six.
+
+
+Prose-only gate — verified by worker judgment, no script to run.
 
 1. `src/core/parsers/chatgpt/parser.ts:438-450` and `:519-530` — inside `forEach` over `<img>` elements, any image without explicit width/height triggers `getComputedStyle()` plus `clientWidth`/`clientHeight` reads, each forcing a synchronous style/layout recalc. ChatGPT's generated images typically lack those attributes, so an image-heavy conversation thrashes layout on every re-parse.
 2. `src/core/parsers/base-parser.ts:203-233` — `cleanupElement` runs six separate `querySelectorAll` passes over the same cloned subtree, once per message. A 600-message conversation is ~3,600 subtree traversals where one combined selector pass would do.

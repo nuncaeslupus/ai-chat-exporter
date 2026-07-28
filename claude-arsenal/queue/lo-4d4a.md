@@ -1,6 +1,11 @@
 # Payload: lo-4d4a — Gemini selectors never match the real DOM
 
+## Acceptance gate
+
 **Gate**: `canParse()` returns true against the captured Gemini DOM, and a fixture test proves it.
+
+
+Prose-only gate — verified by worker judgment, no script to run.
 
 ## The defect
 

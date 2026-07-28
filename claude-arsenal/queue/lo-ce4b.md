@@ -1,6 +1,11 @@
 # Payload: lo-ce4b — Delete the dead trees
 
+## Acceptance gate
+
 **Gate**: `pnpm build` and `pnpm test:run` green after deletion; `grep -r` finds no references to the removed symbols.
+
+
+Prose-only gate — verified by worker judgment, no script to run.
 
 ## Confirmed dead (verified by grep, zero importers)
 

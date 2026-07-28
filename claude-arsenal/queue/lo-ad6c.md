@@ -1,6 +1,11 @@
 # Payload: lo-ad6c — Print functionality
 
+## Acceptance gate
+
 **Gate**: the Print context-menu entry opens the browser print dialog showing the formatted conversation, with no extension chrome in the output.
+
+
+Prose-only gate — verified by worker judgment, no script to run.
 
 ## References
 
