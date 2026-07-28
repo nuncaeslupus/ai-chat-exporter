@@ -28,6 +28,30 @@
     "message": "Nicht unterstützt",
     "description": "Status message for unsupported pages"
   },
+  "statusNoActiveTab": {
+    "message": "Kein aktiver Tab",
+    "description": "Status message when no active browser tab is found"
+  },
+  "statusArtifactsMissing": {
+    "message": "Artefakte fehlen",
+    "description": "Status message when export or print completes but some content was left out"
+  },
+  "statusExportFailed": {
+    "message": "Export fehlgeschlagen",
+    "description": "Status message when export fails"
+  },
+  "statusPrintFailed": {
+    "message": "Drucken fehlgeschlagen",
+    "description": "Status message when print fails"
+  },
+  "errorNoActiveTabFound": {
+    "message": "Kein aktiver Tab gefunden",
+    "description": "Error message when no active browser tab is found during export or print"
+  },
+  "conversationUntitled": {
+    "message": "Ohne Titel",
+    "description": "Fallback conversation title when none is available"
+  },
 
   "noChatbotDetectedTitle": {
     "message": "Kein Chatbot Erkannt",

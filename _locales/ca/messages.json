@@ -28,6 +28,30 @@
     "message": "No compatible",
     "description": "Status message for unsupported pages"
   },
+  "statusNoActiveTab": {
+    "message": "Cap pestanya activa",
+    "description": "Status message when no active browser tab is found"
+  },
+  "statusArtifactsMissing": {
+    "message": "Falten artefactes",
+    "description": "Status message when export or print completes but some content was left out"
+  },
+  "statusExportFailed": {
+    "message": "Error en exportar",
+    "description": "Status message when export fails"
+  },
+  "statusPrintFailed": {
+    "message": "Error en imprimir",
+    "description": "Status message when print fails"
+  },
+  "errorNoActiveTabFound": {
+    "message": "No s'ha trobat cap pestanya activa",
+    "description": "Error message when no active browser tab is found during export or print"
+  },
+  "conversationUntitled": {
+    "message": "Sense títol",
+    "description": "Fallback conversation title when none is available"
+  },
 
   "noChatbotDetectedTitle": {
     "message": "Cap Chatbot Detectat",

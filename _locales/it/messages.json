@@ -28,6 +28,30 @@
     "message": "Non supportato",
     "description": "Status message for unsupported pages"
   },
+  "statusNoActiveTab": {
+    "message": "Nessuna scheda attiva",
+    "description": "Status message when no active browser tab is found"
+  },
+  "statusArtifactsMissing": {
+    "message": "Artefatti mancanti",
+    "description": "Status message when export or print completes but some content was left out"
+  },
+  "statusExportFailed": {
+    "message": "Esportazione non riuscita",
+    "description": "Status message when export fails"
+  },
+  "statusPrintFailed": {
+    "message": "Stampa non riuscita",
+    "description": "Status message when print fails"
+  },
+  "errorNoActiveTabFound": {
+    "message": "Nessuna scheda attiva trovata",
+    "description": "Error message when no active browser tab is found during export or print"
+  },
+  "conversationUntitled": {
+    "message": "Senza titolo",
+    "description": "Fallback conversation title when none is available"
+  },
 
   "noChatbotDetectedTitle": {
     "message": "Nessun Chatbot Rilevato",

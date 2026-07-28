@@ -28,6 +28,30 @@
     "message": "Não suportado",
     "description": "Status message for unsupported pages"
   },
+  "statusNoActiveTab": {
+    "message": "Sem separador ativo",
+    "description": "Status message when no active browser tab is found"
+  },
+  "statusArtifactsMissing": {
+    "message": "Artefactos em falta",
+    "description": "Status message when export or print completes but some content was left out"
+  },
+  "statusExportFailed": {
+    "message": "Falha na exportação",
+    "description": "Status message when export fails"
+  },
+  "statusPrintFailed": {
+    "message": "Falha na impressão",
+    "description": "Status message when print fails"
+  },
+  "errorNoActiveTabFound": {
+    "message": "Não foi encontrado nenhum separador ativo",
+    "description": "Error message when no active browser tab is found during export or print"
+  },
+  "conversationUntitled": {
+    "message": "Sem título",
+    "description": "Fallback conversation title when none is available"
+  },
 
   "noChatbotDetectedTitle": {
     "message": "Nenhum Chatbot Detetado",
