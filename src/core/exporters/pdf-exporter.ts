@@ -31,6 +31,7 @@ import {
   FONT_SIZE_PT,
   PDF_FONT_SIZE_PT,
   SPACING,
+  bodyHeadingLevel,
   hexToRgbTuple,
 } from './style-tokens';
 
@@ -567,11 +568,11 @@ export class PdfExporter extends BaseExporter {
       // Add spacing before heading
       y += lineHeight * 0.5;
 
-      // Set font size based on heading level
+      // Font size is pdf's only heading-level surface — index the shared scale
+      // by document level so a body heading can never outrank the role label.
       const fontSize =
-        PDF_FONT_SIZE_PT.headingByLevel[
-          Math.min(Math.max(block.level - 1, 0), PDF_FONT_SIZE_PT.headingByLevel.length - 1)
-        ] ?? PDF_FONT_SIZE_PT.sectionLabel;
+        PDF_FONT_SIZE_PT.headingByLevel[bodyHeadingLevel(block.level) - 1] ??
+        PDF_FONT_SIZE_PT.sectionLabel;
       doc.setFontSize(fontSize);
       doc.setFont(FONT_FAMILY.body.pdf, 'bold');
       doc.setTextColor(...hexToRgbTuple(COLOR.textStrong));

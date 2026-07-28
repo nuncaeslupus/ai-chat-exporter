@@ -18,6 +18,7 @@ import type {
 import { BaseExporter } from './base-exporter';
 import { ConversationStructureService } from '../services';
 import { getMessage } from '../../shared/i18n';
+import { DOC_HEADING_LEVEL, bodyHeadingLevel } from './style-tokens';
 
 export class StructuredMarkdownExporter extends BaseExporter {
   readonly format: ExportFormat = 'md';
@@ -49,9 +50,10 @@ export class StructuredMarkdownExporter extends BaseExporter {
 
   private generateMarkdown(conversation: StructuredConversation, options: ExportOptions): string {
     const lines: string[] = [];
+    const roleHashes = '#'.repeat(DOC_HEADING_LEVEL.roleLabel);
 
     // Title
-    lines.push(`# ${conversation.title}`);
+    lines.push(`${'#'.repeat(DOC_HEADING_LEVEL.title)} ${conversation.title}`);
     lines.push('');
 
     // Metadata as a table
@@ -74,12 +76,12 @@ export class StructuredMarkdownExporter extends BaseExporter {
     // Q&A pairs
     for (const [i, pair] of conversation.pairs.entries()) {
       // User question
-      lines.push(`### 👤 ${this.getRoleName('user')}${this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps)}`);
+      lines.push(`${roleHashes} 👤 ${this.getRoleName('user')}${this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps)}`);
       lines.push('');
       lines.push(...this.renderBlocks(pair.question.blocks));
 
       // Assistant answer
-      lines.push(`### 🤖 ${this.getRoleName('assistant', conversation.platform)}${this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps)}`);
+      lines.push(`${roleHashes} 🤖 ${this.getRoleName('assistant', conversation.platform)}${this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps)}`);
       lines.push('');
       lines.push(...this.renderBlocks(pair.answer.blocks));
 
@@ -177,7 +179,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
         }
 
         case 'heading': {
-          const hashes = '#'.repeat(Math.min(block.level + 3, 6)); // +3 because title is h1, User/Assistant are h3
+          const hashes = '#'.repeat(bodyHeadingLevel(block.level)); // # is the title, ## the role label
           const headingText = this.renderInline(block.content).trim();
           if (headingText) {
             lines.push(`${hashes} ${headingText}`);

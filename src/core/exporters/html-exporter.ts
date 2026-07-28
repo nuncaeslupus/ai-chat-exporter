@@ -22,7 +22,7 @@ import type {
 import { BaseExporter } from './base-exporter';
 import { ConversationStructureService } from '../services';
 import { getMessage, getUILanguage } from '../../shared/i18n';
-import { COLOR, FONT_FAMILY, FONT_SIZE_PT, HTML_FONT_SIZE_PT, SPACING, mmToPx, ptToPx } from './style-tokens';
+import { COLOR, FONT_FAMILY, FONT_SIZE_PT, HTML_FONT_SIZE_PT, SPACING, bodyHeadingLevel, mmToPx, ptToPx } from './style-tokens';
 
 export class HtmlExporter extends BaseExporter {
   readonly format: ExportFormat = 'html';
@@ -117,7 +117,7 @@ export class HtmlExporter extends BaseExporter {
             <div class="qa-pair">
                 <div class="message user-message">
                     <div class="message-header">
-                        <span class="message-role">${this.getRoleName('user')}</span>${this.renderTimestampSpan(pair.question.timestamp, options.includeTimestamps)}
+                        <h2 class="message-role">${this.getRoleName('user')}</h2>${this.renderTimestampSpan(pair.question.timestamp, options.includeTimestamps)}
                     </div>
                     <div class="message-content">
                         ${this.renderBlocks(pair.question.blocks)}
@@ -126,7 +126,7 @@ export class HtmlExporter extends BaseExporter {
 
                 <div class="message assistant-message" data-platform="${platform}">
                     <div class="message-header">
-                        <span class="message-role">${assistantName}</span>${this.renderTimestampSpan(pair.answer.timestamp, options.includeTimestamps)}
+                        <h2 class="message-role">${assistantName}</h2>${this.renderTimestampSpan(pair.answer.timestamp, options.includeTimestamps)}
                     </div>
                     <div class="message-content">
                         ${this.renderBlocks(pair.answer.blocks)}
@@ -199,7 +199,7 @@ export class HtmlExporter extends BaseExporter {
         }
 
         case 'heading': {
-          const level = Math.min(block.level + 2, 6); // Shift down since title is h1
+          const level = bodyHeadingLevel(block.level); // h1 is the title, h2 the role label
           const headingContent = this.renderInline(block.content).trim();
           return headingContent ? `<h${level}>${headingContent}</h${level}>` : '';
         }
@@ -443,6 +443,8 @@ export class HtmlExporter extends BaseExporter {
         }
 
         .message-role {
+            display: inline;
+            margin: 0;
             font-weight: 600;
             font-size: ${ptToPx(HTML_FONT_SIZE_PT.roleLabel)}px;
             text-transform: uppercase;
