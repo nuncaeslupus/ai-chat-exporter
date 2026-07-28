@@ -16,21 +16,35 @@ export interface LoadedImage {
  * Load an image from a URL and convert it to a base64 data URL
  * @param url - The image URL to load
  * @param maxWidth - Maximum width to scale the image (default: 800)
+ * @param timeoutMs - Give up and skip the image if it hasn't decoded by then (default: 5000)
  * @returns Promise with loaded image data or null if loading fails
  */
 export async function loadImageAsDataUrl(
   url: string,
-  maxWidth: number = 800
+  maxWidth: number = 800,
+  timeoutMs = 5000
 ): Promise<LoadedImage | null> {
   try {
     // Create an image element to load the image
     const img = new Image();
     img.crossOrigin = 'anonymous'; // Enable CORS if needed
 
-    // Load the image
+    // Load the image. Some data: URIs (e.g. a malformed/unsupported
+    // image/svg+xml source) never fire onload or onerror, which would hang
+    // the whole export forever -- race against a timeout so a single bad
+    // image is skipped (see lo-4b7f) instead of blocking export().
     await new Promise<void>((resolve, reject) => {
-      img.onload = () => resolve();
-      img.onerror = () => reject(new Error('Failed to load image'));
+      const timer = setTimeout(() => {
+        reject(new Error('Timed out loading image'));
+      }, timeoutMs);
+      img.onload = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      img.onerror = () => {
+        clearTimeout(timer);
+        reject(new Error('Failed to load image'));
+      };
       img.src = url;
     });
 

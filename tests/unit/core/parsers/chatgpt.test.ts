@@ -444,6 +444,16 @@ describe('ChatGPT Parser - SVG Artifacts', () => {
     const svgArtifacts = artifacts?.filter((a) => a.language === 'svg');
     expect(svgArtifacts?.length).toBeGreaterThanOrEqual(1);
   });
+
+  it('does not file the artifact-preview <img> in metadata.images (lo-4b7f)', () => {
+    // That decorative preview lives inside the artifact's code panel and is
+    // already captured via metadata.artifacts above -- extractImages() must
+    // not also treat it as a real conversation image, which previously hung
+    // PDF export forever trying to decode its data: URI.
+    const result = parser.parse();
+    const images = result.conversation?.pairs[0]?.answer.metadata?.images;
+    expect(images ?? []).toHaveLength(0);
+  });
 });
 
 describe('ChatGPT Parser - Web Citations', () => {
