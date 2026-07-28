@@ -67,21 +67,21 @@ describe('BaseParser cleanupElement (via GeminiParser.extractContent)', () => {
   // only one (.katex-html). Keeping aria-hidden (lo-74ed) preserves Gemini's only
   // copy but triplicates ChatGPT's — cleanupElement must collapse the whole .katex
   // unit to one representation instead of deciding per aria-hidden node.
-  describe('ChatGPT KaTeX (mathml + annotation + html) fixture', () => {
-    function loadChatGPTMarkdown(): Element {
-      const fixturePath = join(
-        __dirname,
-        '../../../fixtures/dom-snapshots/chatgpt/formatting-showcase-2026-07.html'
-      );
-      const html = readFileSync(fixturePath, 'utf-8');
-      const dom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-conversation' });
-      const markdown = dom.window.document.querySelector('[data-message-author-role="assistant"] .markdown');
-      if (!markdown) {
-        throw new Error('fixture is missing the assistant .markdown content root');
-      }
-      return markdown;
+  function loadChatGPTMarkdown(): Element {
+    const fixturePath = join(
+      __dirname,
+      '../../../fixtures/dom-snapshots/chatgpt/formatting-showcase-2026-07.html'
+    );
+    const html = readFileSync(fixturePath, 'utf-8');
+    const dom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-conversation' });
+    const markdown = dom.window.document.querySelector('[data-message-author-role="assistant"] .markdown');
+    if (!markdown) {
+      throw new Error('fixture is missing the assistant .markdown content root');
     }
+    return markdown;
+  }
 
+  describe('ChatGPT KaTeX (mathml + annotation + html) fixture', () => {
     it('collapses the inline formula to a single LaTeX-sourced copy, not a triplicated one', () => {
       const parser = buildParser('');
       const { content } = parser.extractContent(loadChatGPTMarkdown(), false);
@@ -100,6 +100,49 @@ describe('BaseParser cleanupElement (via GeminiParser.extractContent)', () => {
       // unicode glyph "∑" instead. Its absence proves those copies were dropped.
       expect(content).toContain('\\sum_{i=1}^{3} i = 6');
       expect(content).not.toContain('∑');
+    });
+  });
+
+  // lo-62ce: `.markdown` contains ChatGPT's own action buttons ("Copy table",
+  // "Copy code"). Their textContent is empty (icon-only), so a text-only assertion
+  // can never catch this — htmlContent is what ships in the export and must be
+  // asserted on directly.
+  describe('interactive chrome stripped from htmlContent (lo-62ce)', () => {
+    it('strips ARIA-role buttons that are not <button> elements', () => {
+      const parser = buildParser(
+        '<p>Row 1 <span role="button" tabindex="0">Copy<svg><use href="/cdn/assets/sprites-core-abc.svg#x"></use></svg></span> Row 2</p>'
+      );
+      const { htmlContent } = parser.extractContent(parser.document.body, true);
+
+      expect(htmlContent).not.toContain('role="button"');
+      expect(htmlContent).not.toContain('<svg');
+      expect(htmlContent).not.toContain('sprites-');
+    });
+
+    it('leaves no <button> or sprite <use> reference in the real ChatGPT fixture', () => {
+      const parser = buildParser('');
+      const { htmlContent } = parser.extractContent(loadChatGPTMarkdown(), true);
+
+      expect(htmlContent).not.toMatch(/<button/i);
+      expect(htmlContent).not.toMatch(/sprites-[a-z0-9-]*\.svg/i);
+    });
+
+    it('leaves no <button> in the real Claude fixture (shared cleanup path)', () => {
+      const fixturePath = join(
+        __dirname,
+        '../../../fixtures/dom-snapshots/claude/real-capture.html'
+      );
+      const html = readFileSync(fixturePath, 'utf-8');
+      const dom = new JSDOM(html, { url: 'https://claude.ai/chat/test' });
+      const markdown = dom.window.document.querySelector('div.standard-markdown, div.progressive-markdown');
+      if (!markdown) {
+        throw new Error('fixture is missing an assistant markdown content root');
+      }
+
+      const parser = buildParser('');
+      const { htmlContent } = parser.extractContent(markdown, true);
+
+      expect(htmlContent).not.toMatch(/<button/i);
     });
   });
 });
