@@ -146,9 +146,12 @@ export interface IExporter {
 }
 
 /**
- * Exporter factory function type
+ * Exporter factory function type.
+ *
+ * Async because each factory `import()`s its exporter on demand -- jsPDF and
+ * docx are ~700 KB together and must not sit in the content script bundle.
  */
-export type ExporterFactory = () => IExporter;
+export type ExporterFactory = () => Promise<IExporter>;
 
 /**
  * Exporter registry type

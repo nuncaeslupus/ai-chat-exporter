@@ -1,42 +1,38 @@
 /**
- * Exporter module exports and registry
+ * Exporter registry
+ *
+ * Every factory `import()`s its exporter on demand so the bundler emits one
+ * chunk per format. The content script is injected into every page load, so
+ * jsPDF, docx and friends must not be part of its eager bundle.
+ *
+ * Import the concrete exporter classes from their own modules
+ * (`./pdf-exporter`, ...) -- this barrel deliberately does not re-export them,
+ * because a retained static re-export would pull them back into the eager
+ * graph and defeat the split.
  */
 
-import type { ExportFormat, ExporterFactory, ExporterRegistry } from '../types';
-import { StructuredMarkdownExporter } from './structured-md-exporter';
-import { TextExporter } from './txt-exporter';
-import { JsonExporter } from './json-exporter';
-import { PdfExporter } from './pdf-exporter';
-import { DocxExporter } from './docx-exporter';
-import { HtmlExporter } from './html-exporter';
+import type { ExportFormat, ExporterFactory, ExporterRegistry, IExporter } from '../types';
 
-// Re-export exporters
 export { BaseExporter } from './base-exporter';
-export { StructuredMarkdownExporter } from './structured-md-exporter';
-export { TextExporter } from './txt-exporter';
-export { JsonExporter } from './json-exporter';
-export { PdfExporter } from './pdf-exporter';
-export { DocxExporter } from './docx-exporter';
-export { HtmlExporter } from './html-exporter';
 
 /**
  * Registry of available exporters
  */
 export const exporterRegistry: ExporterRegistry = new Map<ExportFormat, ExporterFactory>([
-  ['md', () => new StructuredMarkdownExporter()],
-  ['txt', () => new TextExporter()],
-  ['json', () => new JsonExporter()],
-  ['pdf', () => new PdfExporter()],
-  ['docx', () => new DocxExporter()],
-  ['html', () => new HtmlExporter()],
+  ['md', async () => new (await import('./structured-md-exporter')).StructuredMarkdownExporter()],
+  ['txt', async () => new (await import('./txt-exporter')).TextExporter()],
+  ['json', async () => new (await import('./json-exporter')).JsonExporter()],
+  ['pdf', async () => new (await import('./pdf-exporter')).PdfExporter()],
+  ['docx', async () => new (await import('./docx-exporter')).DocxExporter()],
+  ['html', async () => new (await import('./html-exporter')).HtmlExporter()],
 ]);
 
 /**
  * Get an exporter for the specified format
  */
-export function getExporter(format: ExportFormat): ReturnType<ExporterFactory> | null {
+export async function getExporter(format: ExportFormat): Promise<IExporter | null> {
   const factory = exporterRegistry.get(format);
-  return factory ? factory() : null;
+  return factory ? await factory() : null;
 }
 
 /**
