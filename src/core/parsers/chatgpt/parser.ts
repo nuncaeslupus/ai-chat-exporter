@@ -614,12 +614,37 @@ export class ChatGPTParser extends BaseParser {
     const codeBlocks = element.querySelectorAll('pre.overflow-visible\\!');
 
     codeBlocks.forEach((block) => {
-      // Extract language from the header
-      const languageElement = block.querySelector('.h-9');
-      const language = languageElement?.textContent?.trim().toLowerCase() || 'code';
+      // Extract language from the header. Legacy markup carried a `div.h-9`
+      // label; ChatGPT's CodeMirror 6 viewer (2026-07) dropped that div, but
+      // the same language name still appears as plain text next to an icon in
+      // the sticky header above the editor (e.g. "Python"). Strip buttons from
+      // a clone first so their labels ("Copy", "Run") don't leak into it --
+      // this is a real DOM source, not a guess from the code body.
+      const legacyLanguageSelector = this.selectors.custom?.codeArtifactLanguage ?? 'div.h-9';
+      let language = block.querySelector(legacyLanguageSelector)?.textContent.trim().toLowerCase();
+      if (!language) {
+        const stickyHeaderSelector = this.selectors.custom?.codeArtifactStickyHeader ?? '.sticky';
+        const header = block.querySelector(stickyHeaderSelector);
+        if (header) {
+          const headerClone = header.cloneNode(true) as Element;
+          headerClone.querySelectorAll('button').forEach((btn) => {
+            btn.remove();
+          });
+          language = headerClone.textContent.trim().toLowerCase() || undefined;
+        }
+      }
+      language = language ?? 'code';
 
-      // Extract code content
-      const codeElement = block.querySelector('code.whitespace-pre\\!, code[class*="language-"]');
+      // Extract code content. Legacy markup carries a classed <code>;
+      // CodeMirror's <code> has no class at all, so fall back to the <code>
+      // inside the CodeMirror viewer specifically (never the outer wrapper,
+      // which would also pick up header/button text).
+      const legacyContentSelector =
+        this.selectors.custom?.codeArtifactContent ?? 'code.whitespace-pre\\!, code[class*="language-"]';
+      const codeMirrorContentSelector =
+        this.selectors.custom?.codeArtifactCodeMirrorCode ?? '.cm-content code, #code-block-viewer code';
+      const codeElement =
+        block.querySelector(legacyContentSelector) ?? block.querySelector(codeMirrorContentSelector);
       if (!codeElement) {
         return;
       }
