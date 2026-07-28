@@ -13,7 +13,7 @@
         <img src="../assets/icons/icon-header.svg" alt="" class="header-logo" />
         <div class="header-title">
           <h1 class="popup-title" data-i18n="extensionName">AI Chat Exporter</h1>
-          <span class="popup-version" id="popup-version"></span>
+          <span class="popup-version" id="popup-version" data-version></span>
         </div>
         <div class="status-indicator" id="status-indicator" role="status">
           <span class="status-dot"></span>
@@ -247,7 +247,7 @@
           navigation triggers — `data-nav` is all the R1 router needs.
         -->
         <section class="popup-view" id="view-content" hidden>
-          <div class="pair-chooser-header">
+          <div class="submenu-header">
             <button type="button" class="submenu-back" data-nav="main" data-i18n-label="submenuBack">
               <svg width="7" height="11" viewBox="0 0 8 12" fill="none" aria-hidden="true">
                 <path d="M6.5 1 1.5 6l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
@@ -257,40 +257,82 @@
             <button type="button" class="pair-chooser-toggle-all" id="qa-selection-toggle-all"></button>
           </div>
           <ul class="qa-selection-list" id="qa-selection-list"></ul>
-          <div class="pair-chooser-footer">
+          <div class="submenu-footer">
             <span class="pair-chooser-summary" id="qa-selection-count"></span>
-            <button type="button" class="pair-chooser-done" data-nav="main" data-i18n="submenuDone">
+            <button type="button" class="submenu-done" data-nav="main" data-i18n="submenuDone">
               Done
             </button>
           </div>
         </section>
 
+        <!--
+          Options. Same three bands, and deliberately bare: three rows, no
+          explanatory paragraphs. The day-change date is *not* a row — with
+          timestamps on, the exporters always emit the separator.
+        -->
         <section class="popup-view" id="view-options" hidden>
-          <div class="view-scroll">
-            <div class="settings-grid">
-              <label class="setting-item" for="option-include-metadata">
-                <input type="checkbox" id="option-include-metadata" />
-                <span data-i18n="optionIncludeMetadata">Include metadata</span>
-              </label>
-              <label class="setting-item" for="option-include-timestamps">
-                <input type="checkbox" id="option-include-timestamps" />
-                <span data-i18n="optionIncludeTimestamps">Include timestamps</span>
-              </label>
-            </div>
+          <div class="submenu-header options-header">
+            <button type="button" class="submenu-back" data-nav="main" data-i18n-label="submenuBack">
+              <svg width="7" height="11" viewBox="0 0 8 12" fill="none" aria-hidden="true">
+                <path d="M6.5 1 1.5 6l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <h2 class="submenu-title" data-i18n="rowOptions">Options</h2>
           </div>
 
-          <footer class="popup-footer">
+          <div class="options-list">
+            <label class="option-row" for="option-include-metadata">
+              <input type="checkbox" id="option-include-metadata" />
+              <span class="option-row-label" data-i18n="optionIncludeMetadata">
+                Header with the chat details
+              </span>
+            </label>
+            <label class="option-row" for="option-include-timestamps">
+              <input type="checkbox" id="option-include-timestamps" />
+              <span class="option-row-label" data-i18n="optionIncludeTimestamps">
+                Time on each message
+              </span>
+            </label>
+            <!--
+              Navigation row. The filename view is R6's; `data-nav` is all the
+              router needs, so it works the day that view gets its markup.
+            -->
+            <button type="button" class="option-row option-row--nav" data-nav="filename">
+              <span class="option-row-gutter" aria-hidden="true"></span>
+              <span class="option-row-stack">
+                <span class="option-row-label" data-i18n="optionsFilenameRow">File name</span>
+                <span class="option-row-filename" id="options-filename-preview"></span>
+              </span>
+              <svg class="option-row-chevron" width="8" height="12" viewBox="0 0 8 12" fill="none" aria-hidden="true">
+                <path d="M1.5 1 6.5 6l-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="submenu-footer options-footer">
+            <span class="options-footer-version" id="options-footer-version" data-version></span>
+            <span class="options-footer-dot" aria-hidden="true"></span>
+            <a
+              href="https://github.com/nuncaeslupus/ai-chat-exporter/blob/main/docs/PRIVACY.md"
+              target="_blank"
+              class="options-footer-link"
+              data-i18n="footerPrivacy"
+            >
+              Privacy
+            </a>
+            <span class="options-footer-dot" aria-hidden="true"></span>
             <a
               href="https://github.com/nuncaeslupus/ai-chat-exporter"
               target="_blank"
-              class="footer-link"
+              class="options-footer-link"
               data-i18n="footerGitHub"
             >
               GitHub
             </a>
-            <span class="footer-separator">•</span>
-            <a href="#" class="footer-link" id="report-issue" data-i18n="footerReportIssue">Report Issue</a>
-          </footer>
+            <button type="button" class="submenu-done" data-nav="main" data-i18n="submenuDone">
+              Done
+            </button>
+          </div>
         </section>
 
         <section class="popup-view" id="view-filename" hidden></section>

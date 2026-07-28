@@ -120,7 +120,11 @@ export class FilenameService {
    * Get filename variables from conversation
    */
   static getVariablesFromConversation(conversation: Conversation): FilenameVariables {
-    const date = conversation.createdAt || new Date();
+    // Re-wrap rather than trust the field: the popup reads the conversation
+    // back over chrome.tabs.sendMessage, which JSON-serialises a Date to a
+    // string, and a string has no getFullYear(). `new Date(aDate)` is a
+    // no-op copy, so the content-script path is unaffected.
+    const date = conversation.createdAt ? new Date(conversation.createdAt) : new Date();
 
     const variables: FilenameVariables = {
       platform: PLATFORM_NAMES[conversation.platform] || conversation.platform,

@@ -142,12 +142,16 @@
   },
 
   "optionIncludeMetadata": {
-    "message": "Incluir metadatos",
+    "message": "Cabecera con los datos del chat",
     "description": "Etiqueta del interruptor que controla si las exportaciones incluyen el bloque de metadatos"
   },
   "optionIncludeTimestamps": {
-    "message": "Incluir marcas de tiempo",
+    "message": "Hora en cada mensaje",
     "description": "Etiqueta del interruptor que controla si las exportaciones incluyen marcas de tiempo"
+  },
+  "optionsFilenameRow": {
+    "message": "Nombre del archivo",
+    "description": "Label of the file-name navigation row in the Options submenu"
   },
 
   "qaSelectionTitle": {
@@ -316,13 +320,13 @@
     }
   },
 
+  "footerPrivacy": {
+    "message": "Privacidad",
+    "description": "Privacy policy link in the Options submenu footer"
+  },
   "footerGitHub": {
     "message": "GitHub",
     "description": "Enlace de pie de página a GitHub"
-  },
-  "footerReportIssue": {
-    "message": "Reportar Problema",
-    "description": "Enlace de pie de página para reportar problema"
   },
 
   "metaPairsSingular": {

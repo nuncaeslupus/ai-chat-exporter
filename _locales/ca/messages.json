@@ -142,12 +142,16 @@
   },
 
   "optionIncludeMetadata": {
-    "message": "Incloure metadades",
+    "message": "Capçalera amb les dades del xat",
     "description": "Label for the toggle controlling whether exports include the metadata block"
   },
   "optionIncludeTimestamps": {
-    "message": "Incloure marques de temps",
+    "message": "Hora a cada missatge",
     "description": "Label for the toggle controlling whether exports include message timestamps"
+  },
+  "optionsFilenameRow": {
+    "message": "Nom del fitxer",
+    "description": "Label of the file-name navigation row in the Options submenu"
   },
 
   "qaSelectionTitle": {
@@ -316,13 +320,13 @@
     }
   },
 
+  "footerPrivacy": {
+    "message": "Privacitat",
+    "description": "Privacy policy link in the Options submenu footer"
+  },
   "footerGitHub": {
     "message": "GitHub",
     "description": "GitHub footer link"
-  },
-  "footerReportIssue": {
-    "message": "Informar d'un Problema",
-    "description": "Report issue footer link"
   },
 
   "metaPairsSingular": {

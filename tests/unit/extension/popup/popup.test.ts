@@ -76,7 +76,6 @@ const POPUP_DOM = `
     <input type="checkbox" id="option-include-metadata" />
     <input type="checkbox" id="option-include-timestamps" />
   </div>
-  <a id="report-issue"></a>
 `;
 
 /**
@@ -311,7 +310,7 @@ describe('popup platform gate', () => {
   });
 
   it('renders the version from the manifest rather than a hardcoded string', async () => {
-    document.body.innerHTML = POPUP_DOM + '<span id="popup-version"></span>';
+    document.body.innerHTML = POPUP_DOM + '<span id="popup-version" data-version></span>';
     vi.resetModules();
     mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://claude.ai/chat/abc' }]);
     mockTabsSendMessage.mockResolvedValue({ success: true, data: CONVERSATION });
