@@ -933,7 +933,19 @@ export class PdfExporter extends BaseExporter {
    * Sanitizes characters that jsPDF can't render
    */
   private inlineToPlainText(content: InlineContent[]): string {
-    const text = content.map(item => item.text).join('');
+    // ponytail: jsPDF text here is single flattened plain text per block (no
+    // per-run styling exists anywhere in this renderer, not even bold/italic),
+    // so a real link annotation would need a new run-aware wrapping engine.
+    // Falls back to the same "text (url)" convention docx-exporter.ts already
+    // uses for the identical constraint, keeping the fallback consistent
+    // across formats instead of inventing a third one.
+    const text = content
+      .map(item =>
+        item.type === 'link' && item.url && item.url !== item.text
+          ? `${item.text} (${item.url})`
+          : item.text
+      )
+      .join('');
     return sanitizeTextForPDF(text);
   }
 

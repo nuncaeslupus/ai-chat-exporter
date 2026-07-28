@@ -94,6 +94,57 @@ describe('TextExporter', () => {
     });
   });
 
+  describe('link rendering', () => {
+    function buildLinkPair(href: string, linkText: string): QAPair {
+      return {
+        id: 'pair-link',
+        index: 0,
+        selected: true,
+        question: {
+          id: 'q-link',
+          role: 'user',
+          content: 'question',
+          timestamp: new Date('2025-01-01T12:00:00Z'),
+        },
+        answer: {
+          id: 'a-link',
+          role: 'assistant',
+          content: 'fallback',
+          htmlContent: `<p>See <a href="${href}">${linkText}</a> for details.</p>`,
+          timestamp: new Date('2025-01-01T12:00:00Z'),
+        },
+      };
+    }
+
+    it('renders both the anchor text and its destination URL', async () => {
+      const pair = buildLinkPair('https://example.com/source', 'the source');
+      const conversation = createTestConversation([pair]);
+      const result = await exporter.export(conversation, [pair], {
+        format: 'txt',
+        filename: 'test',
+        includeMetadata: false,
+        includeTimestamps: false,
+      });
+      const text = await blobToText(result.blob!);
+      expect(text).toContain('the source');
+      expect(text).toContain('https://example.com/source');
+    });
+
+    it('omits the redundant URL suffix when the link text is the URL itself', async () => {
+      const pair = buildLinkPair('https://example.com/', 'https://example.com/');
+      const conversation = createTestConversation([pair]);
+      const result = await exporter.export(conversation, [pair], {
+        format: 'txt',
+        filename: 'test',
+        includeMetadata: false,
+        includeTimestamps: false,
+      });
+      const text = await blobToText(result.blob!);
+      expect(text).toContain('https://example.com/');
+      expect(text).not.toContain('https://example.com/ (https://example.com/)');
+    });
+  });
+
   describe('validateOptions()', () => {
     it('returns true for valid options', () => {
       const valid = exporter.validateOptions({
