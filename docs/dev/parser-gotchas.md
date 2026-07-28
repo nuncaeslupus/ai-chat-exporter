@@ -96,16 +96,32 @@ assume the DOM holds the whole document.
 
 ## 5. Interactive chrome lives *inside* the scraped content
 
-`.markdown` contained 4 `<button>` elements ("Copy table", "Copy code"). Their
-`textContent` is empty — icons only — so plain-text extraction looked fine and the
-problem stayed invisible. But `htmlContent` is captured as `clone.innerHTML`, so the
-buttons, their SVG sprites and `<use href="/cdn/assets/sprites-....svg#...">`
-references land in exported HTML: dead icons pointing at a CDN sprite that no longer
-resolves outside the origin.
+`.markdown` contains ChatGPT's own action buttons — 4 `<button>` ("Copy table",
+"Copy code") inside a single message, measured live. Their `textContent` is empty
+(icon-only), so plain-text extraction looks clean and their presence is invisible to
+any text-based assertion.
 
-**Rule:** strip interactive chrome (`button`, `[role="button"]`, `svg use` sprite refs)
-during cleanup, and assert on `htmlContent`, not only on text. A defect invisible in
-`textContent` is still shipped in three export formats.
+**Correction (verified during `lo-62ce`).** The first version of this note claimed
+these buttons leak into exported HTML. They do not: `cleanupElement()` in
+`base-parser.ts` already removed every `<button>` and every `<svg>` outside
+`pre`/`code`, so the CDN sprite refs never reached `htmlContent`. The claim was
+inferred from seeing the buttons in the live DOM without checking the cleanup path —
+a reminder that "I can see it in the DOM" and "it survives into the export" are two
+different assertions, and only the second one matters.
+
+The real gap was narrower: elements exposed as buttons via **ARIA role** rather than
+the tag (`<span role="button">`) were not covered. Fixed by widening the selector to
+`button, [role="button"]`.
+
+**Rules that survive:**
+
+- Strip interactive chrome during cleanup, and match on **role as well as tag** —
+  a component library can produce a button without a `<button>`.
+- Assert on `htmlContent`, not only on text. A defect invisible in `textContent` can
+  still ship in three export formats — that is a real risk even though it did not
+  happen here.
+- Before writing the fix, check whether the existing cleanup already handles it. The
+  gate scenario passing before you change anything is information, not an anticlimax.
 
 ## 6. Citation pills carry favicons that become "conversation images"
 
