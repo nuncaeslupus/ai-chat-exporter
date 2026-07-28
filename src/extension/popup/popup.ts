@@ -24,14 +24,6 @@ import { DEFAULT_PREFERENCES } from '../../shared/constants';
 import { SelectionService } from '../../core/services/selection-service';
 
 /**
- * Platform information for display
- */
-interface PlatformInfo {
-  name: string;
-  urls: string[];
-}
-
-/**
  * The popup's four views. Only one is visible at a time and they all render
  * inside the same fixed-height body box, so switching never resizes the popup.
  */
@@ -53,12 +45,18 @@ type UiState =
   | 'error';
 
 /**
- * Get URL patterns for a platform
+ * Domains a platform is served from, canonical one first. The single list:
+ * it gates which pages count as supported *and* supplies the home URL of the
+ * unsupported screen's platform links.
+ *
+ * ponytail: a platform registered without an entry here still gets a link row
+ * (it comes from `parserRegistry`), just an inert one. Move the domains into
+ * `platformInfo` if that ever bites.
  */
 function getUrlsForPlatform(platform: string): string[] {
   switch (platform) {
     case 'chatgpt':
-      return ['chat.openai.com', 'chatgpt.com'];
+      return ['chatgpt.com', 'chat.openai.com'];
     case 'claude':
       return ['claude.ai'];
     case 'gemini':
@@ -67,6 +65,16 @@ function getUrlsForPlatform(platform: string): string[] {
       return [];
   }
 }
+
+/**
+ * Marks, not wordmarks: at 13–16px the Gemini logotype is illegible, so the
+ * spark is the only readable Gemini asset here.
+ */
+const PLATFORM_ICONS: Record<string, string> = {
+  chatgpt: '../assets/icons/chatgpt-logo.svg',
+  claude: '../assets/icons/claude-logo.svg',
+  gemini: '../assets/icons/gemini-spark.svg',
+};
 
 /**
  * Render the version from the manifest, the single source of truth. Hardcoding
@@ -79,28 +87,59 @@ function renderVersion(): void {
 }
 
 /**
- * Populate the supported platforms list dynamically
+ * Build the unsupported screen's platform links straight off `parserRegistry`.
+ *
+ * One list, one source: a second hardcoded list is what kept Gemini out of the
+ * popup long after its parser shipped. Registering a parser is all it takes to
+ * appear here.
  */
-function populateSupportedPlatforms(): void {
-  const platformsList = document.getElementById('supported-platforms-list');
-  if (!platformsList) return;
+function renderPlatformLinks(): void {
+  const container = document.getElementById('platform-links');
+  if (!container) return;
 
-  const platforms: PlatformInfo[] = [];
+  container.replaceChildren(
+    ...[...parserRegistry.keys()].map((platform) => {
+      const name = getPlatformName(platform);
+      const link = document.createElement('a');
+      link.className = 'platform-link';
+      const home = getUrlsForPlatform(platform)[0];
+      if (home !== undefined) {
+        const url = `https://${home}`;
+        link.href = url;
+        link.title = getMessageWithValues('platformLinkOpen', name);
+        // Extension popups close on blur, so a new tab is the whole point —
+        // but the popup must never navigate itself to the chat page.
+        link.addEventListener('click', (event) => {
+          event.preventDefault();
+          void chrome.tabs.create({ url });
+        });
+      }
 
-  // Get all registered platforms
-  for (const [platform] of parserRegistry) {
-    platforms.push({
-      name: getPlatformName(platform),
-      urls: getUrlsForPlatform(platform),
-    });
-  }
+      const icon = PLATFORM_ICONS[platform];
+      if (icon !== undefined) {
+        const img = document.createElement('img');
+        img.className = 'platform-link-icon';
+        img.src = icon;
+        img.alt = '';
+        link.appendChild(img);
+      }
 
-  // Generate HTML for platform list
-  const platformsHtml = platforms
-    .map(p => `<br>• ${p.name} (${p.urls.join(', ')})`)
-    .join('');
+      const label = document.createElement('span');
+      label.className = 'platform-link-name';
+      label.textContent = name;
+      link.appendChild(label);
 
-  platformsList.innerHTML = platformsHtml;
+      link.insertAdjacentHTML(
+        'beforeend',
+        `<svg class="platform-link-external" width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          <path d="M4 1.5h6.5V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M10.5 1.5 4.5 7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          <path d="M8 10.5H1.5V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>`
+      );
+      return link;
+    })
+  );
 }
 
 /**
@@ -169,6 +208,7 @@ class PopupController {
   private formatMenuOpen = false;
   private uiState: UiState = 'detecting';
   private routerBound = false;
+  private pageReady = false;
 
   async initialize(): Promise<void> {
     // Localize all static text in the HTML
@@ -179,8 +219,8 @@ class PopupController {
     this.setFormatMenuOpen(false);
     this.setUiState('detecting');
 
-    // Populate supported platforms list dynamically
-    populateSupportedPlatforms();
+    // Platform links for the unsupported screen, straight off the registry
+    renderPlatformLinks();
 
     // Show the shipped version
     renderVersion();
@@ -242,9 +282,17 @@ class PopupController {
     this.bodyBox()?.setAttribute('data-format-menu-open', String(open));
   }
 
+  /**
+   * The single switch every state hangs off. CSS keys the whole box on it, so
+   * a state can never half-paint over another. Mirrored onto `<body>` too
+   * because the header sits outside the box and the unsupported screen dims it.
+   */
   private setUiState(state: UiState): void {
     this.uiState = state;
     this.bodyBox()?.setAttribute('data-ui-state', state);
+    document.body.setAttribute('data-ui-state', state);
+    // `Export again` vs `Export <format>` depends on the state.
+    this.updateExportLabel(this.selectedFormat);
   }
 
   private handleRouterClick(event: MouseEvent): void {
@@ -310,6 +358,17 @@ class PopupController {
       void this.handlePrint();
     });
 
+    // Reload state: do the reload instead of only explaining how to.
+    document.getElementById('reload-button')?.addEventListener('click', () => {
+      void chrome.tabs.reload();
+      window.close();
+    });
+
+    // Warning card: run the same export again.
+    document.getElementById('warning-retry-button')?.addEventListener('click', () => {
+      void this.handleExport(this.selectedFormat);
+    });
+
     // Export option toggles
     document.getElementById('option-include-metadata')?.addEventListener('change', (e) => {
       void this.persistPreference({ includeMetadata: (e.target as HTMLInputElement).checked });
@@ -372,7 +431,6 @@ class PopupController {
       if (!url || !supportedDomains.some((domain) => url.hostname.includes(domain))) {
         this.setUiState('unsupported');
         this.updateStatus('inactive', getMessage('statusNotSupported'));
-        this.showNotSupportedMessage();
         return;
       }
 
@@ -388,19 +446,18 @@ class PopupController {
         this.updateConversationInfo(response.data);
         this.updateStatus('active', getMessage('statusReady'));
         this.enableButtons();
-        this.showMainContent();
       } else {
         // Content script loaded but no conversation found
         this.setUiState('unsupported');
         this.updateStatus('warning', getMessage('statusNoConversation'));
-        this.showNotSupportedMessage();
       }
     } catch (error) {
       console.error('Failed to check current page:', error);
-      // Content script not responding - likely needs page reload
+      // Content script not responding - likely needs page reload. Not the only
+      // possible answer here: an injection retry may land in front of it later,
+      // which is why the reload screen is a plain state like any other.
       this.setUiState('reload');
       this.updateStatus('warning', getMessage('statusReloadNeeded'));
-      this.showReloadMessage();
     }
   }
 
@@ -430,16 +487,8 @@ class PopupController {
     const meta = document.getElementById('conversation-meta');
 
     if (platformIcon) {
-      // Marks, not wordmarks: at 13px the Gemini logotype is illegible, so the
-      // spark is the only readable Gemini asset here.
-      const icons: Record<string, string> = {
-        chatgpt: '../assets/icons/chatgpt-logo.svg',
-        claude: '../assets/icons/claude-logo.svg',
-        gemini: '../assets/icons/gemini-spark.svg',
-      };
-      const defaultIcon = '../assets/icons/chatgpt-logo.svg';
-      const iconPath = icons[conversation.platform] ?? defaultIcon;
-      platformIcon.src = iconPath;
+      platformIcon.src =
+        PLATFORM_ICONS[conversation.platform] ?? '../assets/icons/chatgpt-logo.svg';
       platformIcon.style.display = 'block';
       platformIcon.alt = '';
     }
@@ -532,6 +581,8 @@ class PopupController {
         this.pairs.length > 0 && SelectionService.getSelectionCount(this.pairs) === 0;
       this.setUiState(nothingSelected ? 'noSelection' : 'ready');
     }
+
+    this.syncExportEnabled();
   }
 
   private handleToggleAllPairs(): void {
@@ -563,17 +614,43 @@ class PopupController {
     return segments.filter((segment) => segment !== null && segment !== '').join(' · ');
   }
 
-  /** `Whole conversation`, or `3 of 14 pairs` once something is deselected. */
+  /**
+   * `Whole conversation`, or `3 of 14 pairs` once something is deselected. With
+   * nothing left selected the row is the warning itself: it says so and offers
+   * the way out, since the export button beside it has just gone dead.
+   */
   private updateContentRow(): void {
+    const label = document.querySelector('.setting-row[data-nav="content"] .setting-row-label');
     const value = document.getElementById('content-row-value');
     if (!value) return;
 
     const selected = SelectionService.getSelectionCount(this.pairs);
     const total = this.pairs.length;
+
+    if (total > 0 && selected === 0) {
+      if (label) label.textContent = getMessage('rowContentNoSelection');
+      value.textContent = getMessage('rowContentChoosePairs');
+      return;
+    }
+
+    if (label) label.textContent = getMessage('rowContent');
     value.textContent =
       total > 0 && selected < total
         ? getMessageWithValues('rowContentPartial', formatNumber(selected), formatNumber(total))
         : getMessage('rowContentAll');
+  }
+
+  /**
+   * Export is possible on a ready page that still has something selected.
+   * A conversation with no pairs at all is not a deselection — it exports.
+   */
+  private syncExportEnabled(): void {
+    const button = document.getElementById('export-button') as HTMLButtonElement | null;
+    if (!button) return;
+
+    const nothingSelected =
+      this.pairs.length > 0 && SelectionService.getSelectionCount(this.pairs) === 0;
+    button.disabled = !this.pageReady || nothingSelected;
   }
 
   /** Green dot on the Options row: some preference is off its default. */
@@ -590,13 +667,17 @@ class PopupController {
   private updateExportLabel(format: ExportFormat): void {
     const label = document.getElementById('export-button-label');
     if (label) {
-      label.textContent = getMessageWithValues('exportButtonFormat', getFormatName(format));
+      // After a degraded export the same button is the retry-in-full.
+      label.textContent =
+        this.uiState === 'warning'
+          ? getMessage('exportButtonAgain')
+          : getMessageWithValues('exportButtonFormat', getFormatName(format));
     }
   }
 
   private enableButtons(): void {
-    const exportButton = document.getElementById('export-button') as HTMLButtonElement;
-    if (exportButton) exportButton.disabled = false;
+    this.pageReady = true;
+    this.syncExportEnabled();
     // Print stays governed by the format gate, not by page readiness.
     this.handleFormatChange(this.selectedFormat);
   }
@@ -620,8 +701,7 @@ class PopupController {
       if (response.warning) {
         // Degraded export (e.g. artifact contents missing) — keep the popup
         // open so the user actually sees it. Full reason is in the tooltip.
-        this.setUiState('warning');
-        this.updateStatus('warning', getMessage('statusArtifactsMissing'), response.warning);
+        this.showWarning(response.warning);
         return;
       }
       window.close(); // Close popup after triggering export
@@ -646,8 +726,7 @@ class PopupController {
 
       const response: MessageResponse | undefined = await chrome.tabs.sendMessage(tab.id, message);
       if (response?.warning) {
-        this.setUiState('warning');
-        this.updateStatus('warning', getMessage('statusArtifactsMissing'), response.warning);
+        this.showWarning(response.warning);
         return;
       }
       window.close(); // Close popup after triggering print
@@ -658,57 +737,19 @@ class PopupController {
     }
   }
 
-  private showNotSupportedMessage(): void {
-    const notSupportedSection = document.getElementById('not-supported-section');
-    const mainContent = document.getElementById('main-content');
+  /**
+   * Degraded export: the amber card carries the reason, the header badge the
+   * short label. Both keep the full text in their `title` — the card's detail
+   * line is two rows tall and a long reason is clipped there.
+   */
+  private showWarning(reason: string): void {
+    this.setUiState('warning');
+    this.updateStatus('warning', getMessage('statusArtifactsMissing'), reason);
 
-    if (notSupportedSection) {
-      notSupportedSection.style.display = 'block';
-    }
-    if (mainContent) {
-      mainContent.style.display = 'none';
-    }
-  }
-
-  private showMainContent(): void {
-    const notSupportedSection = document.getElementById('not-supported-section');
-    const mainContent = document.getElementById('main-content');
-
-    if (notSupportedSection) {
-      notSupportedSection.style.display = 'none';
-    }
-    if (mainContent) {
-      // Flex, not block: the setting rows rely on `margin-top:auto` inside it.
-      mainContent.style.display = 'flex';
-    }
-  }
-
-  private showReloadMessage(): void {
-    const notSupportedSection = document.getElementById('not-supported-section');
-    const mainContent = document.getElementById('main-content');
-
-    if (mainContent) {
-      mainContent.style.display = 'none';
-    }
-
-    if (notSupportedSection) {
-      notSupportedSection.style.display = 'block';
-      // Replace the message with reload instructions
-      notSupportedSection.innerHTML = `
-        <div class="not-supported-message">
-          <svg class="not-supported-icon" width="48" height="48" viewBox="0 0 24 24" fill="none">
-            <path d="M21 10C21 10 18.995 7.26822 17.3662 5.63824C15.7373 4.00827 13.4864 3 11 3C6.02944 3 2 7.02944 2 12C2 16.9706 6.02944 21 11 21C15.1031 21 18.5649 18.2543 19.6482 14.5M21 10V4M21 10H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <h3 class="not-supported-title">${getMessage('reloadRequiredTitle')}</h3>
-          <p class="not-supported-text">
-            ${getMessage('reloadRequiredMessage')}
-            <br><br>
-            <strong>${getMessage('howToReload')}</strong>
-            <br>• ${getMessage('reloadInstructionKeyboard')}
-            <br>• ${getMessage('reloadInstructionButton')}
-          </p>
-        </div>
-      `;
+    const detail = document.getElementById('warning-card-detail');
+    if (detail) {
+      detail.textContent = reason;
+      detail.title = reason;
     }
   }
 }

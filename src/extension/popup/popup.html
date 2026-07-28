@@ -29,25 +29,71 @@
       <main class="popup-body" id="popup-body" data-view="main" data-ui-state="detecting">
         <section class="popup-view" id="view-main">
           <div class="view-scroll">
-            <!-- Not supported message -->
-            <section class="not-supported-section" id="not-supported-section" style="display: none;">
-              <div class="not-supported-message">
-                <svg class="not-supported-icon" width="48" height="48" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-                  <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-                <h3 class="not-supported-title" data-i18n="noChatbotDetectedTitle">No Chatbot Detected</h3>
-                <p class="not-supported-text">
-                  <span data-i18n="noChatbotDetectedMessage">This page doesn't appear to have a supported chatbot conversation.</span>
-                  <br><br>
-                  <strong data-i18n="supportedPlatforms">Supported platforms:</strong>
-                  <span id="supported-platforms-list"></span>
-                </p>
-              </div>
-            </section>
+            <!--
+              Secondary states. Exactly one `.state-block` (or `#main-content`)
+              paints, picked by `data-ui-state` on the body box in popup.css —
+              no JS display juggling, so a state can never leak into another.
+            -->
 
-            <!-- Main content (shown when supported) -->
+            <!-- Detecting: skeletons standing in for the text that is coming. -->
+            <div class="state-block state-skeleton" id="state-detecting" aria-hidden="true">
+              <span class="skeleton skeleton--title"></span>
+              <span class="skeleton skeleton--meta"></span>
+              <span class="skeleton skeleton--row skeleton--push"></span>
+              <span class="skeleton skeleton--row skeleton--short"></span>
+            </div>
+
+            <!-- Unsupported page. Links are generated from parserRegistry. -->
+            <div class="state-block state-centered" id="state-unsupported">
+              <h2 class="state-title" data-i18n="noChatbotDetectedTitle">
+                There's no conversation to export here
+              </h2>
+              <p class="state-help" data-i18n="noChatbotDetectedMessage">
+                Open a chat on one of these pages — it opens in a new tab.
+              </p>
+              <div class="platform-links" id="platform-links"></div>
+            </div>
+
+            <!-- Reload needed: the content script never answered. -->
+            <div class="state-block state-centered" id="state-reload">
+              <span class="state-circle" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M21 10C21 10 18.995 7.268 17.366 5.638 15.737 4.008 13.486 3 11 3 6.029 3 2 7.029 2 12s4.029 9 9 9c4.103 0 7.565-2.746 8.648-6.5M21 10V4M21 10H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <h2 class="state-title state-title--reload" data-i18n="reloadRequiredTitle">
+                Reload the page to export this conversation
+              </h2>
+              <p class="state-help" data-i18n="reloadRequiredMessage">
+                The extension was updated after this tab was opened.
+              </p>
+              <button type="button" class="state-button" id="reload-button">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M21 10C21 10 18.995 7.268 17.366 5.638 15.737 4.008 13.486 3 11 3 6.029 3 2 7.029 2 12s4.029 9 9 9c4.103 0 7.565-2.746 8.648-6.5M21 10V4M21 10H15" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span data-i18n="reloadPageButton">Reload the page</span>
+              </button>
+              <p class="key-hint" aria-hidden="true"><kbd>Ctrl</kbd><kbd>R</kbd></p>
+            </div>
             <div id="main-content">
+              <!--
+                Degraded export. Shown only in the `warning` state; the full
+                reason lands in the detail line and its `title`.
+              -->
+              <div class="warning-card" id="warning-card" role="status">
+                <svg class="warning-card-icon" width="17" height="17" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M8 2.5 14.5 13.5H1.5L8 2.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+                  <path d="M8 6.8v2.6M8 11.4h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                <div class="warning-card-body">
+                  <p class="warning-card-title" data-i18n="exportWarningTitle">Saved, but incomplete</p>
+                  <p class="warning-card-detail" id="warning-card-detail"></p>
+                  <button type="button" class="warning-card-retry" id="warning-retry-button" data-i18n="exportWarningRetry">
+                    Retry
+                  </button>
+                </div>
+              </div>
+
               <!-- Conversation block: title + `platform · N pairs · date range`. -->
               <div class="conversation-block">
                 <h2 class="conversation-title" id="conversation-title">-</h2>

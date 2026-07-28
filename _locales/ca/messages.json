@@ -54,37 +54,49 @@
   },
 
   "noChatbotDetectedTitle": {
-    "message": "Cap Chatbot Detectat",
+    "message": "Aquí no hi ha cap conversa per exportar",
     "description": "Title for no chatbot detected message"
   },
   "noChatbotDetectedMessage": {
-    "message": "Aquesta pàgina no sembla tenir una conversa de chatbot compatible.",
+    "message": "Obriu un xat en una d'aquestes pàgines: s'obrirà en una pestanya nova.",
     "description": "Message when no chatbot is detected"
-  },
-  "supportedPlatforms": {
-    "message": "Plataformes compatibles:",
-    "description": "Label for supported platforms list"
   },
 
   "reloadRequiredTitle": {
-    "message": "Cal Recarregar la Pàgina",
+    "message": "Recarregueu la pàgina per exportar aquesta conversa",
     "description": "Title for reload required message"
   },
   "reloadRequiredMessage": {
-    "message": "Si us plau, recarregueu aquesta pàgina per activar l'extensió AI Chat Exporter.",
+    "message": "L'extensió es va actualitzar després d'obrir aquesta pestanya.",
     "description": "Message when page reload is required"
   },
-  "howToReload": {
-    "message": "Com recarregar:",
-    "description": "Label for reload instructions"
+  "reloadPageButton": {
+    "message": "Recarrega la pàgina",
+    "description": "Label of the button that reloads the tab from the reload state"
   },
-  "reloadInstructionKeyboard": {
-    "message": "Premeu Ctrl+R (Windows/Linux) o ⌘+R (Mac)",
-    "description": "Keyboard shortcut instruction for reloading"
+  "platformLinkOpen": {
+    "message": "Obre $1 en una pestanya nova",
+    "description": "Tooltip of a platform link on the unsupported page state"
   },
-  "reloadInstructionButton": {
-    "message": "O feu clic al botó de recarregar del vostre navegador",
-    "description": "Button instruction for reloading"
+  "rowContentNoSelection": {
+    "message": "Cap parell seleccionat",
+    "description": "Content row label when no Q&A pair is selected"
+  },
+  "rowContentChoosePairs": {
+    "message": "Triar parells",
+    "description": "Content row action when no Q&A pair is selected"
+  },
+  "exportWarningTitle": {
+    "message": "Desat, però incomplet",
+    "description": "Title of the card shown after an export that came back degraded"
+  },
+  "exportWarningRetry": {
+    "message": "Torna-ho a provar",
+    "description": "Link that runs the degraded export again"
+  },
+  "exportButtonAgain": {
+    "message": "Exporta de nou",
+    "description": "Main button label after a degraded export"
   },
 
   "actionsTitle": {

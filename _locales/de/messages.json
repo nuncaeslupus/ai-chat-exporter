@@ -54,37 +54,49 @@
   },
 
   "noChatbotDetectedTitle": {
-    "message": "Kein Chatbot Erkannt",
+    "message": "Hier gibt es keine Unterhaltung zum Exportieren",
     "description": "Title for no chatbot detected message"
   },
   "noChatbotDetectedMessage": {
-    "message": "Diese Seite scheint keine unterstützte Chatbot-Konversation zu enthalten.",
+    "message": "Öffnen Sie einen Chat auf einer dieser Seiten – er wird in einem neuen Tab geöffnet.",
     "description": "Message when no chatbot is detected"
-  },
-  "supportedPlatforms": {
-    "message": "Unterstützte Plattformen:",
-    "description": "Label for supported platforms list"
   },
 
   "reloadRequiredTitle": {
-    "message": "Seite Neuladen Erforderlich",
+    "message": "Laden Sie die Seite neu, um diese Unterhaltung zu exportieren",
     "description": "Title for reload required message"
   },
   "reloadRequiredMessage": {
-    "message": "Bitte laden Sie diese Seite neu, um die AI Chat Exporter-Erweiterung zu aktivieren.",
+    "message": "Die Erweiterung wurde aktualisiert, nachdem dieser Tab geöffnet wurde.",
     "description": "Message when page reload is required"
   },
-  "howToReload": {
-    "message": "So laden Sie neu:",
-    "description": "Label for reload instructions"
+  "reloadPageButton": {
+    "message": "Seite neu laden",
+    "description": "Label of the button that reloads the tab from the reload state"
   },
-  "reloadInstructionKeyboard": {
-    "message": "Drücken Sie Strg+R (Windows/Linux) oder ⌘+R (Mac)",
-    "description": "Keyboard shortcut instruction for reloading"
+  "platformLinkOpen": {
+    "message": "$1 in einem neuen Tab öffnen",
+    "description": "Tooltip of a platform link on the unsupported page state"
   },
-  "reloadInstructionButton": {
-    "message": "Oder klicken Sie auf die Neuladen-Schaltfläche in Ihrem Browser",
-    "description": "Button instruction for reloading"
+  "rowContentNoSelection": {
+    "message": "Kein Paar ausgewählt",
+    "description": "Content row label when no Q&A pair is selected"
+  },
+  "rowContentChoosePairs": {
+    "message": "Paare auswählen",
+    "description": "Content row action when no Q&A pair is selected"
+  },
+  "exportWarningTitle": {
+    "message": "Gespeichert, aber unvollständig",
+    "description": "Title of the card shown after an export that came back degraded"
+  },
+  "exportWarningRetry": {
+    "message": "Erneut versuchen",
+    "description": "Link that runs the degraded export again"
+  },
+  "exportButtonAgain": {
+    "message": "Erneut exportieren",
+    "description": "Main button label after a degraded export"
   },
 
   "actionsTitle": {
