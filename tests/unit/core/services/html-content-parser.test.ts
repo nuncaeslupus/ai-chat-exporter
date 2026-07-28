@@ -359,5 +359,29 @@ describe('HtmlContentParser', () => {
         { type: 'paragraph', content: [{ type: 'text', text: 'after' }] },
       ]);
     });
+
+    // Regression: `hasNestedBlocks` matches the nested <img> and recurses into the
+    // <p>, but parseElement's switch had no <a> case, so the anchor fell through to
+    // parseInlineContent() -- which has no image case either -- and the image was
+    // silently discarded. The anchor's href is preserved on the image node as
+    // `linkUrl` since ImageBlock already declares it optional (no exporter changes).
+    it('preserves an image wrapped in an anchor, carrying the link URL', () => {
+      const html = '<p><a href="https://example.com"><img src="https://example.com/x.png" alt="a"></a></p>';
+      const blocks = HtmlContentParser.parse(html);
+      expect(blocks).toEqual([
+        { type: 'image', url: 'https://example.com/x.png', alt: 'a', linkUrl: 'https://example.com/' },
+      ]);
+    });
+
+    it('parses an anchor with real text and no image as a link (not a dropped block)', () => {
+      const html = '<p><a href="https://example.com">text only</a></p>';
+      const blocks = HtmlContentParser.parse(html);
+      expect(blocks).toEqual([
+        {
+          type: 'paragraph',
+          content: [{ type: 'link', text: 'text only', url: 'https://example.com/' }],
+        },
+      ]);
+    });
   });
 });

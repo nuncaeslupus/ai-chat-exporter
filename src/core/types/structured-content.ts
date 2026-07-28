@@ -77,6 +77,7 @@ export interface ImageBlock extends ContentBlock {
   title?: string;
   width?: number;
   height?: number;
+  linkUrl?: string; // href of a wrapping <a>, when the image is a link
 }
 
 /**

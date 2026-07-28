@@ -122,6 +122,25 @@ export class HtmlContentParser {
           if (image) blocks.push(image);
           break;
         }
+        case 'a': {
+          // An anchor wrapping an image (linked thumbnail/citation) has no text
+          // content of its own to fall back on, so parseInlineContent() would
+          // silently drop it. Unwrap the image here and carry the href as
+          // linkUrl; a text-only anchor keeps the pre-existing inline behavior.
+          const img = el.querySelector('img');
+          const image = img ? this.parseImage(img) : null;
+          if (image) {
+            const href = (el as HTMLAnchorElement).href;
+            if (href) image.linkUrl = href;
+            blocks.push(image);
+            break;
+          }
+          const inline = this.parseInlineContent(el);
+          if (inline.length > 0) {
+            blocks.push(this.createParagraph(inline));
+          }
+          break;
+        }
         case 'table': {
           const table = this.parseTable(el);
           if (table) blocks.push(table);
