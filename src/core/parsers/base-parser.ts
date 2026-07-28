@@ -9,6 +9,7 @@ import type {
   ParseResult,
   PlatformInfo,
   Message,
+  MediaItem,
   QAPair,
   Conversation,
 } from '../types';
@@ -195,6 +196,46 @@ export abstract class BaseParser implements IParser {
       return { content, htmlContent: clone.innerHTML };
     }
     return { content };
+  }
+
+  /**
+   * Extract playable media (`<video>` / `<audio>`) from a message element.
+   *
+   * The generated-media widgets ("Create video", "Create music") render a
+   * player next to the text body, not inside it, so `extractContent` never sees
+   * them -- without this the clip is dropped from every export.
+   */
+  protected extractMedia(element: Element): MediaItem[] {
+    const media: MediaItem[] = [];
+
+    element.querySelectorAll('video, audio').forEach((player) => {
+      // A player either carries `src` itself or delegates to <source> children.
+      const source = player.querySelector('source');
+      const src = player.getAttribute('src') ?? source?.getAttribute('src');
+      if (!src) {
+        return;
+      }
+
+      const item: MediaItem = {
+        kind: player.tagName.toLowerCase() === 'video' ? 'video' : 'audio',
+        src,
+      };
+      const alt = (
+        player.getAttribute('aria-label') ??
+        player.getAttribute('title') ??
+        ''
+      ).trim();
+      if (alt) {
+        item.alt = alt;
+      }
+      const mimeType = source?.getAttribute('type');
+      if (mimeType) {
+        item.mimeType = mimeType;
+      }
+      media.push(item);
+    });
+
+    return media;
   }
 
   /**

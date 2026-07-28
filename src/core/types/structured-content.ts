@@ -83,6 +83,23 @@ export interface ImageBlock extends ContentBlock {
 }
 
 /**
+ * Playable media (generated video / audio).
+ *
+ * Images keep their own `ImageBlock` — every exporter can embed or link a still
+ * image, while video and audio can only be played by HTML. Splitting them keeps
+ * the PDF/DOCX image-embedding path from ever being handed a video URL.
+ */
+export interface MediaBlock extends ContentBlock {
+  type: 'media';
+  kind: 'video' | 'audio';
+  url: string;
+  alt: string;
+  mimeType?: string;
+  /** Duration in seconds, when the source exposes one */
+  duration?: number;
+}
+
+/**
  * Table
  */
 export interface TableBlock extends ContentBlock {
@@ -102,6 +119,7 @@ export type StructuredContentBlock =
   | BlockquoteBlock
   | HorizontalRuleBlock
   | ImageBlock
+  | MediaBlock
   | TableBlock;
 
 /**

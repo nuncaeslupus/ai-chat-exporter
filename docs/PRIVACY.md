@@ -56,6 +56,13 @@ the chat provider whose page you are already on:
   the images typically fail to load once you are signed out. No other resource
   is requested: the exported HTML has no external stylesheet, script, web font,
   or tracking pixel, and its styling and code highlighting are inlined.
+- **Generated video and audio** (Gemini's "Create video" / "Create music") are
+  never downloaded or embedded — no export format bundles the clip itself. The
+  **HTML** export puts a player in the page pointing at the original URL, so
+  pressing play asks the provider's servers for it; **PDF**, **DOCX**, **TXT**
+  and **Markdown** only write a labelled link, and **JSON** records the URL as
+  plain data. Like image URLs, these are usually session-scoped and typically
+  stop working once you are signed out.
 - **Web-search citations** are exported as the link, the page title, and the
   domain only. Citation favicons are deliberately dropped rather than carried
   into the export, because chat pages serve them from third-party icon services

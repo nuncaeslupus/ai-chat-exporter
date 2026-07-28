@@ -316,6 +316,50 @@ describe('GeminiParser — Deep Research', () => {
   });
 });
 
+describe('GeminiParser — generated media (lo-6fe5)', () => {
+  // "Create video" / "Create music" render a player in the answer, outside the
+  // `.markdown` body the text extractor reads, so the clip is lost unless the
+  // parser files it under `metadata.media`.
+  const MEDIA_HTML = `
+    <chat-window>
+      <div class="conversation-container">
+        <user-query-content><p>Make a video and a song about a lighthouse</p></user-query-content>
+        <model-response>
+          <message-content><div class="markdown"><p>Here you go.</p></div></message-content>
+          <video src="https://gemini.example.test/clip.mp4" aria-label="Lighthouse timelapse"></video>
+          <audio aria-label="Lighthouse song">
+            <source src="https://gemini.example.test/track.m4a" type="audio/mp4">
+          </audio>
+        </model-response>
+      </div>
+    </chat-window>`;
+
+  it('files a generated video and audio clip under metadata.media', () => {
+    const media = parserFor(MEDIA_HTML).parse().conversation?.pairs[0]?.answer.metadata?.media;
+
+    expect(media).toEqual([
+      {
+        kind: 'video',
+        src: 'https://gemini.example.test/clip.mp4',
+        alt: 'Lighthouse timelapse',
+      },
+      {
+        kind: 'audio',
+        src: 'https://gemini.example.test/track.m4a',
+        alt: 'Lighthouse song',
+        mimeType: 'audio/mp4',
+      },
+    ]);
+  });
+
+  it('leaves metadata.media unset when the answer has no player', () => {
+    const stripped = MEDIA_HTML.replace(/<video[\s\S]*<\/audio>/, '');
+    const answer = parserFor(stripped).parse().conversation?.pairs[0]?.answer;
+
+    expect(answer?.metadata?.media).toBeUndefined();
+  });
+});
+
 describe('parser registry', () => {
   it('registers gemini so detectParser can find it', async () => {
     const { parserRegistry } = await import('../../../../src/core/parsers/index');
