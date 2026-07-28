@@ -148,7 +148,8 @@ export class ChatGPTParser extends BaseParser {
     const messages: Message[] = [];
 
     // Get all user turns
-    const userTurns = this.document.querySelectorAll('article[data-turn="user"]');
+    const userTurnSelector = this.selectors.custom?.userTurn ?? '[data-turn="user"]';
+    const userTurns = this.document.querySelectorAll(userTurnSelector);
 
     userTurns.forEach((turn) => {
       // Try to find a message element within the turn
@@ -220,7 +221,8 @@ export class ChatGPTParser extends BaseParser {
     const messages: Message[] = [];
 
     // Get all assistant turns (includes text, canvas, and image-gen turns)
-    const assistantTurns = this.document.querySelectorAll('article[data-turn="assistant"]');
+    const assistantTurnSelector = this.selectors.custom?.assistantTurn ?? '[data-turn="assistant"]';
+    const assistantTurns = this.document.querySelectorAll(assistantTurnSelector);
 
     assistantTurns.forEach((turn) => {
       // Find ALL message elements within the turn (for deep research, there can be multiple)
