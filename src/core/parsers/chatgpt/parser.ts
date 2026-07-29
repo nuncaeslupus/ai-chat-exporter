@@ -11,7 +11,7 @@ import type {
   WebSearchResult,
 } from '../../types';
 import { BaseParser } from '../base-parser';
-import { CHATGPT_SELECTORS, isChatGPTUrl } from './selectors';
+import { CHATGPT_SELECTORS, EMBEDDED_FRAME_REPORT_ATTR, isChatGPTUrl } from './selectors';
 
 /**
  * Parser for ChatGPT conversations
@@ -388,7 +388,7 @@ export class ChatGPTParser extends BaseParser {
       // ChatGPT's screenreader label ("ChatGPT said:") and shipping that as the
       // answer is how a Deep Research export came out 13 characters long.
       const text =
-        this.extractEmbeddedWidgetMarker(element) ?? this.extractContent(element, false).content;
+        this.extractEmbeddedWidgetContent(element) ?? this.extractContent(element, false).content;
       if (!text) {
         return null;
       }
@@ -630,25 +630,40 @@ export class ChatGPTParser extends BaseParser {
   }
 
   /**
-   * Marker line for an answer ChatGPT renders in a sandboxed cross-origin
-   * frame instead of in the page -- Deep Research, and any sibling connector
+   * Content for an answer ChatGPT renders in a sandboxed cross-origin frame
+   * instead of in the page -- Deep Research, and any sibling connector
    * widget, since they all carry `title="internal://<widget>"`.
    *
-   * The frame's document is on `*.oaiusercontent.com`, so the content script
-   * cannot read a single character of the report, and its `src` carries no
-   * report id either (`?app=chatgpt&locale=…` only) -- there is no link worth
-   * emitting. Naming the widget is all the honest options there are; without
-   * this the turn exported as the screenreader label or as nothing at all.
+   * The frame's own document is on `*.oaiusercontent.com`, cross-origin from
+   * the page, so this parser cannot read a single character of it directly.
+   * A content script running *inside* the frame (let in because
+   * `allow-same-origin` keeps the frame's real origin) relays the rendered
+   * text out over `postMessage`, and the page's content script stashes it on
+   * this iframe element as `EMBEDDED_FRAME_REPORT_ATTR` (lo-9001) -- prefer
+   * that when present.
+   *
+   * When it is not (the relay never ran, the frame never finished rendering,
+   * the text came back empty), fall back to naming the widget: the src
+   * carries no report id either (`?app=chatgpt&locale=…` only), so there is
+   * no link worth emitting, and naming the widget beats the screenreader
+   * label or nothing at all.
    *
    * ponytail: only the widget-only turn is covered. A turn mixing a widget
-   * with real markdown would keep the markdown and drop the marker -- no
-   * capture shows one; extend `extractCombinedMessage` the same way if one
-   * turns up.
+   * with real markdown would keep the markdown and drop this -- no capture
+   * shows one; extend `extractCombinedMessage` the same way if one turns up.
    */
-  private extractEmbeddedWidgetMarker(element: Element): string | null {
-    const title = element
-      .querySelector(this.selectors.custom.embeddedWidgetFrame)
-      ?.getAttribute('title');
+  private extractEmbeddedWidgetContent(element: Element): string | null {
+    const frame = element.querySelector(this.selectors.custom.embeddedWidgetFrame);
+    if (!frame) {
+      return null;
+    }
+
+    const reportText = frame.getAttribute(EMBEDDED_FRAME_REPORT_ATTR)?.trim();
+    if (reportText) {
+      return reportText;
+    }
+
+    const title = frame.getAttribute('title');
     const name = (title ?? '')
       .replace(/^internal:\/\//, '')
       .replace(/[-_]/g, ' ')

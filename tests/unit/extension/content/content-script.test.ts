@@ -8,6 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createTestQAPair, createTestConversation } from '../../../utils/exporter-helpers';
+import { EMBEDDED_FRAME_REPORT_ATTR } from '../../../../src/core/parsers/chatgpt/selectors';
 
 const mockParse = vi.fn();
 const mockExport = vi.fn();
@@ -541,5 +542,83 @@ describe('content-script Q&A pair selection (lo-adf1)', () => {
 
     const exportedPairs = mockExport.mock.calls[0]?.[1] as typeof pairs;
     expect(exportedPairs).toEqual([]);
+  });
+});
+
+// lo-9001: the sandboxed Deep Research frame's own content script relays its
+// rendered text out via `postMessage`; the page's content script must match
+// it to the right <iframe> element by `event.source` and stash it there, but
+// only when the message actually came from the sandbox host and has the
+// expected shape -- anything else must be ignored, never trusted as report
+// content.
+describe('content-script Deep Research frame relay (lo-9001)', () => {
+  const SANDBOX_ORIGIN = 'https://connector-openai-deep-research.web-sandbox.oaiusercontent.com';
+
+  beforeEach(() => {
+    mockParse.mockReset();
+    mockParse.mockReturnValue({ success: true, conversation: createTestConversation([]) });
+    document.body.innerHTML = '';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('stashes the relayed report text on the matching iframe only', async () => {
+    await loadMessageListener();
+
+    document.body.innerHTML =
+      '<iframe title="internal://deep-research"></iframe>' +
+      '<iframe title="internal://deep-research"></iframe>';
+    const frames = document.querySelectorAll<HTMLIFrameElement>('iframe');
+    const targetFrame = frames[1];
+    if (!targetFrame) throw new Error('fixture iframe missing');
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        origin: SANDBOX_ORIGIN,
+        data: { type: 'ai-chat-exporter:deep-research-report', text: 'The real report text.' },
+        source: targetFrame.contentWindow,
+      })
+    );
+
+    expect(targetFrame.getAttribute(EMBEDDED_FRAME_REPORT_ATTR)).toBe('The real report text.');
+    expect(frames[0]?.getAttribute(EMBEDDED_FRAME_REPORT_ATTR)).toBeNull();
+  });
+
+  it('ignores a message whose origin is not the sandbox host', async () => {
+    await loadMessageListener();
+
+    document.body.innerHTML = '<iframe title="internal://deep-research"></iframe>';
+    const frame = document.querySelector<HTMLIFrameElement>('iframe');
+    if (!frame) throw new Error('fixture iframe missing');
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        origin: 'https://evil.example.com',
+        data: { type: 'ai-chat-exporter:deep-research-report', text: 'Fabricated report text.' },
+        source: frame.contentWindow,
+      })
+    );
+
+    expect(frame.getAttribute(EMBEDDED_FRAME_REPORT_ATTR)).toBeNull();
+  });
+
+  it('ignores a message with the wrong shape from the right origin', async () => {
+    await loadMessageListener();
+
+    document.body.innerHTML = '<iframe title="internal://deep-research"></iframe>';
+    const frame = document.querySelector<HTMLIFrameElement>('iframe');
+    if (!frame) throw new Error('fixture iframe missing');
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        origin: SANDBOX_ORIGIN,
+        data: { some: 'unrelated payload' },
+        source: frame.contentWindow,
+      })
+    );
+
+    expect(frame.getAttribute(EMBEDDED_FRAME_REPORT_ATTR)).toBeNull();
   });
 });

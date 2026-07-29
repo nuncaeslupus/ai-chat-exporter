@@ -1,6 +1,6 @@
 # Privacy Policy
 
-_Last updated: 2026-07-28_
+_Last updated: 2026-07-29_
 
 AI Chat Exporter is a browser extension that exports your ChatGPT, Claude, and
 Gemini conversations to PDF, Markdown, DOCX, HTML, TXT, and JSON. This page
@@ -72,13 +72,27 @@ the chat provider whose page you are already on:
 ## Permissions
 
 The extension requests `activeTab`, `storage`, `contextMenus`, and `scripting`,
-plus host access limited to `chat.openai.com`, `chatgpt.com`, `claude.ai`, and
-`gemini.google.com`. It cannot read or make requests to any other site.
+plus host access limited to `chat.openai.com`, `chatgpt.com`, `claude.ai`,
+`gemini.google.com`, and `*.web-sandbox.oaiusercontent.com`. It cannot read or
+make requests to any other site.
 
 `scripting` is used for one thing: putting the content script back into a chat
 tab that was already open when the extension was installed, updated or reloaded.
-It is bounded by the same four hosts — there is no site it can reach that it
-could not already read.
+It is bounded by the same hosts — there is no site it can reach that it could
+not already read.
+
+`*.web-sandbox.oaiusercontent.com` exists for one narrow purpose: a ChatGPT
+Deep Research answer (and any sibling "connector" widget) renders in a
+sandboxed `<iframe>` served from that host, cross-origin from `chatgpt.com`
+itself — without this permission the extension cannot read a single character
+of the report, and the export would only be able to name the widget instead of
+including its content. The host is scoped to the `web-sandbox` subdomain
+specifically, not all of `oaiusercontent.com` (which also serves your uploaded
+files) — the extension has no access to that broader domain. The only thing
+read from this frame is the report text it already rendered for you to look
+at; nothing is read from any other frame on that host, and nothing from this
+frame is sent anywhere except into the export file building locally in your
+browser.
 
 ## Questions
 

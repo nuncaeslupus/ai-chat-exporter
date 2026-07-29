@@ -7,7 +7,11 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
-import { CHATGPT_SELECTORS, isChatGPTUrl } from '../../../../src/core/parsers/chatgpt/selectors';
+import {
+  CHATGPT_SELECTORS,
+  EMBEDDED_FRAME_REPORT_ATTR,
+  isChatGPTUrl,
+} from '../../../../src/core/parsers/chatgpt/selectors';
 import { ChatGPTParser } from '../../../../src/core/parsers/chatgpt/parser';
 import { HtmlContentParser } from '../../../../src/core/services/html-content-parser';
 
@@ -886,6 +890,50 @@ describe('ChatGPT Parser - Deep Research turn (cross-origin iframe)', () => {
     expect(result.conversation?.pairs).toHaveLength(1);
     expect(result.conversation?.pairs[0]?.answer.content).toContain('[Deep Research:');
     expect(result.warnings).toBeUndefined();
+  });
+});
+
+// lo-9001: the page's content script relays the sandboxed frame's own
+// rendered text out via postMessage and stashes it on the iframe element as
+// EMBEDDED_FRAME_REPORT_ATTR. The parser must prefer that real report text
+// over the lo-f132 marker -- and must still degrade to the marker, never an
+// exception or fabricated content, when the relay produced nothing readable.
+describe('ChatGPT Parser - Deep Research turn (relayed report text)', () => {
+  const REPORT_TEXT =
+    'Tidal mills trapped the incoming tide behind a sluice and released it through ' +
+    'a waterwheel on the ebb, so grinding time slid with the tide rather than the ' +
+    'sun. They died out once steam power let millers work fixed hours anywhere.';
+  const MARKER =
+    '[Deep Research: rendered in an embedded viewer ChatGPT does not expose to the page]';
+
+  const load = (attrValue?: string): Document => {
+    const fixturePath = join(
+      __dirname,
+      '../../../fixtures/dom-snapshots/chatgpt/deep-research-2026-07.html'
+    );
+    const html = readFileSync(fixturePath, 'utf-8');
+    const document = new JSDOM(html, { url: 'https://chatgpt.com/c/test-deep-research' }).window
+      .document;
+    if (attrValue !== undefined) {
+      const frame = document.querySelector(CHATGPT_SELECTORS.custom.embeddedWidgetFrame);
+      frame?.setAttribute(EMBEDDED_FRAME_REPORT_ATTR, attrValue);
+    }
+    return document;
+  };
+
+  it('exports the relayed report text instead of the marker when the frame was read', () => {
+    const result = new ChatGPTParser(load(REPORT_TEXT)).parse();
+    expect(result.conversation?.pairs[0]?.answer.content).toBe(REPORT_TEXT);
+  });
+
+  it('falls back to the marker when the relayed text is empty or whitespace-only', () => {
+    const result = new ChatGPTParser(load('   \n  ')).parse();
+    expect(result.conversation?.pairs[0]?.answer.content).toBe(MARKER);
+  });
+
+  it('falls back to the marker when the frame was never read at all', () => {
+    const result = new ChatGPTParser(load()).parse();
+    expect(result.conversation?.pairs[0]?.answer.content).toBe(MARKER);
   });
 });
 

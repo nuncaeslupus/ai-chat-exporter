@@ -93,6 +93,15 @@ export const CHATGPT_SELECTORS = {
 } satisfies SelectorSet;
 
 /**
+ * Attribute the page's content script stashes a Deep Research iframe's own
+ * relayed report text on, once the sandboxed frame's copy of the content
+ * script posts it out over `postMessage` (lo-9001). Absent -> the frame could
+ * not be read for any reason, and the parser falls back to naming the widget
+ * instead of guessing at its content.
+ */
+export const EMBEDDED_FRAME_REPORT_ATTR = 'data-ai-chat-exporter-report-text';
+
+/**
  * ChatGPT URL patterns for detection
  */
 export const CHATGPT_URL_PATTERNS = [

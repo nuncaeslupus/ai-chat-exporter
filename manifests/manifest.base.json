@@ -15,7 +15,8 @@
     "https://chat.openai.com/*",
     "https://chatgpt.com/*",
     "https://claude.ai/*",
-    "https://gemini.google.com/*"
+    "https://gemini.google.com/*",
+    "https://*.web-sandbox.oaiusercontent.com/*"
   ],
   "action": {
     "default_popup": "popup/popup.html",
@@ -35,6 +36,12 @@
       ],
       "js": ["content/content-script.js"],
       "css": ["content/styles.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://*.web-sandbox.oaiusercontent.com/*"],
+      "all_frames": true,
+      "js": ["content/deep-research-frame.js"],
       "run_at": "document_idle"
     }
   ],
