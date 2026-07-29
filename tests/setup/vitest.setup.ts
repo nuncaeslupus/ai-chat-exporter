@@ -39,6 +39,7 @@ Object.defineProperty(globalThis, 'chrome', {
     runtime: mockRuntime,
   },
   writable: true,
+  configurable: true, // lets vi.stubGlobal('chrome', ...) redefine it per-test
 });
 
 // Mock window.location for URL pattern tests
