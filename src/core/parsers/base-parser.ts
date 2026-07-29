@@ -131,11 +131,16 @@ export abstract class BaseParser implements IParser {
     htmlContent?: string,
     id?: string
   ): Message {
+    // D-18: no platform exposes a real per-message time in the DOM (see
+    // claude-arsenal/queue/lo-4ab2.md for the capture evidence), so `timestamp`
+    // is left unset rather than stamped with the capture moment -- a fabricated
+    // "message time" is worse than none, since a reader can't tell it's invented.
+    // Message.timestamp is optional for exactly this reason; a parser that does
+    // find a real time (e.g. ClaudeParser.extractTimestamp) sets it itself.
     const message: Message = {
       id: id ?? this.generateId(),
       role,
       content,
-      timestamp: new Date(),
     };
     if (htmlContent) {
       message.htmlContent = htmlContent;

@@ -87,33 +87,41 @@ export abstract class BaseExporter implements IExporter {
   }
 
   /**
-   * Format a timestamp for display
+   * Format a timestamp for display, e.g. "2026-07-29 12:00:00".
+   *
+   * Local time (D-18): a reader's own clock, not UTC -- `toISOString()` used
+   * to render every stamp in UTC regardless of where the reader was, so a
+   * user in UTC+2 read a time two hours off from what actually happened.
    */
   protected formatTimestamp(date?: Date): string {
     if (!date) return '';
-    return date.toISOString().replace('T', ' ').substring(0, 19);
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    const y = date.getFullYear();
+    const m = pad(date.getMonth() + 1);
+    const d = pad(date.getDate());
+    return `${y}-${m}-${d} ${this.formatTime(date)}`;
   }
 
   /**
-   * Time of day only, e.g. "12:00:00".
-   *
-   * UTC, like `formatTimestamp` — every stamp in an export reads off one clock,
-   * so the day separators below cut on the same boundaries the times imply.
+   * Time of day only, e.g. "12:00:00". Local time, like `formatTimestamp` —
+   * every stamp in an export reads off one clock (the reader's own), so the
+   * day separators below cut on the same boundaries the times imply.
    */
   protected formatTime(date?: Date): string {
     if (!date) return '';
-    return date.toISOString().substring(11, 19);
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   }
 
   /**
-   * A calendar day in the export locale, e.g. "29 jul 2026" / "Jul 29, 2026".
+   * A calendar day in the export locale and the reader's local time zone,
+   * e.g. "29 jul 2026" / "Jul 29, 2026".
    */
   protected formatDay(date: Date): string {
     return date.toLocaleDateString(getUILanguage(), {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
-      timeZone: 'UTC',
     });
   }
 
@@ -177,7 +185,8 @@ export abstract class BaseExporter implements IExporter {
     let lastDay: string | null = null;
     return (date?: Date): string => {
       if (!includeTimestamps || !date) return '';
-      const day = date.toISOString().substring(0, 10);
+      // Local calendar day, matching `formatDay`/`formatTimestamp` below.
+      const day = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
       if (day === lastDay) return '';
       const isFirstDay = lastDay === null;
       lastDay = day;

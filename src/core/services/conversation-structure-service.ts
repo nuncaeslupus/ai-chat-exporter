@@ -171,11 +171,14 @@ export class ConversationStructureService {
     const structuredMessage: StructuredMessage = {
       id: message.id,
       role: message.role,
-      // `Message.timestamp` is optional (parsers don't always find one);
-      // `StructuredMessage.timestamp` is required, so fall back to now.
-      timestamp: message.timestamp || new Date(),
       blocks,
     };
+    // `Message.timestamp` is optional -- most messages don't have a real one
+    // (see D-18). Falling back to `new Date()` here would silently reintroduce
+    // the fabricated-time bug the parser fix removes, so it stays absent too.
+    if (message.timestamp) {
+      structuredMessage.timestamp = message.timestamp;
+    }
 
     // Preserve metadata if it exists
     if (message.metadata) {
