@@ -217,14 +217,7 @@ export abstract class BaseExporter implements IExporter {
       url: 'metadataFieldURL',
       dateRange: 'metadataFieldDateRange',
     };
-    const key = keyMap[field];
-    const message = getMessage(key);
-    // ponytail: `metadataFieldDateRange` is new here and `_locales/*` is owned
-    // by the popup-redesign i18n task, so getMessage echoes the raw key back.
-    // Fall back to English rather than printing "metadataFieldDateRange" into
-    // an export header; drop this branch once the key lands in the locales.
-    if (field === 'dateRange' && message === key) return 'Date range';
-    return message;
+    return getMessage(keyMap[field]);
   }
 
   /**
