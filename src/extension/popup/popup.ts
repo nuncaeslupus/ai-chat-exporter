@@ -48,6 +48,7 @@ type UiState =
   | 'noSelection'
   | 'warning'
   | 'unsupported'
+  | 'noConversation'
   | 'reload'
   | 'error';
 
@@ -630,8 +631,11 @@ class PopupController {
         this.updateStatus('active', getMessage('statusReady'));
         this.enableButtons();
       } else {
-        // Content script loaded but no conversation found
-        this.setUiState('unsupported');
+        // The URL is supported and the content script answered, but the parser
+        // found nothing on the page -- a parse bug, not an unsupported page,
+        // so it gets its own state rather than the "open one of these pages"
+        // screen (lo-72f5).
+        this.setUiState('noConversation');
         this.updateStatus('warning', getMessage('statusNoConversation'));
       }
     } catch (error) {

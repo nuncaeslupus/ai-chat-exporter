@@ -54,6 +54,19 @@
               <div class="platform-links" id="platform-links"></div>
             </div>
 
+            <!--
+              Supported page, but the parser found nothing on it -- distinct
+              from "unsupported": this is a parse bug, not a navigation prompt.
+            -->
+            <div class="state-block state-centered" id="state-no-conversation">
+              <h2 class="state-title" data-i18n="noConversationFoundTitle">
+                Couldn't find a conversation here
+              </h2>
+              <p class="state-help" data-i18n="noConversationFoundMessage">
+                This page is supported, but no messages could be read.
+              </p>
+            </div>
+
             <!-- Reload needed: the content script never answered. -->
             <div class="state-block state-centered" id="state-reload">
               <span class="state-circle" aria-hidden="true">

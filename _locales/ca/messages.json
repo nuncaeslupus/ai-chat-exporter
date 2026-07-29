@@ -66,6 +66,15 @@
     "description": "Message when no chatbot is detected"
   },
 
+  "noConversationFoundTitle": {
+    "message": "No hem trobat cap conversa aquí",
+    "description": "Title shown when the page is a supported chatbot but its parser found no conversation"
+  },
+  "noConversationFoundMessage": {
+    "message": "Aquesta pàgina és compatible, però no s'ha pogut llegir cap missatge.",
+    "description": "Message shown when the page is a supported chatbot but its parser found no conversation"
+  },
+
   "reloadRequiredTitle": {
     "message": "Recarregueu la pàgina per exportar aquesta conversa",
     "description": "Title for reload required message"

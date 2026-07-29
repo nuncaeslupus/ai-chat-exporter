@@ -66,6 +66,15 @@
     "description": "Message quand aucun chatbot n'est détecté"
   },
 
+  "noConversationFoundTitle": {
+    "message": "Aucune conversation trouvée ici",
+    "description": "Titre affiché quand la page est un chatbot pris en charge mais que l'analyseur n'a trouvé aucune conversation"
+  },
+  "noConversationFoundMessage": {
+    "message": "Cette page est prise en charge, mais aucun message n'a pu être lu.",
+    "description": "Message affiché quand la page est un chatbot pris en charge mais que l'analyseur n'a trouvé aucune conversation"
+  },
+
   "reloadRequiredTitle": {
     "message": "Rechargez la page pour exporter cette conversation",
     "description": "Titre du message rechargement requis"
