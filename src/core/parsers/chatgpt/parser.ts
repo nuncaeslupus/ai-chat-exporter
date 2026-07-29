@@ -228,8 +228,10 @@ export class ChatGPTParser extends BaseParser {
     let htmlContent: string | undefined;
 
     if (!contentElement) {
-      // Try to get content directly from the element
-      content = element.textContent?.trim();
+      // Try to get content directly from the element. Via extractContent, not
+      // raw textContent: the turn wrapper carries ChatGPT's screenreader label
+      // ("You said:"), and that is not the user's message (lo-f132).
+      content = this.extractContent(element, false).content;
     } else {
       ({ content, htmlContent } = this.extractContent(contentElement, config.preserveHtml));
     }
@@ -372,8 +374,13 @@ export class ChatGPTParser extends BaseParser {
     const contentElement = element.querySelector(this.selectors.custom.assistantMessageContent);
 
     if (!contentElement) {
-      // Try to get content directly from the element
-      const text = element.textContent?.trim();
+      // A widget answer (Deep Research) has no readable body at all, so
+      // announce it; otherwise fall back to the turn's own text -- via
+      // extractContent, not raw textContent, because the turn wrapper carries
+      // ChatGPT's screenreader label ("ChatGPT said:") and shipping that as the
+      // answer is how a Deep Research export came out 13 characters long.
+      const text =
+        this.extractEmbeddedWidgetMarker(element) ?? this.extractContent(element, false).content;
       if (!text) {
         return null;
       }
@@ -612,6 +619,37 @@ export class ChatGPTParser extends BaseParser {
     }
 
     return null;
+  }
+
+  /**
+   * Marker line for an answer ChatGPT renders in a sandboxed cross-origin
+   * frame instead of in the page -- Deep Research, and any sibling connector
+   * widget, since they all carry `title="internal://<widget>"`.
+   *
+   * The frame's document is on `*.oaiusercontent.com`, so the content script
+   * cannot read a single character of the report, and its `src` carries no
+   * report id either (`?app=chatgpt&locale=…` only) -- there is no link worth
+   * emitting. Naming the widget is all the honest options there are; without
+   * this the turn exported as the screenreader label or as nothing at all.
+   *
+   * ponytail: only the widget-only turn is covered. A turn mixing a widget
+   * with real markdown would keep the markdown and drop the marker -- no
+   * capture shows one; extend `extractCombinedMessage` the same way if one
+   * turns up.
+   */
+  private extractEmbeddedWidgetMarker(element: Element): string | null {
+    const title = element
+      .querySelector(this.selectors.custom.embeddedWidgetFrame)
+      ?.getAttribute('title');
+    const name = (title ?? '')
+      .replace(/^internal:\/\//, '')
+      .replace(/[-_]/g, ' ')
+      .trim()
+      .replace(/\b[a-z]/g, (c) => c.toUpperCase());
+
+    return name
+      ? `[${name}: rendered in an embedded viewer ChatGPT does not expose to the page]`
+      : null;
   }
 
   /**

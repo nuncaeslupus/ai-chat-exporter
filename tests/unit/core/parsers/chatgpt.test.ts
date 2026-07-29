@@ -830,3 +830,88 @@ describe('ChatGPT Parser - section-based turns (2026-07 DOM)', () => {
     expect((codeBlocks[1] as { code: string }).code).toContain('"factory": "Fictional"');
   });
 });
+
+// lo-f132: a Deep Research turn holds no message element at all -- the report
+// lives in a cross-origin sandboxed <iframe>. The turn's only text was the
+// screenreader label, which the raw-textContent fallback shipped as the answer.
+describe('ChatGPT Parser - Deep Research turn (cross-origin iframe)', () => {
+  let parser: ChatGPTParser;
+
+  const load = (): Document => {
+    const fixturePath = join(
+      __dirname,
+      '../../../fixtures/dom-snapshots/chatgpt/deep-research-2026-07.html'
+    );
+    const html = readFileSync(fixturePath, 'utf-8');
+    return new JSDOM(html, { url: 'https://chatgpt.com/c/test-deep-research' }).window.document;
+  };
+
+  beforeEach(() => {
+    parser = new ChatGPTParser(load());
+  });
+
+  it('never ships the screenreader label as the answer', () => {
+    const result = parser.parse();
+    for (const pair of result.conversation?.pairs ?? []) {
+      expect(pair.answer.content).not.toContain('ChatGPT said:');
+      expect(pair.question.content).not.toContain('You said:');
+    }
+  });
+
+  it('labels the Deep Research answer with a marker naming the widget', () => {
+    const result = parser.parse();
+    expect(result.conversation?.pairs[0]?.answer.content).toBe(
+      '[Deep Research: rendered in an embedded viewer ChatGPT does not expose to the page]'
+    );
+  });
+
+  it('leaves the ordinary turn in the same conversation untouched', () => {
+    const result = parser.parse();
+    expect(result.conversation?.pairs).toHaveLength(2);
+    expect(result.conversation?.pairs[1]?.question.content).toContain('summarise');
+    expect(result.conversation?.pairs[1]?.answer.content).toContain('tidal mill');
+  });
+
+  it('reads a Deep-Research-only conversation as a complete pair, not an empty one', () => {
+    // Same fixture with the ordinary follow-up removed: the whole conversation
+    // is then one question and one iframe-only answer.
+    const document = load();
+    document
+      .querySelectorAll('[data-testid="conversation-turn-3"], [data-testid="conversation-turn-4"]')
+      .forEach((turn) => {
+        turn.remove();
+      });
+
+    const result = new ChatGPTParser(document).parse();
+    expect(result.conversation?.pairs).toHaveLength(1);
+    expect(result.conversation?.pairs[0]?.answer.content).toContain('[Deep Research:');
+    expect(result.warnings).toBeUndefined();
+  });
+});
+
+// The same raw-textContent fallback exists on the user side, where the
+// screenreader label reads "You said:". It is reached by a user turn with
+// neither a message element nor a text bubble -- no capture shows one, which
+// is exactly why the guard belongs on the fallback rather than on the widget.
+describe('ChatGPT Parser - screenreader labels on the user side', () => {
+  it('uses the image placeholder, not "You said:", for a bubble-less upload turn', () => {
+    const dom = new JSDOM(
+      `<main id="main">
+         <section data-turn="user" data-testid="conversation-turn-1">
+           <h4 class="sr-only select-none">You said:</h4>
+           <img src="https://files.example.test/photo.png" alt="a tide pond">
+         </section>
+         <section data-turn="assistant" data-testid="conversation-turn-2">
+           <h4 class="sr-only select-none">ChatGPT said:</h4>
+           <div data-message-author-role="assistant" data-message-id="a1">
+             <div class="markdown prose"><p>That is a tide pond at low water.</p></div>
+           </div>
+         </section>
+       </main>`,
+      { url: 'https://chatgpt.com/c/test-image-only' }
+    );
+
+    const result = new ChatGPTParser(dom.window.document).parse();
+    expect(result.conversation?.pairs[0]?.question.content).toBe('[Uploaded images: a tide pond]');
+  });
+});
