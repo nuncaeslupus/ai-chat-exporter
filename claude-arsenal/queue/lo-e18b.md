@@ -19,28 +19,13 @@ step by step rather than improvising. Design rationale lives in
 > legitimate release. Run them one after the other.
 
 
-## Locale keys (absorbed from the retired SD-7)
-
-This task also adds the **3 keys it references from `popup.ts`** to all seven
-`_locales/{en,es,ca,fr,de,it,pt}/messages.json` bundles, in the same commit:
-
-`driftReportCopied`, `driftReportCopyFailed`, `driftReportLoading`
-
-The exact JSON for every bundle is in Task 4 of the plan — take only these 3.
-The other 7 land with `lo-8775`. `driftReportDismiss` from the plan is dropped
-entirely — it was a key for a control the plan never specified.
-
-Keys and their usage must land together: `tests/unit/extension/locales.test.ts`
-fails on a declared key the extension never references. That is why the
-standalone locale task was retired; see `claude-arsenal/queue/lo-4143.md`.
-
 ## Acceptance gate
 
 The tests named below pass, `pnpm typecheck` is clean, and `pnpm lint` reports
 no new errors.
 
 ```bash
-pnpm vitest run tests/unit/extension/popup/ && pnpm typecheck && pnpm format:check
+pnpm vitest run tests/unit/extension/popup/ && pnpm typecheck
 ```
 
 ## Tests
