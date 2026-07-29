@@ -70,9 +70,9 @@ describe('BaseParser drift detection', () => {
     parser.pairsToReturn = [makePair('hi', 'hello there, this is a real answer')];
     const result = parser.parse();
     expect(result.drift).toBeDefined();
-    expect(result.drift?.selectorFindings.some((f) => f.key === 'messageElement' && f.matched === 0)).toBe(
-      true
-    );
+    expect(
+      result.drift?.selectorFindings.some((f) => f.key === 'messageElement' && f.matched === 0)
+    ).toBe(true);
   });
 
   it('attaches a drift report when a sanity rule fires', () => {

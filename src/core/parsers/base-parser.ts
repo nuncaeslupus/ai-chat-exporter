@@ -14,12 +14,7 @@ import type {
   Conversation,
 } from '../types';
 import { DEFAULT_PARSER_CONFIG } from '../types';
-import {
-  checkOutputSanity,
-  checkSelectorHealth,
-  fingerprint,
-  type DriftReport,
-} from '../drift';
+import { checkOutputSanity, checkSelectorHealth, fingerprint, type DriftReport } from '../drift';
 
 /**
  * Abstract base class for platform-specific parsers
