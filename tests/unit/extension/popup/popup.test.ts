@@ -102,7 +102,7 @@ const CONVERSATION = {
   id: 'conv-1',
   title: 'Test conversation',
   platform: 'claude',
-  pairs: [],
+  pairs: [createTestQAPair(0, 'First question', 'First answer')],
   url: 'https://claude.ai/chat/abc',
 };
 
