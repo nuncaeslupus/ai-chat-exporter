@@ -3,6 +3,7 @@
  */
 
 import type { ExportFormat, FilenamePreferences, FontScale } from '../core/types';
+import type { DriftReport } from '../core/drift/types';
 import { MESSAGE_TYPES } from './constants';
 
 /**
@@ -79,6 +80,8 @@ export interface MessageResponse<T = unknown> {
   error?: string;
   /** Set when the operation succeeded but the result is degraded. */
   warning?: string;
+  /** Carried alongside `data` by `GET_CONVERSATION`; content-free by construction. */
+  drift?: DriftReport;
 }
 
 /**

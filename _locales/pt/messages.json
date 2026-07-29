@@ -511,5 +511,17 @@
   "driftReportCopyAndReport": {
     "message": "Copiar e reportar",
     "description": "Button that copies the drift report and opens a place to report it"
+  },
+  "driftReportCopied": {
+    "message": "Copiado",
+    "description": "Inline confirmation shown after a successful drift report copy"
+  },
+  "driftReportCopyFailed": {
+    "message": "Não foi possível copiar — selecione o texto acima",
+    "description": "Shown when writing the drift report to the clipboard fails"
+  },
+  "driftReportLoading": {
+    "message": "A ler a estrutura da página…",
+    "description": "Shown while the content script builds the drift report skeleton"
   }
 }
