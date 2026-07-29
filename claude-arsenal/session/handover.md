@@ -68,16 +68,28 @@ Plans: `docs/superpowers/plans/2026-07-29-selector-drift-{detection-core,popup-s
    and whether the frame's text is fully rendered or virtualized. It degrades to
    `lo-f132`'s honest placeholder if not, so a failure is safe but silent.
 
-## Untracked file in the working tree — decide before the next loop
+## ⚠️ A parallel session is live in this repo — DO NOT run the worker loop
 
 `docs/superpowers/specs/2026-07-29-exporters-redesign-design.md` (276 lines,
-18:22 on 2026-07-29) is **untracked and uncommitted**. It is an exporters
-redesign spec citing `Formatos de Exportación.dc.html`, direction 1a. Not
-written by the drift session.
+untracked) belongs to an **exporters-redesign session that is in progress**. It
+is not abandoned work and must not be committed, moved, or cleaned by anyone
+else. Leave it alone.
 
-**It is at risk**: `worker_postcheck.sh` runs `git clean -fd` when it restores,
-which deletes untracked files. Backed up as git object `e9e4135` (recover with
-`git cat-file -p e9e4135`). Commit it or move it before running the loop again.
+**Do not start the arsenal worker loop while that session is running.**
+`worker_postcheck.sh` runs `git reset --hard` + `git clean -fd` whenever it
+decides the tree needs restoring, and it cannot tell a worker's residue from
+another session's uncommitted work. The loop's own precondition — "the main
+working tree is clean before the loop starts, and stays that way" — cannot be
+satisfied while a second session is editing it.
+
+This is not hypothetical: that file has already survived several postcheck
+calls this session only because each returned `ok` rather than `restored`.
+
+Safety net if it is ever lost: backed up as git object `e9e4135`
+(`git cat-file -p e9e4135 > <path>`).
+
+There is no agent-dispatchable work left anyway (both open tasks need the
+human), so there is no reason to run the loop until the redesign session ends.
 
 ## Process lessons worth keeping
 
