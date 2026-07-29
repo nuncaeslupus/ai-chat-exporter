@@ -29,6 +29,7 @@ import {
   COLOR,
   FONT_FAMILY,
   FONT_SIZE_PT,
+  PAGINATION,
   PDF_FONT_SIZE_PT,
   SPACING,
   bodyHeadingLevel,
@@ -41,6 +42,14 @@ import {
 function splitLines(doc: jsPDF, text: string, width: number): string[] {
   return doc.splitTextToSize(text, width) as string[];
 }
+
+/**
+ * Breathing room, in lines, that renderBlocks demands before starting any
+ * block. Anything that must stay with the block below it (a role label) has to
+ * reserve at least this much too, or renderBlocks page-breaks straight after it
+ * and strands it — which is exactly what used to happen to the role label.
+ */
+const BLOCK_MIN_LINES = 3;
 
 /**
  * Exports conversations to PDF format
@@ -207,10 +216,7 @@ export class PdfExporter extends BaseExporter {
 
     for (const pair of conversation.pairs) {
       // Check if we need a new page
-      if (y > pageHeight - margins.bottom - lineHeight * 10) {
-        doc.addPage();
-        y = margins.top;
-      }
+      y = this.ensureSpace(doc, y, lineHeight * 10, margins, pageHeight);
 
       y = renderDaySeparator(pair.question.timestamp, y);
 
@@ -285,6 +291,27 @@ export class PdfExporter extends BaseExporter {
   }
 
   /**
+   * Start a new page when `needed` mm of content will not fit below `y`.
+   *
+   * pdf's layout is hand-rolled, so every "keep together" rule here is a
+   * measurement taken before drawing rather than a property Word/CSS applies
+   * for us. This is the single place that measurement lives.
+   */
+  private ensureSpace(
+    doc: jsPDF,
+    y: number,
+    needed: number,
+    margins: { top: number; bottom: number },
+    pageHeight: number
+  ): number {
+    if (y + needed > pageHeight - margins.bottom) {
+      doc.addPage();
+      return margins.top;
+    }
+    return y;
+  }
+
+  /**
    * Render a single message (user or assistant)
    */
   private renderMessage(
@@ -299,6 +326,18 @@ export class PdfExporter extends BaseExporter {
     roleColor: [number, number, number]
   ): number {
     let y = startY;
+
+    // Keep-with-next: the label plus the first lines of its message must fit,
+    // or the label strands at the foot of the page with its content overleaf.
+    // Only the user label was covered before, by the pair-level check in
+    // renderContent — the assistant label had no check at all.
+    y = this.ensureSpace(
+      doc,
+      y,
+      lineHeight * (1.2 + Math.max(PAGINATION.keepWithNextLines, BLOCK_MIN_LINES)),
+      margins,
+      pageHeight
+    );
 
     // Role label
     doc.setFont(FONT_FAMILY.body.pdf, 'bold');
@@ -329,10 +368,7 @@ export class PdfExporter extends BaseExporter {
 
     for (const block of blocks) {
       // Check if we need a new page
-      if (y > pageHeight - margins.bottom - lineHeight * 3) {
-        doc.addPage();
-        y = margins.top;
-      }
+      y = this.ensureSpace(doc, y, lineHeight * BLOCK_MIN_LINES, margins, pageHeight);
 
       switch (block.type) {
         case 'paragraph':
@@ -411,10 +447,7 @@ export class PdfExporter extends BaseExporter {
     // Render each artifact
     for (const artifact of artifacts) {
       // Check if we need a new page
-      if (y > pageHeight - margins.bottom - lineHeight * 5) {
-        doc.addPage();
-        y = margins.top;
-      }
+      y = this.ensureSpace(doc, y, lineHeight * 5, margins, pageHeight);
 
       // Artifact title
       doc.setFont(FONT_FAMILY.body.pdf, 'bold');
@@ -489,10 +522,7 @@ export class PdfExporter extends BaseExporter {
     // Render each search
     for (const search of webSearches) {
       // Check if we need a new page
-      if (y > pageHeight - margins.bottom - lineHeight * 5) {
-        doc.addPage();
-        y = margins.top;
-      }
+      y = this.ensureSpace(doc, y, lineHeight * 5, margins, pageHeight);
 
       // Search query
       doc.setFont(FONT_FAMILY.body.pdf, 'bold');
@@ -518,10 +548,7 @@ export class PdfExporter extends BaseExporter {
         doc.setFontSize(PDF_FONT_SIZE_PT.small);
 
         for (const result of search.results) {
-          if (y > pageHeight - margins.bottom - lineHeight * 3) {
-            doc.addPage();
-            y = margins.top;
-          }
+          y = this.ensureSpace(doc, y, lineHeight * 3, margins, pageHeight);
 
           // Result title (as link)
           doc.setTextColor(...hexToRgbTuple(COLOR.link));
@@ -656,10 +683,7 @@ export class PdfExporter extends BaseExporter {
 
       if (text.trim()) {
         // Check if we need a new page
-        if (y > pageHeight - margins.bottom - lineHeight * 2) {
-          doc.addPage();
-          y = margins.top;
-        }
+        y = this.ensureSpace(doc, y, lineHeight * 2, margins, pageHeight);
 
         const bulletX = margins.left + indent;
         const textX = bulletX + 8; // Space for bullet + gap
@@ -926,11 +950,11 @@ export class PdfExporter extends BaseExporter {
     if (table.headers && table.headers.length > 0) {
       const headerHeight = calculateRowHeight(table.headers);
 
-      // Check if we need a new page
-      if (y + headerHeight > pageHeight - margins.bottom) {
-        doc.addPage();
-        y = margins.top;
-      }
+      // Keep the header with its first body row: a header alone at the foot of
+      // a page labels nothing. Rows themselves already never split mid-row.
+      const firstRow = table.rows?.[0];
+      const firstRowHeight = firstRow ? calculateRowHeight(firstRow) : 0;
+      y = this.ensureSpace(doc, y, headerHeight + firstRowHeight, margins, pageHeight);
 
       // Draw header background
       doc.setFillColor(...hexToRgbTuple(COLOR.surfaceSubtle));
@@ -1143,12 +1167,29 @@ export class PdfExporter extends BaseExporter {
 
     const sanitized = sanitizeTextForPDF(text);
     const lines = splitLines(doc, sanitized, contentWidth);
-    for (const line of lines) {
-      if (y > pageHeight - margins.bottom) {
+
+    // Orphan/widow control. Lines used to be placed one at a time, so a
+    // paragraph could leave a single line at the foot of a page or carry a
+    // single line over. Decide the split point up front instead: how many
+    // lines fit below `y`, then pull the break back (or move the whole
+    // paragraph) until both sides clear the PAGINATION minimums.
+    const limit = pageHeight - margins.bottom;
+    let keepHere = Math.max(0, Math.floor((limit - y) / lineHeight) + 1);
+    if (keepHere < lines.length) {
+      if (lines.length - keepHere < PAGINATION.widows) {
+        keepHere = lines.length - PAGINATION.widows;
+      }
+      if (keepHere < PAGINATION.orphans) {
+        keepHere = 0; // the whole paragraph moves to the next page
+      }
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      if (i === keepHere || y > limit) {
         doc.addPage();
         y = margins.top;
       }
-      doc.text(line, margins.left, y);
+      doc.text(lines[i]!, margins.left, y);
       y += lineHeight;
     }
 

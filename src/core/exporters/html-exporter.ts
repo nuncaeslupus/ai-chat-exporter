@@ -22,7 +22,7 @@ import type {
 import { BaseExporter } from './base-exporter';
 import { ConversationStructureService } from '../services';
 import { getMessage, getUILanguage } from '../../shared/i18n';
-import { COLOR, FONT_FAMILY, FONT_SIZE_PT, HTML_FONT_SIZE_PT, SPACING, bodyHeadingLevel, mmToPx, ptToPx } from './style-tokens';
+import { COLOR, FONT_FAMILY, FONT_SIZE_PT, HTML_FONT_SIZE_PT, PAGINATION, SPACING, bodyHeadingLevel, mmToPx, ptToPx } from './style-tokens';
 
 export class HtmlExporter extends BaseExporter {
   readonly format: ExportFormat = 'html';
@@ -1083,6 +1083,38 @@ export class HtmlExporter extends BaseExporter {
             .message-content ol {
                 page-break-inside: avoid;
                 break-inside: avoid;
+            }
+
+            /* A paragraph that does straddle a page leaves/carries whole lines,
+               never a single stranded one. */
+            .message-content p,
+            .message-content li,
+            .message-content blockquote {
+                orphans: ${PAGINATION.orphans};
+                widows: ${PAGINATION.widows};
+            }
+
+            /* A heading stays with the content it introduces. */
+            .message-content h1,
+            .message-content h2,
+            .message-content h3,
+            .message-content h4,
+            .message-content h5,
+            .message-content h6 {
+                page-break-after: avoid;
+                break-after: avoid;
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+
+            /* A table row is never split down the middle; a header repeats. */
+            .message-content tr {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+
+            .message-content thead {
+                display: table-header-group;
             }
 
             .footer {
