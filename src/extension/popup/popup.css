@@ -1691,3 +1691,91 @@ kbd {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
+
+/* --------------------------------------------------------------------------
+   Selector drift: an amber row in the ready view, and the report view.
+   Amber, not red: the export still happened and is usually still wanted.
+   -------------------------------------------------------------------------- */
+
+.drift-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  text-align: left;
+  border: 1px solid var(--color-warning-stroke);
+  border-radius: 8px;
+  background: var(--color-warning-surface);
+  color: var(--color-warning-text);
+  cursor: pointer;
+}
+
+.drift-row[hidden] {
+  display: none;
+}
+
+.drift-row-icon {
+  flex: none;
+  margin-top: 1px;
+}
+
+.drift-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.drift-row-title {
+  font-weight: 600;
+}
+
+.drift-row-detail {
+  opacity: 0.85;
+}
+
+.drift-row-action {
+  flex: none;
+  align-self: center;
+  text-decoration: underline;
+}
+
+.drift-report-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.drift-report-intro {
+  margin: 0 0 10px;
+  color: var(--color-text-secondary);
+}
+
+.drift-report-preview {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--color-border-hairline);
+  border-radius: 6px;
+  background: var(--color-surface-sunken);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-3xs);
+  line-height: 1.45;
+  white-space: pre;
+  overflow-x: auto;
+  user-select: text;
+}
+
+.drift-report-footer {
+  gap: 8px;
+}
+
+.drift-report-status {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text-secondary);
+}

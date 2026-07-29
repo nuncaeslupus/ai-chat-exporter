@@ -107,6 +107,23 @@
                 </div>
               </div>
 
+              <!--
+                Selector drift. Non-blocking on purpose: a degraded export is
+                usually still wanted, and anything demanding attention trains
+                users to dismiss it. Hidden unless `data-drift="true"`.
+              -->
+              <button type="button" class="drift-row" id="drift-row" data-nav="report" hidden>
+                <svg class="drift-row-icon" width="17" height="17" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.4"/>
+                  <path d="M8 4.8v3.6M8 10.9h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                <span class="drift-row-body">
+                  <span class="drift-row-title" data-i18n="driftRowTitle">This page may have changed</span>
+                  <span class="drift-row-detail" data-i18n="driftRowDetail">Your export may be incomplete.</span>
+                </span>
+                <span class="drift-row-action" data-i18n="driftRowAction">See what happened</span>
+              </button>
+
               <!-- Conversation block: title + `platform · N pairs · date range`. -->
               <div class="conversation-block">
                 <h2 class="conversation-title" id="conversation-title">-</h2>
@@ -368,6 +385,40 @@
             </a>
             <button type="button" class="submenu-done" data-nav="main" data-i18n="submenuDone">
               Done
+            </button>
+          </div>
+        </section>
+
+        <!--
+          Page structure report. Same three bands as the pair chooser: fixed
+          header, scrolling body, fixed footer. The preview is the exact string
+          that goes to the clipboard — not a summary of it — which is what makes
+          "nothing else is sent" something the user can check rather than trust.
+        -->
+        <section class="popup-view" id="view-report" hidden>
+          <div class="submenu-header">
+            <button type="button" class="submenu-back" data-nav="main" data-i18n-label="submenuBack">
+              <svg width="7" height="11" viewBox="0 0 8 12" fill="none" aria-hidden="true">
+                <path d="M6.5 1 1.5 6l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <h2 class="submenu-title" data-i18n="driftReportTitle">Page structure report</h2>
+          </div>
+          <div class="drift-report-body">
+            <p class="drift-report-intro" data-i18n="driftReportIntro">
+              This is the whole report. It has no part of your conversation in it — every piece of
+              text is replaced by how many characters it had. Nothing is sent anywhere unless you
+              choose to share it.
+            </p>
+            <pre class="drift-report-preview" id="drift-report-preview" tabindex="0"></pre>
+          </div>
+          <div class="submenu-footer drift-report-footer">
+            <span class="drift-report-status" id="drift-report-status" role="status"></span>
+            <button type="button" class="drift-report-secondary" id="drift-report-copy" data-i18n="driftReportCopy">
+              Copy report
+            </button>
+            <button type="button" class="submenu-done" id="drift-report-copy-and-report" data-i18n="driftReportCopyAndReport">
+              Copy &amp; report
             </button>
           </div>
         </section>

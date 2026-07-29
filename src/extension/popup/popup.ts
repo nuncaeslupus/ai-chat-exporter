@@ -31,10 +31,10 @@ import { SelectionService } from '../../core/services/selection-service';
 import { FilenameService } from '../../core/services/filename-service';
 
 /**
- * The popup's four views. Only one is visible at a time and they all render
+ * The popup's five views. Only one is visible at a time and they all render
  * inside the same fixed-height body box, so switching never resizes the popup.
  */
-const VIEWS = ['main', 'content', 'options', 'filename'] as const;
+const VIEWS = ['main', 'content', 'options', 'filename', 'report'] as const;
 type PopupView = (typeof VIEWS)[number];
 
 function isPopupView(value: string): value is PopupView {

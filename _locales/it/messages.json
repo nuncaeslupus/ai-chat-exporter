@@ -483,5 +483,33 @@
   "filenamePieceLiteral": {
     "message": "Testo libero",
     "description": "File-name piece: text the user types"
+  },
+  "driftRowTitle": {
+    "message": "Questa pagina potrebbe essere cambiata",
+    "description": "Title of the amber row shown on the main view when selector drift is detected"
+  },
+  "driftRowDetail": {
+    "message": "L'esportazione potrebbe essere incompleta.",
+    "description": "Detail line under the drift row title"
+  },
+  "driftRowAction": {
+    "message": "Vedi cosa è successo",
+    "description": "Call-to-action text in the drift row; opens the drift report view"
+  },
+  "driftReportTitle": {
+    "message": "Rapporto sulla struttura della pagina",
+    "description": "Title of the drift report submenu"
+  },
+  "driftReportIntro": {
+    "message": "Questo è l'intero rapporto. Non contiene alcuna parte della tua conversazione: ogni porzione di testo è sostituita dal numero di caratteri che aveva. Non viene inviato nulla a nessuno, a meno che tu non scelga di condividerlo.",
+    "description": "Privacy guarantee text shown above the drift report preview"
+  },
+  "driftReportCopy": {
+    "message": "Copia rapporto",
+    "description": "Button that copies the drift report text to the clipboard"
+  },
+  "driftReportCopyAndReport": {
+    "message": "Copia e segnala",
+    "description": "Button that copies the drift report and opens a place to report it"
   }
 }
