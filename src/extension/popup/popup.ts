@@ -625,7 +625,11 @@ class PopupController {
       }
 
       const response = result.response;
-      if (response?.success && response.data) {
+      // A zero-pair parse is a truthy conversation (`success: true`, `data`
+      // non-null) but has nothing to export -- treat it the same as the
+      // content script returning no conversation at all (D-19), rather than
+      // painting the normal ready screen over an empty export.
+      if (response?.success && response.data && response.data.pairs.length > 0) {
         this.setUiState('ready');
         this.updateConversationInfo(response.data);
         this.updateStatus('active', getMessage('statusReady'));

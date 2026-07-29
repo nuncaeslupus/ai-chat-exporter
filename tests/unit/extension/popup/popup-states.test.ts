@@ -243,6 +243,20 @@ describe('popup secondary states — no conversation found on a supported page',
     });
     expect(document.getElementById('state-no-conversation')).not.toBeNull();
   });
+
+  // A zero-pair parse is a *truthy* conversation (`data: null` never happens
+  // here), so the `response?.success && response.data` check alone treats it
+  // as ready — the silent-empty-conversation gap (D-19).
+  it('treats a parsed conversation with zero pairs as no-conversation, not ready', async () => {
+    mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://chatgpt.com/c/abc' }]);
+    mockTabsSendMessage.mockResolvedValue({ success: true, data: { ...CONVERSATION, pairs: [] } });
+    await loadPopup();
+
+    await vi.waitFor(() => {
+      expect(uiState()).toBe('noConversation');
+    });
+    expect(uiState()).not.toBe('ready');
+  });
 });
 
 /**

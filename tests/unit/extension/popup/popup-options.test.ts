@@ -13,6 +13,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { createTestQAPair } from '../../../utils/exporter-helpers';
 
 const mockTabsQuery = vi.fn();
 const mockTabsSendMessage = vi.fn();
@@ -63,7 +64,7 @@ const CONVERSATION = {
   id: 'conv-1',
   title: 'Test conversation',
   platform: 'claude',
-  pairs: [],
+  pairs: [createTestQAPair(0, 'First question', 'First answer')],
   url: 'https://claude.ai/chat/abc',
   // Midday UTC so the local calendar day is 29 July in every plausible TZ.
   createdAt: '2026-07-29T12:00:00.000Z',
