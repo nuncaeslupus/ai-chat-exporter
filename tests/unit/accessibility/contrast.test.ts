@@ -213,6 +213,11 @@ function makePopupPairs(popupColor: Resolve): Pair[] {
   { label: 'setting-row label (hover bg)', fg: popupColor('.setting-row-label {', 'color'), bg: popupColor('.setting-row:hover {', 'background'), threshold: 4.5 },
   { label: 'setting-row value', fg: popupColor('.setting-row-value {', 'color'), bg: popupColor('body {', 'background'), threshold: 4.5 },
   { label: 'setting-row value (hover bg)', fg: popupColor('.setting-row-value {', 'color'), bg: popupColor('.setting-row:hover {', 'background'), threshold: 4.5 },
+  // Chevrons are decorative marks, not text, so they answer to 3:1 — but they
+  // were unasserted entirely until lo-78c0, which is how --color-text-muted sat
+  // at 2.54:1 (under even that bar) through the whole redesign.
+  { label: 'setting-row chevron', fg: popupColor('.setting-row-chevron {', 'color'), bg: popupColor('body {', 'background'), threshold: 3 },
+  { label: 'setting-row chevron (hover bg)', fg: popupColor('.setting-row-chevron {', 'color'), bg: popupColor('.setting-row:hover {', 'background'), threshold: 3 },
   { label: 'split export label', fg: popupColor('.split-button {', 'color'), bg: popupColor('.split-button {', 'background'), threshold: 4.5 },
   { label: 'split export label (hover bg)', fg: popupColor('.split-button {', 'color'), bg: popupColor('.split-export:hover:not(:disabled) {', 'background'), threshold: 4.5 },
   { label: 'print button icon', fg: popupColor('.print-button {', 'color'), bg: popupColor('.print-button {', 'background'), threshold: 4.5 },
@@ -241,6 +246,12 @@ function makePopupPairs(popupColor: Resolve): Pair[] {
     fg: popupColor(".popup-body[data-ui-state='noSelection'] .setting-row[data-nav='content'] .setting-row-value {", 'color'),
     bg: popupColor(".popup-body[data-ui-state='noSelection'] .setting-row[data-nav='content'] {", 'background'),
     threshold: 4.5,
+  },
+  {
+    label: 'no-selection row chevron',
+    fg: popupColor(".popup-body[data-ui-state='noSelection'] .setting-row[data-nav='content'] .setting-row-chevron {", 'color'),
+    bg: popupColor(".popup-body[data-ui-state='noSelection'] .setting-row[data-nav='content'] {", 'background'),
+    threshold: 3,
   },
   // Format menu (R3). Its surface is the menu card, not the page background.
   { label: 'format-menu label', fg: popupColor('.format-menu-label {', 'color'), bg: popupColor('.format-menu {', 'background'), threshold: 4.5 },
@@ -282,9 +293,14 @@ function makePopupPairs(popupColor: Resolve): Pair[] {
   // Options submenu (R5). Rows sit on the page background, the footer on the bar.
   { label: 'option-row label', fg: popupColor('.option-row-label {', 'color'), bg: popupColor('body {', 'background'), threshold: 4.5 },
   { label: 'option-row filename preview', fg: popupColor('.option-row-filename {', 'color'), bg: popupColor('body {', 'background'), threshold: 4.5 },
+  { label: 'option-row nav chevron', fg: popupColor('.option-row-chevron {', 'color'), bg: popupColor('body {', 'background'), threshold: 3 },
+  { label: 'option-row nav chevron (hover)', fg: popupColor('.option-row--nav:hover .option-row-chevron {', 'color'), bg: popupColor('body {', 'background'), threshold: 3 },
   { label: 'options footer text', fg: popupColor('.options-footer {', 'color'), bg: popupColor('.submenu-footer {', 'background'), threshold: 4.5 },
   { label: 'options footer link', fg: popupColor('.options-footer-link {', 'color'), bg: popupColor('.submenu-footer {', 'background'), threshold: 4.5 },
   { label: 'options footer link (hover)', fg: popupColor('.options-footer-link:hover {', 'color'), bg: popupColor('.submenu-footer {', 'background'), threshold: 4.5 },
+  // The separator dots are the other half of --color-text-muted's remit, and
+  // decorative like the chevrons — same 3:1 bar, painted as a background.
+  { label: 'options footer separator dot', fg: popupColor('.options-footer-dot {', 'background'), bg: popupColor('.submenu-footer {', 'background'), threshold: 3 },
   // File name builder (R6). The chips sit on the sunken field, the resulting
   // name on the footer bar — every one of them reuses an existing token.
   { label: 'filename Default link', fg: popupColor('.filename-default {', 'color'), bg: popupColor('body {', 'background'), threshold: 4.5 },

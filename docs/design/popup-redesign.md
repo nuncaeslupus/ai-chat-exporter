@@ -201,13 +201,15 @@ directamente, resuelve las **dos** tablas de tokens (clara y oscura) y comprueba
 cada par texto/fondo. Cuando este documento y el gate no coinciden, **gana el
 gate**. Las tablas de abajo recogen lo que se envía, con la cifra medida al lado.
 
-**Siete colores del handoff no lo pasan, y todos son la misma equivocación**:
-grises claros sobre superficies claras — y, en § 7, su inversión oscura. Se
-eligieron sobre el blanco de la maqueta; sobre las superficies reales del popup
-(`#F4F8F6` hundida, `#F7FAF8` barra, `#EDF3F0` hover, `#1C2926` elevada en
-oscuro) caen todavía más. Se oscurecieron —o aclararon, en oscuro— lo mínimo para
-pasar, y varios se fusionaron en un solo token en vez de mantener un valor por
-uso: los siete colores ocupan **cinco** ranuras de token.
+**Ocho usos del handoff no lo pasan, y todos son la misma equivocación**: grises
+claros sobre superficies claras — y, en § 7, su inversión oscura. Son siete
+colores en ocho ranuras porque `#9AA5A1` falla **dos veces**: como texto y, por
+separado, como decoración. Se eligieron sobre el blanco de la maqueta; sobre las
+superficies reales del popup (`#F4F8F6` hundida, `#F7FAF8` barra, `#EDF3F0`
+hover, `#1C2926` elevada en oscuro) caen todavía más. Se oscurecieron —o
+aclararon, en oscuro— lo mínimo para pasar, y varios se fusionaron en un solo
+token en vez de mantener un valor por uso: los ocho ocupan **seis** ranuras de
+token.
 
 No los trates como siete excepciones sueltas. La regla es una: **un gris de texto
 tiene que medirse contra la superficie donde se pinta de verdad, no contra el
@@ -223,6 +225,7 @@ blanco.**
 | `#9AA5A1` **usado como texto** — nº de par, fecha del separador de día, rótulo `FORMATO`, ayuda de arrastre, separador `_` | `#9AA5A1` | **2,54** blanco | secundario `#63716C` (nº, día, `FORMATO`) · terciario `#6A7470` (ayuda, `_`) | 5,11 · 4,83 |
 | Acción `Elegir pares` sobre el aviso `#FDF4E7` | `#96702A` | 4,15 | `#8B6725` | 4,74 |
 | Chevron de esa misma fila (decorativo) | `#B08A3F` | **2,94** — falla incluso el listón de 3:1 | mismo token `#8B6725` | 4,74 |
+| `#9AA5A1` **usado como decoración** — chevrones de las filas de ajuste y de navegación, puntos separadores del pie | `#9AA5A1` | **2,54** blanco · 2,37 hundida — falla incluso el listón de 3:1 | `#838E8A` | 3,39 · 3,16 |
 
 Y una corrección que **no** es de contraste: la versión de la cabecera. El handoff
 pide `rgba(255,255,255,.5)`, que compuesto sobre `#06342A` da `#839A95` y mide
@@ -240,7 +243,7 @@ atenuada) sólo porque el checker no resuelve un alfa; el color no era el proble
 | Tinte de acento | `#E7F1ED` · lavado `#F2F8F5` |
 | Texto principal | `#16211E` / `#2B3833` |
 | Texto secundario | `#63716C` (5,11:1) · terciario `#6A7470` (4,83:1) |
-| Gris decorativo | `#9AA5A1` — **sólo chevrones y puntos separadores, nunca texto** (ver abajo) |
+| Gris decorativo | `#838E8A` (3,16:1 en su peor superficie) — **sólo chevrones y puntos separadores, nunca texto** (ver abajo) |
 | Superficie | `#F4F8F6` · barra inferior `#F7FAF8` · hover `#EDF3F0` · teclas `#F1F5F3` |
 | Bordes | `#E2E9E5` · botón `#D6E0DB` · fino `#EBF0EE` |
 | Aviso | fondo `#FDF4E7`, trazo `#B07A0F`, texto `#6B4A05` / `#7A5C1B` / `#7A5406`, acción y chevron `#8B6725` (4,74:1), enlace `#8A6A12`, punto `#F0C368` |
@@ -251,7 +254,8 @@ Cuatro hexes del handoff no se envían por otra razón — se consolidaron en un
 que ya existía, sin cambiar el contraste: el punto de «detectando» `#9CC3B7` usa
 `#8FA8A0` (el mismo punto que «inactivo»); el texto del botón inerte `#AEB9B5` usa
 el token de deshabilitado `#A3AEAA`; los puntos separadores del pie `#C9D3CF` usan
-el gris decorativo `#9AA5A1`; y el anillo de las fichas del nombre de archivo
+el gris decorativo (que sí cambió de contraste, ver la tabla de correcciones:
+`#838E8A`); y el anillo de las fichas del nombre de archivo
 `#DDE6E2` usa el borde `#E2E9E5`. El nombre resultante del pie (§ 5) usa el texto
 principal en vez de `#075343`.
 
@@ -259,11 +263,14 @@ principal en vez de `#075343`.
 
 Esto está aquí para que nadie «arregle» un color que nunca necesitó 4,5:1:
 
-- **`--color-text-muted`** (`#9AA5A1` claro / `#64736E` oscuro) es **decorativo**:
+- **`--color-text-muted`** (`#838E8A` claro / `#64736E` oscuro) es **decorativo**:
   los chevrones de las filas de ajuste y de navegación, y los puntos separadores
-  del pie de opciones. Su listón es 3:1, no 4,5:1. **Hoy mide 2,54:1 sobre blanco
-  y 2,26:1 sobre el hover, así que falla incluso ese 3:1** — es un defecto real,
-  con tarea abierta (`lo-78c0`), no un valor a copiar.
+  del pie de opciones. Su listón es 3:1, no 4,5:1. El valor del handoff
+  (`#9AA5A1`) medía **2,54:1 sobre blanco y 2,37:1 sobre el hover de las filas**,
+  así que fallaba incluso ese 3:1; se oscureció a `#838E8A` (3,39 blanco · 3,16
+  hundida · 3,22 barra) y **los tres usos están asertados** desde `lo-78c0`. En
+  oscuro el valor de § 7 ya pasaba y se envía tal cual, pero con 3,03:1 sobre
+  `#1C2926` no le sobra nada.
 - También son decorativos y van al listón de 3:1 (y sí están asertados): el check
   del formato elegido, la cruz de quitar ficha, el icono de archivo del pie del
   nombre y el chevron del botón volver.
