@@ -816,7 +816,11 @@ function renderAttributes(el: Element): string {
 function renderTag(el: Element): string {
   const tag = el.tagName.toLowerCase();
   const classes = el.getAttribute('class')?.trim();
-  const classPart = classes ? `.${classes.split(/\s+/).join('.')}` : '';
+  // The raw class string, not dot-joined: an earlier draft of this line split
+  // and re-joined on `.`, which contradicted this task's own first test (it
+  // asserts the space-separated `a b` survives). Class values are included
+  // verbatim by design, so this is formatting only, not a leak-safety choice.
+  const classPart = classes ? `.${classes}` : '';
   return `${tag}${classPart}${renderAttributes(el)}`;
 }
 
