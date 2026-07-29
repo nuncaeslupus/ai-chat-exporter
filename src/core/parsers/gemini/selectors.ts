@@ -1,7 +1,7 @@
 /**
  * Gemini DOM selectors
  *
- * Verified against a live capture of gemini.google.com (2026-01-17); the
+ * Verified against a live capture of gemini.google.com (2026-07-29); the
  * trimmed copy lives at tests/fixtures/dom-snapshots/gemini/real-capture.html.
  * Gemini is an Angular app, so its custom element names (`chat-window`,
  * `user-query-content`, `message-content`) are the durable identity here —
@@ -21,10 +21,21 @@ export const GEMINI_SELECTORS: SelectorSet = {
   // The answer body only. `model-response` also wraps the thinking panel,
   // sources and the action bar, none of which belong in an export.
   messageContent: 'message-content .markdown',
-  conversationTitle: '.conversation-title-container .conversation-title',
-  // The sidebar carries a `.conversation-title` per conversation in the
-  // account, so the title selector must stay scoped to the top bar.
-  modelIndicator: '[data-test-id="bard-mode-switcher"] [data-test-id="bard-text"]',
+  // The top bar no longer carries the conversation name (its `center-section`
+  // is empty), so the sidebar entry for the OPEN conversation is the only place
+  // the title still exists. `aria-current="page"` is what marks it — the one
+  // semantic marker in the sidebar, and the only occurrence in the whole page.
+  // `document.title` is not a second source: Gemini leaves it as the bare app
+  // name, and neither live capture even keeps `<head>` to check against.
+  conversationTitle:
+    'gem-nav-list-item[data-test-id="conversation"] a[aria-current="page"] .title-text',
+  // `bard-mode-switcher` moved out of the top bar into the composer, and it is
+  // a *mode* picker, not a model picker: the page's own label reads
+  // "Open mode picker, currently Flash", and the value is sometimes a model
+  // family ("Flash", "Pro") and sometimes an effort tier ("Extended"). See
+  // GeminiParser.getModel for why that is reported as a mode rather than
+  // asserted as a model name.
+  modelIndicator: '[data-test-id="bard-mode-menu-button"] .picker-primary-text',
   custom: {
     buttonArea: '.top-bar-actions .right-section, .top-bar-actions',
   },

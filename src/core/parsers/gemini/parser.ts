@@ -35,18 +35,31 @@ export class GeminiParser extends BaseParser {
   }
 
   /**
-   * Gemini exposes no per-message model slug; the mode switcher label is the
-   * only model-ish string in the DOM (it reads "Gemini" or the picked model).
+   * Gemini exposes no model slug anywhere in the DOM. The composer's mode
+   * picker is the closest thing, but its label is a *mode*: sometimes a model
+   * family ("Flash", "Pro"), sometimes an effort tier ("Extended"). Reporting
+   * it bare would put `Model: Extended` in an export header — a model name that
+   * does not exist. So it is reported as what it is, which stays true either
+   * way and still carries the information.
+   *
+   * ponytail: no allow-list of "real" model names — that would be a guess about
+   * a value set we cannot see (the picker menu is closed in every capture) and
+   * would silently drop labels the day Gemini renames one.
    */
   getModel(): string | null {
-    return this.textOf(this.selectors.modelIndicator);
+    const mode = this.textOf(this.selectors.modelIndicator);
+    return mode === null ? null : `Gemini (${mode} mode)`;
   }
 
   /**
-   * Trimmed text of the first match, or null when absent or blank.
+   * Whitespace-collapsed text of the first match, or null when absent or blank.
+   * Angular templates wrap label text across lines, so a raw `trim()` leaves
+   * newlines inside a title that then reaches the filename builder.
    */
   private textOf(selector: string | undefined): string | null {
-    const text = selector ? this.document.querySelector(selector)?.textContent.trim() : undefined;
+    const text = selector
+      ? this.document.querySelector(selector)?.textContent.replace(/\s+/g, ' ').trim()
+      : undefined;
     return text === undefined || text === '' ? null : text;
   }
 
