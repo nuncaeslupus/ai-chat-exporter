@@ -6,6 +6,13 @@
  * meets WCAG AA (4.5:1 normal text, 3:1 large text), so a future palette
  * edit that reintroduces a low-contrast pair fails this test instead of
  * shipping silently.
+ *
+ * Both palettes are checked. The pair lists are built once and evaluated
+ * per mode: the popup's dark mode swaps only the `:root` token table, so the
+ * same selector/property pairs resolve against the dark values; the exported
+ * document's dark mode overrides whole rules, so each pair falls back to its
+ * light declaration when dark does not restate it. A dark value that fails AA
+ * therefore fails here exactly like a light one — no half-covered palette.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
@@ -70,34 +77,77 @@ function matchingBraceEnd(css: string, braceStart: number): number {
   throw new Error(`unbalanced braces starting at ${String(braceStart)}`);
 }
 
-/** Value of `prop` inside the first `{...}` block whose text starts with `selector`. */
-function declValue(css: string, selector: string, prop: string): string {
+/** Text of the first `{...}` block whose opening brace follows `selector`, if present. */
+function findBlock(css: string, selector: string): string | undefined {
   const idx = css.indexOf(selector);
-  if (idx === -1) throw new Error(`selector not found: ${selector}`);
+  if (idx === -1) return undefined;
   const braceStart = css.indexOf('{', idx);
-  const braceEnd = matchingBraceEnd(css, braceStart);
-  const block = css.slice(braceStart, braceEnd);
+  return css.slice(braceStart, matchingBraceEnd(css, braceStart));
+}
+
+function blockOf(css: string, selector: string): string {
+  const block = findBlock(css, selector);
+  if (block === undefined) throw new Error(`selector not found: ${selector}`);
+  return block;
+}
+
+/**
+ * Value of `prop` inside `selector`'s block, or undefined when either the
+ * selector or the declaration is absent — the "dark mode does not restate this
+ * rule" case, which the dark resolver below turns into a light-value fallback.
+ */
+function findDecl(css: string, selector: string, prop: string): string | undefined {
+  const block = findBlock(css, selector);
+  if (block === undefined) return undefined;
   // Negative lookbehind avoids matching "color:" inside "background-color:"
   // (or any other `-color:`) when `prop` is the bare "color" property.
   const match = new RegExp(`(?<![\\w-])${prop}:\\s*([^;]+);`).exec(block);
   const value = match?.[1];
-  if (value === undefined) throw new Error(`no ${prop} declaration in ${selector}`);
-  return normalizeColor(value);
+  return value === undefined ? undefined : normalizeColor(value);
 }
 
-/** Resolves `var(--x)` against popup.css's :root custom properties. */
-const popupVars: Record<string, string> = {};
-for (const m of popupCss.matchAll(/(--[\w-]+):\s*(#[0-9a-fA-F]{3,8})/g)) {
-  const name = m[1];
-  const value = m[2];
-  if (name && value) popupVars[name] = value;
+/** Value of `prop` inside the first `{...}` block whose text starts with `selector`. */
+function declValue(css: string, selector: string, prop: string): string {
+  // blockOf first, so a renamed selector still fails loudly rather than
+  // silently dropping the assertion.
+  blockOf(css, selector);
+  const value = findDecl(css, selector, prop);
+  if (value === undefined) throw new Error(`no ${prop} declaration in ${selector}`);
+  return value;
 }
-function popupColor(selector: string, prop: string): string {
+
+/**
+ * Custom properties declared in one block.
+ *
+ * Scoped deliberately: popup.css now declares the same token names twice, once
+ * in `:root` and once in the `prefers-color-scheme: dark` block. A file-wide
+ * scan would let the dark values silently overwrite the light ones and quietly
+ * stop testing the light palette at all, so each table is read from its own
+ * block and the pairs are evaluated against one table at a time.
+ */
+function varsIn(block: string): Record<string, string> {
+  const vars: Record<string, string> = {};
+  for (const m of block.matchAll(/(--[\w-]+):\s*(#[0-9a-fA-F]{3,8})/g)) {
+    const name = m[1];
+    const value = m[2];
+    if (name && value) vars[name] = value;
+  }
+  return vars;
+}
+
+const popupLightVars = varsIn(blockOf(popupCss, ':root {'));
+const popupDarkVars = {
+  ...popupLightVars,
+  ...varsIn(blockOf(popupCss, '@media (prefers-color-scheme: dark)')),
+};
+
+/** Resolves `var(--x)` against the given popup token table. */
+function popupColorIn(vars: Record<string, string>, selector: string, prop: string): string {
   const raw = declValue(popupCss, selector, prop);
   const varMatch = /^var\((--[\w-]+)\)$/.exec(raw);
   const varName = varMatch?.[1];
   if (!varName) return raw;
-  const resolved = popupVars[varName];
+  const resolved = vars[varName];
   if (!resolved) throw new Error(`unresolved custom property ${varName}`);
   return resolved;
 }
@@ -130,18 +180,17 @@ function exporterColor(selector: string, prop: string): string {
   return resolveColorExpr(declValue(exporterTs, selector, prop));
 }
 
-// Ambient container backgrounds used by several exported-HTML text rules.
-const headerBg = exporterColor('.header {', 'background');
-const userMsgBg = exporterColor('.user-message {', 'background');
-const assistantMsgBg = exporterColor('.assistant-message {', 'background');
-const bodyBg = exporterColor('body {', 'background-color');
-const artifactBg = exporterColor('.artifact {', 'background');
-const artifactUserBg = exporterColor('.user-message .artifact {', 'background');
-const searchResultBg = exporterColor('.search-result {', 'background');
-const searchResultUserBg = exporterColor('.user-message .search-result {', 'background');
-const thBg = exporterColor('.message-content th {', 'background');
-const preBg = exporterColor('.message-content pre {', 'background');
-const hljsBg = exporterColor('pre code.hljs {', 'background');
+/**
+ * The exported document's dark mode overrides whole rules rather than a token
+ * table, and only overrides what has to change — a rule it leaves alone (the
+ * already-dark `pre` block, say) keeps its light declaration in both modes.
+ * So resolve against the dark block first and fall back to the light rule.
+ */
+const exporterDarkCss = blockOf(exporterTs, '@media screen and (prefers-color-scheme: dark)');
+function exporterDarkColor(selector: string, prop: string): string {
+  const dark = findDecl(exporterDarkCss, selector, prop);
+  return dark === undefined ? exporterColor(selector, prop) : resolveColorExpr(dark);
+}
 
 interface Pair {
   label: string;
@@ -150,7 +199,11 @@ interface Pair {
   threshold: 4.5 | 3;
 }
 
-const popupPairs: Pair[] = [
+/** Resolves a colour declaration for one palette. */
+type Resolve = (selector: string, prop: string) => string;
+
+function makePopupPairs(popupColor: Resolve): Pair[] {
+  return [
   { label: 'popup body text', fg: popupColor('body {', 'color'), bg: popupColor('body {', 'background'), threshold: 4.5 },
   { label: 'popup-version', fg: popupColor('.popup-version {', 'color'), bg: popupColor('.popup-header {', 'background'), threshold: 4.5 },
   { label: 'status-text', fg: popupColor('.status-text {', 'color'), bg: popupColor('.popup-header {', 'background'), threshold: 4.5 },
@@ -249,9 +302,23 @@ const popupPairs: Pair[] = [
   { label: 'popup-version (dimmed header)', fg: popupColor('.popup-version {', 'color'), bg: popupColor("body[data-ui-state='unsupported'] .popup-header {", 'background'), threshold: 4.5 },
   { label: 'status-text (dimmed header)', fg: popupColor('.status-text {', 'color'), bg: popupColor("body[data-ui-state='unsupported'] .popup-header {", 'background'), threshold: 4.5 },
   { label: 'popup-title (dimmed header)', fg: popupColor('.popup-title {', 'color'), bg: popupColor("body[data-ui-state='unsupported'] .popup-header {", 'background'), threshold: 4.5 },
-];
+  ];
+}
 
-const exporterPairs: Pair[] = [
+function makeExporterPairs(exporterColor: Resolve): Pair[] {
+  // Ambient container backgrounds used by several exported-HTML text rules.
+  const headerBg = exporterColor('.header {', 'background');
+  const userMsgBg = exporterColor('.user-message {', 'background');
+  const assistantMsgBg = exporterColor('.assistant-message {', 'background');
+  const bodyBg = exporterColor('body {', 'background-color');
+  const artifactBg = exporterColor('.artifact {', 'background');
+  const artifactUserBg = exporterColor('.user-message .artifact {', 'background');
+  const searchResultBg = exporterColor('.search-result {', 'background');
+  const searchResultUserBg = exporterColor('.user-message .search-result {', 'background');
+  const thBg = exporterColor('.message-content th {', 'background');
+  const preBg = exporterColor('.message-content pre {', 'background');
+
+  return [
   { label: 'export body text', fg: exporterColor('body {', 'color'), bg: bodyBg, threshold: 4.5 },
   { label: 'export .title (32px/700, large text)', fg: exporterColor('.title {', 'color'), bg: headerBg, threshold: 3 },
   { label: 'export .metadata', fg: exporterColor('.metadata {', 'color'), bg: headerBg, threshold: 4.5 },
@@ -285,7 +352,10 @@ const exporterPairs: Pair[] = [
   { label: 'result-domain (default bg)', fg: exporterColor('.result-domain {', 'color'), bg: searchResultBg, threshold: 4.5 },
   { label: 'result-domain (user-message bg)', fg: exporterColor('.result-domain {', 'color'), bg: searchResultUserBg, threshold: 4.5 },
   { label: 'export .footer text', fg: exporterColor('.footer {', 'color'), bg: bodyBg, threshold: 4.5 },
-];
+  ];
+}
+
+const hljsBg = exporterColor('pre code.hljs {', 'background');
 
 // GitHub-Dark syntax highlighting theme (also part of the exported HTML).
 // Search text is the literal selector prefix as it appears in the source
@@ -310,12 +380,38 @@ const hljsPairs: Pair[] = [
   })),
 ];
 
-describe('WCAG AA contrast — popup and exported HTML palettes', () => {
-  it.each([...popupPairs, ...exporterPairs, ...hljsPairs])(
-    '$label meets its WCAG AA threshold ($fg on $bg)',
-    ({ fg, bg, threshold }) => {
-      const ratio = contrastRatio(fg, bg);
-      expect(ratio).toBeGreaterThanOrEqual(threshold);
-    }
-  );
+// The syntax theme is GitHub Dark in both modes — it is already a dark block
+// on a light page, so dark mode leaves it alone and it is checked once.
+const palettes: { mode: string; pairs: Pair[] }[] = [
+  {
+    mode: 'light',
+    pairs: [
+      ...makePopupPairs((s, p) => popupColorIn(popupLightVars, s, p)),
+      ...makeExporterPairs(exporterColor),
+      ...hljsPairs,
+    ],
+  },
+  {
+    mode: 'dark',
+    pairs: [
+      ...makePopupPairs((s, p) => popupColorIn(popupDarkVars, s, p)),
+      ...makeExporterPairs(exporterDarkColor),
+    ],
+  },
+];
+
+describe.each(palettes)('WCAG AA contrast — $mode palette', ({ mode, pairs }) => {
+  it('resolves a full pair list', () => {
+    expect(pairs.length).toBeGreaterThan(80);
+  });
+
+  it.each(pairs)('$label meets its WCAG AA threshold ($fg on $bg)', ({ fg, bg, threshold }) => {
+    const ratio = contrastRatio(fg, bg);
+    expect(ratio).toBeGreaterThanOrEqual(threshold);
+  });
+
+  it('actually swaps palettes between modes', () => {
+    const bodyBg = pairs.find(p => p.label === 'popup body text')?.bg;
+    expect(bodyBg).toBe(mode === 'dark' ? '#141e1b' : '#ffffff');
+  });
 });

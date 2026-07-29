@@ -829,6 +829,197 @@ export class HtmlExporter extends BaseExporter {
             }
         }
 
+        /*
+         * Dark mode for the exported document.
+         *
+         * Scoped to \`screen\` on purpose. An export is a document as much as a
+         * page: it gets printed and archived, and a paper copy is always white.
+         * Without the media type, a reader on a dark OS would print light-grey
+         * ink onto white paper — so the dark palette is screen-only and print
+         * (and print-to-PDF) keeps the light one, no override needed below.
+         *
+         * The hexes are literal rather than \`COLOR\` tokens because style-tokens.ts
+         * is the palette shared with the pdf and docx exporters, which have no
+         * dark surface at all — a dark table there would be dead weight for two
+         * of its three consumers. They are GitHub-Dark neutrals, matching the
+         * syntax theme already inlined below (which needs no override: it is a
+         * dark code block in both modes). Every pair here is held to WCAG AA by
+         * tests/unit/accessibility/contrast.test.ts, same as the light palette.
+         */
+        @media screen and (prefers-color-scheme: dark) {
+            body {
+                color: #c9d1d9;
+                background-color: #0d1117;
+            }
+
+            .header {
+                background: #161b22;
+            }
+
+            .title {
+                color: #e6edf3;
+            }
+
+            .metadata {
+                color: #9198a1;
+            }
+
+            .metadata-value {
+                color: #c9d1d9;
+            }
+
+            .metadata-value a {
+                color: #58a6ff;
+            }
+
+            .user-message {
+                background: #161b22;
+                border-left-color: #58a6ff;
+            }
+
+            .assistant-message {
+                background: #1c2128;
+                border-left-color: #8b949e;
+            }
+
+            .user-message .message-role {
+                color: #58a6ff;
+            }
+
+            .assistant-message .message-role {
+                color: #9198a1;
+            }
+
+            .assistant-message[data-platform="chatgpt"] .message-role {
+                color: #3fb9a0;
+            }
+
+            .assistant-message[data-platform="claude"] .message-role {
+                color: #e08a63;
+            }
+
+            .assistant-message[data-platform="gemini"] .message-role {
+                color: #79aaff;
+            }
+
+            .day-separator {
+                color: #9198a1;
+            }
+
+            .message-timestamp {
+                color: #7d8590;
+            }
+
+            /* The light rule tints with black, which is invisible on a dark card. */
+            .message-content .inline-code {
+                background: rgba(255, 255, 255, 0.08);
+            }
+
+            .assistant-message .inline-code {
+                background: rgba(255, 255, 255, 0.11);
+            }
+
+            .message-content blockquote {
+                color: #a2abb6;
+                border-left-color: #4b535d;
+            }
+
+            .message-content hr {
+                border-top-color: #30363d;
+            }
+
+            .message-content a {
+                color: #58a6ff;
+            }
+
+            .message-content table {
+                border-color: #30363d;
+            }
+
+            .message-content th,
+            .message-content td {
+                border-color: #30363d;
+            }
+
+            .message-content th {
+                background: #1c2128;
+            }
+
+            .message-content tr:nth-child(even) {
+                background: #161b22;
+            }
+
+            .artifacts-section {
+                border-top-color: #30363d;
+            }
+
+            .artifacts-section h3 {
+                color: #c9d1d9;
+            }
+
+            .web-searches-section {
+                border-top-color: #30363d;
+            }
+
+            .web-searches-section h3 {
+                color: #c9d1d9;
+            }
+
+            .artifact {
+                background: #161b22;
+                border-color: #30363d;
+            }
+
+            .user-message .artifact {
+                background: #1c2128;
+            }
+
+            .artifact h4 {
+                color: #e6edf3;
+            }
+
+            .artifact-type {
+                color: #9198a1;
+            }
+
+            .web-search h4 {
+                color: #e6edf3;
+            }
+
+            .search-count {
+                color: #a2abb6;
+            }
+
+            .search-result {
+                background: #161b22;
+                border-color: #30363d;
+            }
+
+            .user-message .search-result {
+                background: #1c2128;
+            }
+
+            .search-result:hover {
+                background: #1c2128;
+            }
+
+            .user-message .search-result:hover {
+                background: #22282f;
+            }
+
+            .result-title {
+                color: #58a6ff;
+            }
+
+            .result-domain {
+                color: #9198a1;
+            }
+
+            .footer {
+                color: #9198a1;
+            }
+        }
+
         @media print {
             body {
                 background: white;
