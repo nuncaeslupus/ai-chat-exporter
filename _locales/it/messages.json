@@ -145,6 +145,22 @@
     "message": "Ora in ogni messaggio",
     "description": "Label for the toggle controlling whether exports include message timestamps"
   },
+  "optionFontScale": {
+    "message": "Dimensione del testo",
+    "description": "Etichetta del controllo a tre livelli per la dimensione del testo nella vista Opzioni"
+  },
+  "optionFontScaleCompact": {
+    "message": "Compatto",
+    "description": "La più piccola delle tre dimensioni: l'esportazione occupa meno pagine"
+  },
+  "optionFontScaleNormal": {
+    "message": "Normale",
+    "description": "Dimensione del testo predefinita fra le tre"
+  },
+  "optionFontScaleLarge": {
+    "message": "Grande",
+    "description": "La più grande delle tre dimensioni: più leggibile, più pagine"
+  },
   "optionsFilenameRow": {
     "message": "Nome del file",
     "description": "Label of the file-name navigation row in the Options submenu"

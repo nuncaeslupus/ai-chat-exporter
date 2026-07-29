@@ -145,6 +145,22 @@
     "message": "Hora a cada missatge",
     "description": "Label for the toggle controlling whether exports include message timestamps"
   },
+  "optionFontScale": {
+    "message": "Mida del text",
+    "description": "Etiqueta del control de mida de text de tres passos a la vista d'opcions"
+  },
+  "optionFontScaleCompact": {
+    "message": "Compacte",
+    "description": "La més petita de les tres mides de text: l'exportació ocupa menys pàgines"
+  },
+  "optionFontScaleNormal": {
+    "message": "Normal",
+    "description": "Mida de text predeterminada de les tres"
+  },
+  "optionFontScaleLarge": {
+    "message": "Gran",
+    "description": "La més gran de les tres mides de text: més llegible, més pàgines"
+  },
   "optionsFilenameRow": {
     "message": "Nom del fitxer",
     "description": "Label of the file-name navigation row in the Options submenu"

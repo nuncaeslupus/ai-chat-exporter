@@ -72,6 +72,12 @@ const POPUP_DOM = `
     <button id="print-button" disabled></button>
     <input type="checkbox" id="option-include-metadata" />
     <input type="checkbox" id="option-include-timestamps" />
+    <fieldset class="option-row option-row--choice">
+      <legend data-i18n="optionFontScale">Text size</legend>
+      <label><input type="radio" name="option-font-scale" value="compact" /></label>
+      <label><input type="radio" name="option-font-scale" value="normal" /></label>
+      <label><input type="radio" name="option-font-scale" value="large" /></label>
+    </fieldset>
   </div>
 `;
 
@@ -250,6 +256,32 @@ describe('popup export options', () => {
       );
     });
   });
+
+  it('reflects the persisted text-size step on load', async () => {
+    await chrome.storage.sync.set({ user_preferences: { fontScale: 'compact' } });
+
+    await loadPopup();
+
+    const checked = [
+      ...document.querySelectorAll<HTMLInputElement>('input[name="option-font-scale"]'),
+    ].filter((input) => input.checked);
+    expect(checked.map((input) => input.value)).toEqual(['compact']);
+  });
+
+  it('persists a text-size change to storage', async () => {
+    await loadPopup();
+
+    const large = document.querySelector<HTMLInputElement>(
+      'input[name="option-font-scale"][value="large"]'
+    )!;
+    large.checked = true;
+    large.dispatchEvent(new Event('change'));
+
+    await vi.waitFor(async () => {
+      const stored = await chrome.storage.sync.get('user_preferences');
+      expect((stored.user_preferences as { fontScale: string }).fontScale).toBe('large');
+    });
+  });
 });
 
 describe('popup export options accessibility', () => {
@@ -264,6 +296,18 @@ describe('popup export options accessibility', () => {
       const inputTag = new RegExp(`<input[^>]*id="${id}"[^>]*>`).exec(html)?.[0];
       expect(inputTag).toBeDefined();
     }
+  });
+
+  it('names the text-size group with a legend and wraps each step in its own label', () => {
+    const html = readFileSync(
+      resolve(__dirname, '../../../../src/extension/popup/popup.html'),
+      'utf-8'
+    );
+    const fieldset = /<fieldset[^>]*option-row--choice[\s\S]*?<\/fieldset>/.exec(html)?.[0];
+    expect(fieldset).toBeDefined();
+    expect(fieldset).toMatch(/<legend[^>]*data-i18n="optionFontScale"/);
+    // A wrapping <label> per radio, so the step's text is its accessible name.
+    expect(fieldset?.match(/<label[^>]*>\s*<input type="radio"/g)).toHaveLength(3);
   });
 });
 

@@ -145,6 +145,22 @@
     "message": "Heure sur chaque message",
     "description": "Libellé du commutateur contrôlant l'inclusion des horodatages dans les exports"
   },
+  "optionFontScale": {
+    "message": "Taille du texte",
+    "description": "Libellé du contrôle de taille de texte à trois crans dans la vue Options"
+  },
+  "optionFontScaleCompact": {
+    "message": "Compact",
+    "description": "La plus petite des trois tailles de texte : l'export tient en moins de pages"
+  },
+  "optionFontScaleNormal": {
+    "message": "Normal",
+    "description": "Taille de texte par défaut parmi les trois"
+  },
+  "optionFontScaleLarge": {
+    "message": "Grand",
+    "description": "La plus grande des trois tailles de texte : plus lisible, plus de pages"
+  },
   "optionsFilenameRow": {
     "message": "Nom du fichier",
     "description": "Label of the file-name navigation row in the Options submenu"

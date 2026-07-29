@@ -11,7 +11,7 @@ import {
 } from '../../shared/messages';
 import { sendTabMessage } from '../../shared/tab-messaging';
 import type { Conversation, QAPair } from '../../core/types/conversation';
-import { EXPORT_FORMATS, type ExportFormat } from '../../core/types/exporter';
+import { EXPORT_FORMATS, type ExportFormat, type FontScale } from '../../core/types/exporter';
 import {
   getMessage,
   getMessageWithValues,
@@ -365,6 +365,12 @@ class PopupController {
       timestampsToggle.checked = prefs.includeTimestamps;
     }
 
+    // Preferences saved before the text-size setting existed carry no value;
+    // they are `normal`, which is what they have been exporting at all along.
+    for (const step of this.fontScaleInputs()) {
+      step.checked = step.value === (prefs.fontScale ?? 'normal');
+    }
+
     this.filenamePieces = prefs.filenamePieces ? clonePieces(prefs.filenamePieces) : undefined;
     this.renderFilenameBuilder();
 
@@ -521,11 +527,21 @@ class PopupController {
     document.getElementById('option-include-timestamps')?.addEventListener('change', (e) => {
       void this.persistPreference({ includeTimestamps: (e.target as HTMLInputElement).checked });
     });
+    for (const step of this.fontScaleInputs()) {
+      step.addEventListener('change', () => {
+        void this.persistPreference({ fontScale: step.value as FontScale });
+      });
+    }
 
     // File name: back to the piece list the extension ships with.
     document.getElementById('filename-restore-default')?.addEventListener('click', () => {
       this.applyPieces(clonePieces(DEFAULT_FILENAME_PIECES));
     });
+  }
+
+  /** The three text-size steps. Empty until the Options view is in the DOM. */
+  private fontScaleInputs(): HTMLInputElement[] {
+    return [...document.querySelectorAll<HTMLInputElement>('input[name="option-font-scale"]')];
   }
 
   /** Every preference write goes through here so the Options dot stays honest. */

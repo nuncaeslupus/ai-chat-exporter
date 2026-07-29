@@ -33,6 +33,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   includeMetadata: true,
   includeTimestamps: true,
   includeCodeBlocks: true,
+  fontScale: 'normal',
   filenameTemplate: '{title}_{date}',
   defaultFormat: 'pdf' as const,
   autoSelectAll: true,

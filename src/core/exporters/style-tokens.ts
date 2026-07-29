@@ -21,10 +21,12 @@
  * heading *levels* they are indexed by, however, are canonical: see
  * `DOC_HEADING_LEVEL` / `bodyHeadingLevel` below.
  *
- * A later global scale factor (compact/normal/large, see C-4) can multiply
- * every entry of `FONT_SIZE_PT` (and the per-format size tables) uniformly
- * since they are plain numbers in one unit — no rewrite needed.
+ * The global scale factor (compact/normal/large, C-4) multiplies every entry
+ * of `FONT_SIZE_PT` and of the per-format size tables uniformly — see
+ * `scaleFontSizes` below.
  */
+
+import type { FontScale } from '../types';
 
 // ---------------------------------------------------------------------------
 // Unit conversion helpers
@@ -223,6 +225,16 @@ export const PDF_FONT_SIZE_PT = {
 export const DOCX_FONT_SIZE_PT = {
   title: 16,
   artifactTitle: 13,
+  /**
+   * Document heading levels 1-6, index 0 = level 1. docx renders headings
+   * through Word's built-in `Heading N` styles, whose sizes live in Word's
+   * default stylesheet rather than here — which would leave them *fixed* while
+   * the C-4 font scale moved the body text, inverting the hierarchy at
+   * `large`. So the ramp is declared (Word's own default sizes, unchanged at
+   * `normal`) and written into the document's default heading styles, where
+   * the scale reaches it like every other size.
+   */
+  headingByLevel: [16, 13, 12, 11, 11, 11],
 } as const;
 
 export const HTML_FONT_SIZE_PT = {
@@ -232,6 +244,66 @@ export const HTML_FONT_SIZE_PT = {
   roleLabel: 10.5,
   timestamp: 9.75,
 } as const;
+
+// ---------------------------------------------------------------------------
+// Global type scale (C-4)
+// ---------------------------------------------------------------------------
+
+/**
+ * The three steps, as multipliers over the tables above.
+ *
+ * Three steps, deliberately — not a size input. The user-facing point is
+ * "fewer pages", so the useful control is a coarse one, and a coarse one can
+ * be applied to the *whole* ramp at once without a designer in the loop.
+ *
+ * `compact` / `large` are far enough apart (0.8 / 1.25, a factor of ~1.6) that
+ * the page count of a real conversation actually moves; anything tighter is a
+ * setting the user cannot see the effect of.
+ */
+export const FONT_SCALE_FACTOR = {
+  compact: 0.8,
+  normal: 1,
+  large: 1.25,
+} as const satisfies Record<FontScale, number>;
+
+/**
+ * Factor for a step, defaulting to `normal` — preferences stored before this
+ * setting existed carry no `fontScale`, and they must keep exporting exactly
+ * as they did.
+ */
+export function fontScaleFactor(scale?: FontScale): number {
+  return FONT_SCALE_FACTOR[scale ?? 'normal'];
+}
+
+/**
+ * Same table, every size multiplied. The heading ramps keep their tuple shape
+ * so a fixed-length lookup stays a `number`, not a `number | undefined`.
+ */
+type ScaledRamp<A> = { -readonly [I in keyof A]: number };
+type Scaled<T> = {
+  [K in keyof T]: T[K] extends readonly number[] ? ScaledRamp<T[K]> : number;
+};
+
+/**
+ * Multiply a pt size table by a step's factor.
+ *
+ * One pass over the table is enough because every entry is a plain number in
+ * one unit — which is why headings, code, metadata and body cannot drift apart
+ * under the scale: there is no per-entry decision to get wrong.
+ */
+export function scaleFontSizes<T extends Record<string, number | readonly number[]>>(
+  table: T,
+  scale?: FontScale
+): Scaled<T> {
+  const factor = fontScaleFactor(scale);
+  const round = (pt: number): number => Math.round(pt * factor * 100) / 100;
+  return Object.fromEntries(
+    Object.entries(table).map(([key, value]) => [
+      key,
+      typeof value === 'number' ? round(value) : value.map(round),
+    ])
+  ) as Scaled<T>;
+}
 
 // ---------------------------------------------------------------------------
 // Spacing scale
