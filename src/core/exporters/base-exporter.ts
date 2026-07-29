@@ -11,7 +11,13 @@ import type {
   MediaBlock,
   QAPair,
 } from '../types';
-import { getMessage, getPlatformName, getUILanguage } from '../../shared/i18n';
+import {
+  displayName,
+  getMessage,
+  getPlatformName,
+  getRoleName as localizedRoleName,
+  getUILanguage,
+} from '../../shared/i18n';
 
 /**
  * Seconds -> "M:SS", or "H:MM:SS" once it passes an hour. Format-agnostic: the
@@ -220,14 +226,12 @@ export abstract class BaseExporter implements IExporter {
   protected getRoleName(role: string, platform?: string): string {
     // If platform is specified, try to get platform-specific assistant name
     if (role === 'assistant' && platform) {
-      const key = `role${platform.charAt(0).toUpperCase()}${platform.slice(1)}`;
+      const key = `role${displayName(platform)}`;
       const message = getMessage(key);
       if (message !== key) return message;
     }
 
     // Fallback to generic role name
-    const key = `role${role.charAt(0).toUpperCase()}${role.slice(1)}`;
-    const message = getMessage(key);
-    return message !== key ? message : role.charAt(0).toUpperCase() + role.slice(1);
+    return localizedRoleName(role);
   }
 }
