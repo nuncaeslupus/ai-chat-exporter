@@ -481,10 +481,13 @@ const daySeparator = this.daySeparator(options.includeTimestamps);
 const daySeparator = this.daySeparator(options.showMetaInfo);
 ```
 
-Re-run `pnpm typecheck` until clean. Do **not** rename the parameters of
-`formatTimestampSuffix(date, includeTimestamps)` or `daySeparator()` in
-`base-exporter.ts` — they take a flag, and the flag's provenance is the
-caller's business.
+Re-run `pnpm typecheck` until clean.
+
+Also rename the parameter in `base-exporter.ts`: `formatTimestampSuffix(date,
+includeTimestamps)` becomes `formatTimestampSuffix(date, showMetaInfo)`, and
+`daySeparator(includeTimestamps)` becomes `daySeparator(showMetaInfo)`. After
+the merge there is exactly one flag; two names for it is drift. Update their
+doc comments to say the flag gates times *and* the header block.
 
 - [ ] **Step 5: Add the storage migration**
 
