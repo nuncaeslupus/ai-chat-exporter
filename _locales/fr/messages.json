@@ -103,10 +103,6 @@
     "description": "Main button label after a degraded export"
   },
 
-  "actionsTitle": {
-    "message": "Actions",
-    "description": "Titre de la section actions"
-  },
   "exportButton": {
     "message": "Exporter",
     "description": "Libellé du bouton exporter"
@@ -172,27 +168,6 @@
     "placeholders": {
       "index": { "content": "$1", "example": "1" }
     }
-  },
-
-  "qaPairSingular": {
-    "message": "paire Q&R",
-    "description": "Forme singulière de paire question-réponse"
-  },
-  "qaPairPlural": {
-    "message": "paires Q&R",
-    "description": "Forme plurielle de paires question-réponse"
-  },
-  "wordCount": {
-    "message": "mots",
-    "description": "Libellé du nombre de mots"
-  },
-  "badgeCode": {
-    "message": "Code",
-    "description": "Badge pour contenu de code"
-  },
-  "badgeImages": {
-    "message": "Images",
-    "description": "Badge pour contenu d'images"
   },
 
   "metadataFieldPlatform": {
@@ -262,33 +237,6 @@
     "description": "Nom de la plateforme Grok"
   },
 
-  "contentTagCode": {
-    "message": "Code",
-    "description": "Étiquette pour blocs de code"
-  },
-  "contentTagImage": {
-    "message": "Image",
-    "description": "Étiquette pour une seule image"
-  },
-  "contentTagImages": {
-    "message": "$1 Images",
-    "description": "Étiquette pour plusieurs images. $1 = nombre d'images",
-    "placeholders": {
-      "count": {
-        "content": "$1",
-        "example": "3"
-      }
-    }
-  },
-  "contentTagCanvas": {
-    "message": "Canevas",
-    "description": "Étiquette pour contenu de canevas/document"
-  },
-  "contentTagDeepResearch": {
-    "message": "Recherche Approfondie",
-    "description": "Étiquette pour réponses de recherche approfondie"
-  },
-
   "pageNumberFormat": {
     "message": "Page $1 sur $2",
     "description": "Format du numéro de page pour exports PDF. $1 = page actuelle, $2 = total de pages",
@@ -307,17 +255,6 @@
   "exportedWithChatExporter": {
     "message": "Exporté avec Exportateur de Chats IA",
     "description": "Message de pied de page dans les exports HTML"
-  },
-
-  "imageAltText": {
-    "message": "Image : $1",
-    "description": "Texte alternatif pour images dans exports. $1 = description de l'image",
-    "placeholders": {
-      "description": {
-        "content": "$1",
-        "example": "capture d'écran"
-      }
-    }
   },
 
   "footerPrivacy": {

@@ -103,10 +103,6 @@
     "description": "Main button label after a degraded export"
   },
 
-  "actionsTitle": {
-    "message": "Azioni",
-    "description": "Title for actions section"
-  },
   "exportButton": {
     "message": "Esporta",
     "description": "Export button label"
@@ -172,27 +168,6 @@
     "placeholders": {
       "index": { "content": "$1", "example": "1" }
     }
-  },
-
-  "qaPairSingular": {
-    "message": "coppia Q&R",
-    "description": "Singular form of Q&A pair"
-  },
-  "qaPairPlural": {
-    "message": "coppie Q&R",
-    "description": "Plural form of Q&A pairs"
-  },
-  "wordCount": {
-    "message": "parole",
-    "description": "Word count label"
-  },
-  "badgeCode": {
-    "message": "Codice",
-    "description": "Badge for code content"
-  },
-  "badgeImages": {
-    "message": "Immagini",
-    "description": "Badge for image content"
   },
 
   "metadataFieldPlatform": {
@@ -262,33 +237,6 @@
     "description": "Grok platform name"
   },
 
-  "contentTagCode": {
-    "message": "Codice",
-    "description": "Etichetta per blocchi di codice"
-  },
-  "contentTagImage": {
-    "message": "Immagine",
-    "description": "Etichetta per singola immagine"
-  },
-  "contentTagImages": {
-    "message": "$1 Immagini",
-    "description": "Etichetta per più immagini. $1 = numero di immagini",
-    "placeholders": {
-      "count": {
-        "content": "$1",
-        "example": "3"
-      }
-    }
-  },
-  "contentTagCanvas": {
-    "message": "Canvas",
-    "description": "Etichetta per contenuto canvas/documento"
-  },
-  "contentTagDeepResearch": {
-    "message": "Ricerca Approfondita",
-    "description": "Etichetta per risposte di ricerca approfondita"
-  },
-
   "pageNumberFormat": {
     "message": "Pagina $1 di $2",
     "description": "Page number format for PDF exports. $1 = current page, $2 = total pages",
@@ -307,17 +255,6 @@
   "exportedWithChatExporter": {
     "message": "Esportato con AI Chat Exporter",
     "description": "Footer message in HTML exports"
-  },
-
-  "imageAltText": {
-    "message": "Immagine: $1",
-    "description": "Alt text for images in exports. $1 = image description",
-    "placeholders": {
-      "description": {
-        "content": "$1",
-        "example": "screenshot"
-      }
-    }
   },
 
   "footerPrivacy": {
