@@ -399,6 +399,12 @@ function makePopupPairs(popupColor: Resolve): Pair[] {
       threshold: 4.5,
     },
     {
+      label: 'drift report Copy button (text on footer)',
+      fg: popupColor('.drift-report-secondary {', 'color'),
+      bg: popupColor('.submenu-footer {', 'background'),
+      threshold: 4.5,
+    },
+    {
       label: 'no-selection row label',
       fg: popupColor(
         ".popup-body[data-ui-state='noSelection'] .setting-row[data-nav='content'] .setting-row-label {",

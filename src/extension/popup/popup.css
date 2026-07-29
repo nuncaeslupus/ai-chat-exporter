@@ -1779,3 +1779,27 @@ kbd {
   min-width: 0;
   color: var(--color-text-secondary);
 }
+
+/*
+ * "Copy report" — the text-button idiom this popup already uses for a
+ * secondary action (cf. `.pair-chooser-toggle-all`), not a second filled
+ * button competing with "Copy & report" beside it. `height` matches
+ * `.submenu-done` so the two sit on one baseline in the footer row; without
+ * it the button collapsed to its 19px line box next to a 34px primary.
+ */
+.drift-report-secondary {
+  flex: none;
+  height: 34px;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.drift-report-secondary:hover {
+  color: var(--color-accent-pressed);
+}
