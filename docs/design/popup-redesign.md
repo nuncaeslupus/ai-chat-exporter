@@ -71,6 +71,12 @@ la caja pequeña:
 
 ## Screens / Views
 
+> **Los hexes de esta sección son los del handoff, no siempre los que se envían.**
+> Siete de ellos no pasan el gate de contraste del repo y se sustituyeron; la
+> tabla de **Design Tokens** es la autoridad, y lleva la lista completa con las
+> cifras medidas. Igual que con la escala tipográfica, lee la cifra de aquí y
+> tradúcela allí — no la copies a `popup.css`.
+
 ### 1. Estado principal — “Listo”
 **Propósito**: exportar la conversación abierta en un clic.
 
@@ -131,7 +137,39 @@ Misma caja; sin ejemplos ni textos explicativos largos. Tres filas:
 - **Recarga necesaria**: punto `#F0C368`, `Recarga`. Círculo 38 px `#FDF4E7` con icono de recarga 20 px `#B07A0F`; titular `Recarga la página para exportar esta conversación` 14.5 px / 650; detalle 11.5 px `#6E7C77`; **botón `Recargar la página`** 42 px, radio 11, `#0A6B54` (usa `chrome.tabs.reload`); debajo, atajo opcional en teclas `Ctrl` `R` (10.5 px monospace sobre `#F1F5F3`, radio 5).
 
 ### 7. Modo oscuro (discreto, `prefers-color-scheme: dark`)
-Mismo layout, tokens sustituidos: fondo `#141E1B`, cabecera `#0B1F1A`, superficies `#1C2926` / `#182421`, barra inferior `#101917`, bordes `#293833` / `#2E3E38`, texto `#E9F0ED`, texto secundario `#8FA29C` / `#7C8C87`, acento `#3FB394` con texto sobre acento `#07211A`, tinte `#1E332D` y acento claro `#6FD3B5`.
+Mismo layout, tokens sustituidos: fondo `#141E1B`, cabecera `#0B1F1A`, superficies `#1C2926` / `#182421`, barra inferior `#101917`, bordes `#293833` / `#2E3E38`, texto `#E9F0ED`, texto secundario `#8FA29C` (6,35:1), acento `#3FB394` con texto sobre acento `#07211A`, tinte `#1E332D` y acento claro `#6FD3B5`.
+
+**Corrección de contraste.** El terciario `#7C8C87` que pedía este párrafo clara AA
+sobre la página (4,84:1) pero sólo mide **4,27:1 sobre la superficie elevada
+`#1C2926`** — que es justo donde se pintan el valor de fila y el separador `_` del
+nombre de archivo. Se envía **`#849490`** (5,38:1 sobre la página, 4,75:1 sobre
+`#1C2926`): el mismo tratamiento que los seis grises de la tabla clara, en la otra
+dirección. Es la única cifra de § 7 que el gate contradice.
+
+**Lo que § 7 no dice.** El párrafo se queda en los neutros y el acento, así que el
+resto de la tabla oscura está **derivado**, no diseñado:
+
+- **Ámbar / avisos — pendiente de diseñador.** No hay ningún juego oscuro en el
+  handoff. Se derivó invirtiendo el par claro (superficie oscura `#2A2114`, tinta
+  clara) y sometiéndolo a los mismos umbrales: `#F5DFAE` (12,10:1), `#E2CB9C`
+  (10,00:1), acción y enlace `#E6C37E` (9,41:1), trazo `#E0A93C` (7,47:1), punto
+  `#F0C368`. **Pasa el gate, pero el gate no es el juez aquí**: son ocho tokens
+  que pintan una tarjeta entera, y ningún test sabe decir si un ámbar así se lee
+  como aviso sobre un popup oscuro o como un simple resaltado. Se envía tal cual
+  porque no hay alternativa y funciona, pero **quiere el ojo del diseñador y luego
+  una línea en este documento** — al contrario que `--color-danger`, que se da por
+  bueno porque pinta un punto.
+- Derivados menores, sin nada que decidir: el paso de cuerpo `#D5E0DC` bajo el
+  texto primario, la hairline `#1F2C28`, la cabecera atenuada `#0A1A16`, el acento
+  pulsado `#55C4A6` (en claro el pulsado baja; en oscuro el acento ya es la mitad
+  clara del par, así que sube), esqueletos, deshabilitados y el gris decorativo
+  `#64736E`.
+
+**El HTML exportado también tiene modo oscuro, y está acotado a `@media screen`**
+(`@media screen and (prefers-color-scheme: dark)` en `html-exporter.ts`). Es
+deliberado: un documento sale oscuro en pantalla y claro en papel, sin necesidad de
+un `@media print` que deshaga la paleta. Ambas paletas del exportado pasan por el
+mismo test de contraste.
 
 ---
 
@@ -151,23 +189,97 @@ Mismo layout, tokens sustituidos: fondo `#141E1B`, cabecera `#0B1F1A`, superfici
 - `view: 'main' | 'content' | 'options' | 'filename'` — submenú activo.
 - `formatMenuOpen: boolean`.
 - Preferencias en `StorageService`: `includeMetadata`, `includeTimestamps`, `filenameTemplate` (nuevo: lista ordenada de piezas). El punto verde de “Opciones” = alguna preferencia distinta del valor por defecto.
-- Estado de UI: `'detecting' | 'ready' | 'noSelection' | 'warning' | 'unsupported' | 'reload' | 'error'`.
+- Estado de UI: `'detecting' | 'ready' | 'noSelection' | 'warning' | 'unsupported' | 'reload' | 'error'`. `'error'` no tiene pantalla diseñada y sólo pinta el punto de la cabecera; su color está resuelto en **Design Tokens → Estado `error`**.
 
 ## Design Tokens
-**Colores (claro)**
+
+### Contraste: manda el gate, no este documento
+
+El repo hace cumplir WCAG AA en `tests/unit/accessibility/contrast.test.ts`:
+**4,5:1 para texto y 3:1 para gráficos no textuales**. El test lee `popup.css`
+directamente, resuelve las **dos** tablas de tokens (clara y oscura) y comprueba
+cada par texto/fondo. Cuando este documento y el gate no coinciden, **gana el
+gate**. Las tablas de abajo recogen lo que se envía, con la cifra medida al lado.
+
+**Siete colores del handoff no lo pasan, y todos son la misma equivocación**:
+grises claros sobre superficies claras — y, en § 7, su inversión oscura. Se
+eligieron sobre el blanco de la maqueta; sobre las superficies reales del popup
+(`#F4F8F6` hundida, `#F7FAF8` barra, `#EDF3F0` hover, `#1C2926` elevada en
+oscuro) caen todavía más. Se oscurecieron —o aclararon, en oscuro— lo mínimo para
+pasar, y varios se fusionaron en un solo token en vez de mantener un valor por
+uso: los siete colores ocupan **cinco** ranuras de token.
+
+No los trates como siete excepciones sueltas. La regla es una: **un gris de texto
+tiene que medirse contra la superficie donde se pinta de verdad, no contra el
+blanco.**
+
+#### Correcciones (claro)
+
+| Uso | Handoff | Medido | Se envía | Medido |
+| --- | --- | --- | --- | --- |
+| Texto secundario — meta, ayuda de estado, resúmenes, pie de opciones | `#6E7C77` | 4,36 blanco · 4,07 `#F4F8F6` · 4,15 `#F7FAF8` | `#63716C` | 5,11 · 4,77 · 4,86 |
+| Línea de privacidad (sobre la barra `#F7FAF8`) | `#7E8D88` | **3,30** | mismo token `#63716C` | 4,86 |
+| Texto terciario — valor de fila, nombre de archivo en mono | `#8A9691` | 3,06 blanco · 2,86 `#F4F8F6` | `#6A7470` | 4,83 · 4,51 |
+| `#9AA5A1` **usado como texto** — nº de par, fecha del separador de día, rótulo `FORMATO`, ayuda de arrastre, separador `_` | `#9AA5A1` | **2,54** blanco | secundario `#63716C` (nº, día, `FORMATO`) · terciario `#6A7470` (ayuda, `_`) | 5,11 · 4,83 |
+| Acción `Elegir pares` sobre el aviso `#FDF4E7` | `#96702A` | 4,15 | `#8B6725` | 4,74 |
+| Chevron de esa misma fila (decorativo) | `#B08A3F` | **2,94** — falla incluso el listón de 3:1 | mismo token `#8B6725` | 4,74 |
+
+Y una corrección que **no** es de contraste: la versión de la cabecera. El handoff
+pide `rgba(255,255,255,.5)`, que compuesto sobre `#06342A` da `#839A95` y mide
+4,58:1 — **pasa**. Se aplanó a `#9FB3AD` (6,22:1 sobre la cabecera, 6,78:1 sobre la
+atenuada) sólo porque el checker no resuelve un alfa; el color no era el problema.
+
+#### Colores (claro) — vigentes
+
 | Uso | Valor |
 | --- | --- |
-| Acento / acciones | `#0A6B54` (6.4:1 sobre blanco) |
+| Acento / acciones | `#0A6B54` (6,47:1 sobre blanco, 5,61:1 sobre el tinte) |
 | Acento pulsado | `#075343` |
 | Cabecera | `#06342A` (atenuada: `#0E2C25`) |
-| Acento sobre cabecera | `#7FD9BE`, texto `#C9EDE1` |
-| Tinte de acento | `#E7F1ED` |
+| Acento sobre cabecera | `#7FD9BE`, texto `#C9EDE1` (10,89:1), versión `#9FB3AD` (6,22:1) |
+| Tinte de acento | `#E7F1ED` · lavado `#F2F8F5` |
 | Texto principal | `#16211E` / `#2B3833` |
-| Texto secundario | `#6E7C77` · terciario `#8A9691` / `#9AA5A1` |
-| Superficie | `#F4F8F6` · barra inferior `#F7FAF8` · hover `#EDF3F0` |
+| Texto secundario | `#63716C` (5,11:1) · terciario `#6A7470` (4,83:1) |
+| Gris decorativo | `#9AA5A1` — **sólo chevrones y puntos separadores, nunca texto** (ver abajo) |
+| Superficie | `#F4F8F6` · barra inferior `#F7FAF8` · hover `#EDF3F0` · teclas `#F1F5F3` |
 | Bordes | `#E2E9E5` · botón `#D6E0DB` · fino `#EBF0EE` |
-| Aviso | fondo `#FDF4E7`, trazo `#B07A0F`, texto `#6B4A05` / `#7A5C1B`, punto `#F0C368` |
-| Deshabilitado | fondo `#E9EEEC`, texto `#A3AEAA`, borde `#E6ECE9` |
+| Aviso | fondo `#FDF4E7`, trazo `#B07A0F`, texto `#6B4A05` / `#7A5C1B` / `#7A5406`, acción y chevron `#8B6725` (4,74:1), enlace `#8A6A12`, punto `#F0C368` |
+| Error | `#B3261E` (6,54:1 sobre blanco) — ver «Estado `error`» abajo |
+| Deshabilitado | fondo `#E9EEEC`, texto `#A3AEAA`, icono `#BAC4C0`, borde `#E6ECE9` |
+
+Cuatro hexes del handoff no se envían por otra razón — se consolidaron en un token
+que ya existía, sin cambiar el contraste: el punto de «detectando» `#9CC3B7` usa
+`#8FA8A0` (el mismo punto que «inactivo»); el texto del botón inerte `#AEB9B5` usa
+el token de deshabilitado `#A3AEAA`; los puntos separadores del pie `#C9D3CF` usan
+el gris decorativo `#9AA5A1`; y el anillo de las fichas del nombre de archivo
+`#DDE6E2` usa el borde `#E2E9E5`. El nombre resultante del pie (§ 5) usa el texto
+principal en vez de `#075343`.
+
+#### Qué es decorativo y qué es texto
+
+Esto está aquí para que nadie «arregle» un color que nunca necesitó 4,5:1:
+
+- **`--color-text-muted`** (`#9AA5A1` claro / `#64736E` oscuro) es **decorativo**:
+  los chevrones de las filas de ajuste y de navegación, y los puntos separadores
+  del pie de opciones. Su listón es 3:1, no 4,5:1. **Hoy mide 2,54:1 sobre blanco
+  y 2,26:1 sobre el hover, así que falla incluso ese 3:1** — es un defecto real,
+  con tarea abierta (`lo-78c0`), no un valor a copiar.
+- También son decorativos y van al listón de 3:1 (y sí están asertados): el check
+  del formato elegido, la cruz de quitar ficha, el icono de archivo del pie del
+  nombre y el chevron del botón volver.
+- No llevan ratio ninguno: los puntos de estado de 5 px, el punto de aviso
+  `#F0C368`, las hairlines del separador de día `#EBF0EE` y los bordes.
+- El texto deshabilitado (`#A3AEAA` sobre `#E9EEEC`) está exento por WCAG y no se
+  aserta.
+
+#### Estado `error`
+
+El enum de *State Management* incluye `'error'` pero el handoff **no le da color**.
+Se envía `--color-danger: #B3261E` (claro) / `#F2B8B5` (oscuro), y **se da por
+bueno**: es el rojo de error estándar de Material, mide 6,54:1 sobre blanco y
+9,99:1 sobre la página oscura, y pinta exactamente un punto de 5 px en la píldora
+de la cabecera. No hay pantalla de error diseñada. Si alguna vez se diseña, el
+color vuelve a estar en juego; mientras pinte un punto, no bloquea nada.
 
 **Colores (oscuro)**: ver sección 7.
 
