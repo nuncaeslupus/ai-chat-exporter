@@ -266,7 +266,19 @@ export abstract class BaseParser implements IParser {
         html?.textContent?.trim() ||
         mathEl.textContent?.trim() ||
         '';
-      mathEl.replaceWith(mathEl.ownerDocument.createTextNode(text));
+
+      // lo-320b: collapsing to one copy is only half the job — a bare LaTeX
+      // string dropped inline reads as prose in every export. Delimit it and
+      // tag it so HtmlContentParser can type it as math. The attribute is
+      // `data-math-display`, NOT `data-math`: Gemini already ships
+      // `data-math="<label>"` on its own math wrapper.
+      const display = mathEl.closest('.katex-display') || mathEl.getAttribute('display') === 'true'
+        ? 'block'
+        : 'inline';
+      const marker = mathEl.ownerDocument.createElement('span');
+      marker.setAttribute('data-math-display', display);
+      marker.textContent = display === 'block' ? `$$${text}$$` : `$${text}$`;
+      mathEl.replaceWith(marker);
     });
 
     // Remove any remaining elements with aria-hidden="true" (decorative icons, etc).

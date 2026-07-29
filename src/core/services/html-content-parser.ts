@@ -373,6 +373,20 @@ export class HtmlContentParser {
       const el = child as Element;
       const tagName = el.tagName.toLowerCase();
 
+      // lo-320b: the math marker BaseParser.cleanupElement leaves behind. Its
+      // text is already the delimited LaTeX source, so this only adds the type
+      // and the display mode. Checked before the tag switch because the marker
+      // is a plain <span>, which the switch would otherwise flatten to text.
+      const mathDisplay = el.getAttribute('data-math-display');
+      if (mathDisplay) {
+        result.push({
+          type: 'math',
+          text: el.textContent || '',
+          display: mathDisplay === 'block' ? 'block' : 'inline',
+        });
+        continue;
+      }
+
       switch (tagName) {
         case 'strong':
         case 'b': {
@@ -426,6 +440,14 @@ export class HtmlContentParser {
           break;
         }
         default: {
+          // A math marker is often wrapped — KaTeX puts display math inside
+          // `.katex-display`, Gemini wraps inline math in its own `.math-inline`
+          // span. Flattening the wrapper to textContent would keep the delimited
+          // source but lose the math type, so recurse to reach the marker.
+          if (el.querySelector('[data-math-display]')) {
+            result.push(...this.parseInlineContent(el));
+            break;
+          }
           // For other elements, just extract text
           const text = el.textContent || '';
           if (text) {
