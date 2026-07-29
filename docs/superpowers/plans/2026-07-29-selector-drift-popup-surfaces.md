@@ -540,7 +540,27 @@ git commit -m "feat: suppress drift prompts per fingerprint"
 
 ### Task 4: Locale keys
 
-Done before the UI so the UI can reference real keys, and so `locales.test.ts` never sees a half-populated bundle.
+> **Correction — this task must NOT be implemented on its own.** The reasoning
+> below ("done before the UI") was wrong, and the attempt to follow it failed
+> the gate. `tests/unit/extension/locales.test.ts` carries a check named
+> *"declares no key the extension never references"*: a key declared before the
+> code that uses it is an orphan, and the check fails. A locale-only task is
+> therefore structurally unable to pass. The codebase's actual convention
+> confirms this — PR #142 added its two new keys in the same commit as their
+> popup usage.
+>
+> **Keys land with their consumers.** Take the JSON below as the source of the
+> strings, but split it:
+> - **Task 5** adds the 7 keys its markup references: `driftRowTitle`,
+>   `driftRowDetail`, `driftRowAction`, `driftReportTitle`, `driftReportIntro`,
+>   `driftReportCopy`, `driftReportCopyAndReport`.
+> - **Task 6** adds the 3 it references from `popup.ts`: `driftReportCopied`,
+>   `driftReportCopyFailed`, `driftReportLoading`.
+> - **`driftReportDismiss` is dropped.** It was a key for a control this plan
+>   never actually specified — the behaviour table in Task 6 suppresses on
+>   copy and there is no dismiss button. It would be a permanent orphan.
+
+The strings below are still the source of truth for wording; only the sequencing changed.
 
 **Files:**
 - Modify: `_locales/en/messages.json`, `_locales/es/messages.json`, `_locales/ca/messages.json`, `_locales/fr/messages.json`, `_locales/de/messages.json`, `_locales/it/messages.json`, `_locales/pt/messages.json`
