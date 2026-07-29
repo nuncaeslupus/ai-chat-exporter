@@ -64,12 +64,28 @@ Rules evaluated against the parsed result, extending the existing
 | Rule | Fires when |
 | --- | --- |
 | `no-pairs` | 0 pairs, yet ≥1 turn container is present in the DOM |
-| `empty-answer` | an answer's content is under 20 characters |
+| `empty-answer` | an answer's content is empty or whitespace only |
 | `chrome-as-content` | an answer equals a known UI string (`ChatGPT said:`, `You said:`, per-platform list) |
+| `content-shortfall` | the extracted answer is under 5% of the text length of the turn element it came from, and that element holds >200 characters |
 | `no-question` | a pair has an answer but no question, or vice versa |
 
-`chrome-as-content` exists because that is precisely how the ChatGPT case
-presented, and a length check alone would not have caught a 13-character label.
+Two rules deserve their reasoning recorded, because the obvious version of each
+is wrong:
+
+- **`empty-answer` is emptiness, not shortness.** An earlier draft fired under 20
+  characters, which would flag `"Yes."` — a legitimate answer to a yes/no
+  question — and false positives are what kill safety nets. Length alone is not a
+  signal.
+- **`content-shortfall` is the ratio rule that replaces it.** The real signal is
+  not "the answer is short" but "the DOM had a lot of text and we extracted
+  almost none of it". That is exactly the ChatGPT Deep Research shape and it
+  cannot fire on a genuinely terse answer, because a terse answer comes from a
+  turn element that is itself short.
+
+`chrome-as-content` still earns its place: the ChatGPT case extracted 13
+characters from a turn holding ~529, so `content-shortfall` catches it — but
+naming the exact string turns a heuristic into a certainty, and gives the
+maintainer the specific label to fix.
 
 ### 3. `SkeletonBuilder` — a structural report that cannot leak
 
@@ -106,8 +122,10 @@ main#main
 
 ### 4. `DriftReport` — assemble, fingerprint, present
 
-Combines the above with: extension version, platform id, browser, UTC date, the
-failing selector keys, and the failing sanity rule ids.
+Combines the above with: extension version, platform id, build target
+(`chrome` / `firefox` — **not** the user agent string, which is needlessly
+identifying for a report whose only job is to name a broken selector), UTC date,
+the failing selector keys, and the failing sanity rule ids.
 
 **Fingerprint** = short hash of `platform + extensionVersion + sorted(failing
 selector keys) + sorted(failing rule ids)`. It is the report's title, so
@@ -201,6 +219,14 @@ future refactor could quietly break.
 All new strings via `getMessage()` with keys in all seven locales. The report
 **body** stays in English regardless of UI locale — it is a bug report read by
 one maintainer, and a localised payload would be worse for its only reader.
+
+## Suggested sequencing
+
+Two plans, not one. The detection core (units 1–3, `ParseResult.drift`, and the
+leak property test) is independently valuable and testable with no UI at all —
+and it is the half that must be right. The popup surfaces (unit 4's presentation,
+the `report` view, suppression, i18n) build on it and can land second without
+holding the first hostage.
 
 ## Deferred
 
