@@ -483,5 +483,33 @@
   "filenamePieceLiteral": {
     "message": "Text lliure",
     "description": "File-name piece: text the user types"
+  },
+  "driftRowTitle": {
+    "message": "Aquesta pàgina pot haver canviat",
+    "description": "Title of the amber row shown on the main view when selector drift is detected"
+  },
+  "driftRowDetail": {
+    "message": "És possible que la teva exportació estigui incompleta.",
+    "description": "Detail line under the drift row title"
+  },
+  "driftRowAction": {
+    "message": "Veure què ha passat",
+    "description": "Call-to-action text in the drift row; opens the drift report view"
+  },
+  "driftReportTitle": {
+    "message": "Informe d'estructura de la pàgina",
+    "description": "Title of the drift report submenu"
+  },
+  "driftReportIntro": {
+    "message": "Aquest és l'informe complet. No conté cap part de la teva conversa: cada fragment de text se substitueix pel nombre de caràcters que tenia. No s'envia res enlloc tret que decideixis compartir-lo.",
+    "description": "Privacy guarantee text shown above the drift report preview"
+  },
+  "driftReportCopy": {
+    "message": "Copia l'informe",
+    "description": "Button that copies the drift report text to the clipboard"
+  },
+  "driftReportCopyAndReport": {
+    "message": "Copia i reporta",
+    "description": "Button that copies the drift report and opens a place to report it"
   }
 }
