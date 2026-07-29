@@ -371,6 +371,33 @@ function makePopupPairs(popupColor: Resolve): Pair[] {
       bg: popupColor('.warning-card {', 'background'),
       threshold: 4.5,
     },
+    // Drift row. It currently borrows the warning tokens, so it passes by
+    // inheritance -- which is exactly why it needs its own rows here: nothing
+    // would catch a later change that gave it bespoke colours.
+    //
+    // The 1px border is not listed: `popupColor` resolves a bare `var(--x)`,
+    // not the `border` shorthand, and no other pair in this suite checks a
+    // border either. Measured by hand at 3.42:1 (light, #b07a0f on #fdf4e7)
+    // and 7.47:1 (dark, #e0a93c on #2a2114) -- both clear the 3:1 non-text
+    // bar. The row's icon is `currentColor`, so the title pair covers it.
+    {
+      label: 'drift-row title',
+      fg: popupColor('.drift-row {', 'color'),
+      bg: popupColor('.drift-row {', 'background'),
+      threshold: 4.5,
+    },
+    {
+      label: 'drift report preview text',
+      fg: popupColor('.drift-report-preview {', 'color'),
+      bg: popupColor('.drift-report-preview {', 'background'),
+      threshold: 4.5,
+    },
+    {
+      label: 'drift report intro',
+      fg: popupColor('.drift-report-intro {', 'color'),
+      bg: popupColor('.popup-body {', 'background'),
+      threshold: 4.5,
+    },
     {
       label: 'no-selection row label',
       fg: popupColor(
