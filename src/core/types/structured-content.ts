@@ -150,7 +150,8 @@ export interface InlineContent {
 export interface StructuredMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
-  timestamp: Date;
+  /** Absent when the source message carries no real timestamp (see D-18). */
+  timestamp?: Date;
   blocks: StructuredContentBlock[];
   metadata?: MessageMetadata;
 }
