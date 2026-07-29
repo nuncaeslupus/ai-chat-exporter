@@ -2,89 +2,107 @@
 
 <!-- Written at session end. A new session reading this file can resume without additional context. -->
 
-Written 2026-07-29 (overnight session, follows the 2026-07-28 evening session).
+Written 2026-07-29, end of the overnight session (started 2026-07-28 evening).
 
-## READ FIRST — two things need a human
+## State
 
-1. **`scripting` permission was added to the manifest** (`lo-db20`, PR #116). The
-   popup now injects the content script and retries instead of asking the user to
-   reload the page. No new install-time warning (Chrome's prompt is driven by host
-   permissions, already declared for the four chat domains; Firefox's
-   `strict_min_version` 109 is past `scripting`'s arrival in 102) — but it **needs
-   a store re-review**, and `lo-7422` (release v1.2.0) is still open. Revert to the
-   reload-only path if that trade is not wanted.
-2. **The injection path is unverified in a real browser.** All of it is
-   vitest-level. Two specific unknowns: whether `executeScript` waits on the
-   content-script loader's dynamic `import()` (the reason the retry polls 5×100 ms
-   instead of asking once), and whether a re-injected script double-registers its
-   listener. Manual pass: load unpacked → open a chat tab → reload the extension →
-   open the popup.
+**Queue: 110 merged / 6 open / 0 in progress.** `queue_doctor` clean (116 tasks,
+0 findings). `main` is green: lint 0 errors **and 0 warnings**, `format:check`
+clean, typecheck clean, **953 tests**, both builds OK. Lint and format are both
+enforced in CI.
 
-## Where the work stands
+**Every one of the 6 open tasks needs the human.** The loop is not blocked on
+itself — there is no agent-dispatchable work left.
 
-Queue: **80 merged / 10 done / 18 open / 2 in progress**, `queue_doctor` clean.
-Every PR below was CI-verified before merge; the loop merges nothing red.
+## The 6 open tasks, and what each needs
 
-### The popup redesign (direction 5a, `docs/design/popup-redesign.md`)
-
-| Task | State |
+| Task | Needs |
 | --- | --- |
-| R1 shell — 48+260 box, `:root` tokens, delegated router | merged #107 |
-| R2 ready view — conversation block, setting rows, split bar | merged #111 |
-| R3 format menu | merged #117 |
-| R7 secondary states (5 of them) | merged #115 |
-| R9 export header date range + day separators | merged #110 |
-| R10 brand assets | merged #106 |
-| R4 pair chooser | **in progress** |
-| R5 options, R6 filename builder, R8 i18n audit, `lo-934c` dark mode | open |
+| `lo-f132` (p9) ChatGPT Deep Research / Canvas / images | a DOM capture from a paid, logged-in session |
+| `lo-2478` (p8) Claude artifacts / thinking / web search | same |
+| `lo-3c90` (p8) Gemini title+model selectors dead on the live page | same |
+| `lo-766f` (p7) port the harness fixes upstream | access to the claude-arsenal plugin repo |
+| `lo-7422` (p4) release v1.2.0 | a decision on the `scripting` permission (below) |
+| `lo-fc5f` (p2) Export to Google Drive | a product + privacy decision (below) |
 
-The mocks are committed at `docs/design/popup-redesign/` (the author confirmed the
-conversation in them is invented). Popup measures a constant **308 px** across all
-six states.
+Captures: `copy(document.querySelector('main').outerHTML)` with the widget
+**expanded**, saved to `tmp/examples/` (gitignored).
 
-**Eight spec colours have now failed the repo's own 4.5:1 contrast gate** and were
-darkened: `#6E7C77`, `#8A9691`, `#7E8D88`, `#96702A`, `#B08A3F`, `#9AA5A1` and two
-more. `lo-2d8a` (D-15) is open to correct the design document so the remaining
-tasks stop re-deriving it. Each override is a `:root` token with a comment.
+## Three things a human must decide
 
-### Everything else merged tonight
+1. **`scripting` permission** (added in PR #116). The popup and the context menu
+   now inject the content script and retry instead of asking the user to reload.
+   No new install-time warning — Chrome's prompt is driven by host permissions,
+   already declared for the four chat domains, and Firefox's `strict_min_version`
+   109 is past `scripting`'s arrival in 102 — but it **needs a store re-review**.
+   Revert to the reload-only path if that trade is unwanted. This gates `lo-7422`.
+2. **Port the harness fixes upstream** (`lo-766f`). `claude-arsenal/bin/` is
+   vendored and `/init` refreshes it by checksum, so PR #123 and PR #125 are
+   **silently reverted on the next `/init`**, reopening the false-`done` holes.
+3. **Google Drive export** (`lo-fc5f`) needs an OAuth scope and sends conversation
+   content to a third party, while `docs/PRIVACY.md` currently states nothing
+   leaves the browser. Not dispatched deliberately.
 
-- **Lint is green and gated** (#97): 1092 → 0. Root cause was ~30 explicit `any`s,
-  not the strict preset — `doc: any` in `pdf-exporter.ts` alone caused 420.
-- **Model**: generated video/audio via a `media` array with a `kind` discriminator
-  (#99); `metadata.research` renders in all six formats (#104).
-- **Exporters**: heading levels unified behind `DOC_HEADING_LEVEL` (#109 — pdf's
-  body headings had been outranking its own role labels); web-search citation URLs
-  reach pdf (#112); image URL / `linkUrl` / media duration gaps closed (#113); the
-  duplicate `[Web Search: …]` marker suppressed (#114).
-- **Hygiene**: 51 debug `console.log` removed from hot paths, verified against the
-  built bundle (#105); two vacuous tests made real (#98).
-- **All four logos are now official** (#106, #108): Claude Spark from Anthropic's
-  press kit, Google's own Gemini sparkle from gstatic, the current OpenAI blossom,
-  and extension logo candidate A.
+## Not verified in a real browser
 
-## Standing rules learned this session
+Everything below is vitest- or headless-verified only, because loading an unpacked
+extension needs a real browser profile:
 
-- **Official brand assets only** — never an approximation or a traced mark.
-- **`release.sh done` re-runs the gate with a hardened PATH that has no `pnpm`.**
-  Every release call needs `ARSENAL_GATE_INHERIT_ENV=1` or it refuses `done`.
-  `lo-19c0` (D-14) tracks the real fix: a gate that cannot run must never read as
-  a pass, and `gate_run.sh` should read the payload from the coordination ref
-  instead of requiring it on disk (a worker that materializes it and forgets to
-  delete it commits a queue payload into its PR).
-- **Popup work is serial** — three files, so only one popup task at a time; pair it
-  with a `src/core/` task for the second worker slot.
-- Coverage matrices find real bugs: the one in #112 produced four follow-up tasks,
-  three already merged.
+- **Content-script injection + retry** (PR #116, #122): whether `executeScript`
+  waits on the loader's dynamic `import()` (the reason the retry polls 5 × 100 ms)
+  and whether a re-injected script double-registers its listener. Test: load
+  unpacked → open a chat tab → reload the extension → open the popup.
+- **The badge** on a failed context-menu export (PR #122).
+- **docx page count** under the new `fontScale` (PR #136) — Word paginates at
+  render time; the test asserts a labelled proxy, and pins that the file carries
+  no page count so the claim cannot rot.
 
-## How to continue
+## What shipped (22 PRs merged, #97–#137)
 
-`queue_branch.sh`, `queue_sync.sh`, `queue_eval.sh`, workers. Next up: R5 → R6
-(the filename builder is the risky one — it invents a persisted preference, and
-its gate is that the popup preview and the export path agree), then R8, then dark
-mode. `lo-e339` is chained behind `lo-db20` and should reuse the
-`sendTabMessage` helper in `src/shared/tab-messaging.ts` rather than adding a
-second guard.
+**The popup redesign is complete** — direction 5a, `docs/design/popup-redesign.md`
+(now corrected and authoritative; the mocks are in `docs/design/popup-redesign/`).
+Shell → ready view → format menu → pair chooser → options → filename builder →
+five secondary states → dark mode, scaled to **420 × 378** with an 11-token type
+scale. The action bar was deliberately left un-scaled at the author's request.
 
-Still blocked on a human capture: `lo-f132` (ChatGPT), `lo-2478` (Claude),
-`lo-3c90` (Gemini title/model selectors dead on the live page).
+**Health / correctness**
+- Lint: 1092 errors → 0, then 287 warnings → 0, both gated in CI (#97, #134).
+  Root cause was ~30 explicit `any`s, not the strict preset.
+- Two false-`done` holes closed in the harness itself (#123, #125). **14 of 20
+  releases earlier that session had recorded `done` with the gate silently
+  skipped** — every one was still CI-verified by hand, but the enforcement layer
+  was a no-op. Both fixes carry `tests/gate_run_test.sh` and
+  `tests/release_gate_test.sh`.
+- **Six vacuous tests** found and fixed — tests that passed against deliberately
+  broken code (#98, #110, #129, #136, #137, plus the D-17 pair).
+
+**Exporters** — heading levels unified (#109), math survives end to end (#127),
+day separators + date range in headers (#110), web-search URLs reach pdf (#112),
+image/media field gaps closed (#113), duplicate search marker suppressed (#114),
+orphans/widows/keep-with-next (#129), docx brand colour (#131), three-step font
+scale (#136).
+
+**Real user-visible bugs fixed along the way**, none of which were the task's
+stated subject: the pdf role label could render below the bottom margin; every
+ChatGPT export in a non-English locale labelled the assistant "Assistent" /
+"Asistente"; `FilenameService` threw a TypeError on the popup side because
+`createdAt` is a string there and a `Date` in the content script; **the print
+dialog never opened at all** — a `load` listener attached to a window that gets
+replaced by navigation, so the user had to press Ctrl+P.
+
+## Operational notes for the next session
+
+- **Never run `pnpm build` and `pnpm test:run` concurrently** — this suite is
+  timeout-sensitive; four workers reported false single-test failures from it.
+- `gate_run.sh` no longer needs `ARSENAL_GATE_INHERIT_ENV=1` (#123) and resolves
+  payloads from `arsenal-queue` itself, so workers no longer materialize them.
+- **Claim and dispatch in one step.** Twice this session a task was claimed and
+  left undispatched, sitting `in_progress` with no worker.
+- **Do not pipe `release.sh` through `grep`** — you read grep's exit code, not the
+  script's, and miss a refusal.
+- Popup work is serial (three files); pair one popup task with one `src/core/`
+  task for the second worker slot.
+- Payloads go stale fast: **7 of ~20 payloads this session were partly wrong** —
+  already-fixed defects, line numbers off by 50–120, one describing a structure
+  that does not exist. Every worker prompt should say "survey first, report what
+  held".
