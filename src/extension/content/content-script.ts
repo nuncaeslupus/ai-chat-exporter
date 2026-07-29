@@ -17,6 +17,12 @@ import {
   isGetConversationMessage,
 } from '../../shared/messages';
 
+/** How often to check whether the print document has finished loading. */
+const PRINT_POLL_INTERVAL_MS = 100;
+
+/** Give up waiting for the print document and print anyway after this long. */
+const PRINT_LOAD_TIMEOUT_MS = 10_000;
+
 /**
  * Apply the popup's per-pair selection (by `pair.index`, the only identifier
  * stable across a re-parse — `pair.id` is regenerated every call) to a freshly
@@ -339,40 +345,57 @@ class ContentScript {
   }
 
   private printBlob(printWindow: Window, blob: Blob, format: ExportFormat): void {
-    // For HTML and PDF, we can print directly
+    // HTML and PDF are already printable documents; text formats (MD, TXT,
+    // JSON) get wrapped in a minimal one first.
     if (format === 'html' || format === 'pdf') {
-      const url = URL.createObjectURL(blob);
-      printWindow.addEventListener('load', () => {
-        setTimeout(() => {
-          printWindow.print();
-          // Clean up the URL after printing
-          printWindow.addEventListener('afterprint', () => {
-            URL.revokeObjectURL(url);
-          });
-        }, 500);
-      });
-      printWindow.location.href = url;
+      this.navigateAndPrint(printWindow, blob);
     } else {
-      // For text formats (MD, TXT, JSON), wrap in simple HTML for printing
       const reader = new FileReader();
       reader.onload = () => {
-        const content = reader.result as string;
-        const printHtml = this.wrapInPrintHtml(content, format);
-        const printBlob = new Blob([printHtml], { type: 'text/html' });
-        const printUrl = URL.createObjectURL(printBlob);
-
-        printWindow.addEventListener('load', () => {
-          setTimeout(() => {
-            printWindow.print();
-            printWindow.addEventListener('afterprint', () => {
-              URL.revokeObjectURL(printUrl);
-            });
-          }, 500);
-        });
-        printWindow.location.href = printUrl;
+        const printHtml = this.wrapInPrintHtml(reader.result as string, format);
+        this.navigateAndPrint(printWindow, new Blob([printHtml], { type: 'text/html' }));
       };
       reader.readAsText(blob);
     }
+  }
+
+  /**
+   * Point the pre-opened window at `blob` and raise the print dialog once the
+   * document is actually on screen.
+   *
+   * Polls instead of listening for `load`: navigating a window replaces its
+   * inner Window object, so a listener registered on `printWindow` *before*
+   * `location.href` is assigned is thrown away with the old Window and never
+   * fires. (Verified in Chrome: the blob document loads and `readyState`
+   * reaches 'complete', but the listener does not run — which is why the
+   * print dialog never appeared.) Reading `printWindow.document` through the
+   * WindowProxy on each tick always resolves to the current document.
+   */
+  private navigateAndPrint(printWindow: Window, blob: Blob): void {
+    const url = URL.createObjectURL(blob);
+    printWindow.location.href = url;
+
+    const deadline = Date.now() + PRINT_LOAD_TIMEOUT_MS;
+    const poll = setInterval(() => {
+      let loaded = false;
+      try {
+        loaded =
+          printWindow.location.href === url && printWindow.document.readyState === 'complete';
+      } catch {
+        // A cross-origin document would make these reads throw; fall through
+        // to the deadline rather than throwing on every tick forever.
+      }
+      // ponytail: print on timeout too — a slow document still beats no
+      // dialog, which is what the old fixed 500ms delay effectively assumed.
+      if (!loaded && Date.now() < deadline) {
+        return;
+      }
+      clearInterval(poll);
+      if (!printWindow.closed) {
+        printWindow.print();
+      }
+      URL.revokeObjectURL(url);
+    }, PRINT_POLL_INTERVAL_MS);
   }
 
   private wrapInPrintHtml(content: string, format: ExportFormat): string {

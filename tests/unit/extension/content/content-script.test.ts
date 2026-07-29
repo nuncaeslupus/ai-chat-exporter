@@ -252,6 +252,116 @@ describe('content-script print failure reporting (lo-f854)', () => {
   });
 });
 
+describe('content-script raises the print dialog (lo-ad6c)', () => {
+  /**
+   * Models the real browser: navigating a window replaces its inner Window
+   * object, so a `load` listener registered on the pre-opened print window is
+   * discarded by the navigation and never fires. Verified in Chrome — the
+   * blob document loads and `readyState` reaches 'complete', but a listener
+   * attached before `location.href = url` does not run. So `addEventListener`
+   * here records the call and deliberately never invokes it; anything that
+   * depends on it to call `print()` leaves the user staring at a page with no
+   * print dialog.
+   */
+  let readyState: DocumentReadyState;
+  let printWindowStub: {
+    document: { write: ReturnType<typeof vi.fn>; readonly readyState: DocumentReadyState };
+    addEventListener: ReturnType<typeof vi.fn>;
+    location: { href: string };
+    closed: boolean;
+    close: ReturnType<typeof vi.fn>;
+    print: ReturnType<typeof vi.fn>;
+  };
+  const spyOnWindowOpen = () => vi.spyOn(window, 'open');
+  let openSpy: ReturnType<typeof spyOnWindowOpen>;
+
+  beforeEach(() => {
+    mockParse.mockReset();
+    mockExport.mockReset();
+    URL.createObjectURL = vi.fn(() => 'blob:mock');
+    URL.revokeObjectURL = vi.fn();
+
+    readyState = 'loading';
+    let href = '';
+    printWindowStub = {
+      document: {
+        write: vi.fn(),
+        get readyState() {
+          return readyState;
+        },
+      },
+      addEventListener: vi.fn(),
+      get location() {
+        return {
+          get href() {
+            return href;
+          },
+          set href(value: string) {
+            href = value;
+            // The navigation completes a tick later, as in a real browser.
+            setTimeout(() => {
+              readyState = 'complete';
+            }, 10);
+          },
+        };
+      },
+      closed: false,
+      close: vi.fn(),
+      print: vi.fn(),
+    };
+    openSpy = spyOnWindowOpen().mockReturnValue(printWindowStub as unknown as Window);
+  });
+
+  afterEach(() => {
+    openSpy.mockRestore();
+  });
+
+  it('calls print() on the print window once the document has finished loading', async () => {
+    const pairs = [createTestQAPair(0, 'Q', 'A')];
+    mockParse.mockReturnValue({ success: true, conversation: createTestConversation(pairs) });
+    mockExport.mockResolvedValue({
+      success: true,
+      blob: new Blob(['<html><body>hi</body></html>']),
+      mimeType: 'text/html',
+    });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'print_conversation', format: 'html' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(printWindowStub.print).toHaveBeenCalled();
+    });
+    // Printed the navigated document, not the "Preparing…" placeholder.
+    expect(printWindowStub.location.href).toBe('blob:mock');
+    expect(readyState).toBe('complete');
+    expect(printWindowStub.close).not.toHaveBeenCalled();
+  });
+
+  it('does not print while the document is still loading', async () => {
+    const pairs = [createTestQAPair(0, 'Q', 'A')];
+    mockParse.mockReturnValue({ success: true, conversation: createTestConversation(pairs) });
+    mockExport.mockResolvedValue({
+      success: true,
+      blob: new Blob(['<html><body>hi</body></html>']),
+      mimeType: 'text/html',
+    });
+    // Navigation never completes: readyState stays 'loading'.
+    Object.defineProperty(printWindowStub.document, 'readyState', {
+      get: () => 'loading' as DocumentReadyState,
+    });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'print_conversation', format: 'html' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+    expect(printWindowStub.print).not.toHaveBeenCalled();
+  });
+});
+
 describe('content-script concurrent export/print isolation (lo-08b0)', () => {
   let printWindowStub: {
     document: { write: ReturnType<typeof vi.fn> };
