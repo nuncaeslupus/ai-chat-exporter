@@ -1,12 +1,12 @@
 # AI Chat Exporter — thin wrappers over pnpm scripts + extension dev loop.
 
 ARSENAL_REPO    ?= https://github.com/nuncaeslupus/claude-arsenal.git
-ARSENAL_REF     ?= v0.20.5
+ARSENAL_REF     ?= v0.23.0
 ARSENAL_PLUGINS ?= core
 EXT_DIR         ?= dist/chrome
 CDP_PORT        ?= 9333
 
-.PHONY: help install dev build test lint typecheck validate package release-check clean chrome update-skills
+.PHONY: help install dev build test lint typecheck validate package release-check clean chrome update-skills update-arsenal
 
 help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -53,6 +53,12 @@ chrome: ## Launch headless Chrome with the unpacked extension (CDP on $(CDP_PORT
 
 clean: ## Remove build output
 	rm -rf dist build/.vite
+
+update-arsenal: update-skills ## Re-vendor the arsenal AND refresh claude-arsenal/ from it
+	@python3 .claude/skills/init/scripts/init.py --repo-path . --silent
+	@echo "runtime bundle: $$(cat claude-arsenal/.bundle-version)"
+	@bash tests/gate_run_test.sh >/dev/null && bash tests/release_gate_test.sh >/dev/null \
+		&& echo "harness tests: ok" || echo "harness tests: FAILED — inspect before committing"
 
 update-skills: ## Re-vendor claude-arsenal skills into .claude/skills
 	@tmp=$$(mktemp -d); trap 'rm -rf $$tmp' EXIT; \
