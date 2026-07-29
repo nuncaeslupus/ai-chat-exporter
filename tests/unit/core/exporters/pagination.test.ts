@@ -163,109 +163,135 @@ describe('pdf pagination policy', () => {
     instances.length = 0;
   });
 
-  it('never leaves a role label as the last thing drawn on a page', async () => {
-    // Vary the amount of content so the role labels land at every possible
-    // offset relative to the page boundary, rather than one lucky one.
-    for (let filler = 1; filler <= 60; filler++) {
-      const pairs = [
-        buildPair('0', `<p>${words('q', filler)}</p>`, `<p>${words('a', 12)}</p>`),
-        buildPair('1', `<p>${words('r', 8)}</p>`, `<p>${words('b', 12)}</p>`),
-      ];
-      const calls = await renderPdf(pairs);
+  // These three tests each render 60 full documents through the real
+  // exporter (fuzzing every content size so role labels/paragraphs/table
+  // rows land at every possible page-boundary offset, not one lucky one).
+  // That's ~700-1050ms alone, comfortably under the default 5s testTimeout —
+  // but under concurrent CPU load (another `pnpm build`/`test:run` on the
+  // same machine) wall-clock time balloons well past that, timing out
+  // real, passing work. Raise the timeout for just these three instead of
+  // cutting the fuzz range, which would just narrow the offsets covered.
+  const HEAVY_TEST_TIMEOUT_MS = 20_000;
 
-      // Both role labels must be checked: only the USER label sat behind the
-      // pair-level page-break check, so matching just that one passes vacuously.
-      const labels = calls
-        .map((c, i) => ({ c, i }))
-        .filter(({ c }) => c.method === 'text' && /^(User|Assistant):$/.test(String(c.args[0])));
-      expect(labels.filter(({ c }) => c.args[0] === 'Assistant:').length).toBeGreaterThan(0);
-      expect(labels.filter(({ c }) => c.args[0] === 'User:').length).toBeGreaterThan(0);
+  it(
+    'never leaves a role label as the last thing drawn on a page',
+    async () => {
+      // Vary the amount of content so the role labels land at every possible
+      // offset relative to the page boundary, rather than one lucky one.
+      for (let filler = 1; filler <= 60; filler++) {
+        const pairs = [
+          buildPair('0', `<p>${words('q', filler)}</p>`, `<p>${words('a', 12)}</p>`),
+          buildPair('1', `<p>${words('r', 8)}</p>`, `<p>${words('b', 12)}</p>`),
+        ];
+        const calls = await renderPdf(pairs);
 
-      for (const { c, i } of labels) {
-        const next = calls.slice(i + 1).find((n) => n.method === 'text' || n.method === 'addPage');
-        expect(
-          next?.method,
-          `filler=${filler}: role label "${String(c.args[0])}" stranded — page break immediately after it`
-        ).not.toBe('addPage');
+        // Both role labels must be checked: only the USER label sat behind the
+        // pair-level page-break check, so matching just that one passes vacuously.
+        const labels = calls
+          .map((c, i) => ({ c, i }))
+          .filter(({ c }) => c.method === 'text' && /^(User|Assistant):$/.test(String(c.args[0])));
+        expect(labels.filter(({ c }) => c.args[0] === 'Assistant:').length).toBeGreaterThan(0);
+        expect(labels.filter(({ c }) => c.args[0] === 'User:').length).toBeGreaterThan(0);
+
+        for (const { c, i } of labels) {
+          const next = calls
+            .slice(i + 1)
+            .find((n) => n.method === 'text' || n.method === 'addPage');
+          expect(
+            next?.method,
+            `filler=${filler}: role label "${String(c.args[0])}" stranded — page break immediately after it`
+          ).not.toBe('addPage');
+        }
       }
-    }
-  });
+    },
+    HEAVY_TEST_TIMEOUT_MS
+  );
 
-  it('keeps at least `orphans` lines behind and `widows` lines over when a paragraph straddles a page', async () => {
-    const PARA_LINES = 8;
-    for (let filler = 1; filler <= 60; filler++) {
-      const pairs = [
-        buildPair('0', `<p>${words('q', filler)}</p>`, `<p>${words('T', PARA_LINES)}</p>`),
-      ];
-      const calls = await renderPdf(pairs);
+  it(
+    'keeps at least `orphans` lines behind and `widows` lines over when a paragraph straddles a page',
+    async () => {
+      const PARA_LINES = 8;
+      for (let filler = 1; filler <= 60; filler++) {
+        const pairs = [
+          buildPair('0', `<p>${words('q', filler)}</p>`, `<p>${words('T', PARA_LINES)}</p>`),
+        ];
+        const calls = await renderPdf(pairs);
 
-      // The target paragraph's lines are the only tokens starting with 'T'.
-      const seq = calls
-        .filter(
-          (c) => c.method === 'addPage' || (c.method === 'text' && /^T\d+$/.test(String(c.args[0])))
-        )
-        .map((c) => c.method);
+        // The target paragraph's lines are the only tokens starting with 'T'.
+        const seq = calls
+          .filter(
+            (c) =>
+              c.method === 'addPage' || (c.method === 'text' && /^T\d+$/.test(String(c.args[0])))
+          )
+          .map((c) => c.method);
 
-      const firstLine = seq.indexOf('text');
-      const lastLine = seq.lastIndexOf('text');
-      expect(firstLine, `filler=${filler}: target paragraph not rendered`).toBeGreaterThanOrEqual(
-        0
-      );
+        const firstLine = seq.indexOf('text');
+        const lastLine = seq.lastIndexOf('text');
+        expect(firstLine, `filler=${filler}: target paragraph not rendered`).toBeGreaterThanOrEqual(
+          0
+        );
 
-      const breakInside = seq.slice(firstLine, lastLine).indexOf('addPage');
-      if (breakInside === -1) continue; // paragraph did not straddle — nothing to check
+        const breakInside = seq.slice(firstLine, lastLine).indexOf('addPage');
+        if (breakInside === -1) continue; // paragraph did not straddle — nothing to check
 
-      const before = seq
-        .slice(firstLine, firstLine + breakInside)
-        .filter((m) => m === 'text').length;
-      const after = seq
-        .slice(firstLine + breakInside, lastLine + 1)
-        .filter((m) => m === 'text').length;
-      expect(
-        before,
-        `filler=${filler}: orphan — only ${before} line(s) left at the page foot`
-      ).toBeGreaterThanOrEqual(PAGINATION.orphans);
-      expect(
-        after,
-        `filler=${filler}: widow — only ${after} line(s) carried over`
-      ).toBeGreaterThanOrEqual(PAGINATION.widows);
-    }
-  });
+        const before = seq
+          .slice(firstLine, firstLine + breakInside)
+          .filter((m) => m === 'text').length;
+        const after = seq
+          .slice(firstLine + breakInside, lastLine + 1)
+          .filter((m) => m === 'text').length;
+        expect(
+          before,
+          `filler=${filler}: orphan — only ${before} line(s) left at the page foot`
+        ).toBeGreaterThanOrEqual(PAGINATION.orphans);
+        expect(
+          after,
+          `filler=${filler}: widow — only ${after} line(s) carried over`
+        ).toBeGreaterThanOrEqual(PAGINATION.widows);
+      }
+    },
+    HEAVY_TEST_TIMEOUT_MS
+  );
 
-  it('never renders a table header row as the last thing on a page', async () => {
-    const table =
-      '<table><thead><tr><th>Name</th><th>Age</th></tr></thead>' +
-      '<tbody><tr><td>Alice</td><td>30</td></tr><tr><td>Bob</td><td>41</td></tr></tbody></table>';
+  it(
+    'never renders a table header row as the last thing on a page',
+    async () => {
+      const table =
+        '<table><thead><tr><th>Name</th><th>Age</th></tr></thead>' +
+        '<tbody><tr><td>Alice</td><td>30</td></tr><tr><td>Bob</td><td>41</td></tr></tbody></table>';
 
-    for (let filler = 1; filler <= 60; filler++) {
-      const pairs = [buildPair('0', `<p>${words('q', filler)}</p>`, table)];
-      const calls = await renderPdf(pairs);
+      for (let filler = 1; filler <= 60; filler++) {
+        const pairs = [buildPair('0', `<p>${words('q', filler)}</p>`, table)];
+        const calls = await renderPdf(pairs);
 
-      // Span from the LAST header cell to the FIRST body cell. Checking the
-      // call right after the first header cell only finds its sibling cell,
-      // which is always on the same row — a vacuous pass.
-      const lastHeaderCell = calls.findIndex(
-        (c) => c.method === 'text' && String(c.args[0]) === 'Age'
-      );
-      const firstBodyCell = calls.findIndex(
-        (c) => c.method === 'text' && String(c.args[0]) === 'Alice'
-      );
-      expect(lastHeaderCell, `filler=${filler}: table header not rendered`).toBeGreaterThanOrEqual(
-        0
-      );
-      expect(firstBodyCell, `filler=${filler}: table body not rendered`).toBeGreaterThan(
-        lastHeaderCell
-      );
+        // Span from the LAST header cell to the FIRST body cell. Checking the
+        // call right after the first header cell only finds its sibling cell,
+        // which is always on the same row — a vacuous pass.
+        const lastHeaderCell = calls.findIndex(
+          (c) => c.method === 'text' && String(c.args[0]) === 'Age'
+        );
+        const firstBodyCell = calls.findIndex(
+          (c) => c.method === 'text' && String(c.args[0]) === 'Alice'
+        );
+        expect(
+          lastHeaderCell,
+          `filler=${filler}: table header not rendered`
+        ).toBeGreaterThanOrEqual(0);
+        expect(firstBodyCell, `filler=${filler}: table body not rendered`).toBeGreaterThan(
+          lastHeaderCell
+        );
 
-      const brokeBetween = calls
-        .slice(lastHeaderCell, firstBodyCell)
-        .some((c) => c.method === 'addPage');
-      expect(
-        brokeBetween,
-        `filler=${filler}: table header stranded — page break between it and its first body row`
-      ).toBe(false);
-    }
-  });
+        const brokeBetween = calls
+          .slice(lastHeaderCell, firstBodyCell)
+          .some((c) => c.method === 'addPage');
+        expect(
+          brokeBetween,
+          `filler=${filler}: table header stranded — page break between it and its first body row`
+        ).toBe(false);
+      }
+    },
+    HEAVY_TEST_TIMEOUT_MS
+  );
 });
 
 describe('docx pagination policy', () => {
