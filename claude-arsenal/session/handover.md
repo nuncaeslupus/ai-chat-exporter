@@ -52,21 +52,60 @@ Plans: `docs/superpowers/plans/2026-07-29-selector-drift-{detection-core,popup-s
 
 | Task | Needs |
 | --- | --- |
-| `lo-766f` (p7) port the harness fixes upstream | access to the claude-arsenal plugin repo |
-| `lo-7422` (p4) release v1.2.0 | a store decision — see below |
+| `lo-766f` (p7) port the harness fixes upstream | **only the marketplace repo URL** — patch is prepared |
+| `lo-7422` (p4) release v1.2.0 | **held by decision** until the exporters redesign lands |
 | `lo-4143` (blocked) | **retired**, absorbed into #151/#152. No action. |
 | `lo-fc5f` (blocked, p2) Google Drive | reframed as a backup tool; needs design |
 
-**Two store re-reviews are now pending, not one.** `scripting` (PR #116) and
-`https://*.web-sandbox.oaiusercontent.com/*` (PR #153). Factor both into
-`lo-7422`.
+**`lo-766f` is no longer urgent.** The silent-revert risk is closed: the fixed
+`gate_run.sh`, `release.sh` and the `worker.md` payload note are all byte-identical
+to the vendored assets in `.claude/skills/init/assets/`, so `/init` will not revert
+them. The two harness tests are not vendored at all, so there is nothing to revert
+there either. What remains is the upstream contribution, and the **only** missing
+input is the repo URL — not discoverable locally (`~/.claude/plugins/config.json`
+is `{"repositories": {}}`, the plugin cache is not a git repo and is stale to
+June 2). See the payload for the prepared patch set.
 
-**Unverified in a real browser** — both need a human on a live page:
-1. The drift amber row and report view at 320 px (unit tests cover markup,
-   router, copy actions, suppression — not how it reads).
-2. Whether #153's frame script actually attaches inside the real sandbox iframe,
-   and whether the frame's text is fully rendered or virtualized. It degrades to
-   `lo-f132`'s honest placeholder if not, so a failure is safe but silent.
+**`lo-7422` is held by choice, not blocked technically.** All six deps are merged.
+Waiting avoids shipping a build the redesign supersedes, and avoids stacking a
+third store submission on two pending re-reviews (`scripting` from #116,
+`*.web-sandbox.oaiusercontent.com` from #153). `CHANGELOG.md` already carries the
+curated `[1.2.0] — unreleased` entry. **There are no git tags in this repo at
+all**, so tagging is part of that task.
+
+## Quota is now observable — the loop can stop itself
+
+It previously could not. The **global** `~/.claude/settings.json` statusLine wins
+over this project's, so `statusline_capture.sh` never ran and
+`claude-arsenal/session/rate_limits.json` was never written —
+`budget_check.sh` failed open on every single round all session.
+
+Fixed with the owner's permission: `~/.claude/statusline-command.sh` now tees its
+stdin into the project's capture when one exists (backup:
+`~/.claude/statusline-command.sh.bak-20260729`). Verified end to end — the status
+line renders identically, the quota file is written, and `budget_check.sh` exits
+`0` under quota and `3` at 92% with the reset time. **Trust `budget_check.sh`
+again; it is no longer vacuous.**
+
+## Verified in a browser this session
+
+The drift UI was checked by rendering the real built popup, not just unit tests:
+
+- Amber row: no clipping, no horizontal overflow, contrast **12.1:1** dark /
+  **7.39:1** light (needs 4.5), border 7.47 / 3.42 (needs 3).
+- Report view: monospace, `white-space: pre`, long skeleton lines scroll **inside
+  the `<pre>`** while the popup body never scrolls horizontally; footer reachable.
+- **Found and fixed a real defect**: `.drift-report-secondary` ("Copy report") had
+  **no CSS rule at all** — an omission in the plan — so it rendered as a default
+  browser button, 19px tall beside the 34px primary. Now matches the popup's
+  text-button idiom and shares the primary's baseline.
+- Six drift contrast pairs added to `tests/unit/accessibility/contrast.test.ts`;
+  the surfaces had been passing only by inheriting the warning tokens, ungated.
+
+**Still needs a human on a live page:** whether #153's frame script actually
+attaches inside the real sandbox iframe, and whether that frame's text is fully
+rendered or virtualized. It degrades to `lo-f132`'s honest placeholder if not, so
+a failure is safe but **silent**.
 
 ## A parallel session is live: the exporters redesign
 
