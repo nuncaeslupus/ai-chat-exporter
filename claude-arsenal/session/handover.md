@@ -2,107 +2,94 @@
 
 <!-- Written at session end. A new session reading this file can resume without additional context. -->
 
-Written 2026-07-29, end of the overnight session (started 2026-07-28 evening).
+Written 2026-07-29, end of the selector-drift session (continues the overnight
+session of 2026-07-28/29).
 
 ## State
 
-**Queue: 110 merged / 6 open / 0 in progress.** `queue_doctor` clean (116 tasks,
-0 findings). `main` is green: lint 0 errors **and 0 warnings**, `format:check`
-clean, typecheck clean, **953 tests**, both builds OK. Lint and format are both
-enforced in CI.
+**Queue: 128 merged / 2 open / 0 in progress / 2 blocked.** `queue_doctor`
+clean (131 tasks, 0 findings). `main` is green: lint, `format:check`, typecheck,
+**1062 tests**, both builds OK.
 
-**Every one of the 6 open tasks needs the human.** The loop is not blocked on
-itself — there is no agent-dispatchable work left.
+**Both open tasks need the human.** There is no agent-dispatchable work left.
 
-## The 6 open tasks, and what each needs
+## Shipped this session — 14 PRs, all merged
+
+| PR | What |
+| --- | --- |
+| #141 | D-18: per-message timestamps are no longer fabricated; local time, not UTC |
+| #142 | popup stopped conflating "unsupported page" with "parse found nothing" |
+| #143 | SD-1: drift types, fingerprint, selector health, output sanity |
+| #144 | D-19: a zero-pair parse no longer paints a normal ready screen |
+| #145 | SD-2: leak-proof DOM skeleton builder |
+| #146 | SD-6: drift suppression store |
+| #147 | SD-3: `ParseResult.drift` — drift detection on the live parse path |
+| #148 | SD-4: report formatting (the one string that is previewed AND copied) |
+| #149 | SD-5: `GET_DRIFT_SKELETON` — content-script plumbing |
+| #150 | pagination test flake that had refused a legitimate release |
+| #151 | SD-8: report view + amber drift row + 7 locale keys |
+| #152 | SD-9: copy / copy-and-report / suppression behaviour + 3 locale keys |
+| #153 | ChatGPT Deep Research read out of its sandboxed cross-origin iframe |
+| #154 | D-20: stop sweeping every selector on every parse |
+
+The **selector-drift safety net is complete**. Design:
+`docs/superpowers/specs/2026-07-29-selector-drift-safety-net-design.md`.
+Plans: `docs/superpowers/plans/2026-07-29-selector-drift-{detection-core,popup-surfaces}.md`.
+
+## Verified, not assumed
+
+- **The leak property test is not vacuous.** Mutation-tested twice in a
+  throwaway worktree: inverting the attribute safelist, and emitting raw text
+  nodes instead of `text(N)`. Both mutations fail the test. This is the basis
+  for telling users nothing but structure is shared — re-run that check if
+  `skeleton.ts` is ever refactored.
+- **The drift perf cost was measured, not estimated.** `chatgpt.test.ts` in
+  isolation: 168 ms/test pre-drift → 224 ms/test after #147 → 188 ms/test after
+  #154. The residual ~12% is the feature's intended cost (required-key check,
+  turn count, sanity rules on every parse).
+
+## Needs the human
 
 | Task | Needs |
 | --- | --- |
-| `lo-f132` (p9) ChatGPT Deep Research / Canvas / images | a DOM capture from a paid, logged-in session |
-| `lo-2478` (p8) Claude artifacts / thinking / web search | same |
-| `lo-3c90` (p8) Gemini title+model selectors dead on the live page | same |
 | `lo-766f` (p7) port the harness fixes upstream | access to the claude-arsenal plugin repo |
-| `lo-7422` (p4) release v1.2.0 | a decision on the `scripting` permission (below) |
-| `lo-fc5f` (p2) Export to Google Drive | a product + privacy decision (below) |
+| `lo-7422` (p4) release v1.2.0 | a store decision — see below |
+| `lo-4143` (blocked) | **retired**, absorbed into #151/#152. No action. |
+| `lo-fc5f` (blocked, p2) Google Drive | reframed as a backup tool; needs design |
 
-Captures: `copy(document.querySelector('main').outerHTML)` with the widget
-**expanded**, saved to `tmp/examples/` (gitignored).
+**Two store re-reviews are now pending, not one.** `scripting` (PR #116) and
+`https://*.web-sandbox.oaiusercontent.com/*` (PR #153). Factor both into
+`lo-7422`.
 
-## Three things a human must decide
+**Unverified in a real browser** — both need a human on a live page:
+1. The drift amber row and report view at 320 px (unit tests cover markup,
+   router, copy actions, suppression — not how it reads).
+2. Whether #153's frame script actually attaches inside the real sandbox iframe,
+   and whether the frame's text is fully rendered or virtualized. It degrades to
+   `lo-f132`'s honest placeholder if not, so a failure is safe but silent.
 
-1. **`scripting` permission** (added in PR #116). The popup and the context menu
-   now inject the content script and retry instead of asking the user to reload.
-   No new install-time warning — Chrome's prompt is driven by host permissions,
-   already declared for the four chat domains, and Firefox's `strict_min_version`
-   109 is past `scripting`'s arrival in 102 — but it **needs a store re-review**.
-   Revert to the reload-only path if that trade is unwanted. This gates `lo-7422`.
-2. **Port the harness fixes upstream** (`lo-766f`). `claude-arsenal/bin/` is
-   vendored and `/init` refreshes it by checksum, so PR #123 and PR #125 are
-   **silently reverted on the next `/init`**, reopening the false-`done` holes.
-3. **Google Drive export** (`lo-fc5f`) needs an OAuth scope and sends conversation
-   content to a third party, while `docs/PRIVACY.md` currently states nothing
-   leaves the browser. Not dispatched deliberately.
+## Untracked file in the working tree — decide before the next loop
 
-## Not verified in a real browser
+`docs/superpowers/specs/2026-07-29-exporters-redesign-design.md` (276 lines,
+18:22 on 2026-07-29) is **untracked and uncommitted**. It is an exporters
+redesign spec citing `Formatos de Exportación.dc.html`, direction 1a. Not
+written by the drift session.
 
-Everything below is vitest- or headless-verified only, because loading an unpacked
-extension needs a real browser profile:
+**It is at risk**: `worker_postcheck.sh` runs `git clean -fd` when it restores,
+which deletes untracked files. Backed up as git object `e9e4135` (recover with
+`git cat-file -p e9e4135`). Commit it or move it before running the loop again.
 
-- **Content-script injection + retry** (PR #116, #122): whether `executeScript`
-  waits on the loader's dynamic `import()` (the reason the retry polls 5 × 100 ms)
-  and whether a re-injected script double-registers its listener. Test: load
-  unpacked → open a chat tab → reload the extension → open the popup.
-- **The badge** on a failed context-menu export (PR #122).
-- **docx page count** under the new `fontScale` (PR #136) — Word paginates at
-  render time; the test asserts a labelled proxy, and pins that the file carries
-  no page count so the claim cannot rot.
+## Process lessons worth keeping
 
-## What shipped (22 PRs merged, #97–#137)
-
-**The popup redesign is complete** — direction 5a, `docs/design/popup-redesign.md`
-(now corrected and authoritative; the mocks are in `docs/design/popup-redesign/`).
-Shell → ready view → format menu → pair chooser → options → filename builder →
-five secondary states → dark mode, scaled to **420 × 378** with an 11-token type
-scale. The action bar was deliberately left un-scaled at the author's request.
-
-**Health / correctness**
-- Lint: 1092 errors → 0, then 287 warnings → 0, both gated in CI (#97, #134).
-  Root cause was ~30 explicit `any`s, not the strict preset.
-- Two false-`done` holes closed in the harness itself (#123, #125). **14 of 20
-  releases earlier that session had recorded `done` with the gate silently
-  skipped** — every one was still CI-verified by hand, but the enforcement layer
-  was a no-op. Both fixes carry `tests/gate_run_test.sh` and
-  `tests/release_gate_test.sh`.
-- **Six vacuous tests** found and fixed — tests that passed against deliberately
-  broken code (#98, #110, #129, #136, #137, plus the D-17 pair).
-
-**Exporters** — heading levels unified (#109), math survives end to end (#127),
-day separators + date range in headers (#110), web-search URLs reach pdf (#112),
-image/media field gaps closed (#113), duplicate search marker suppressed (#114),
-orphans/widows/keep-with-next (#129), docx brand colour (#131), three-step font
-scale (#136).
-
-**Real user-visible bugs fixed along the way**, none of which were the task's
-stated subject: the pdf role label could render below the bottom margin; every
-ChatGPT export in a non-English locale labelled the assistant "Assistent" /
-"Asistente"; `FilenameService` threw a TypeError on the popup side because
-`createdAt` is a string there and a `Date` in the content script; **the print
-dialog never opened at all** — a `load` listener attached to a window that gets
-replaced by navigation, so the user had to press Ctrl+P.
-
-## Operational notes for the next session
-
-- **Never run `pnpm build` and `pnpm test:run` concurrently** — this suite is
-  timeout-sensitive; four workers reported false single-test failures from it.
-- `gate_run.sh` no longer needs `ARSENAL_GATE_INHERIT_ENV=1` (#123) and resolves
-  payloads from `arsenal-queue` itself, so workers no longer materialize them.
-- **Claim and dispatch in one step.** Twice this session a task was claimed and
-  left undispatched, sitting `in_progress` with no worker.
-- **Do not pipe `release.sh` through `grep`** — you read grep's exit code, not the
-  script's, and miss a refusal.
-- Popup work is serial (three files); pair one popup task with one `src/core/`
-  task for the second worker slot.
-- Payloads go stale fast: **7 of ~20 payloads this session were partly wrong** —
-  already-fixed defects, line numbers off by 50–120, one describing a structure
-  that does not exist. Every worker prompt should say "survey first, report what
-  held".
+- **`release.sh done` re-runs the gate in the orchestrator's MAIN tree**, not on
+  the PR branch. Any task that creates new test files therefore fails the gate
+  until its PR is merged ("No test files found"). Correct order: merge, then
+  record `done`. The guard is right to refuse; it just cannot tell
+  "unsatisfiable yet" from "failed".
+- **Payload gates must include `pnpm format:check`.** CI enforces it; two PRs
+  passed every local gate and failed CI on prettier alone.
+- **`cd` to the repo root before every arsenal script.** The Bash tool's working
+  directory persists between calls, and running `worker_postcheck.sh` from a
+  stale cwd inside a finished worker's worktree restores *that* worktree.
+- **A locale-only task cannot pass** `tests/unit/extension/locales.test.ts` — it
+  fails on any declared key nothing references. Keys land with their consumers.
