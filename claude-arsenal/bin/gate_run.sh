@@ -2,7 +2,10 @@
 # gate_run.sh <task_id>
 # Runs the mechanical acceptance gate for a task, if one is defined.
 #
-# Reads claude-arsenal/queue/<task_id>.md and looks for the first ```bash (or
+# Reads claude-arsenal/queue/<task_id>.md — falling back to the coordination
+# branch (`git show arsenal-queue:…`) when the file is not on disk, so a worker
+# whose worktree predates the payload's seeding commit never has to write one
+# into its own tree — and looks for the first ```bash (or
 # ```sh) code block inside the ## Acceptance gate section. If found, executes
 # it in the repo root; if absent (prose-only gate), exits 0 immediately.
 #
@@ -11,13 +14,21 @@
 # RCE-from-data; review gate blocks before running. To limit the blast radius
 # the gate runs under a throwaway HOME and a PATH stripped of $HOME-local shims
 # by default, so $HOME-keyed secrets (~/.ssh, ~/.aws, ~/.netrc, ~/.config/gh)
-# and user-writable shim dirs are out of reach. This is NOT a sandbox. Set
-# ARSENAL_GATE_INHERIT_ENV=1 to run with the caller's full environment for
-# gates that genuinely need the real HOME/PATH (caches, pyenv/cargo shims).
+# and user-writable shim dirs are out of reach — except the directories holding
+# the package manager / language runtime (pnpm, npm, node, uv, cargo …), which
+# are re-admitted because they are commonly $HOME-installed and without them
+# every `pnpm …` gate dies with exit 127 instead of running. This is NOT a
+# sandbox. Set ARSENAL_GATE_INHERIT_ENV=1 to run with the caller's full
+# environment for gates that need the real HOME (build caches, credentials).
 #
 # Exit: 0 gate passed or no mechanical gate defined
 #       1 gate failed (command exited non-zero)
 #       2 usage/setup error
+#       3 gate COULD NOT RUN (command/interpreter not found, 126/127). Distinct
+#         from 1 so "the gate never executed" is never mistaken for a verdict.
+#         Also printed loudly on stdout, so a caller that pipes this script's
+#         output (`gate_run.sh <id> | tail`) — and thereby loses the exit status
+#         to the pipeline — still sees that nothing was verified.
 
 set -euo pipefail
 
@@ -28,9 +39,31 @@ if [[ -z "${TASK_ID}" ]]; then
 fi
 
 PAYLOAD="claude-arsenal/queue/${TASK_ID}.md"
+PAYLOAD_TMP=""
+# `return 0` matters: under `set -e` a non-zero status out of an EXIT trap
+# becomes the script's exit status, which would report every clean run as failed.
+cleanup() { [[ -n "${PAYLOAD_TMP}" ]] && rm -f "${PAYLOAD_TMP}"; return 0; }
+trap cleanup EXIT
+
 if [[ ! -f "${PAYLOAD}" ]]; then
-    echo "gate_run: payload not found: ${PAYLOAD}" >&2
-    exit 2
+    # A worker whose worktree base predates the payload's seeding commit has no
+    # file on disk. Read it from the coordination ref instead, into a temp file
+    # OUTSIDE the repo tree — a payload materialized inside it gets swept into
+    # the feature branch by open_task_pr.sh's `git add -A`.
+    QUEUE_BRANCH="${ARSENAL_QUEUE_BRANCH:-arsenal-queue}"
+    QUEUE_REMOTE="${ARSENAL_QUEUE_REMOTE:-origin}"
+    PAYLOAD_TMP="$(mktemp -t "arsenal-payload-${TASK_ID}-XXXXXX.md")"
+    for ref in "${QUEUE_BRANCH}" "${QUEUE_REMOTE}/${QUEUE_BRANCH}"; do
+        if git show "${ref}:${PAYLOAD}" >"${PAYLOAD_TMP}" 2>/dev/null; then
+            echo "gate_run: payload read from ${ref} (not on disk)" >&2
+            PAYLOAD="${PAYLOAD_TMP}"
+            break
+        fi
+    done
+    if [[ "${PAYLOAD}" != "${PAYLOAD_TMP}" ]]; then
+        echo "gate_run: payload not found: ${PAYLOAD} (nor on ${QUEUE_BRANCH})" >&2
+        exit 2
+    fi
 fi
 
 # Enforce a structured numeric evidence gate first, if the payload declares one.
@@ -47,6 +80,7 @@ python3 - "${PAYLOAD}" <<'PY'
 import os
 import pathlib
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -80,9 +114,29 @@ def _run(env):
     return subprocess.run(["bash", "-s"], input=script, text=True, env=env).returncode
 
 
+def _finish(rc):
+    if rc == 0:
+        sys.exit(0)
+    if rc in (126, 127):
+        # The gate never executed — a missing/non-executable command, not a
+        # verdict on the work. Say so on BOTH streams: a caller piping this
+        # script's stdout keeps the message even when the pipeline eats the
+        # exit status, which is how a never-run gate came to read as a pass.
+        msg = (
+            f"gate_run: GATE COULD NOT RUN (exit {rc}: command not found or not "
+            "executable). This is NOT a pass — nothing was verified. If the gate "
+            "needs a $HOME-installed tool the hardened PATH does not carry, run "
+            "with ARSENAL_GATE_INHERIT_ENV=1."
+        )
+        print(msg, flush=True)
+        print(msg, file=sys.stderr)
+        sys.exit(3)
+    sys.exit(1)
+
+
 inherit = os.environ.get("ARSENAL_GATE_INHERIT_ENV", "") not in ("", "0", "false")
 if inherit:
-    sys.exit(1 if _run(None) != 0 else 0)
+    _finish(_run(None))
 
 # Hardened-by-default environment: throwaway HOME + PATH with $HOME-local shim
 # dirs stripped. Keeps system + non-home tooling on PATH so common gates still
@@ -108,6 +162,20 @@ for system_dir in ("/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/bin",
     if system_dir not in safe_path.split(os.pathsep):
         safe_path = f"{safe_path}{os.pathsep}{system_dir}" if safe_path else system_dir
 
+# Re-admit the directories holding the project's package manager / language
+# runtime. These are routinely installed under $HOME (nvm, corepack, volta,
+# asdf, pyenv, uv, rustup), so stripping $HOME wholesale leaves `pnpm test` and
+# friends with exit 127 — a gate that CANNOT RUN, which is worse than an
+# unhardened one: it verifies nothing, and every caller has to work around it
+# with ARSENAL_GATE_INHERIT_ENV=1, which hands the gate the *entire* real
+# HOME/PATH. Admitting just these dirs keeps the rest of $HOME off PATH, and
+# HOME itself stays a throwaway.
+for tool in ("pnpm", "npm", "yarn", "bun", "node", "corepack", "uv", "poetry", "cargo"):
+    found = shutil.which(tool, path=os.environ.get("PATH", ""))
+    tool_dir = os.path.dirname(os.path.abspath(found)) if found else None
+    if tool_dir and tool_dir not in safe_path.split(os.pathsep):
+        safe_path = f"{tool_dir}{os.pathsep}{safe_path}" if safe_path else tool_dir
+
 with tempfile.TemporaryDirectory(prefix="arsenal-gate-home-") as gate_home:
     env = {
         "PATH": safe_path,
@@ -117,6 +185,15 @@ with tempfile.TemporaryDirectory(prefix="arsenal-gate-home-") as gate_home:
         "LC_ALL": os.environ.get("LC_ALL", "C.UTF-8"),
         "TERM": os.environ.get("TERM", "dumb"),
     }
+    # A repo pinning "packageManager" makes corepack resolve that version out of
+    # its own cache; keyed to HOME, a throwaway one re-downloads the package
+    # manager on every gate run and fails outright offline. Point it at the real
+    # cache — a package cache, not a credential store.
+    corepack_home = os.environ.get("COREPACK_HOME") or os.path.join(
+        real_home, ".cache", "node", "corepack"
+    )
+    if os.path.isdir(corepack_home):
+        env["COREPACK_HOME"] = corepack_home
     rc = _run(env)
-sys.exit(1 if rc != 0 else 0)
+_finish(rc)
 PY
