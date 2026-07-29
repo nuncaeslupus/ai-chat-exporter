@@ -25,6 +25,14 @@ export class ChatGPTParser extends BaseParser {
 
   readonly selectors = CHATGPT_SELECTORS;
 
+  protected override get chromeStrings(): readonly string[] {
+    return ['ChatGPT said:', 'You said:'];
+  }
+
+  protected override get requiredSelectorKeys(): readonly string[] {
+    return [...super.requiredSelectorKeys, 'custom.conversationTurn', 'custom.assistantTurn'];
+  }
+
   /**
    * Check if this parser can handle the current page
    */

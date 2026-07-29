@@ -3,6 +3,7 @@
  */
 
 import type { Conversation, Platform, PlatformInfo } from './conversation';
+import type { DriftReport } from '../drift/types';
 
 /**
  * Configuration for a parser
@@ -37,6 +38,11 @@ export interface ParseResult {
   error?: string;
   /** Warnings during parsing */
   warnings?: string[];
+  /**
+   * Set when the page's DOM appears to have drifted from what this parser
+   * expects. Content-free by construction; see `src/core/drift`.
+   */
+  drift?: DriftReport;
 }
 
 /**

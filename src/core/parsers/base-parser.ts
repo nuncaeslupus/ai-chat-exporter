@@ -14,6 +14,12 @@ import type {
   Conversation,
 } from '../types';
 import { DEFAULT_PARSER_CONFIG } from '../types';
+import {
+  checkOutputSanity,
+  checkSelectorHealth,
+  fingerprint,
+  type DriftReport,
+} from '../drift';
 
 /**
  * Abstract base class for platform-specific parsers
@@ -74,6 +80,10 @@ export abstract class BaseParser implements IParser {
       };
       if (warnings) {
         result.warnings = warnings;
+      }
+      const drift = this.detectDrift(pairs);
+      if (drift) {
+        result.drift = drift;
       }
       return result;
     } catch (error) {
@@ -303,6 +313,113 @@ export abstract class BaseParser implements IParser {
     element.querySelectorAll('div:empty, span:empty').forEach((el) => {
       el.remove();
     });
+  }
+
+  /**
+   * Selector keys whose zero-match means this parser is broken, as opposed to
+   * a widget simply not being on the page. The five mandatory `SelectorSet`
+   * keys are always required; a parser adds its own `custom.*` keys by
+   * overriding this.
+   */
+  protected get requiredSelectorKeys(): readonly string[] {
+    return [
+      'conversationContainer',
+      'messageElement',
+      'userMessage',
+      'assistantMessage',
+      'messageContent',
+    ];
+  }
+
+  /** Platform UI labels that must never appear as answer content. */
+  protected get chromeStrings(): readonly string[] {
+    return [];
+  }
+
+  /**
+   * `textContent.length` of the turn element each pair's answer came from,
+   * index-aligned with `pairs`. -1 means unknown, which suppresses the
+   * `content-shortfall` rule for that pair — so the rule stays off until a
+   * parser opts in by overriding this.
+   */
+  protected turnTextLengthsFor(pairs: QAPair[]): number[] {
+    return pairs.map(() => -1);
+  }
+
+  /**
+   * Assemble a drift report, or `undefined` when nothing is wrong.
+   *
+   * Best-effort by contract: a throw anywhere in here degrades to "no drift"
+   * and the export proceeds. The safety net must never break an export.
+   */
+  protected detectDrift(pairs: QAPair[]): DriftReport | undefined {
+    try {
+      return this.detectDriftUnsafe(pairs);
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** The real work; `detectDrift` is the guard around it. */
+  protected detectDriftUnsafe(pairs: QAPair[]): DriftReport | undefined {
+    const selectorFindings = checkSelectorHealth(
+      this.document,
+      this.selectors,
+      this.requiredSelectorKeys
+    );
+    const sanityFindings = checkOutputSanity({
+      pairs,
+      turnCount: this.countTurnContainers(),
+      turnTextLengths: this.turnTextLengthsFor(pairs),
+      chromeStrings: this.chromeStrings,
+    });
+
+    const failingSelectors = selectorFindings.filter((f) => f.required && f.matched <= 0);
+    if (failingSelectors.length === 0 && sanityFindings.length === 0) {
+      return undefined;
+    }
+
+    return {
+      fingerprint: fingerprint({
+        platform: this.platformInfo.id,
+        extensionVersion: this.extensionVersion(),
+        selectorKeys: failingSelectors.map((f) => f.key),
+        ruleIds: sanityFindings.map((f) => f.rule),
+      }),
+      platform: this.platformInfo.id,
+      extensionVersion: this.extensionVersion(),
+      buildTarget: this.buildTarget(),
+      detectedAt: new Date().toISOString().slice(0, 10),
+      selectorFindings,
+      sanityFindings,
+    };
+  }
+
+  /** How many turn containers the DOM holds, however many pairs came out. */
+  protected countTurnContainers(): number {
+    try {
+      return this.document.querySelectorAll(this.selectors.messageElement).length;
+    } catch {
+      return 0;
+    }
+  }
+
+  private extensionVersion(): string {
+    try {
+      return chrome?.runtime?.getManifest?.().version ?? 'unknown';
+    } catch {
+      return 'unknown';
+    }
+  }
+
+  /**
+   * The build target, derived from the UA but never storing it — a user agent
+   * string is needlessly identifying for a report whose only job is to name a
+   * broken selector.
+   */
+  private buildTarget(): 'chrome' | 'firefox' {
+    const ua = this.document.defaultView?.navigator?.userAgent ?? '';
+    return /firefox/i.test(ua) ? 'firefox' : 'chrome';
   }
 
   /**
