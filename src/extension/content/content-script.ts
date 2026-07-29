@@ -11,10 +11,12 @@ import { SelectionService } from '../../core/services/selection-service';
 import { StorageService } from '../../shared/storage';
 import type { Conversation, ExportFormat } from '../../core/types';
 import { sanitizeHtml } from '../../core/utils/sanitize-html';
+import { buildSkeleton, type DriftReport } from '../../core/drift';
 import {
   isExportConversationMessage,
   isPrintConversationMessage,
   isGetConversationMessage,
+  isGetDriftSkeletonMessage,
 } from '../../shared/messages';
 
 /** How often to check whether the print document has finished loading. */
@@ -46,6 +48,8 @@ function applySelection(conversation: Conversation, selectedIndices?: number[]):
  */
 class ContentScript {
   private conversation: Conversation | null = null;
+  /** Drift from the most recent parse. Content-free; see `src/core/drift`. */
+  private drift: DriftReport | undefined;
   private initialized = false;
 
   async initialize(): Promise<void> {
@@ -83,6 +87,7 @@ class ContentScript {
     }
 
     const parseResult = parser.parse();
+    this.drift = parseResult.drift;
     if (!parseResult.success || !parseResult.conversation) {
       console.error('[AI Chat Exporter] Failed to parse conversation:', parseResult.error);
       return null;
@@ -673,6 +678,10 @@ ${sanitizeHtml(htmlContent)}
   getConversation(): Conversation | null {
     return this.conversation;
   }
+
+  getDrift(): DriftReport | undefined {
+    return this.drift;
+  }
 }
 
 // Initialize content script
@@ -695,9 +704,27 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         // Re-parse conversation to get latest content
         await contentScript.initialize();
         const conversation = contentScript.getConversation();
+        const drift = contentScript.getDrift();
         sendResponse({
           success: true,
           data: conversation,
+          ...(drift && { drift }),
+        });
+      } else if (isGetDriftSkeletonMessage(message)) {
+        // Built here and only here: the popup has no access to the page DOM,
+        // and building it lazily means a user who never opens the report view
+        // never has one in memory.
+        const parser = detectParser();
+        const container = parser
+          ? document.querySelector(parser.selectors.conversationContainer)
+          : null;
+        // Falling back to <body> is deliberate: when canParse() is false, the
+        // container selector is exactly what we know least about.
+        const root = container ?? document.body;
+        sendResponse({
+          success: true,
+          skeleton: buildSkeleton(root),
+          origin: window.location.origin,
         });
       } else if (isExportConversationMessage(message)) {
         const warning = await contentScript.handleExport(message.format, message.selectedIndices);

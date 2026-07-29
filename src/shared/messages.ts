@@ -3,6 +3,7 @@
  */
 
 import type { ExportFormat, FilenamePreferences, FontScale } from '../core/types';
+import { MESSAGE_TYPES } from './constants';
 
 /**
  * Base message interface
@@ -39,6 +40,22 @@ export interface PrintConversationMessage extends BaseMessage<'print_conversatio
  * Get conversation message
  */
 export type GetConversationMessage = BaseMessage<'get_conversation'>;
+
+/**
+ * The popup asking the content script for a structural skeleton of the current
+ * page. Built on demand: a user who never opens the report view never has one.
+ */
+export interface GetDriftSkeletonMessage {
+  type: typeof MESSAGE_TYPES.GET_DRIFT_SKELETON;
+}
+
+export function isGetDriftSkeletonMessage(message: unknown): message is GetDriftSkeletonMessage {
+  return (
+    typeof message === 'object' &&
+    message !== null &&
+    (message as { type?: unknown }).type === MESSAGE_TYPES.GET_DRIFT_SKELETON
+  );
+}
 
 /**
  * User preferences interface
