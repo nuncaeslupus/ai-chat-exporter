@@ -103,6 +103,29 @@ describe('HtmlExporter', () => {
       expect(html).not.toContain('Date range');
     });
 
+    it('names the assistant after the platform, not the generic role label', async () => {
+      // `roleChatGPT` is the declared key; a lookup that misses it falls through
+      // to `roleAssistant`, so a German ChatGPT export reads "Assistent".
+      globalThis.chrome = {
+        ...originalChrome,
+        i18n: {
+          getUILanguage: () => 'de',
+          getMessage: (key: string) => DE_MESSAGES[key] ?? '',
+        },
+      } as unknown as typeof chrome;
+
+      const result = await exporter.export(conversation, selectedPairs, {
+        format: 'html',
+        filename: 'test',
+        includeMetadata: true,
+        includeTimestamps: false,
+      });
+      const html = await blobToText(result.blob!);
+
+      expect(html).toContain('<h2 class="message-role">ChatGPT</h2>');
+      expect(html).not.toContain('Assistent');
+    });
+
     it('falls back to English labels and lang="en" when i18n is unavailable', async () => {
       globalThis.chrome = { ...originalChrome, i18n: undefined } as unknown as typeof chrome;
 
