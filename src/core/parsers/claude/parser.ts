@@ -108,6 +108,10 @@ export class ClaudeParser extends BaseParser {
 
   readonly selectors = CLAUDE_SELECTORS;
 
+  protected override get requiredSelectorKeys(): readonly string[] {
+    return [...super.requiredSelectorKeys, 'custom.turnContainer', 'custom.userTurnWrapper'];
+  }
+
   /**
    * Check if this parser can handle the current page
    */
