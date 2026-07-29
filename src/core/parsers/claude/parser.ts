@@ -41,6 +41,62 @@ function setCachedImageDataUrl(src: string, dataUrl: string): void {
 }
 
 /**
+ * Artifact format token -> (type, language).
+ *
+ * claude.ai labels an artifact block `"<Kind> · <FORMAT>"` (e.g. `"Code · JSX"`,
+ * `"Document · MD"`). `<Kind>` is translated -- it is "Documento" on a Spanish
+ * UI -- but `<FORMAT>` is not, so the format token is the locale-independent
+ * signal and is preferred over any `includes()` check against the visible
+ * label (lo-2478).
+ */
+const ARTIFACT_FORMATS: Record<string, { type: string; language: string }> = {
+  md: { type: 'document', language: 'markdown' },
+  markdown: { type: 'document', language: 'markdown' },
+  txt: { type: 'document', language: 'text' },
+  svg: { type: 'image', language: 'svg' },
+  mermaid: { type: 'diagram', language: 'mermaid' },
+  jsx: { type: 'react', language: 'react' },
+  tsx: { type: 'react', language: 'react' },
+};
+
+/**
+ * Resolve an artifact's type from its label, locale-independently where
+ * possible. `format` is the token after the "·" separator; when the label has
+ * no separator (older markup, and the only shape the pre-2026 fixtures carry)
+ * this falls back to matching the visible label, which only works on an
+ * English or Spanish UI.
+ */
+function resolveArtifactType(label: string, format: string): { type: string; language?: string } {
+  const known = ARTIFACT_FORMATS[format];
+  if (known) {
+    return { type: known.type, language: known.language };
+  }
+  if (format) {
+    // Any other format token ("HTML", "PY", "CSV", ...) is source of some
+    // kind: type it as code and carry the token through as the language,
+    // rather than the 'unknown' the label chain used to yield.
+    return { type: 'code', language: format };
+  }
+
+  if (label.includes('Imagen') || label.includes('Image')) {
+    return { type: 'image', language: 'svg' };
+  }
+  if (label.includes('interactivo') || label.includes('interactive')) {
+    return { type: 'react', language: 'react' };
+  }
+  if (label.includes('Documento') || label.includes('Document')) {
+    return { type: 'document', language: 'markdown' };
+  }
+  if (label.includes('Diagrama') || label.includes('Diagram')) {
+    return { type: 'diagram', language: 'mermaid' };
+  }
+  if (label.includes('Código') || label.includes('Code')) {
+    return { type: 'code' };
+  }
+  return { type: 'unknown' };
+}
+
+/**
  * Parser for Claude conversations
  */
 export class ClaudeParser extends BaseParser {
@@ -452,61 +508,101 @@ export class ClaudeParser extends BaseParser {
   }
 
   /**
-   * Extract artifacts/canvases from a message
+   * Extract artifacts/canvases from a message.
+   *
+   * The artifact *block* (title + type label) lives inside the turn; the
+   * artifact *body* lives in the side panel, outside every turn container, so
+   * it is fetched once per message and matched back by title.
    */
   private extractArtifacts(element: Element): Artifact[] {
     const artifacts: Artifact[] = [];
 
-    const artifactContainers = element.querySelectorAll('div.pt-3.pb-3');
+    const cellSelector = this.selectors.custom?.artifactContainer || 'div.artifact-block-cell';
+    const titleSelector =
+      this.selectors.custom?.artifactTitle || 'div.leading-tight.text-sm.line-clamp-1';
+    const typeSelector =
+      this.selectors.custom?.artifactType || 'div.text-xs.line-clamp-1.text-text-400';
 
-    artifactContainers.forEach((container) => {
-      // Check if this contains an artifact
-      const artifactBlock = container.querySelector('div.artifact-block-cell');
-      if (!artifactBlock) {
-        return;
-      }
+    const cells = element.querySelectorAll(cellSelector);
+    if (cells.length === 0) {
+      return artifacts;
+    }
+    const panel = this.extractArtifactPanel();
 
-      // Extract title
-      const titleElement = artifactBlock.querySelector('div.leading-tight.text-sm.line-clamp-1');
-      const title = titleElement?.textContent?.trim() || 'Untitled Artifact';
+    cells.forEach((cell) => {
+      const title = cell.querySelector(titleSelector)?.textContent?.trim() || 'Untitled Artifact';
 
-      // Extract type label (e.g., "Imagen", "Artefacto interactivo", "Documento", "Diagrama")
-      const typeElement = artifactBlock.querySelector('div.text-xs.line-clamp-1.text-text-400');
-      const typeLabel = typeElement?.textContent?.trim() || '';
+      // e.g. "Code · JSX", "Document · MD", or -- older markup -- just "Imagen".
+      const typeLabel = cell.querySelector(typeSelector)?.textContent?.trim() || '';
+      const format = typeLabel.includes('·')
+        ? (typeLabel.split('·').pop() ?? '').trim().toLowerCase()
+        : '';
 
-      // Determine artifact type based on label
-      let type = 'unknown';
-      let language: string | undefined;
+      const { type, language } = resolveArtifactType(typeLabel, format);
 
-      if (typeLabel.includes('Imagen') || typeLabel.includes('Image')) {
-        type = 'image';
-        language = 'svg';
-      } else if (typeLabel.includes('interactivo') || typeLabel.includes('interactive')) {
-        type = 'react';
-        language = 'react';
-      } else if (typeLabel.includes('Documento') || typeLabel.includes('Document')) {
-        type = 'document';
-        language = 'markdown';
-      } else if (typeLabel.includes('Diagrama') || typeLabel.includes('Diagram')) {
-        type = 'diagram';
-        language = 'mermaid';
-      } else if (typeLabel.includes('Código') || typeLabel.includes('Code')) {
-        type = 'code';
-      }
-
-      const artifact: Artifact = {
-        type,
-        title,
-        typeLabel,
-      };
+      const artifact: Artifact = { type, title, typeLabel };
       if (language) {
         artifact.language = language;
+      }
+      if (panel?.title === title) {
+        artifact.content = panel.content;
       }
 
       artifacts.push(artifact);
     });
 
     return artifacts;
+  }
+
+  /**
+   * Read the body of the artifact currently open in the side panel.
+   *
+   * Returns null when no panel is open or its body is not readable. Without
+   * this every artifact reaches the export as a bare "[Type: Title]" marker:
+   * all five non-JSON exporters filter on `artifact.content`, so a
+   * content-less artifact renders no body anywhere (lo-2478).
+   *
+   * ponytail: only the artifact the user has open is readable, and only in the
+   * panel's rendered ("Preview"/markdown) mode -- a code artifact previews
+   * inside a cross-origin sandboxed <iframe> whose source the content script
+   * cannot touch, so it keeps the marker line only. Upgrade path if that
+   * matters: drive the panel's "Code" toggle, which renders the source into
+   * the page, before parsing.
+   */
+  private extractArtifactPanel(): { title: string; content: string } | null {
+    const panelSelector = this.selectors.custom?.artifactPanel;
+    const panelTitleSelector = this.selectors.custom?.artifactPanelTitle;
+    const panelBodySelector = this.selectors.custom?.artifactPanelBody;
+    if (!panelSelector || !panelTitleSelector || !panelBodySelector) {
+      return null;
+    }
+
+    const panel = this.document.querySelector(panelSelector);
+    if (!panel) {
+      return null;
+    }
+
+    const title = this.document.querySelector(panelTitleSelector)?.getAttribute('title')?.trim();
+    if (!title) {
+      return null;
+    }
+
+    const body = panel.querySelector(panelBodySelector);
+    if (!body) {
+      return null;
+    }
+
+    // textContent alone would run every heading and paragraph together, so
+    // join the body's block-level children instead of flattening the whole
+    // subtree in one go. ponytail: still flat inside a child -- a list's items
+    // run together, same as the Gemini Deep Research body does. Reach for a
+    // real HTML-to-markdown pass only if that turns out to bother anyone.
+    const content = Array.from(body.children)
+      .map((child) => this.extractContent(child, false).content)
+      .filter(Boolean)
+      .join('\n\n');
+
+    return content ? { title, content } : null;
   }
 
   /**
