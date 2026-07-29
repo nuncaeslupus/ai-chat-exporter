@@ -352,6 +352,14 @@ export class StructuredMarkdownExporter extends BaseExporter {
           case 'strikethrough':
             return `~~${item.text}~~`;
 
+          // lo-320b: `item.text` already carries the `$…$` / `$$…$$` delimiters
+          // every markdown math renderer expects, so markdown needs no wrapping
+          // of its own. Explicit rather than left to `default:` because this is
+          // the format where the delimiters are native syntax — a future
+          // "cleanup" of the default branch must not silently strip them.
+          case 'math':
+            return item.text;
+
           default:
             return item.text;
         }

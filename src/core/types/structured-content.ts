@@ -126,9 +126,21 @@ export type StructuredContentBlock =
  * Inline content (text with formatting)
  */
 export interface InlineContent {
-  type: 'text' | 'bold' | 'italic' | 'code' | 'link' | 'strikethrough';
+  type: 'text' | 'bold' | 'italic' | 'code' | 'link' | 'strikethrough' | 'math';
+  /**
+   * For `math`, the **delimited** LaTeX source (`$E = mc^2$`, `$$\sum x$$`) —
+   * not the bare TeX. No format can typeset math without KaTeX/MathJax, which
+   * the eager content-script bundle can't afford (PR #42), so preserving the
+   * source verbatim is the representation. Delimiting it once here, at the
+   * parser, rather than once per exporter means the plain-text paths that never
+   * touch an exporter (`Message.content`, json's `content`) are self-describing
+   * too, and a format that forgets to add a `math` case still emits valid
+   * delimited LaTeX from its `default:` branch instead of reintroducing the bug.
+   */
   text: string;
   url?: string; // For links
+  /** `math` only: which delimiter pair `text` carries, so formats can differ. */
+  display?: 'inline' | 'block';
   children?: InlineContent[]; // For nested formatting
 }
 

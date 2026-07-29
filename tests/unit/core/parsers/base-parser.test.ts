@@ -103,6 +103,54 @@ describe('BaseParser cleanupElement (via GeminiParser.extractContent)', () => {
     });
   });
 
+  // lo-320b: collapsing to ONE copy fixed triplication but left the survivor an
+  // undelimited, untagged LaTeX string — indistinguishable from prose in every
+  // export. The chosen copy is now delimited ($…$ / $$…$$) and wrapped in a
+  // marker span so HtmlContentParser can type it. The priority order above is
+  // unchanged; these tests sit alongside it, they do not replace it.
+  describe('math is tagged and delimited, not flattened to bare text (lo-320b)', () => {
+    it('delimits the inline formula in the plain-text content', () => {
+      const parser = buildParser('');
+      const { content } = parser.extractContent(loadChatGPTMarkdown(), false);
+
+      expect(content).toContain('$E = mc^2$');
+    });
+
+    it('delimits the display formula with $$ in the plain-text content', () => {
+      const parser = buildParser('');
+      const { content } = parser.extractContent(loadChatGPTMarkdown(), false);
+
+      expect(content).toContain('$$\\sum_{i=1}^{3} i = 6$$');
+    });
+
+    it('marks the inline formula with data-math-display="inline" in htmlContent', () => {
+      const parser = buildParser('');
+      const { htmlContent } = parser.extractContent(loadChatGPTMarkdown(), true);
+
+      expect(htmlContent).toContain('<span data-math-display="inline">$E = mc^2$</span>');
+    });
+
+    it('marks the display formula with data-math-display="block" in htmlContent', () => {
+      const parser = buildParser('');
+      const { htmlContent } = parser.extractContent(loadChatGPTMarkdown(), true);
+
+      expect(htmlContent).toContain(
+        '<span data-math-display="block">$$\\sum_{i=1}^{3} i = 6$$</span>'
+      );
+    });
+
+    it('treats a Gemini glyph-only formula as inline math', () => {
+      // Gemini ships `.katex-html` only, wrapped in its own `.math-inline`
+      // span that already uses `data-math` for the formula label — which is
+      // why the marker attribute is `data-math-display`, not `data-math`.
+      const parser = buildParser(katexFragment);
+      const { htmlContent } = parser.extractContent(parser.document.body, true);
+
+      expect(htmlContent).toContain('data-math-display="inline"');
+      expect(htmlContent).toMatch(/\$KE\$/);
+    });
+  });
+
   // lo-62ce: `.markdown` contains ChatGPT's own action buttons ("Copy table",
   // "Copy code"). Their textContent is empty (icon-only), so a text-only assertion
   // can never catch this — htmlContent is what ships in the export and must be

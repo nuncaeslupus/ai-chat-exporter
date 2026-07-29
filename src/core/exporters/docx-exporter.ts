@@ -737,6 +737,16 @@ export class DocxExporter extends BaseExporter {
         case 'strikethrough':
           options.strike = true;
           break;
+
+        // lo-320b: OMML is Word's native math and the `docx` library does export
+        // the builders for it (Math, MathRun, MathSum, MathFraction, …) — but
+        // they take a built OMML tree, not a TeX string, so using them means
+        // shipping a LaTeX parser. Deliberate fallback: the delimited source in
+        // the code font, matching how inline `code` is marked, so it reads as a
+        // formula and stays copy-pasteable into a real math tool.
+        case 'math':
+          options.font = FONT_FAMILY.code.docx;
+          break;
       }
 
       if (overrides) {

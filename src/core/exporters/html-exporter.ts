@@ -296,6 +296,16 @@ export class HtmlExporter extends BaseExporter {
         case 'strikethrough':
           return `<del>${text}</del>`;
 
+        // lo-320b: the delimited LaTeX source, tagged so it is identifiable as
+        // math rather than prose that happens to contain "$". Deliberately NOT
+        // MathML or a KaTeX span: converting LaTeX to either needs a TeX parser,
+        // and KaTeX's stylesheet + fonts would have to be inlined to keep the
+        // export self-contained (no remote subresource, pinned since PR #54).
+        // The class is the hook for a reader who wants to run KaTeX auto-render
+        // over the saved file themselves.
+        case 'math':
+          return `<span class="math math-${item.display === 'block' ? 'display' : 'inline'}">${text}</span>`;
+
         default:
           return text;
       }
@@ -565,6 +575,18 @@ export class HtmlExporter extends BaseExporter {
 
         .assistant-message .inline-code {
             background: rgba(0, 0, 0, 0.08);
+        }
+
+        /* Untypeset LaTeX source — see renderInline's 'math' case. Styled to
+           read as a formula rather than prose; display math gets its own line. */
+        .message-content .math {
+            font-family: ${FONT_FAMILY.code.css};
+        }
+
+        .message-content .math-display {
+            display: block;
+            text-align: center;
+            margin: 1rem 0;
         }
 
         .message-content ul,
