@@ -2,7 +2,7 @@
  * Message types and interfaces for extension communication
  */
 
-import type { ExportFormat } from '../core/types';
+import type { ExportFormat, FilenamePreferences } from '../core/types';
 
 /**
  * Base message interface
@@ -43,11 +43,10 @@ export type GetConversationMessage = BaseMessage<'get_conversation'>;
 /**
  * User preferences interface
  */
-export interface UserPreferences {
+export interface UserPreferences extends FilenamePreferences {
   includeMetadata: boolean;
   includeTimestamps: boolean;
   includeCodeBlocks: boolean;
-  filenameTemplate: string;
   defaultFormat: ExportFormat;
   autoSelectAll: boolean;
 }

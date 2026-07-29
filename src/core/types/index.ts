@@ -69,10 +69,14 @@ export {
 // Config types
 export type {
   FilenameVariables,
+  FilenamePiece,
+  FilenamePieceType,
+  FilenamePreferences,
   PrintOptions,
 } from './config';
 export {
   DEFAULT_FILENAME_TEMPLATE,
+  DEFAULT_FILENAME_PIECES,
   DEFAULT_PRINT_OPTIONS,
 } from './config';
 

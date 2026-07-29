@@ -20,6 +20,11 @@ import {
   getUILanguage,
 } from '../../shared/i18n';
 import { parserRegistry } from '../../core/parsers';
+import {
+  DEFAULT_FILENAME_PIECES,
+  type FilenamePiece,
+  type FilenamePieceType,
+} from '../../core/types/config';
 import { StorageService } from '../../shared/storage';
 import { DEFAULT_PREFERENCES } from '../../shared/constants';
 import { SelectionService } from '../../core/services/selection-service';
@@ -250,6 +255,36 @@ function el(tag: string, className: string, text?: string): HTMLElement {
   return node;
 }
 
+/**
+ * Every filename piece, in the order its add-chip is offered. A piece already
+ * in the name drops out of the row; free text never does, since a name can
+ * carry several literals.
+ */
+const PIECE_TYPES: FilenamePieceType[] = [
+  'platform',
+  'model',
+  'time',
+  'literal',
+  'title',
+  'date',
+  'pairCount',
+];
+
+const PIECE_LABEL_KEYS: Record<FilenamePieceType, string> = {
+  platform: 'filenamePiecePlatform',
+  model: 'filenamePieceModel',
+  title: 'filenamePieceTitle',
+  date: 'filenamePieceDate',
+  time: 'filenamePieceTime',
+  pairCount: 'filenamePiecePairCount',
+  literal: 'filenamePieceLiteral',
+};
+
+/** Own copy: the default list is a shared constant and must never be edited. */
+function clonePieces(pieces: FilenamePiece[]): FilenamePiece[] {
+  return pieces.map((piece) => ({ ...piece }));
+}
+
 /** Two hairlines with the date between them, e.g. `29 July`. */
 function daySeparatorRow(label: string): HTMLElement {
   const item = el('li', 'pair-day-separator');
@@ -273,6 +308,14 @@ class PopupController {
   private uiState: UiState = 'detecting';
   private routerBound = false;
   private pageReady = false;
+  /**
+   * Exactly what storage holds, `undefined` included: an install that never
+   * opened this screen keeps rendering the legacy template string, so its
+   * downloads keep the name they had before the builder existed.
+   */
+  private filenamePieces: FilenamePiece[] | undefined;
+  /** Index the current drag started from; `dataTransfer` is not needed. */
+  private draggedPieceIndex: number | null = null;
 
   async initialize(): Promise<void> {
     // Localize all static text in the HTML
@@ -319,6 +362,9 @@ class PopupController {
     if (timestampsToggle) {
       timestampsToggle.checked = prefs.includeTimestamps;
     }
+
+    this.filenamePieces = prefs.filenamePieces ? clonePieces(prefs.filenamePieces) : undefined;
+    this.renderFilenameBuilder();
 
     await this.updateOptionsDot();
   }
@@ -475,6 +521,11 @@ class PopupController {
     document.getElementById('option-include-timestamps')?.addEventListener('change', (e) => {
       void this.persistPreference({ includeTimestamps: (e.target as HTMLInputElement).checked });
     });
+
+    // File name: back to the piece list the extension ships with.
+    document.getElementById('filename-restore-default')?.addEventListener('click', () => {
+      this.applyPieces(clonePieces(DEFAULT_FILENAME_PIECES));
+    });
   }
 
   /** Every preference write goes through here so the Options dot stays honest. */
@@ -625,26 +676,174 @@ class PopupController {
   }
 
   /**
-   * The name the export would really be saved as — same template, same
-   * service, same extension the content script would use, so the row can
-   * never advertise a name the download does not get.
+   * The name the export would really be saved as — `buildFilename` is the one
+   * function the content script's download path calls too, so neither slot can
+   * ever advertise a name the file does not get.
+   *
+   * Pieces come from memory rather than storage so the footer tracks a chip
+   * being typed into, which is not written until it loses focus.
    *
    * ponytail: the extension is the format id because every exporter's
    * `extension` matches its format today. Read it off the exporter registry
    * if that ever stops being true.
    */
   private async updateFilenamePreview(): Promise<void> {
-    const el = document.getElementById('options-filename-preview');
-    if (!el || !this.conversation) return;
+    const slots = document.querySelectorAll<HTMLElement>('[data-filename-preview]');
+    if (slots.length === 0 || !this.conversation) return;
 
     const prefs = await StorageService.getUserPreferences();
-    const stem = FilenameService.generateFilename(
-      prefs.filenameTemplate,
-      FilenameService.getVariablesFromConversation(this.conversation)
+    const name = FilenameService.buildFilename(
+      { ...prefs, filenamePieces: this.filenamePieces },
+      FilenameService.getVariablesFromConversation(this.conversation),
+      this.selectedFormat
     );
-    const name = FilenameService.addExtension(stem, this.selectedFormat);
-    el.textContent = name;
-    el.title = name;
+    slots.forEach((slot) => {
+      slot.textContent = name;
+      slot.title = name;
+    });
+  }
+
+  /** The pieces on screen: what is stored, or the default list until it is. */
+  private currentPieces(): FilenamePiece[] {
+    return this.filenamePieces ?? DEFAULT_FILENAME_PIECES;
+  }
+
+  /**
+   * Adopt a new piece list: repaint, refresh both previews, persist.
+   * Every edit below funnels through here so none of them can forget one.
+   */
+  private applyPieces(pieces: FilenamePiece[]): void {
+    this.filenamePieces = pieces;
+    this.renderFilenameBuilder();
+    void this.persistPreference({ filenamePieces: pieces });
+  }
+
+  /** Chips for the composed name, then add-chips for what is left over. */
+  private renderFilenameBuilder(): void {
+    const field = document.getElementById('filename-pieces');
+    const addRow = document.getElementById('filename-add-chips');
+    if (!field || !addRow) return;
+
+    const pieces = this.currentPieces();
+    const nodes: HTMLElement[] = [];
+    pieces.forEach((piece, index) => {
+      // The literal `_` the renderer really puts between two pieces.
+      if (index > 0) nodes.push(el('span', 'filename-separator', '_'));
+      nodes.push(this.pieceChip(piece, index));
+    });
+    nodes.push(el('span', 'filename-caret'));
+    field.replaceChildren(...nodes);
+
+    const used = new Set(pieces.map((piece) => piece.type));
+    addRow.replaceChildren(
+      ...PIECE_TYPES.filter((type) => type === 'literal' || !used.has(type)).map((type) =>
+        this.addChip(type)
+      )
+    );
+  }
+
+  /** One piece: its label (or its text field), a remove button, draggable. */
+  private pieceChip(piece: FilenamePiece, index: number): HTMLElement {
+    const chip = el('span', 'filename-chip');
+    chip.draggable = true;
+    chip.dataset.pieceType = piece.type;
+    chip.dataset.pieceIndex = String(index);
+    chip.addEventListener('dragstart', () => {
+      this.draggedPieceIndex = index;
+    });
+    // Without a default-prevented dragover a browser refuses the drop.
+    chip.addEventListener('dragover', (event) => {
+      event.preventDefault();
+    });
+    chip.addEventListener('drop', (event) => {
+      event.preventDefault();
+      this.movePiece(this.draggedPieceIndex, index);
+    });
+
+    if (piece.type === 'literal') {
+      chip.appendChild(this.literalInput(piece));
+    } else {
+      chip.appendChild(el('span', 'filename-chip-label', getMessage(PIECE_LABEL_KEYS[piece.type])));
+    }
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'filename-chip-remove';
+    const removeLabel = getMessage('filenameRemovePiece');
+    remove.setAttribute('aria-label', removeLabel);
+    remove.title = removeLabel;
+    remove.insertAdjacentHTML(
+      'beforeend',
+      `<svg width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden="true">
+        <path d="M1 1l6 6M7 1L1 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>`
+    );
+    remove.addEventListener('click', () => {
+      this.applyPieces(this.currentPieces().filter((_, at) => at !== index));
+    });
+    chip.appendChild(remove);
+
+    return chip;
+  }
+
+  /**
+   * Free text edits in place. Keystrokes only move the previews — repainting
+   * the field would drop the caret, and a write per character would burn
+   * through chrome.storage.sync's quota. The write lands on `change`.
+   */
+  private literalInput(piece: FilenamePiece): HTMLInputElement {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'filename-chip-input';
+    const label = getMessage('filenamePieceLiteral');
+    input.setAttribute('aria-label', label);
+    input.placeholder = label;
+    input.value = piece.text ?? '';
+    const fit = (): void => {
+      input.size = Math.max(4, input.value.length);
+    };
+    fit();
+    input.addEventListener('input', () => {
+      piece.text = input.value;
+      fit();
+      void this.updateFilenamePreview();
+    });
+    input.addEventListener('change', () => {
+      void this.persistPreference({ filenamePieces: this.currentPieces() });
+    });
+    // Selecting text inside the chip must not start a chip drag.
+    input.addEventListener('dragstart', (event) => {
+      event.stopPropagation();
+    });
+    return input;
+  }
+
+  private addChip(type: FilenamePieceType): HTMLElement {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'filename-add-chip';
+    chip.dataset.addPiece = type;
+    chip.textContent = getMessageWithValues(
+      'filenameAddPiece',
+      getMessage(PIECE_LABEL_KEYS[type])
+    );
+    chip.addEventListener('click', () => {
+      const piece: FilenamePiece = type === 'literal' ? { type, text: '' } : { type };
+      this.applyPieces([...this.currentPieces(), piece]);
+    });
+    return chip;
+  }
+
+  /** Drop `from` at `to`, the whole of what dragging a chip does. */
+  private movePiece(from: number | null, to: number): void {
+    this.draggedPieceIndex = null;
+    if (from === null || from === to) return;
+
+    const pieces = clonePieces(this.currentPieces());
+    const [moved] = pieces.splice(from, 1);
+    if (!moved) return;
+    pieces.splice(to, 0, moved);
+    this.applyPieces(pieces);
   }
 
   /**
@@ -844,9 +1043,15 @@ class PopupController {
     if (!dot) return;
 
     const prefs = await StorageService.getUserPreferences();
-    dot.hidden = (Object.keys(DEFAULT_PREFERENCES) as (keyof typeof DEFAULT_PREFERENCES)[]).every(
-      (key) => prefs[key] === DEFAULT_PREFERENCES[key]
-    );
+    const scalarsAtDefault = (
+      Object.keys(DEFAULT_PREFERENCES) as (keyof typeof DEFAULT_PREFERENCES)[]
+    ).every((key) => prefs[key] === DEFAULT_PREFERENCES[key]);
+    // The piece list is not in DEFAULT_PREFERENCES (absent means "untouched",
+    // which is what keeps the legacy name), so it is compared by value here.
+    const nameAtDefault =
+      prefs.filenamePieces === undefined ||
+      JSON.stringify(prefs.filenamePieces) === JSON.stringify(DEFAULT_FILENAME_PIECES);
+    dot.hidden = scalarsAtDefault && nameAtDefault;
   }
 
   private updateExportLabel(format: ExportFormat): void {

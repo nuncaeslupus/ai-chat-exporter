@@ -301,7 +301,7 @@
               <span class="option-row-gutter" aria-hidden="true"></span>
               <span class="option-row-stack">
                 <span class="option-row-label" data-i18n="optionsFilenameRow">File name</span>
-                <span class="option-row-filename" id="options-filename-preview"></span>
+                <span class="option-row-filename" id="options-filename-preview" data-filename-preview></span>
               </span>
               <svg class="option-row-chevron" width="8" height="12" viewBox="0 0 8 12" fill="none" aria-hidden="true">
                 <path d="M1.5 1 6.5 6l-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -335,7 +335,50 @@
           </div>
         </section>
 
-        <section class="popup-view" id="view-filename" hidden></section>
+        <!--
+          File name builder. Same three bands. The pieces field, the add
+          chips and the footer name are all rendered from `filenamePieces`
+          by popup.ts — the markup here is only the frame they land in, so
+          there is one source for what the name is made of.
+        -->
+        <section class="popup-view" id="view-filename" hidden>
+          <div class="submenu-header filename-header">
+            <button type="button" class="submenu-back" data-nav="options" data-i18n-label="submenuBack">
+              <svg width="7" height="11" viewBox="0 0 8 12" fill="none" aria-hidden="true">
+                <path d="M6.5 1 1.5 6l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <h2 class="submenu-title" data-i18n="optionsFilenameRow">File name</h2>
+            <button
+              type="button"
+              class="filename-default"
+              id="filename-restore-default"
+              data-i18n="filenameRestoreDefault"
+            >
+              Default
+            </button>
+          </div>
+
+          <div class="filename-body">
+            <!-- The composed name. Chips are draggable; the caret marks where the next one lands. -->
+            <div class="filename-field" id="filename-pieces"></div>
+            <div class="filename-add" id="filename-add-chips"></div>
+            <p class="filename-hint" data-i18n="filenameDragHint">
+              Drag the pieces to reorder them.
+            </p>
+          </div>
+
+          <div class="submenu-footer filename-footer">
+            <svg class="filename-footer-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M3.5 2.5h6L12.5 5.5v8h-9v-11Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+              <path d="M9.2 2.6v3.1h3.2" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+            </svg>
+            <span class="filename-footer-name" id="filename-preview" data-filename-preview></span>
+            <button type="button" class="submenu-done" data-nav="options" data-i18n="submenuDone">
+              Done
+            </button>
+          </div>
+        </section>
       </main>
     </div>
 
