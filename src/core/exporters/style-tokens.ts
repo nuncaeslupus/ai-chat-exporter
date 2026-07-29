@@ -226,3 +226,30 @@ export const SPACING = {
   /** Blockquote left indent, in mm (0.5in, docx's original value — unchanged). */
   blockquoteIndentMm: 12.7,
 } as const;
+
+// ---------------------------------------------------------------------------
+// Pagination policy (C-5)
+// ---------------------------------------------------------------------------
+
+/**
+ * Typographic pagination policy, in LINES, for the three formats that have
+ * pages. Each expresses it in its own idiom:
+ *   - pdf:  measured against the remaining page height before drawing, since
+ *           its layout is hand-rolled (there is no property to set)
+ *   - docx: `keepNext` / `keepLines` on paragraphs, `cantSplit` on table rows
+ *   - html: `orphans` / `widows` / `break-*: avoid` inside `@media print`
+ *
+ * md, txt and json have no pagination — the concept is meaningless there and
+ * they deliberately do not import this.
+ */
+export const PAGINATION = {
+  /** Fewest lines of a straddling paragraph that may be left at a page foot. */
+  orphans: 2,
+  /** Fewest lines of a straddling paragraph that may be carried to the next page. */
+  widows: 2,
+  /**
+   * Lines of following content a heading or role label must keep with it, so a
+   * label never strands alone at the foot of a page with its message overleaf.
+   */
+  keepWithNextLines: 2,
+} as const;

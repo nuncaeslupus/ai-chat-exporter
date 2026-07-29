@@ -240,6 +240,7 @@ export class DocxExporter extends BaseExporter {
       children,
       heading: DOCX_HEADING_BY_LEVEL[DOC_HEADING_LEVEL.roleLabel - 1]!,
       spacing: { before: 300, after: 150 },
+      keepNext: true, // never strand the role label at the foot of a page
     });
   }
 
@@ -258,6 +259,7 @@ export class DocxExporter extends BaseExporter {
       ],
       alignment: AlignmentType.CENTER,
       spacing: { before: 300, after: 150 },
+      keepNext: true, // it introduces the message below it; alone at a page foot it is a dead line
     });
   }
 
@@ -520,6 +522,7 @@ export class DocxExporter extends BaseExporter {
         children: textRuns,
         heading: heading,
         spacing: { before: 250, after: 150 },
+        keepNext: true, // a heading stays with the content it introduces
       }),
     ];
   }
@@ -542,6 +545,7 @@ export class DocxExporter extends BaseExporter {
             }),
           ],
           spacing: { before: 100, after: 50 },
+          keepNext: true, // the language tag belongs with the code it labels
         })
       );
     }
@@ -562,6 +566,7 @@ export class DocxExporter extends BaseExporter {
             })
         ),
         spacing: { before: 50, after: 150 },
+        keepLines: true, // a code block reads as one unit — do not fragment it
       })
     );
 
@@ -671,7 +676,10 @@ export class DocxExporter extends BaseExporter {
             shading: { fill: hexToDocxColor(COLOR.surfaceSubtle) }, // matches pdf/html table header background
           })
       );
-      rows.push(new TableRow({ children: headerCells }));
+      // cantSplit: the row never breaks down the middle across a page boundary.
+      // tableHeader: Word repeats it at the top of each continuation page, which
+      // is its native answer to "header stranded at the foot of a page".
+      rows.push(new TableRow({ children: headerCells, cantSplit: true, tableHeader: true }));
     }
 
     // Render body rows
@@ -687,7 +695,7 @@ export class DocxExporter extends BaseExporter {
               ],
             })
         );
-        rows.push(new TableRow({ children: bodyCells }));
+        rows.push(new TableRow({ children: bodyCells, cantSplit: true }));
       }
     }
 
