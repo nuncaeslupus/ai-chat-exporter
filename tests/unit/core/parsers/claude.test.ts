@@ -425,6 +425,104 @@ describe('ClaudeParser', () => {
     });
   });
 
+  // lo-2478: the fixture above is pre-2026 markup. These run against a
+  // hand-rebuilt snapshot of claude.ai's CURRENT markup, where four selectors
+  // the parser depends on had silently gone dead. Each `it` here is a
+  // liveness guard for one of them: if claude.ai moves it again, exactly one
+  // of these fails and names what broke, instead of exports quietly going
+  // empty.
+  describe('current claude.ai markup (2026)', () => {
+    let liveDocument: Document;
+    let liveParser: ClaudeParser;
+
+    beforeEach(() => {
+      const html = readFileSync(
+        join(__dirname, '../../../fixtures/dom-snapshots/claude/artifact-panel.html'),
+        'utf-8'
+      );
+      liveDocument = new JSDOM(html, { url: 'https://claude.ai/chat/abc123' }).window.document;
+      liveParser = new ClaudeParser(liveDocument);
+    });
+
+    it('recognizes the conversation container (overflow-y-auto, not -scroll)', () => {
+      expect(liveParser.canParse()).toBe(true);
+    });
+
+    it('pairs the turn via data-user-message-bubble (div.mb-1.mt-6.group is gone)', () => {
+      const pairs = liveParser.parse().conversation?.pairs ?? [];
+
+      expect(pairs).toHaveLength(1);
+      expect(pairs[0]?.question.content).toContain('Draft me a tide table helper');
+      expect(pairs[0]?.answer.content).toContain('Both pieces are below');
+    });
+
+    it('finds artifact blocks that no longer sit inside div.pt-3.pb-3', () => {
+      const artifacts = liveParser.parse().conversation?.pairs[0]?.answer.metadata?.artifacts ?? [];
+
+      expect(artifacts.map((a) => a.title)).toEqual(['Tide table helper', 'Reading a tide table']);
+    });
+
+    it('types artifacts from the format token, not the translated label', () => {
+      const artifacts = liveParser.parse().conversation?.pairs[0]?.answer.metadata?.artifacts ?? [];
+
+      expect(artifacts[0]).toMatchObject({ type: 'react', language: 'react' });
+      expect(artifacts[1]).toMatchObject({ type: 'document', language: 'markdown' });
+    });
+
+    it('types a Spanish-UI label the same way an English one is typed', () => {
+      // "Documento · MD" -- only the kind is translated; the format token is
+      // not, which is the whole point of reading it instead of the label.
+      liveDocument
+        .querySelectorAll('div.text-xs.line-clamp-1.text-text-400')
+        .forEach((el) => (el.innerHTML = 'Documento<span class="opacity-50"> · </span>MD&nbsp;'));
+
+      const artifacts = new ClaudeParser(liveDocument).parse().conversation?.pairs[0]?.answer
+        .metadata?.artifacts;
+
+      expect(artifacts?.every((a) => a.type === 'document')).toBe(true);
+    });
+
+    it('reads the open artifact body out of the side panel', () => {
+      const artifacts = liveParser.parse().conversation?.pairs[0]?.answer.metadata?.artifacts ?? [];
+
+      // The panel renders outside every turn container, so it is only reached
+      // by a document-level lookup -- the failure shape that silently dropped
+      // Gemini's Deep Research report (PR #55).
+      const doc = artifacts.find((a) => a.title === 'Reading a tide table');
+      expect(doc?.content).toContain('Reading a tide table');
+      expect(doc?.content).toContain('Highs and lows');
+      expect(doc?.content).toContain('more than one block-level child');
+      // ...and keeps the blocks apart rather than running them together.
+      expect(doc?.content).toContain('\n\n');
+    });
+
+    it('leaves the un-opened artifact content-less rather than mis-attaching the panel', () => {
+      const artifacts = liveParser.parse().conversation?.pairs[0]?.answer.metadata?.artifacts ?? [];
+
+      expect(artifacts.find((a) => a.title === 'Tide table helper')?.content).toBeUndefined();
+    });
+
+    it('drops the panel body when the viewer is a cross-origin preview iframe', () => {
+      // A code artifact previews inside a sandboxed iframe whose source the
+      // content script cannot read; the artifact must still survive as a
+      // reference, not vanish.
+      liveDocument.querySelector('[data-skill-file-viewer] div.standard-markdown')?.remove();
+
+      const artifacts = new ClaudeParser(liveDocument).parse().conversation?.pairs[0]?.answer
+        .metadata?.artifacts;
+
+      expect(artifacts).toHaveLength(2);
+      expect(artifacts?.every((a) => a.content === undefined)).toBe(true);
+    });
+
+    it('names every artifact in the answer text so no format can drop it', () => {
+      const answer = liveParser.parse().conversation?.pairs[0]?.answer.content ?? '';
+
+      expect(answer).toContain('[Code · JSX: Tide table helper]');
+      expect(answer).toContain('[Document · MD: Reading a tide table]');
+    });
+  });
+
   describe('getButtonInjectionPoint', () => {
     it('returns a valid HTML element', () => {
       const point = parser.getButtonInjectionPoint();
