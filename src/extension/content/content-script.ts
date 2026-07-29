@@ -18,6 +18,14 @@ import {
   isGetConversationMessage,
   isGetDriftSkeletonMessage,
 } from '../../shared/messages';
+import {
+  DEEP_RESEARCH_FRAME_ORIGIN_RE,
+  isDeepResearchFrameMessage,
+} from '../../shared/deep-research-relay';
+import {
+  CHATGPT_SELECTORS,
+  EMBEDDED_FRAME_REPORT_ATTR,
+} from '../../core/parsers/chatgpt/selectors';
 
 /** How often to check whether the print document has finished loading. */
 const PRINT_POLL_INTERVAL_MS = 100;
@@ -683,6 +691,40 @@ ${sanitizeHtml(htmlContent)}
     return this.drift;
   }
 }
+
+/**
+ * Handle a `postMessage` from a Deep Research / connector-widget sandboxed
+ * iframe (see `deep-research-frame.ts`, which runs inside that frame).
+ *
+ * Validates the sender's origin against the sandbox host pattern before
+ * trusting anything in `event.data` -- any script on the page (or a
+ * malicious/compromised subdomain) can post an arbitrary `message` event, and
+ * without this check that content would land in the export as if it were the
+ * real report. Matches the message to the right `<iframe>` element by
+ * `event.source === frame.contentWindow`, which works even though the frame
+ * is cross-origin -- `contentWindow` is exposed regardless of origin -- and
+ * needs no shared identifier (turn id, frame id) between the two scripts.
+ */
+function handleDeepResearchFrameMessage(event: MessageEvent): void {
+  if (!DEEP_RESEARCH_FRAME_ORIGIN_RE.test(event.origin)) {
+    return;
+  }
+  if (!isDeepResearchFrameMessage(event.data)) {
+    return;
+  }
+
+  const frames = document.querySelectorAll<HTMLIFrameElement>(
+    CHATGPT_SELECTORS.custom.embeddedWidgetFrame
+  );
+  for (const frame of frames) {
+    if (frame.contentWindow === event.source) {
+      frame.setAttribute(EMBEDDED_FRAME_REPORT_ATTR, event.data.text);
+      return;
+    }
+  }
+}
+
+window.addEventListener('message', handleDeepResearchFrameMessage);
 
 // Initialize content script
 const contentScript = new ContentScript();
