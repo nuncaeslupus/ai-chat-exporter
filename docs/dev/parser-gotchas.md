@@ -289,10 +289,38 @@ convention before assuming one name covers it.
 `.conversation-title` and `[data-test-id="bard-text"]` match **zero** elements
 on a current Gemini page: the top bar no longer carries the conversation title,
 and `bard-mode-switcher` moved into the composer (`input-container`), where it
-reads "Pro"/"Extended" rather than a model name. `getTitle()` and `getModel()`
-therefore silently fall back. Not fixed here — recorded so it is not
-rediscovered. Exactly the gotcha-1 failure mode: the January fixture still has
-both, so the selector-liveness test stays green.
+reads "Flash"/"Pro"/"Extended" rather than a model name. `getTitle()` and
+`getModel()` therefore silently fell back. Exactly the gotcha-1 failure mode:
+the January fixture still had both, so the selector-liveness test stayed green
+for six months.
+
+**Fixed 2026-07-29 (lo-3c90)** against a fresh capture:
+
+- Title now comes from the sidebar row for the open conversation
+  (`gem-nav-list-item[data-test-id="conversation"] a[aria-current="page"]
+  .title-text`). `aria-current="page"` is the only occurrence in the page, and
+  the only semantic marker of *which* conversation is open — matching
+  `.title-text` unscoped would return whichever row is first. `document.title`
+  is not a second source: Gemini leaves it as the bare app name.
+- `getModel()` returns `Gemini (<label> mode)`, not the bare label. The control
+  is a *mode* picker by the page's own account (`aria-label="Open mode picker,
+  currently Flash"`) and its value is sometimes a model family ("Flash", "Pro")
+  and sometimes an effort tier ("Extended"). `Model: Extended` in an export
+  header names a model that does not exist; an absent value beats a confidently
+  wrong one, and the mode phrasing is true either way without losing anything.
+
+**Rule the recurrence taught:** a selector-liveness test proves the selector
+matches *the fixture*, never the product — it cannot detect drift, by
+construction. Two things that help and cost nothing:
+
+- assert the returned **value**, with a negative control (the title is the
+  active row's, *not* the first row's), so a selector that drifts into matching
+  the wrong element fails instead of quietly matching something;
+- assert the retired markup is **absent** from the fixture, so re-adding dead
+  markup to force a test green is an explicit act rather than an accident.
+
+Neither substitutes for re-capturing. Any parser change should start from a
+fresh capture, and a capture older than the last redesign is a liability.
 
 ## 13. Orchestration: worktrees can start from a stale base
 

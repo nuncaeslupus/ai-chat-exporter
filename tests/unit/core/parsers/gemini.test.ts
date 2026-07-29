@@ -49,6 +49,20 @@ describe('GeminiParser', () => {
         expect(document.querySelectorAll(selector).length, selector).toBeGreaterThan(0);
       }
     });
+
+    // The above can only ever prove "the selector matches THIS FIXTURE". It
+    // stayed green for six months while both the title and the model selector
+    // matched nothing on the real page, because the fixture still carried the
+    // markup Gemini had already dropped (docs/dev/parser-gotchas.md §12d).
+    // Pinning the retired markup as forbidden is the part a fixture CAN check:
+    // it makes re-adding dead markup to force a test green an explicit act.
+    it('does not carry markup Gemini has retired', () => {
+      const { document } = new JSDOM(html).window;
+
+      for (const retired of ['.conversation-title', '[data-test-id="bard-text"]']) {
+        expect(document.querySelectorAll(retired).length, retired).toBe(0);
+      }
+    });
   });
 
   describe('canParse', () => {
@@ -65,23 +79,58 @@ describe('GeminiParser', () => {
     });
   });
 
+  // The title and the model are the two selectors that went dead unnoticed
+  // (lo-3c90): the old guard only asked "does the selector match SOMETHING in
+  // the fixture", which a stale fixture answers yes to forever. These assert
+  // the returned VALUE and pin the negative controls -- the wrong sidebar row,
+  // the generic <title>, the bare mode label -- so a selector that drifts back
+  // to matching the wrong thing fails instead of quietly matching.
   describe('getTitle', () => {
-    it('reads the conversation title from the top bar', () => {
+    it('reads the title of the open conversation from the sidebar', () => {
+      // The sidebar holds three conversations; only the open one carries
+      // `aria-current="page"`. A selector that lost that scoping would return
+      // the first row instead.
       expect(parser.getTitle()).toBe('Paper airplane aerodynamics');
+      expect(parser.getTitle()).not.toBe('Kite string tension maths');
     });
 
-    it('falls back to a default title when no title element exists', () => {
+    it('does not settle for the generic document title', () => {
+      // <title> is "Gemini" on every conversation, so it can never stand in
+      // for the conversation name.
+      expect(parser.getTitle()).not.toBe('Gemini');
+    });
+
+    it('falls back to a default title rather than a neighbouring conversation', () => {
+      const doc = new JSDOM(html, { url: GEMINI_URL }).window.document;
+      doc.querySelector('[aria-current="page"]')?.removeAttribute('aria-current');
+
+      expect(new GeminiParser(doc).getTitle()).toBe('Gemini Conversation');
+    });
+
+    it('falls back to a default title when no sidebar exists', () => {
       expect(parserFor('<main></main>').getTitle()).toBe('Gemini Conversation');
     });
   });
 
   describe('getModel', () => {
-    it('reads the model label from the mode switcher', () => {
-      expect(parser.getModel()).toBe('Gemini');
+    // Gemini exposes no model slug. The composer's picker is a MODE picker
+    // whose label is sometimes a model family ("Flash") and sometimes an
+    // effort tier ("Extended"), so the bare label must never be reported as
+    // the model name.
+    it('reports the composer mode picker as a mode, not as a model name', () => {
+      expect(parser.getModel()).toBe('Gemini (Flash mode)');
+      expect(parser.getModel()).not.toBe('Flash');
     });
 
-    it('returns null when no model indicator exists', () => {
+    it('returns null when no mode picker exists', () => {
       expect(parserFor('<main></main>').getModel()).toBeNull();
+    });
+
+    it('returns null rather than an empty mode when the picker label is gone', () => {
+      const doc = new JSDOM(html, { url: GEMINI_URL }).window.document;
+      doc.querySelector('.picker-primary-text')?.remove();
+
+      expect(new GeminiParser(doc).getModel()).toBeNull();
     });
   });
 

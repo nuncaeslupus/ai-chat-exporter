@@ -3,23 +3,39 @@
 <head><meta charset="utf-8"><title>Gemini</title></head>
 <body>
 <!--
-  Gemini DOM fixture, derived from a live capture of gemini.google.com
-  (tmp/examples/artifacts-gemini-rendered.html, 2026-01-17 — gitignored, 2.1MB).
+  Gemini DOM fixture. The conversation body comes from a live capture of
+  2026-01-17; the top bar, the sidebar and the composer were re-derived from a
+  fresh capture (tmp/examples/gemini-current.html, 2026-07-29 — gitignored,
+  4.3 MB) because Gemini moved both the title and the mode switcher in between.
 
-  Sanitized: the sidebar (every conversation title in the account), avatars,
-  action bars, menus, icons, source lists and Angular/jslog attributes were
-  removed. The capture carried no text inside <user-query-content>, so the
-  three questions here are invented; every element and class name around them
-  comes from the capture.
+  Sanitized: avatars, action bars, menus, icons, source lists and Angular/jslog
+  attributes were removed. EVERY piece of visible prose is INVENTED — the three
+  questions, and all three sidebar conversation names (the real sidebar lists
+  every conversation in the account and must never be committed). Element
+  names, classes, `data-test-id`s and `aria-current` come from the capture.
+
+  Two deliberate simplifications: the sidebar is a sibling of <chat-window>
+  rather than wrapping it, and the composer keeps only the mode picker. No
+  selector reads across either boundary.
+
+  Drift recorded here on purpose (docs/dev/parser-gotchas.md §12d): the top bar
+  `center-section` is now EMPTY — no `.conversation-title` — and the mode
+  switcher sits in the composer reading a mode label, not `bard-text`.
 -->
 <main class="chat-app">
   <top-bar-actions><div class="top-bar-actions">
-    <div class="center-section"><div class="conversation-title-container"><conversation-actions class="conversation-actions"><button aria-label="Open menu for conversation actions." data-test-id="actions-menu-button" class="mat-mdc-menu-trigger mat-mdc-tooltip-trigger conversation-actions-menu-button" aria-haspopup="menu" aria-expanded="false" aria-describedby="cdk-describedby-message-ng-1-6" cdk-describedby-host="ng-1"><span class="conversation-title gds-title-m">Paper airplane aerodynamics</span></button></conversation-actions></div></div>
-    <div class="right-section"><bard-mode-switcher data-test-id="bard-mode-switcher"><a class="bard-logo-container logo-only hide-on-mobile" href="/app"><bard-logo data-test-id="bard-logo-only">
-                                <div data-test-id="logo" class="logo"><span data-test-id="bard-text" class="bard-text enable-aurora"> Gemini
-                                    </span></div>
-                            </bard-logo></a></bard-mode-switcher></div>
+    <div class="left-section"></div>
+    <div class="center-section"></div>
+    <div class="right-section"></div>
   </div></top-bar-actions>
+  <side-navigation-v2 class="content"><bard-sidenav-container data-test-id="bard-sidenav-container"><bard-sidenav role="navigation" aria-label="Side Navigation">
+    <div class="chat-history"><div class="chat-history-list"><conversations-list data-test-id="all-conversations"><mat-nav-list role="navigation" class="gds-sidenav-list">
+      <gem-nav-list-item data-test-id="conversation"><a mat-list-item="" class="mat-mdc-list-item mdc-list-item gem-nav-list-item" href="/app/f1x7u0e0000000a1" aria-label="Kite string tension maths" tabindex="0"><span class="mdc-list-item__content"><span class="mat-mdc-list-item-unscoped-content mdc-list-item__primary-text"><span class="label-and-badge"><span class="title-text gds-body-s">Kite string tension maths</span></span></span></span></a></gem-nav-list-item>
+      <gem-nav-list-item data-test-id="conversation"><a mat-list-item="" class="mat-mdc-list-item mdc-list-item gem-nav-list-item is-active mdc-list-item--activated" href="/app/f1x7u0e0000000b2" aria-label="Paper airplane aerodynamics" tabindex="0" aria-current="page"><span class="mdc-list-item__content"><span class="mat-mdc-list-item-unscoped-content mdc-list-item__primary-text"><span class="label-and-badge"><span class="title-text gds-emphasized-body-s">Paper airplane
+                                    aerodynamics</span></span></span></span></a></gem-nav-list-item>
+      <gem-nav-list-item data-test-id="conversation"><a mat-list-item="" class="mat-mdc-list-item mdc-list-item gem-nav-list-item" href="/app/f1x7u0e0000000c3" aria-label="Sourdough hydration ratios" tabindex="0"><span class="mdc-list-item__content"><span class="mat-mdc-list-item-unscoped-content mdc-list-item__primary-text"><span class="label-and-badge"><span class="title-text gds-body-s">Sourdough hydration ratios</span></span></span></span></a></gem-nav-list-item>
+    </mat-nav-list></conversations-list></div></div>
+  </bard-sidenav></bard-sidenav-container></side-navigation-v2>
   <chat-window class="immersives-mode"><div class="chat-container">
     <infinite-scroller><div id="chat-history" class="chat-history-scroll-container">
 <div class="conversation-container message-actions-hover-boundary" id="c686dff8a50c68d8"><user-query><span class="user-query-container"><user-query-content class="user-query-container">
@@ -754,6 +770,13 @@
                                                                 <div class="restart-chat-button-scroll-placeholder">
                                                                 </div></div>
     </div></infinite-scroller>
+    <input-container class="hide-on-print input-gradient"><fieldset class="input-area-container">
+      <div class="trailing-actions-wrapper with-model-picker"><div class="model-picker-container"><bard-mode-switcher tooltipanchorposition="above-end">
+        <div role="group" class="pill-ui-logo-container gem-menu-redesign under-input"><button mat-button="" data-test-id="bard-mode-menu-button" class="mdc-button mat-mdc-button-base input-area-switch" type="button" aria-label="Open mode picker, currently Flash" aria-haspopup="true" aria-expanded="false"><span class="mdc-button__label">
+          <div data-test-id="logo-pill-label-container" class="logo-pill-label-container input-area-switch-label"><span class="gds-body-m picker-primary-text">Flash</span></div>
+        </span></button></div>
+      </bard-mode-switcher></div></div>
+    </fieldset></input-container>
   </div></chat-window>
 </main>
 </body>
