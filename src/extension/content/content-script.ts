@@ -164,6 +164,7 @@ class ContentScript {
         filename: '',
         includeMetadata: prefs.includeMetadata,
         includeTimestamps: prefs.includeTimestamps,
+        fontScale: prefs.fontScale,
       });
 
       if (!result.success || !result.blob) {
@@ -306,6 +307,7 @@ class ContentScript {
         filename: '',
         includeMetadata: prefs.includeMetadata,
         includeTimestamps: prefs.includeTimestamps,
+        fontScale: prefs.fontScale,
       });
 
       if (!result.success || !result.blob) {

@@ -49,6 +49,7 @@ export { DEFAULT_PARSER_CONFIG } from './parser';
 // Exporter types
 export type {
   ExportFormat,
+  FontScale,
   PDFExportOptions,
   DOCXExportOptions,
   ExportOptions,

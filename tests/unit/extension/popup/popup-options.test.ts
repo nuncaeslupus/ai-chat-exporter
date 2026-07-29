@@ -26,6 +26,7 @@ const EN_MESSAGES: Record<string, string> = {
   rowOptionsChanged: 'Some settings have been changed',
   optionIncludeMetadata: 'Header with the chat details',
   optionIncludeTimestamps: 'Time on each message',
+  optionFontScale: 'Text size',
   optionsFilenameRow: 'File name',
   footerPrivacy: 'Privacy',
   footerGitHub: 'GitHub',
@@ -136,7 +137,7 @@ beforeEach(() => {
   );
 });
 
-describe('options submenu — the three rows', () => {
+describe('options submenu — the setting rows', () => {
   it('binds the two checkboxes to the stored preferences and defaults them on', async () => {
     await loadPopup();
 
@@ -161,10 +162,15 @@ describe('options submenu — the three rows', () => {
     const labels = Array.from(document.querySelectorAll('#view-options .option-row-label')).map(
       (node) => node.textContent
     );
-    expect(labels).toEqual(['Header with the chat details', 'Time on each message', 'File name']);
+    expect(labels).toEqual([
+      'Header with the chat details',
+      'Time on each message',
+      'Text size',
+      'File name',
+    ]);
   });
 
-  it('opens the filename view from the third row without a display juggle', async () => {
+  it('opens the filename view from its row without a display juggle', async () => {
     await loadPopup();
 
     const navRow = document.querySelector<HTMLButtonElement>('#view-options [data-nav="filename"]');

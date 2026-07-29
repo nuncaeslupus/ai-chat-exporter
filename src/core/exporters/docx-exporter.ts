@@ -46,6 +46,7 @@ import {
   SPACING,
   bodyHeadingLevel,
   brandColorFor,
+  scaleFontSizes,
   hexToDocxColor,
   mmToTwips,
   ptToHalfPt,
@@ -82,6 +83,14 @@ export class DocxExporter extends BaseExporter {
   readonly mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
   /**
+   * The size tables for this export, already multiplied by the chosen step.
+   * Set once per export (a fresh exporter is built per export), so no run
+   * below can be emitted at an unscaled size.
+   */
+  private sizes = scaleFontSizes(FONT_SIZE_PT);
+  private docxSizes = scaleFontSizes(DOCX_FONT_SIZE_PT);
+
+  /**
    * Export selected Q&A pairs to DOCX
    */
   async export(
@@ -90,6 +99,9 @@ export class DocxExporter extends BaseExporter {
     options: ExportOptions
   ): Promise<ExportResult> {
     try {
+      this.sizes = scaleFontSizes(FONT_SIZE_PT, options.fontScale);
+      this.docxSizes = scaleFontSizes(DOCX_FONT_SIZE_PT, options.fontScale);
+
       // Convert to structured format (only the selected pairs)
       const structured = ConversationStructureService.toStructured({
         ...conversation,
@@ -119,7 +131,7 @@ export class DocxExporter extends BaseExporter {
           new TextRun({
             text: conversation.title,
             bold: true,
-            size: ptToHalfPt(DOCX_FONT_SIZE_PT.title),
+            size: ptToHalfPt(this.docxSizes.title),
           }),
         ],
         heading: docxHeading(DOC_HEADING_LEVEL.title),
@@ -134,7 +146,7 @@ export class DocxExporter extends BaseExporter {
           children: [
             new TextRun({
               text: `Platform: ${this.formatPlatformName(conversation.platform)}`,
-              size: ptToHalfPt(FONT_SIZE_PT.meta),
+              size: ptToHalfPt(this.sizes.meta),
               color: hexToDocxColor(COLOR.textMuted),
             }),
           ],
@@ -148,7 +160,7 @@ export class DocxExporter extends BaseExporter {
             children: [
               new TextRun({
                 text: `Model: ${conversation.model}`,
-                size: ptToHalfPt(FONT_SIZE_PT.meta),
+                size: ptToHalfPt(this.sizes.meta),
                 color: hexToDocxColor(COLOR.textMuted),
               }),
             ],
@@ -164,7 +176,7 @@ export class DocxExporter extends BaseExporter {
             children: [
               new TextRun({
                 text: `${this.getMetadataLabel('dateRange')}: ${dateRange}`,
-                size: ptToHalfPt(FONT_SIZE_PT.meta),
+                size: ptToHalfPt(this.sizes.meta),
                 color: hexToDocxColor(COLOR.textMuted),
               }),
             ],
@@ -179,7 +191,7 @@ export class DocxExporter extends BaseExporter {
             children: [
               new TextRun({
                 text: `Exported: ${this.formatTimestamp(conversation.createdAt)}`,
-                size: ptToHalfPt(FONT_SIZE_PT.meta),
+                size: ptToHalfPt(this.sizes.meta),
                 color: hexToDocxColor(COLOR.textMuted),
               }),
             ],
@@ -193,7 +205,7 @@ export class DocxExporter extends BaseExporter {
           children: [
             new TextRun({
               text: `URL: ${conversation.url}`,
-              size: ptToHalfPt(FONT_SIZE_PT.meta),
+              size: ptToHalfPt(this.sizes.meta),
               color: hexToDocxColor(COLOR.textMuted),
             }),
           ],
@@ -220,9 +232,10 @@ export class DocxExporter extends BaseExporter {
           document: {
             run: {
               font: FONT_FAMILY.body.docx,
-              size: ptToHalfPt(FONT_SIZE_PT.body),
+              size: ptToHalfPt(this.sizes.body),
             },
           },
+          ...this.headingStyles(),
         },
       },
       sections: [
@@ -231,6 +244,23 @@ export class DocxExporter extends BaseExporter {
         },
       ],
     });
+  }
+
+  /**
+   * Size overrides for Word's built-in `Heading 1`-`Heading 6` styles.
+   *
+   * Without them a heading's size comes from Word's default stylesheet and
+   * stays put while the body text scales — at `large` the body would outgrow
+   * `Heading 3` and the outline would read upside down. The values are Word's
+   * own defaults, so `normal` renders exactly as it did before this existed.
+   */
+  private headingStyles(): Record<string, { run: { size: number } }> {
+    return Object.fromEntries(
+      this.docxSizes.headingByLevel.map((pt, index) => [
+        `heading${index + 1}`,
+        { run: { size: ptToHalfPt(pt) } },
+      ])
+    );
   }
 
   /**
@@ -247,7 +277,7 @@ export class DocxExporter extends BaseExporter {
         new TextRun({
           text: timestampSuffix,
           italics: true,
-          size: ptToHalfPt(FONT_SIZE_PT.meta),
+          size: ptToHalfPt(this.sizes.meta),
           color: hexToDocxColor(COLOR.textMuted),
         })
       );
@@ -269,7 +299,7 @@ export class DocxExporter extends BaseExporter {
       children: [
         new TextRun({
           text: separator,
-          size: ptToHalfPt(FONT_SIZE_PT.meta),
+          size: ptToHalfPt(this.sizes.meta),
           color: hexToDocxColor(COLOR.textMuted),
         }),
       ],
@@ -344,7 +374,7 @@ export class DocxExporter extends BaseExporter {
                 new TextRun({
                   text: artifact.title,
                   bold: true,
-                  size: ptToHalfPt(DOCX_FONT_SIZE_PT.artifactTitle),
+                  size: ptToHalfPt(this.docxSizes.artifactTitle),
                 }),
               ],
               spacing: { before: 150, after: 50 },
@@ -359,7 +389,7 @@ export class DocxExporter extends BaseExporter {
                   new TextRun({
                     text: `Type: ${artifact.typeLabel}`,
                     italics: true,
-                    size: ptToHalfPt(FONT_SIZE_PT.meta),
+                    size: ptToHalfPt(this.sizes.meta),
                   }),
                 ],
                 spacing: { after: 100 },
@@ -377,7 +407,7 @@ export class DocxExporter extends BaseExporter {
                 children: [
                   new TextRun({
                     text: artifact.content || '',
-                    size: ptToHalfPt(FONT_SIZE_PT.body),
+                    size: ptToHalfPt(this.sizes.body),
                   }),
                 ],
                 spacing: { after: 150 },
@@ -393,7 +423,7 @@ export class DocxExporter extends BaseExporter {
                     new TextRun({
                       text: line,
                       font: FONT_FAMILY.code.docx,
-                      size: ptToHalfPt(FONT_SIZE_PT.code),
+                      size: ptToHalfPt(this.sizes.code),
                     }),
                   ],
                   spacing: { after: 0 },
@@ -423,10 +453,10 @@ export class DocxExporter extends BaseExporter {
           paragraphs.push(
             new Paragraph({
               children: [
-                new TextRun({ text: result.title, size: ptToHalfPt(FONT_SIZE_PT.body) }),
+                new TextRun({ text: result.title, size: ptToHalfPt(this.sizes.body) }),
                 new TextRun({
                   text: ` — ${result.url}`,
-                  size: ptToHalfPt(FONT_SIZE_PT.meta),
+                  size: ptToHalfPt(this.sizes.meta),
                   italics: true,
                 }),
               ],
@@ -565,7 +595,7 @@ export class DocxExporter extends BaseExporter {
           children: [
             new TextRun({
               text: language.toUpperCase(),
-              size: ptToHalfPt(FONT_SIZE_PT.codeLabel),
+              size: ptToHalfPt(this.sizes.codeLabel),
               bold: true,
             }),
           ],
@@ -586,7 +616,7 @@ export class DocxExporter extends BaseExporter {
             new TextRun({
               text: line,
               font: FONT_FAMILY.code.docx,
-              size: ptToHalfPt(FONT_SIZE_PT.code),
+              size: ptToHalfPt(this.sizes.code),
               break: i > 0 ? 1 : 0,
             })
         ),
@@ -755,7 +785,7 @@ export class DocxExporter extends BaseExporter {
 
         case 'code':
           options.font = FONT_FAMILY.code.docx;
-          options.size = ptToHalfPt(FONT_SIZE_PT.code);
+          options.size = ptToHalfPt(this.sizes.code);
           break;
 
         case 'link':

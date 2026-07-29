@@ -1048,6 +1048,51 @@ section {
   flex: 1;
 }
 
+/*
+ * Choice row (text size). A `fieldset` so the `legend` names the group; the
+ * flex layout of `.option-row` does not survive a legend, so this one stacks:
+ * label, then the three steps side by side.
+ */
+.option-row--choice {
+  display: block;
+  /* A fieldset sizes to its content by default; without this a long
+     translation of the three steps pushes past the fixed 420px popup. */
+  min-width: 0;
+  margin: 0;
+  padding: 11px 0;
+}
+
+/* `legend` ships its own inline padding; the rows above start flush left. */
+.option-row--choice > .option-row-label {
+  padding: 0;
+}
+
+.option-choices {
+  display: flex;
+  /* Seven locales, three labels: the long ones wrap rather than clip. */
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 8px;
+}
+
+.option-choice {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--text-sm);
+  color: var(--color-text-body);
+  cursor: pointer;
+}
+
+.option-choice input[type='radio'] {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
 /* Navigation row: label over the filename, chevron aligned to the label. */
 .option-row--nav {
   align-items: flex-start;

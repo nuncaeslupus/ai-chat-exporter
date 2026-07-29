@@ -2,7 +2,7 @@
  * Message types and interfaces for extension communication
  */
 
-import type { ExportFormat, FilenamePreferences } from '../core/types';
+import type { ExportFormat, FilenamePreferences, FontScale } from '../core/types';
 
 /**
  * Base message interface
@@ -47,6 +47,8 @@ export interface UserPreferences extends FilenamePreferences {
   includeMetadata: boolean;
   includeTimestamps: boolean;
   includeCodeBlocks: boolean;
+  /** Type-size step applied to pdf/docx/html exports. */
+  fontScale: FontScale;
   defaultFormat: ExportFormat;
   autoSelectAll: boolean;
 }

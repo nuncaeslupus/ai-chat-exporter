@@ -15,6 +15,17 @@ export type ExportFormat = 'pdf' | 'md' | 'txt' | 'json' | 'docx' | 'html';
 export const EXPORT_FORMATS: readonly ExportFormat[] = ['pdf', 'md', 'txt', 'json', 'docx', 'html'];
 
 /**
+ * Global type-size step for the formats that have a typographic surface
+ * (pdf, docx, html).
+ *
+ * Three steps, not a font picker: the request behind it is "reduce the page
+ * count", which a coarse step answers and a free size input only complicates.
+ * The factors, and the fact that the step moves the *whole* ramp, live in
+ * `exporters/style-tokens.ts`.
+ */
+export type FontScale = 'compact' | 'normal' | 'large';
+
+/**
  * PDF-specific export options
  */
 export interface PDFExportOptions {
@@ -77,6 +88,8 @@ export interface ExportOptions {
   includeMetadata: boolean;
   /** Whether to include timestamps */
   includeTimestamps: boolean;
+  /** Type-size step; absent means `normal` (preferences predating the setting) */
+  fontScale?: FontScale;
   /** PDF-specific options */
   pdfOptions?: PDFExportOptions;
   /** DOCX-specific options */
@@ -90,6 +103,7 @@ export const DEFAULT_EXPORT_OPTIONS: Omit<ExportOptions, 'filename'> = {
   format: 'md',
   includeMetadata: true,
   includeTimestamps: true,
+  fontScale: 'normal',
   pdfOptions: DEFAULT_PDF_OPTIONS,
   docxOptions: DEFAULT_DOCX_OPTIONS,
 };

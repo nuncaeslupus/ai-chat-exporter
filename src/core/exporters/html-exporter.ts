@@ -32,6 +32,7 @@ import {
   bodyHeadingLevel,
   mmToPx,
   ptToPx,
+  scaleFontSizes,
 } from './style-tokens';
 
 export class HtmlExporter extends BaseExporter {
@@ -39,12 +40,23 @@ export class HtmlExporter extends BaseExporter {
   readonly extension = 'html';
   readonly mimeType = 'text/html';
 
+  /**
+   * The size tables for this export, already multiplied by the chosen step.
+   * Set once per export (a fresh exporter is built per export), so no rule in
+   * `generateCSS()` can be emitted at an unscaled size.
+   */
+  private sizes = scaleFontSizes(FONT_SIZE_PT);
+  private htmlSizes = scaleFontSizes(HTML_FONT_SIZE_PT);
+
   async export(
     conversation: Conversation,
     selectedPairs: QAPair[],
     options: ExportOptions
   ): Promise<ExportResult> {
     try {
+      this.sizes = scaleFontSizes(FONT_SIZE_PT, options.fontScale);
+      this.htmlSizes = scaleFontSizes(HTML_FONT_SIZE_PT, options.fontScale);
+
       // Convert to structured format (only the selected pairs)
       const structured = ConversationStructureService.toStructured({
         ...conversation,
@@ -420,7 +432,7 @@ export class HtmlExporter extends BaseExporter {
 
         body {
             font-family: ${FONT_FAMILY.body.css};
-            font-size: ${ptToPx(FONT_SIZE_PT.body)}px;
+            font-size: ${ptToPx(this.sizes.body)}px;
             line-height: 1.6;
             color: ${COLOR.textStrong};
             background-color: ${COLOR.surfaceSubtle};
@@ -441,7 +453,7 @@ export class HtmlExporter extends BaseExporter {
         }
 
         .title {
-            font-size: ${ptToPx(HTML_FONT_SIZE_PT.title)}px;
+            font-size: ${ptToPx(this.htmlSizes.title)}px;
             font-weight: 700;
             color: ${COLOR.textPrimary};
             margin-bottom: 1rem;
@@ -450,7 +462,7 @@ export class HtmlExporter extends BaseExporter {
         .metadata {
             display: grid;
             gap: 0.5rem;
-            font-size: ${ptToPx(FONT_SIZE_PT.meta)}px;
+            font-size: ${ptToPx(this.sizes.meta)}px;
             color: ${COLOR.textMuted};
         }
 
@@ -525,7 +537,7 @@ export class HtmlExporter extends BaseExporter {
             display: inline;
             margin: 0;
             font-weight: 600;
-            font-size: ${ptToPx(HTML_FONT_SIZE_PT.roleLabel)}px;
+            font-size: ${ptToPx(this.htmlSizes.roleLabel)}px;
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
@@ -553,13 +565,13 @@ export class HtmlExporter extends BaseExporter {
         .day-separator {
             margin: 1.5rem 0;
             text-align: center;
-            font-size: ${ptToPx(FONT_SIZE_PT.meta)}px;
+            font-size: ${ptToPx(this.sizes.meta)}px;
             color: ${COLOR.textMuted};
         }
 
         .message-timestamp {
             margin-left: 0.5rem;
-            font-size: ${ptToPx(HTML_FONT_SIZE_PT.timestamp)}px;
+            font-size: ${ptToPx(this.htmlSizes.timestamp)}px;
             font-weight: 400;
             text-transform: none;
             letter-spacing: normal;
@@ -589,12 +601,12 @@ export class HtmlExporter extends BaseExporter {
             line-height: 1.3;
         }
 
-        .message-content h1 { font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[0])}px; }
-        .message-content h2 { font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[1])}px; }
-        .message-content h3 { font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[2])}px; }
-        .message-content h4 { font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[3])}px; }
-        .message-content h5 { font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[4])}px; }
-        .message-content h6 { font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[5])}px; }
+        .message-content h1 { font-size: ${ptToPx(this.htmlSizes.headingByLevel[0])}px; }
+        .message-content h2 { font-size: ${ptToPx(this.htmlSizes.headingByLevel[1])}px; }
+        .message-content h3 { font-size: ${ptToPx(this.htmlSizes.headingByLevel[2])}px; }
+        .message-content h4 { font-size: ${ptToPx(this.htmlSizes.headingByLevel[3])}px; }
+        .message-content h5 { font-size: ${ptToPx(this.htmlSizes.headingByLevel[4])}px; }
+        .message-content h6 { font-size: ${ptToPx(this.htmlSizes.headingByLevel[5])}px; }
 
         .message-content pre {
             background: ${COLOR.textStrong};
@@ -603,7 +615,7 @@ export class HtmlExporter extends BaseExporter {
             padding: 1rem;
             overflow-x: auto;
             margin: 1rem 0;
-            font-size: ${ptToPx(FONT_SIZE_PT.code)}px;
+            font-size: ${ptToPx(this.sizes.code)}px;
             line-height: 1.5;
         }
 
@@ -722,7 +734,7 @@ export class HtmlExporter extends BaseExporter {
         }
 
         .artifacts-section h3 {
-            font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[3])}px;
+            font-size: ${ptToPx(this.htmlSizes.headingByLevel[3])}px;
             font-weight: 600;
             margin-bottom: 1rem;
             color: ${COLOR.textBody};
@@ -741,14 +753,14 @@ export class HtmlExporter extends BaseExporter {
         }
 
         .artifact h4 {
-            font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[4])}px;
+            font-size: ${ptToPx(this.htmlSizes.headingByLevel[4])}px;
             font-weight: 600;
             margin-bottom: 0.5rem;
             color: ${COLOR.textPrimary};
         }
 
         .artifact-type {
-            font-size: ${ptToPx(FONT_SIZE_PT.meta)}px;
+            font-size: ${ptToPx(this.sizes.meta)}px;
             color: ${COLOR.textMuted};
             margin-bottom: 0.75rem;
         }
@@ -764,7 +776,7 @@ export class HtmlExporter extends BaseExporter {
         }
 
         .web-searches-section h3 {
-            font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[3])}px;
+            font-size: ${ptToPx(this.htmlSizes.headingByLevel[3])}px;
             font-weight: 600;
             margin-bottom: 1rem;
             color: ${COLOR.textBody};
@@ -775,14 +787,14 @@ export class HtmlExporter extends BaseExporter {
         }
 
         .web-search h4 {
-            font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[4])}px;
+            font-size: ${ptToPx(this.htmlSizes.headingByLevel[4])}px;
             font-weight: 600;
             margin-bottom: 0.5rem;
             color: ${COLOR.textPrimary};
         }
 
         .search-count {
-            font-size: ${ptToPx(FONT_SIZE_PT.meta)}px;
+            font-size: ${ptToPx(this.sizes.meta)}px;
             color: ${COLOR.textMutedOnSurfaceMuted};
             margin-bottom: 0.75rem;
         }
@@ -836,7 +848,7 @@ export class HtmlExporter extends BaseExporter {
 
         .result-domain {
             display: block;
-            font-size: ${ptToPx(FONT_SIZE_PT.meta)}px;
+            font-size: ${ptToPx(this.sizes.meta)}px;
             color: ${COLOR.textMuted};
             margin-top: 0.25rem;
         }
@@ -845,7 +857,7 @@ export class HtmlExporter extends BaseExporter {
             margin-top: 3rem;
             padding: 1.5rem;
             text-align: center;
-            font-size: ${ptToPx(FONT_SIZE_PT.meta)}px;
+            font-size: ${ptToPx(this.sizes.meta)}px;
             color: ${COLOR.textMuted};
         }
 

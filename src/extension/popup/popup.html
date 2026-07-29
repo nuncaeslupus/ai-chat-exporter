@@ -266,8 +266,8 @@
         </section>
 
         <!--
-          Options. Same three bands, and deliberately bare: three rows, no
-          explanatory paragraphs. The day-change date is *not* a row — with
+          Options. Same three bands, and deliberately bare: a short row list,
+          no explanatory paragraphs. The day-change date is *not* a row — with
           timestamps on, the exporters always emit the separator.
         -->
         <section class="popup-view" id="view-options" hidden>
@@ -293,6 +293,30 @@
                 Time on each message
               </span>
             </label>
+            <!--
+              Text size. Three steps, not a size input: the ask was "fewer
+              pages", which a coarse step answers and a free size does not.
+              A native radio group in a fieldset — the legend names the group
+              for a screen reader and arrow keys move between the steps, with
+              no JS beyond persisting the choice.
+            -->
+            <fieldset class="option-row option-row--choice">
+              <legend class="option-row-label" data-i18n="optionFontScale">Text size</legend>
+              <div class="option-choices">
+                <label class="option-choice">
+                  <input type="radio" name="option-font-scale" value="compact" />
+                  <span data-i18n="optionFontScaleCompact">Compact</span>
+                </label>
+                <label class="option-choice">
+                  <input type="radio" name="option-font-scale" value="normal" />
+                  <span data-i18n="optionFontScaleNormal">Normal</span>
+                </label>
+                <label class="option-choice">
+                  <input type="radio" name="option-font-scale" value="large" />
+                  <span data-i18n="optionFontScaleLarge">Large</span>
+                </label>
+              </div>
+            </fieldset>
             <!--
               Navigation row. The filename view is R6's; `data-nav` is all the
               router needs, so it works the day that view gets its markup.

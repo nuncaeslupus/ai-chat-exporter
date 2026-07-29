@@ -145,6 +145,22 @@
     "message": "Hora en cada mensaje",
     "description": "Etiqueta del interruptor que controla si las exportaciones incluyen marcas de tiempo"
   },
+  "optionFontScale": {
+    "message": "Tamaño del texto",
+    "description": "Etiqueta del control de tamaño de texto de tres pasos en la vista de opciones"
+  },
+  "optionFontScaleCompact": {
+    "message": "Compacto",
+    "description": "El menor de los tres tamaños de texto: la exportación ocupa menos páginas"
+  },
+  "optionFontScaleNormal": {
+    "message": "Normal",
+    "description": "Tamaño de texto predeterminado de los tres"
+  },
+  "optionFontScaleLarge": {
+    "message": "Grande",
+    "description": "El mayor de los tres tamaños de texto: más legible, más páginas"
+  },
   "optionsFilenameRow": {
     "message": "Nombre del archivo",
     "description": "Label of the file-name navigation row in the Options submenu"
