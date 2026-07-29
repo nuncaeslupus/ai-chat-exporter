@@ -26,9 +26,12 @@ import {
   type FilenamePieceType,
 } from '../../core/types/config';
 import { StorageService } from '../../shared/storage';
-import { DEFAULT_PREFERENCES } from '../../shared/constants';
+import { DEFAULT_PREFERENCES, MESSAGE_TYPES } from '../../shared/constants';
 import { SelectionService } from '../../core/services/selection-service';
 import { FilenameService } from '../../core/services/filename-service';
+import { formatDriftReport } from '../../core/drift/format-report';
+import { isDriftSuppressed, suppressDrift } from '../../core/drift/suppression';
+import type { DriftReport } from '../../core/drift/types';
 
 /**
  * The popup's five views. Only one is visible at a time and they all render
@@ -226,6 +229,13 @@ function conversationDateRange(conversation: Conversation): string | null {
 const CLAMP_CHARS = 120;
 
 /**
+ * Where "Copy & report" sends the user. The report is already on their
+ * clipboard by then — they paste it wherever they prefer, so this is a
+ * convenience, not a submission endpoint. The extension posts nothing.
+ */
+const ISSUE_TRACKER_URL = 'https://github.com/nuncaeslupus/ai-chat-exporter/issues/new';
+
+/**
  * ponytail: whitespace split. Undercounts CJK, which has no spaces — fine for
  * a footer estimate, swap in Intl.Segmenter if that ever matters.
  */
@@ -317,6 +327,12 @@ class PopupController {
   private filenamePieces: FilenamePiece[] | undefined;
   /** Index the current drag started from; `dataTransfer` is not needed. */
   private draggedPieceIndex: number | null = null;
+  /** The tab `checkCurrentPage()` last talked to; `requestSkeleton()` asks it again. */
+  private currentTabId: number | undefined;
+  private drift: DriftReport | undefined;
+  /** The exact bytes shown in the preview and written to the clipboard. */
+  private reportText: string | null = null;
+  private pageOrigin = '';
 
   async initialize(): Promise<void> {
     // Localize all static text in the HTML
@@ -538,6 +554,23 @@ class PopupController {
     document.getElementById('filename-restore-default')?.addEventListener('click', () => {
       this.applyPieces(clonePieces(DEFAULT_FILENAME_PIECES));
     });
+
+    document.getElementById('drift-row')?.addEventListener('click', () => {
+      void this.openReportView();
+    });
+
+    document.getElementById('drift-report-copy')?.addEventListener('click', () => {
+      void this.copyReport();
+    });
+
+    document.getElementById('drift-report-copy-and-report')?.addEventListener('click', () => {
+      void (async () => {
+        await this.copyReport();
+        // The popup closes when the tab opens. Acceptable: this is the final
+        // step, and the payload is already on the clipboard.
+        await chrome.tabs.create({ url: ISSUE_TRACKER_URL });
+      })();
+    });
   }
 
   /** The three text-size steps. Empty until the Options view is in the DOM. */
@@ -586,6 +619,7 @@ class PopupController {
         this.updateStatus('error', getMessage('statusNoActiveTab'));
         return;
       }
+      this.currentTabId = tab.id;
 
       // Derived from the parser registry so a newly registered platform is
       // supported here automatically — a second hardcoded list silently gated
@@ -593,6 +627,7 @@ class PopupController {
       const supportedDomains = [...parserRegistry.keys()].flatMap(getUrlsForPlatform);
 
       const url = tab.url ? new URL(tab.url) : null;
+      if (url) this.pageOrigin = url.origin;
       if (!url || !supportedDomains.some((domain) => url.hostname.includes(domain))) {
         this.setUiState('unsupported');
         this.updateStatus('inactive', getMessage('statusNotSupported'));
@@ -634,6 +669,8 @@ class PopupController {
         this.updateConversationInfo(response.data);
         this.updateStatus('active', getMessage('statusReady'));
         this.enableButtons();
+        this.drift = response.drift;
+        void this.renderDriftRow();
       } else {
         // The URL is supported and the content script answered, but the parser
         // found nothing on the page -- a parse bug, not an unsupported page,
@@ -1166,6 +1203,71 @@ class PopupController {
     if (detail) {
       detail.textContent = reason;
       detail.title = reason;
+    }
+  }
+
+  /**
+   * Show the amber row only for a fingerprint the user has not already dealt
+   * with. Suppression is per fingerprint, and the fingerprint embeds the
+   * extension version — so shipping a fix brings the prompt back by itself.
+   */
+  private async renderDriftRow(): Promise<void> {
+    const row = document.getElementById('drift-row');
+    if (!row) return;
+    const drift = this.drift;
+    row.hidden = !drift || (await isDriftSuppressed(drift.fingerprint));
+  }
+
+  /**
+   * Build the report when the view opens, never before: a user who never opens
+   * it never has a skeleton built for them.
+   */
+  private async openReportView(): Promise<void> {
+    const preview = document.getElementById('drift-report-preview');
+    const status = document.getElementById('drift-report-status');
+    const drift = this.drift;
+    if (!preview || !drift) return;
+
+    this.setStatusText(status, getMessage('driftReportLoading'));
+    const skeleton = await this.requestSkeleton();
+    this.reportText = formatDriftReport(drift, skeleton.text, skeleton.origin || this.pageOrigin);
+    preview.textContent = this.reportText;
+    this.setStatusText(status, '');
+  }
+
+  /** Ask the content script for the page skeleton. A failure is not fatal. */
+  private async requestSkeleton(): Promise<{ text: string | null; origin: string }> {
+    const tabId = this.currentTabId;
+    if (tabId === undefined) return { text: null, origin: '' };
+    const result = await sendTabMessage<{ success: boolean; skeleton?: string; origin?: string }>(
+      tabId,
+      { type: MESSAGE_TYPES.GET_DRIFT_SKELETON }
+    );
+    if (!result.ok || !result.response.success) return { text: null, origin: '' };
+    return { text: result.response.skeleton ?? null, origin: result.response.origin ?? '' };
+  }
+
+  private setStatusText(element: HTMLElement | null, text: string): void {
+    if (element) element.textContent = text;
+  }
+
+  /**
+   * Copy the report. The popup stays open — `navigator.clipboard.writeText`
+   * runs here, so there is no reason to close it, and the confirmation lands
+   * inline where the user is looking.
+   */
+  private async copyReport(): Promise<boolean> {
+    const status = document.getElementById('drift-report-status');
+    if (!this.reportText) return false;
+    try {
+      await navigator.clipboard.writeText(this.reportText);
+      this.setStatusText(status, getMessage('driftReportCopied'));
+      if (this.drift) await suppressDrift(this.drift.fingerprint);
+      return true;
+    } catch {
+      // The <pre> is selectable, so failing to copy is recoverable by hand.
+      this.setStatusText(status, getMessage('driftReportCopyFailed'));
+      return false;
     }
   }
 }
