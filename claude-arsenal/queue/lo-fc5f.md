@@ -39,3 +39,33 @@ Scope this properly before building: confirm with the owner whether Drive is
 Chrome-only, and whether the upload is "save a copy" or a full sync. Then implement
 the narrowest version that works, with the privacy and listing updates in the same
 PR.
+
+## Reframed 2026-07-29 by the repo owner — this is a backup tool, not an export target
+
+Direct guidance: *"let's ignore it for now. If we do it in the future, I'd prefer
+to do it more as a backup tool, so you can decide which conversations to backup
+(even all of them) in a document format or md or pdf or similar. It needs more
+work."*
+
+So the task as written — "add Drive as a seventh export destination" — is **the
+wrong shape** and should not be built. The real feature is different in kind:
+
+- **Scope is the conversation list, not the open conversation.** Select many, or
+  all, rather than exporting the one on screen. Nothing in the extension currently
+  enumerates conversations; that is the actual missing capability, and it is
+  platform-specific (each of the three has its own history UI/API).
+- **Format is an existing exporter**, per conversation — md, pdf, docx and the
+  rest already work. The backup layer chooses a format and a destination; it does
+  not need a new renderer.
+- **Destination is open.** Drive was the original framing, but a local folder via
+  the downloads API needs no OAuth, no third-party data flow and no privacy-policy
+  change. Drive should be one destination among several, decided on its merits,
+  not the premise.
+
+**Blocked on design, not on effort.** Before any implementation task is seeded this
+needs: how conversations are enumerated per platform, what incremental re-runs do
+(skip existing? overwrite? date-stamp?), where credentials live if a remote
+destination is chosen, and what `docs/PRIVACY.md` has to say — it currently states
+nothing leaves the browser, which any remote destination makes false.
+
+Leave at low priority until that design exists.
