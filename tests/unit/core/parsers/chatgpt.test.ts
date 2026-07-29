@@ -139,7 +139,10 @@ describe('ChatGPT Parser', () => {
 
   // Load the real DOM fixture
   beforeEach(() => {
-    const fixturePath = join(__dirname, '../../../fixtures/dom-snapshots/chatgpt/real-capture.html');
+    const fixturePath = join(
+      __dirname,
+      '../../../fixtures/dom-snapshots/chatgpt/real-capture.html'
+    );
     const html = readFileSync(fixturePath, 'utf-8');
     dom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-conversation' });
     document = dom.window.document;
@@ -206,7 +209,9 @@ describe('ChatGPT Parser', () => {
     });
 
     it('finds content within assistant messages', () => {
-      const assistantContent = document.querySelector(CHATGPT_SELECTORS.custom.assistantMessageContent);
+      const assistantContent = document.querySelector(
+        CHATGPT_SELECTORS.custom.assistantMessageContent
+      );
       expect(assistantContent).not.toBeNull();
     });
   });
@@ -218,7 +223,10 @@ describe('ChatGPTParser implementation', () => {
   let document: Document;
 
   beforeEach(() => {
-    const fixturePath = join(__dirname, '../../../fixtures/dom-snapshots/chatgpt/real-capture.html');
+    const fixturePath = join(
+      __dirname,
+      '../../../fixtures/dom-snapshots/chatgpt/real-capture.html'
+    );
     const html = readFileSync(fixturePath, 'utf-8');
     dom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-conversation' });
     document = dom.window.document;
@@ -334,7 +342,8 @@ describe('ChatGPTParser implementation', () => {
     });
 
     it('returns null when model not found', () => {
-      const noModelHtml = '<html><body><main><div data-message-author-role="assistant"></div></main></body></html>';
+      const noModelHtml =
+        '<html><body><main><div data-message-author-role="assistant"></div></main></body></html>';
       const noModelDom = new JSDOM(noModelHtml, { url: 'https://chatgpt.com' });
       const noModelParser = new ChatGPTParser(noModelDom.window.document);
       expect(noModelParser.getModel()).toBeNull();
@@ -515,7 +524,9 @@ describe('ChatGPTParser implementation', () => {
 
     it('returns success:false rather than an empty conversation when selectors match nothing', () => {
       // Simulate a redesign that drops the turn marker entirely.
-      document.querySelectorAll('[data-turn]').forEach((el) => { el.removeAttribute('data-turn'); });
+      document.querySelectorAll('[data-turn]').forEach((el) => {
+        el.removeAttribute('data-turn');
+      });
 
       const result = parser.parse();
 
@@ -538,7 +549,10 @@ describe('ChatGPT Parser - Code Artifacts', () => {
   let dom: JSDOM;
 
   beforeEach(() => {
-    const fixturePath = join(__dirname, '../../../fixtures/dom-snapshots/chatgpt/artifacts-code.html');
+    const fixturePath = join(
+      __dirname,
+      '../../../fixtures/dom-snapshots/chatgpt/artifacts-code.html'
+    );
     const html = readFileSync(fixturePath, 'utf-8');
     dom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-artifacts' });
     parser = new ChatGPTParser(dom.window.document);
@@ -583,7 +597,10 @@ describe('ChatGPT Parser - SVG Artifacts', () => {
   let dom: JSDOM;
 
   beforeEach(() => {
-    const fixturePath = join(__dirname, '../../../fixtures/dom-snapshots/chatgpt/artifacts-svg.html');
+    const fixturePath = join(
+      __dirname,
+      '../../../fixtures/dom-snapshots/chatgpt/artifacts-svg.html'
+    );
     const html = readFileSync(fixturePath, 'utf-8');
     dom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-svg' });
     parser = new ChatGPTParser(dom.window.document);
@@ -706,7 +723,10 @@ describe('ChatGPT Parser - Comprehensive Features', () => {
   let dom: JSDOM;
 
   beforeEach(() => {
-    const fixturePath = join(__dirname, '../../../fixtures/dom-snapshots/chatgpt/comprehensive.html');
+    const fixturePath = join(
+      __dirname,
+      '../../../fixtures/dom-snapshots/chatgpt/comprehensive.html'
+    );
     const html = readFileSync(fixturePath, 'utf-8');
     dom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-comprehensive' });
     parser = new ChatGPTParser(dom.window.document);

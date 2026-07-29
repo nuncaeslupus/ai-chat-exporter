@@ -208,7 +208,10 @@ describe('DocxExporter', () => {
 
       // Table rows are plain <w:tr> (no attributes); split them out so the
       // bold check is scoped to the header row vs. the body row.
-      const rows = xml.split('<w:tr>').slice(1).map((r) => r.split('</w:tr>')[0]!);
+      const rows = xml
+        .split('<w:tr>')
+        .slice(1)
+        .map((r) => r.split('</w:tr>')[0]!);
       expect(rows).toHaveLength(2);
       expect(rows[0]).toContain('Name');
       expect(rows[0]).toContain('<w:b/>');

@@ -165,7 +165,11 @@ export class PdfExporter extends BaseExporter {
       doc.setFont(FONT_FAMILY.body.pdf, 'normal');
       doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
 
-      doc.text(`${this.getMetadataLabel('platform')}: ${this.formatPlatformName(conversation.platform)}`, margins.left, y);
+      doc.text(
+        `${this.getMetadataLabel('platform')}: ${this.formatPlatformName(conversation.platform)}`,
+        margins.left,
+        y
+      );
       y += lineHeight;
 
       if (conversation.model) {
@@ -175,12 +179,20 @@ export class PdfExporter extends BaseExporter {
 
       const dateRange = this.formatDateRange(conversation.pairs);
       if (dateRange) {
-        doc.text(sanitizeTextForPDF(`${this.getMetadataLabel('dateRange')}: ${dateRange}`), margins.left, y);
+        doc.text(
+          sanitizeTextForPDF(`${this.getMetadataLabel('dateRange')}: ${dateRange}`),
+          margins.left,
+          y
+        );
         y += lineHeight;
       }
 
       if (conversation.createdAt) {
-        doc.text(`${this.getMetadataLabel('exported')}: ${this.formatTimestamp(conversation.createdAt)}`, margins.left, y);
+        doc.text(
+          `${this.getMetadataLabel('exported')}: ${this.formatTimestamp(conversation.createdAt)}`,
+          margins.left,
+          y
+        );
         y += lineHeight;
       }
 
@@ -210,7 +222,9 @@ export class PdfExporter extends BaseExporter {
       doc.setFontSize(FONT_SIZE_PT.meta);
       doc.setFont(FONT_FAMILY.body.pdf, 'normal');
       doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
-      doc.text(sanitizeTextForPDF(separator), pageCentre, currentY + lineHeight, { align: 'center' });
+      doc.text(sanitizeTextForPDF(separator), pageCentre, currentY + lineHeight, {
+        align: 'center',
+      });
       doc.setFontSize(FONT_SIZE_PT.body);
       return currentY + lineHeight * 2;
     };
@@ -257,7 +271,15 @@ export class PdfExporter extends BaseExporter {
         const artifactsWithContent = pair.answer.metadata.artifacts.filter((a) => a.content);
         if (artifactsWithContent.length > 0) {
           y += lineHeight * 0.5;
-          y = this.renderArtifacts(doc, artifactsWithContent, y, margins, contentWidth, lineHeight, pageHeight);
+          y = this.renderArtifacts(
+            doc,
+            artifactsWithContent,
+            y,
+            margins,
+            contentWidth,
+            lineHeight,
+            pageHeight
+          );
         }
       }
 
@@ -266,7 +288,15 @@ export class PdfExporter extends BaseExporter {
         const webSearches = pair.answer.metadata.webSearches;
         if (webSearches.length > 0) {
           y += lineHeight * 0.5;
-          y = this.renderWebSearches(doc, webSearches, y, margins, contentWidth, lineHeight, pageHeight);
+          y = this.renderWebSearches(
+            doc,
+            webSearches,
+            y,
+            margins,
+            contentWidth,
+            lineHeight,
+            pageHeight
+          );
         }
       }
 
@@ -373,7 +403,15 @@ export class PdfExporter extends BaseExporter {
 
       switch (block.type) {
         case 'paragraph':
-          y = this.renderParagraph(doc, block.content, y, margins, contentWidth, lineHeight, pageHeight);
+          y = this.renderParagraph(
+            doc,
+            block.content,
+            y,
+            margins,
+            contentWidth,
+            lineHeight,
+            pageHeight
+          );
           break;
 
         case 'heading':
@@ -381,7 +419,16 @@ export class PdfExporter extends BaseExporter {
           break;
 
         case 'code':
-          y = this.renderCodeBlock(doc, block.code, block.language, y, margins, contentWidth, lineHeight, pageHeight);
+          y = this.renderCodeBlock(
+            doc,
+            block.code,
+            block.language,
+            y,
+            margins,
+            contentWidth,
+            lineHeight,
+            pageHeight
+          );
           break;
 
         case 'list':
@@ -389,7 +436,15 @@ export class PdfExporter extends BaseExporter {
           break;
 
         case 'blockquote':
-          y = this.renderBlockquote(doc, block.content, y, margins, contentWidth, lineHeight, pageHeight);
+          y = this.renderBlockquote(
+            doc,
+            block.content,
+            y,
+            margins,
+            contentWidth,
+            lineHeight,
+            pageHeight
+          );
           break;
 
         case 'hr':
@@ -712,7 +767,16 @@ export class PdfExporter extends BaseExporter {
 
       // Render nested list if present
       if (item?.nested) {
-        y = this.renderList(doc, item.nested, y, margins, contentWidth, lineHeight, pageHeight, depth + 1);
+        y = this.renderList(
+          doc,
+          item.nested,
+          y,
+          margins,
+          contentWidth,
+          lineHeight,
+          pageHeight,
+          depth + 1
+        );
       }
     }
 
@@ -817,16 +881,7 @@ export class PdfExporter extends BaseExporter {
     if (!loadedImage) {
       // Image failed to load, show placeholder text
       y += lineHeight * 0.3;
-      y = this.renderText(
-        doc,
-        placeholder,
-        y,
-        margins,
-        contentWidth,
-        lineHeight,
-        pageHeight,
-        true
-      );
+      y = this.renderText(doc, placeholder, y, margins, contentWidth, lineHeight, pageHeight, true);
       return y;
     }
 
@@ -863,14 +918,7 @@ export class PdfExporter extends BaseExporter {
 
     try {
       // Add the image to the PDF
-      doc.addImage(
-        loadedImage.dataUrl,
-        loadedImage.format,
-        margins.left,
-        y,
-        imgWidth,
-        imgHeight
-      );
+      doc.addImage(loadedImage.dataUrl, loadedImage.format, margins.left, y, imgWidth, imgHeight);
 
       y += imgHeight + lineHeight * 0.3; // Move past the image
 
@@ -899,16 +947,7 @@ export class PdfExporter extends BaseExporter {
     } catch (error) {
       console.error('Failed to add image to PDF:', error);
       // Fall back to showing placeholder text
-      y = this.renderText(
-        doc,
-        placeholder,
-        y,
-        margins,
-        contentWidth,
-        lineHeight,
-        pageHeight,
-        true
-      );
+      y = this.renderText(doc, placeholder, y, margins, contentWidth, lineHeight, pageHeight, true);
     }
 
     return y;
@@ -930,7 +969,7 @@ export class PdfExporter extends BaseExporter {
     y += lineHeight * 0.5; // Spacing before table
 
     // Calculate column widths (equal width for simplicity)
-    const numCols = table.headers.length || (table.rows[0]?.length || 1);
+    const numCols = table.headers.length || table.rows[0]?.length || 1;
     const colWidth = contentWidth / numCols;
     const cellPadding = 2;
     const minRowHeight = lineHeight * 1.5;
@@ -1042,7 +1081,7 @@ export class PdfExporter extends BaseExporter {
     // uses for the identical constraint, keeping the fallback consistent
     // across formats instead of inventing a third one.
     const text = content
-      .map(item =>
+      .map((item) =>
         item.type === 'link' && item.url && item.url !== item.text
           ? `${item.text} (${item.url})`
           : item.text
@@ -1179,12 +1218,12 @@ export class PdfExporter extends BaseExporter {
       }
     }
 
-    for (let i = 0; i < lines.length; i++) {
+    for (const [i, line] of lines.entries()) {
       if (i === keepHere || y > limit) {
         doc.addPage();
         y = margins.top;
       }
-      doc.text(lines[i]!, margins.left, y);
+      doc.text(line, margins.left, y);
       y += lineHeight;
     }
 

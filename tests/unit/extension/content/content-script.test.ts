@@ -232,7 +232,11 @@ describe('content-script print failure reporting (lo-f854)', () => {
   it('opens the print window synchronously and fills it once content is ready', async () => {
     const pairs = [createTestQAPair(0, 'Q', 'A')];
     mockParse.mockReturnValue({ success: true, conversation: createTestConversation(pairs) });
-    mockExport.mockResolvedValue({ success: true, blob: new Blob(['# hi']), mimeType: 'text/markdown' });
+    mockExport.mockResolvedValue({
+      success: true,
+      blob: new Blob(['# hi']),
+      mimeType: 'text/markdown',
+    });
 
     const listener = await loadMessageListener();
     const sendResponse = vi.fn();
@@ -419,11 +423,7 @@ describe('content-script Q&A pair selection (lo-adf1)', () => {
 
     const listener = await loadMessageListener();
     const sendResponse = vi.fn();
-    listener(
-      { type: 'export_conversation', format: 'md', selectedIndices: [] },
-      {},
-      sendResponse
-    );
+    listener({ type: 'export_conversation', format: 'md', selectedIndices: [] }, {}, sendResponse);
 
     await vi.waitFor(() => {
       expect(sendResponse).toHaveBeenCalled();

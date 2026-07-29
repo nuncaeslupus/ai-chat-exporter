@@ -52,10 +52,7 @@ export class TextExporter extends BaseExporter {
   /**
    * Generate plain text content
    */
-  private generateText(
-    conversation: StructuredConversation,
-    options: ExportOptions
-  ): string {
+  private generateText(conversation: StructuredConversation, options: ExportOptions): string {
     const lines: string[] = [];
 
     // Title
@@ -119,13 +116,17 @@ export class TextExporter extends BaseExporter {
 
     // User message
     pushDaySeparator(pair.question.timestamp);
-    lines.push(`User${this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps)}:`);
+    lines.push(
+      `User${this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps)}:`
+    );
     lines.push(...this.renderBlocks(pair.question.blocks));
     lines.push('');
 
     // Assistant message
     pushDaySeparator(pair.answer.timestamp);
-    lines.push(`${assistantName}${this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps)}:`);
+    lines.push(
+      `${assistantName}${this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps)}:`
+    );
     lines.push(...this.renderBlocks(pair.answer.blocks));
 
     // Add artifacts if present
@@ -264,9 +265,7 @@ export class TextExporter extends BaseExporter {
 
     // Collect all cells from headers and body
     if (block.headers && block.headers.length > 0) {
-      allRows.push(
-        block.headers.map((cell: InlineContent[]) => this.inlineToText(cell).trim())
-      );
+      allRows.push(block.headers.map((cell: InlineContent[]) => this.inlineToText(cell).trim()));
     }
 
     if (block.rows && block.rows.length > 0) {
@@ -278,12 +277,12 @@ export class TextExporter extends BaseExporter {
     if (allRows.length === 0) return lines;
 
     // Calculate column widths
-    const numCols = Math.max(...allRows.map(row => row.length));
+    const numCols = Math.max(...allRows.map((row) => row.length));
     const colWidths: number[] = [];
 
     for (let col = 0; col < numCols; col++) {
       const maxWidth = Math.max(
-        ...allRows.map(row => (row[col] || '').length),
+        ...allRows.map((row) => (row[col] || '').length),
         3 // Minimum width
       );
       colWidths.push(maxWidth);
@@ -298,7 +297,7 @@ export class TextExporter extends BaseExporter {
 
       // Add separator after header row
       if (i === 0 && block.headers && block.headers.length > 0) {
-        const separators = colWidths.map(w => '-'.repeat(w));
+        const separators = colWidths.map((w) => '-'.repeat(w));
         lines.push(`| ${separators.join(' | ')} |`);
       }
     }
@@ -334,7 +333,7 @@ export class TextExporter extends BaseExporter {
    */
   private inlineToText(content: InlineContent[]): string {
     return content
-      .map(item =>
+      .map((item) =>
         item.type === 'link' && item.url && item.url !== item.text
           ? `${item.text} (${item.url})`
           : item.text

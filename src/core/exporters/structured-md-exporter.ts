@@ -58,9 +58,13 @@ export class StructuredMarkdownExporter extends BaseExporter {
 
     // Metadata as a table
     if (options.includeMetadata) {
-      lines.push(`| **${getMessage('metadataTableHeaderField')}** | **${getMessage('metadataTableHeaderValue')}** |`);
+      lines.push(
+        `| **${getMessage('metadataTableHeaderField')}** | **${getMessage('metadataTableHeaderValue')}** |`
+      );
       lines.push('|---|---|');
-      lines.push(`| ${this.getMetadataLabel('platform')} | ${this.formatPlatformName(conversation.platform)} |`);
+      lines.push(
+        `| ${this.getMetadataLabel('platform')} | ${this.formatPlatformName(conversation.platform)} |`
+      );
       if (conversation.model) {
         lines.push(`| ${this.getMetadataLabel('model')} | ${conversation.model} |`);
       }
@@ -68,7 +72,9 @@ export class StructuredMarkdownExporter extends BaseExporter {
       if (dateRange) {
         lines.push(`| ${this.getMetadataLabel('dateRange')} | ${dateRange} |`);
       }
-      lines.push(`| ${this.getMetadataLabel('exported')} | ${this.formatTimestamp(conversation.createdAt)} |`);
+      lines.push(
+        `| ${this.getMetadataLabel('exported')} | ${this.formatTimestamp(conversation.createdAt)} |`
+      );
       lines.push(`| ${this.getMetadataLabel('url')} | ${conversation.url} |`);
       lines.push('');
     }
@@ -89,13 +95,17 @@ export class StructuredMarkdownExporter extends BaseExporter {
     for (const [i, pair] of conversation.pairs.entries()) {
       // User question
       pushDaySeparator(pair.question.timestamp);
-      lines.push(`${roleHashes} 👤 ${this.getRoleName('user')}${this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps)}`);
+      lines.push(
+        `${roleHashes} 👤 ${this.getRoleName('user')}${this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps)}`
+      );
       lines.push('');
       lines.push(...this.renderBlocks(pair.question.blocks));
 
       // Assistant answer
       pushDaySeparator(pair.answer.timestamp);
-      lines.push(`${roleHashes} 🤖 ${this.getRoleName('assistant', conversation.platform)}${this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps)}`);
+      lines.push(
+        `${roleHashes} 🤖 ${this.getRoleName('assistant', conversation.platform)}${this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps)}`
+      );
       lines.push('');
       lines.push(...this.renderBlocks(pair.answer.blocks));
 
@@ -122,7 +132,9 @@ export class StructuredMarkdownExporter extends BaseExporter {
             if (artifact.type === 'image' && artifact.language === 'svg' && artifact.content) {
               // SVG artifacts: embed as data URL image
               const svgDataUrl = `data:image/svg+xml;base64,${btoa(artifact.content)}`;
-              lines.push(`<img src="${svgDataUrl}" alt="${artifact.title}" style="max-width: 100%; height: auto;">`);
+              lines.push(
+                `<img src="${svgDataUrl}" alt="${artifact.title}" style="max-width: 100%; height: auto;">`
+              );
               lines.push('');
 
               // Also include the SVG code in a collapsible section
@@ -159,7 +171,9 @@ export class StructuredMarkdownExporter extends BaseExporter {
           lines.push(`### Sources — ${search.query || 'References'}`);
           lines.push('');
           for (const result of search.results) {
-            lines.push(`- [${result.title}](${result.url})${result.domain ? ` — *${result.domain}*` : ''}`);
+            lines.push(
+              `- [${result.title}](${result.url})${result.domain ? ` — *${result.domain}*` : ''}`
+            );
           }
           lines.push('');
         }
@@ -216,7 +230,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
 
         case 'blockquote': {
           const quoteLines = this.renderBlocks(block.content);
-          lines.push(...quoteLines.map(line => (line ? `> ${line}` : '>')));
+          lines.push(...quoteLines.map((line) => (line ? `> ${line}` : '>')));
           lines.push('');
           break;
         }
@@ -250,7 +264,9 @@ export class StructuredMarkdownExporter extends BaseExporter {
             lines.push(`<img src="${block.url}" alt="${alt}"${widthAttr}${heightAttr}>`);
           } else {
             // No dimensions - constrain with CSS to match webchat
-            lines.push(`<img src="${block.url}" alt="${alt}" style="max-width: 200px; height: auto;">`);
+            lines.push(
+              `<img src="${block.url}" alt="${alt}" style="max-width: 200px; height: auto;">`
+            );
           }
           lines.push('');
           break;
@@ -280,8 +296,8 @@ export class StructuredMarkdownExporter extends BaseExporter {
 
     // Render headers if present
     if (block.headers && block.headers.length > 0) {
-      const headerCells = block.headers.map((cell: InlineContent[]) =>
-        this.renderInline(cell).trim() || ' '
+      const headerCells = block.headers.map(
+        (cell: InlineContent[]) => this.renderInline(cell).trim() || ' '
       );
       lines.push(`| ${headerCells.join(' | ')} |`);
 
@@ -293,9 +309,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
     // Render body rows
     if (block.rows && block.rows.length > 0) {
       for (const row of block.rows) {
-        const rowCells = row.map((cell: InlineContent[]) =>
-          this.renderInline(cell).trim() || ' '
-        );
+        const rowCells = row.map((cell: InlineContent[]) => this.renderInline(cell).trim() || ' ');
         lines.push(`| ${rowCells.join(' | ')} |`);
       }
     }
@@ -332,7 +346,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
    */
   private renderInline(content: InlineContent[]): string {
     return content
-      .map(item => {
+      .map((item) => {
         switch (item.type) {
           case 'text':
             return item.text;

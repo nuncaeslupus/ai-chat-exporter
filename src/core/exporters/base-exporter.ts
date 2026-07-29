@@ -59,14 +59,8 @@ export abstract class BaseExporter implements IExporter {
   /**
    * Create a successful export result
    */
-  protected createSuccessResult(
-    content: string | Blob,
-    filename: string
-  ): ExportResult {
-    const blob =
-      content instanceof Blob
-        ? content
-        : new Blob([content], { type: this.mimeType });
+  protected createSuccessResult(content: string | Blob, filename: string): ExportResult {
+    const blob = content instanceof Blob ? content : new Blob([content], { type: this.mimeType });
 
     return {
       success: true,

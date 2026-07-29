@@ -122,7 +122,9 @@ export class ClaudeParser extends BaseParser {
    */
   getButtonInjectionPoint(): HTMLElement | null {
     // Try to find the container with the model selector button
-    const modelButton = this.document.querySelector('button[data-testid="model-selector-dropdown"]');
+    const modelButton = this.document.querySelector(
+      'button[data-testid="model-selector-dropdown"]'
+    );
     if (modelButton?.parentElement) {
       return modelButton.parentElement;
     }
@@ -253,7 +255,7 @@ export class ClaudeParser extends BaseParser {
     if (!contentElement) {
       // If no text but has images, create a message indicating images only
       if (images.length > 0) {
-        const imageDescriptions = images.map(img => img.alt || 'image').join(', ');
+        const imageDescriptions = images.map((img) => img.alt || 'image').join(', ');
         return this.createMessageWithMetadata(
           'user',
           `[Uploaded images: ${imageDescriptions}]`,
@@ -289,7 +291,9 @@ export class ClaudeParser extends BaseParser {
   /**
    * Extract user uploaded images
    */
-  private extractUserUploadedImages(element: Element): { src: string; alt?: string; width?: number; height?: number }[] {
+  private extractUserUploadedImages(
+    element: Element
+  ): { src: string; alt?: string; width?: number; height?: number }[] {
     const images: { src: string; alt?: string; width?: number; height?: number }[] = [];
 
     const imageContainers = element.querySelectorAll('div.relative.group\\/thumbnail');
@@ -306,7 +310,9 @@ export class ClaudeParser extends BaseParser {
       }
 
       // Try to get alt from img, or from data-testid attribute on container's child
-      const alt = img.getAttribute('alt') || container.querySelector('[data-testid]')?.getAttribute('data-testid');
+      const alt =
+        img.getAttribute('alt') ||
+        container.querySelector('[data-testid]')?.getAttribute('data-testid');
       const widthAttr = img.getAttribute('width');
       const heightAttr = img.getAttribute('height');
 
@@ -314,7 +320,9 @@ export class ClaudeParser extends BaseParser {
       // Note: If it's already a data URL or http(s) URL, keep it as is
       const finalSrc = this.tryGetImageDataUrl(img, src);
 
-      const imageData: { src: string; alt?: string; width?: number; height?: number } = { src: finalSrc };
+      const imageData: { src: string; alt?: string; width?: number; height?: number } = {
+        src: finalSrc,
+      };
       if (alt) imageData.alt = alt;
       // Only include dimensions if they're actually specified in the HTML
       if (widthAttr) imageData.width = parseInt(widthAttr, 10);
@@ -383,7 +391,7 @@ export class ClaudeParser extends BaseParser {
     // Extract web searches
     const webSearches = this.extractWebSearches(element);
     if (webSearches.length > 0) {
-      webSearches.forEach(search => {
+      webSearches.forEach((search) => {
         contentParts.push(`[Web Search: ${search.query}]`);
         if (search.results && search.results.length > 0) {
           contentParts.push(`Found ${search.resultCount || search.results.length} results`);
@@ -392,7 +400,9 @@ export class ClaudeParser extends BaseParser {
     }
 
     // Extract text content from standard-markdown or progressive-markdown
-    const markdownContainers = element.querySelectorAll('div.standard-markdown, div.progressive-markdown');
+    const markdownContainers = element.querySelectorAll(
+      'div.standard-markdown, div.progressive-markdown'
+    );
     markdownContainers.forEach((container) => {
       const { content, htmlContent } = this.extractContent(container, config.preserveHtml);
       if (content) {
@@ -406,7 +416,7 @@ export class ClaudeParser extends BaseParser {
     // Extract artifacts
     const artifacts = this.extractArtifacts(element);
     if (artifacts.length > 0) {
-      artifacts.forEach(artifact => {
+      artifacts.forEach((artifact) => {
         contentParts.push(`[${artifact.typeLabel || artifact.type}: ${artifact.title}]`);
       });
     }
@@ -505,7 +515,9 @@ export class ClaudeParser extends BaseParser {
   private extractWebSearches(element: Element): WebSearchResult[] {
     const searches: WebSearchResult[] = [];
 
-    const searchContainers = element.querySelectorAll('div.ease-out.transition-all.flex.flex-col.font-ui');
+    const searchContainers = element.querySelectorAll(
+      'div.ease-out.transition-all.flex.flex-col.font-ui'
+    );
 
     searchContainers.forEach((container) => {
       // Check if this is a web search widget

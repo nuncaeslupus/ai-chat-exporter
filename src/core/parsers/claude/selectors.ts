@@ -27,7 +27,8 @@ export const CLAUDE_SELECTORS: SelectorSet = {
   assistantMessage: 'div[data-is-streaming="false"]',
 
   // Content within messages
-  messageContent: 'p.whitespace-pre-wrap.break-words, div.standard-markdown, div.progressive-markdown',
+  messageContent:
+    'p.whitespace-pre-wrap.break-words, div.standard-markdown, div.progressive-markdown',
 
   // Conversation title
   conversationTitle: 'button[data-testid="chat-title-button"] div.truncate',

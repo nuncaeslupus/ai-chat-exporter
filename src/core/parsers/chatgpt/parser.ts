@@ -20,10 +20,7 @@ export class ChatGPTParser extends BaseParser {
   readonly platformInfo: PlatformInfo = {
     id: 'chatgpt',
     name: 'ChatGPT',
-    urlPatterns: [
-      /^https?:\/\/(www\.)?chat\.openai\.com/,
-      /^https?:\/\/(www\.)?chatgpt\.com/,
-    ],
+    urlPatterns: [/^https?:\/\/(www\.)?chat\.openai\.com/, /^https?:\/\/(www\.)?chatgpt\.com/],
   };
 
   readonly selectors = CHATGPT_SELECTORS;
@@ -218,7 +215,8 @@ export class ChatGPTParser extends BaseParser {
    */
   private extractUserMessage(element: Element, config: ParserConfig): Message | null {
     // Get message ID from attribute
-    const messageId = element.getAttribute(this.selectors.custom.messageIdAttr) || this.generateId();
+    const messageId =
+      element.getAttribute(this.selectors.custom.messageIdAttr) || this.generateId();
 
     // Extract images first so an image-only turn still occupies its slot
     const images = this.extractImages(element);
@@ -263,9 +261,10 @@ export class ChatGPTParser extends BaseParser {
     config: ParserConfig
   ): Message | null {
     const messageIdAttr = this.selectors.custom.messageIdAttr;
-    const messageId = turn.getAttribute(messageIdAttr) ||
-                     messageElements[0]?.getAttribute(messageIdAttr) ||
-                     this.generateId();
+    const messageId =
+      turn.getAttribute(messageIdAttr) ||
+      messageElements[0]?.getAttribute(messageIdAttr) ||
+      this.generateId();
 
     const contentParts: string[] = [];
     const htmlParts: string[] = [];
@@ -344,12 +343,18 @@ export class ChatGPTParser extends BaseParser {
    */
   private extractAssistantMessage(element: Element, config: ParserConfig): Message | null {
     // Get message ID from attribute
-    const messageId = element.getAttribute(this.selectors.custom.messageIdAttr) || this.generateId();
+    const messageId =
+      element.getAttribute(this.selectors.custom.messageIdAttr) || this.generateId();
 
     // Check if this is a canvas turn
     const canvasContent = this.extractCanvasContent(element);
     if (canvasContent) {
-      const message = this.createMessage('assistant', canvasContent.text, canvasContent.html, messageId);
+      const message = this.createMessage(
+        'assistant',
+        canvasContent.text,
+        canvasContent.html,
+        messageId
+      );
       return message;
     }
 
@@ -421,7 +426,9 @@ export class ChatGPTParser extends BaseParser {
   /**
    * Extract images from a message element
    */
-  private extractImages(element: Element): { src: string; alt?: string; width?: number; height?: number }[] {
+  private extractImages(
+    element: Element
+  ): { src: string; alt?: string; width?: number; height?: number }[] {
     const images: { src: string; alt?: string; width?: number; height?: number }[] = [];
 
     // Find all img tags within the message
@@ -447,7 +454,12 @@ export class ChatGPTParser extends BaseParser {
       const alt = img.getAttribute('alt');
 
       // Skip UI icons, tiny images, and non-content container images
-      if (src && !src.includes('sprites-core') && !src.includes('icon') && !img.closest(excludedImageContainerSelector)) {
+      if (
+        src &&
+        !src.includes('sprites-core') &&
+        !src.includes('icon') &&
+        !img.closest(excludedImageContainerSelector)
+      ) {
         const imageData: { src: string; alt?: string; width?: number; height?: number } = { src };
         if (alt) {
           imageData.alt = alt;
@@ -511,13 +523,17 @@ export class ChatGPTParser extends BaseParser {
     const text = proseMirrorContent.textContent?.trim() || '';
     const html = proseMirrorContent.innerHTML || '';
 
-    return text ? { text: `[Canvas Content]\n${text}`, html: `<div class="canvas-content">${html}</div>` } : null;
+    return text
+      ? { text: `[Canvas Content]\n${text}`, html: `<div class="canvas-content">${html}</div>` }
+      : null;
   }
 
   /**
    * Extract generated image from image-gen turn
    */
-  private extractGeneratedImage(element: Element): { src: string; alt?: string; width?: number; height?: number } | null {
+  private extractGeneratedImage(
+    element: Element
+  ): { src: string; alt?: string; width?: number; height?: number } | null {
     // Look for image generation container
     const imageGenContainer = element.querySelector(this.selectors.custom.generatedImageContainer);
     if (!imageGenContainer) {
@@ -601,7 +617,9 @@ export class ChatGPTParser extends BaseParser {
   /**
    * Extract deep research information
    */
-  private extractDeepResearchInfo(element: Element): { duration: string; sources: number; searches: number } | null {
+  private extractDeepResearchInfo(
+    element: Element
+  ): { duration: string; sources: number; searches: number } | null {
     // Look for research completion indicator
     const researchButton = element.querySelector(this.selectors.custom.deepResearchButton);
     if (!researchButton) {
@@ -769,11 +787,13 @@ export class ChatGPTParser extends BaseParser {
     }
 
     // Return a single WebSearchResult with all citations
-    return [{
-      query: 'Web Search',
-      resultCount: results.length,
-      results,
-    }];
+    return [
+      {
+        query: 'Web Search',
+        resultCount: results.length,
+        results,
+      },
+    ];
   }
 
   /**

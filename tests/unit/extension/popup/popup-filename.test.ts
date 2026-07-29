@@ -105,13 +105,13 @@ async function loadPopup(): Promise<void> {
 
 function chipLabels(): string[] {
   return Array.from(document.querySelectorAll<HTMLElement>('#filename-pieces .filename-chip')).map(
-    (chip) => chip.dataset.pieceType ?? '',
+    (chip) => chip.dataset.pieceType ?? ''
   );
 }
 
 function addChipLabels(): string[] {
   return Array.from(document.querySelectorAll('#filename-add-chips .filename-add-chip')).map(
-    (chip) => chip.textContent ?? '',
+    (chip) => chip.textContent ?? ''
   );
 }
 

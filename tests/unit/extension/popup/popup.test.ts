@@ -43,10 +43,7 @@ function mockI18n(messages: Record<string, string> = EN_MESSAGES) {
       const message = messages[key] ?? key;
       if (!substitutions) return message;
       const values = Array.isArray(substitutions) ? substitutions : [substitutions];
-      return values.reduce(
-        (text, value, i) => text.replace(`$${String(i + 1)}`, value),
-        message
-      );
+      return values.reduce((text, value, i) => text.replace(`$${String(i + 1)}`, value), message);
     },
   };
 }
@@ -176,7 +173,9 @@ describe('popup degraded-export reporting', () => {
     // 'Print failed' instead of calling getMessage('statusPrintFailed'), this
     // mocked translation would never surface and the assertion below fails.
     const translatedMarker = '__I18N_STATUS_PRINT_FAILED__';
-    Object.assign(chrome, { i18n: mockI18n({ ...EN_MESSAGES, statusPrintFailed: translatedMarker }) });
+    Object.assign(chrome, {
+      i18n: mockI18n({ ...EN_MESSAGES, statusPrintFailed: translatedMarker }),
+    });
     mockTabsSendMessage.mockImplementation((_tabId: number, message: { type: string }) => {
       if (message.type === 'get_conversation') {
         return Promise.resolve({ success: true, data: CONVERSATION });
@@ -219,9 +218,9 @@ describe('popup export options', () => {
     expect((document.getElementById('option-include-metadata') as HTMLInputElement).checked).toBe(
       false
     );
-    expect(
-      (document.getElementById('option-include-timestamps') as HTMLInputElement).checked
-    ).toBe(false);
+    expect((document.getElementById('option-include-timestamps') as HTMLInputElement).checked).toBe(
+      false
+    );
   });
 
   it('persists a metadata toggle change to storage', async () => {
@@ -233,9 +232,7 @@ describe('popup export options', () => {
 
     await vi.waitFor(async () => {
       const stored = await chrome.storage.sync.get('user_preferences');
-      expect((stored.user_preferences as { includeMetadata: boolean }).includeMetadata).toBe(
-        false
-      );
+      expect((stored.user_preferences as { includeMetadata: boolean }).includeMetadata).toBe(false);
     });
   });
 
@@ -248,9 +245,9 @@ describe('popup export options', () => {
 
     await vi.waitFor(async () => {
       const stored = await chrome.storage.sync.get('user_preferences');
-      expect(
-        (stored.user_preferences as { includeTimestamps: boolean }).includeTimestamps
-      ).toBe(false);
+      expect((stored.user_preferences as { includeTimestamps: boolean }).includeTimestamps).toBe(
+        false
+      );
     });
   });
 });
@@ -397,7 +394,10 @@ describe('popup Q&A pair selection (lo-adf1)', () => {
     document.getElementById('export-button')?.click();
 
     await vi.waitFor(() => {
-      const calls = mockTabsSendMessage.mock.calls as [number, { type: string; selectedIndices?: number[] }][];
+      const calls = mockTabsSendMessage.mock.calls as [
+        number,
+        { type: string; selectedIndices?: number[] },
+      ][];
       const exportCalls = calls.filter(([, message]) => message.type === 'export_conversation');
       expect(exportCalls.length).toBeGreaterThan(0);
       expect(exportCalls.at(-1)?.[1].selectedIndices).toEqual([0, 2]);
@@ -449,7 +449,9 @@ describe('popup Q&A pair selection accessibility (lo-adf1)', () => {
   it('associates every pair checkbox with a real <label for>', async () => {
     await loadPopup();
     const checkbox = await vi.waitFor(() => {
-      const el = document.querySelector<HTMLInputElement>('#qa-selection-list input[type="checkbox"]');
+      const el = document.querySelector<HTMLInputElement>(
+        '#qa-selection-list input[type="checkbox"]'
+      );
       expect(el).not.toBeNull();
       return el!;
     });

@@ -152,9 +152,7 @@ describe('pair chooser — expanding a row', () => {
     toggle!.click();
 
     await vi.waitFor(() => {
-      expect(
-        document.querySelector<HTMLElement>('.pair-row')?.dataset.expanded
-      ).toBe('true');
+      expect(document.querySelector<HTMLElement>('.pair-row')?.dataset.expanded).toBe('true');
     });
     expect(document.querySelector('.pair-row .pair-row-toggle')?.textContent).toBe('less');
     expect(checkboxes().map((box) => box.checked)).toEqual([true, false]);

@@ -19,6 +19,7 @@ jobs:
       - run: node build/check-release.cjs version
       - run: node build/check-release.cjs node
       - run: pnpm lint
+      - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm test:coverage
       - run: pnpm build

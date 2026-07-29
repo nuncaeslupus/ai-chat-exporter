@@ -134,7 +134,7 @@ export class ClaudeApiService {
     const patterns = [
       /"organizationID":"([a-f0-9-]{36})"/i,
       /"organizationUUID":"([a-f0-9-]{36})"/i,
-      /"organization_id":"([a-f0-9-]{36})"/i
+      /"organization_id":"([a-f0-9-]{36})"/i,
     ];
 
     for (const pattern of patterns) {
@@ -151,10 +151,7 @@ export class ClaudeApiService {
   /**
    * Extract conversation ID and organization ID from Claude page
    */
-  static extractIdsFromPage(
-    url: string,
-    document: Document
-  ): ClaudeApiRequest | null {
+  static extractIdsFromPage(url: string, document: Document): ClaudeApiRequest | null {
     try {
       const urlObj = new URL(url);
 

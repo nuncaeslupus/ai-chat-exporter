@@ -12,14 +12,7 @@ export type ExportFormat = 'pdf' | 'md' | 'txt' | 'json' | 'docx' | 'html';
 /**
  * All available export formats
  */
-export const EXPORT_FORMATS: readonly ExportFormat[] = [
-  'pdf',
-  'md',
-  'txt',
-  'json',
-  'docx',
-  'html',
-];
+export const EXPORT_FORMATS: readonly ExportFormat[] = ['pdf', 'md', 'txt', 'json', 'docx', 'html'];
 
 /**
  * PDF-specific export options

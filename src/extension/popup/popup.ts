@@ -161,14 +161,14 @@ function renderPlatformLinks(): void {
  * to translate, so the string becomes their accessible name and tooltip.
  */
 function localizeHtmlPage(): void {
-  document.querySelectorAll('[data-i18n]').forEach(element => {
+  document.querySelectorAll('[data-i18n]').forEach((element) => {
     const key = element.getAttribute('data-i18n');
     if (key) {
       element.textContent = getMessage(key);
     }
   });
 
-  document.querySelectorAll('[data-i18n-label]').forEach(element => {
+  document.querySelectorAll('[data-i18n-label]').forEach((element) => {
     const key = element.getAttribute('data-i18n-label');
     if (key) {
       const message = getMessage(key);
@@ -358,7 +358,9 @@ class PopupController {
     if (metadataToggle) {
       metadataToggle.checked = prefs.includeMetadata;
     }
-    const timestampsToggle = document.getElementById('option-include-timestamps') as HTMLInputElement;
+    const timestampsToggle = document.getElementById(
+      'option-include-timestamps'
+    ) as HTMLInputElement;
     if (timestampsToggle) {
       timestampsToggle.checked = prefs.includeTimestamps;
     }
@@ -411,11 +413,9 @@ class PopupController {
 
   /** Mark the chosen row. `aria-checked` is both the a11y state and the cue CSS paints. */
   private syncFormatRows(): void {
-    document
-      .querySelectorAll<HTMLElement>('[data-format-menu] [data-format]')
-      .forEach((row) => {
-        row.setAttribute('aria-checked', String(row.dataset.format === this.selectedFormat));
-      });
+    document.querySelectorAll<HTMLElement>('[data-format-menu] [data-format]').forEach((row) => {
+      row.setAttribute('aria-checked', String(row.dataset.format === this.selectedFormat));
+    });
   }
 
   /**
@@ -529,7 +529,9 @@ class PopupController {
   }
 
   /** Every preference write goes through here so the Options dot stays honest. */
-  private async persistPreference(patch: Parameters<typeof StorageService.setUserPreferences>[0]): Promise<void> {
+  private async persistPreference(
+    patch: Parameters<typeof StorageService.setUserPreferences>[0]
+  ): Promise<void> {
     await StorageService.setUserPreferences(patch);
     await this.updateOptionsDot();
     await this.updateFilenamePreview();
@@ -823,10 +825,7 @@ class PopupController {
     chip.type = 'button';
     chip.className = 'filename-add-chip';
     chip.dataset.addPiece = type;
-    chip.textContent = getMessageWithValues(
-      'filenameAddPiece',
-      getMessage(PIECE_LABEL_KEYS[type])
-    );
+    chip.textContent = getMessageWithValues('filenameAddPiece', getMessage(PIECE_LABEL_KEYS[type]));
     chip.addEventListener('click', () => {
       const piece: FilenamePiece = type === 'literal' ? { type, text: '' } : { type };
       this.applyPieces([...this.currentPieces(), piece]);
@@ -1098,7 +1097,10 @@ class PopupController {
     } catch (error) {
       console.error('Export failed:', error);
       this.setUiState('error');
-      this.updateStatus('error', error instanceof Error ? error.message : getMessage('statusExportFailed'));
+      this.updateStatus(
+        'error',
+        error instanceof Error ? error.message : getMessage('statusExportFailed')
+      );
     }
   }
 

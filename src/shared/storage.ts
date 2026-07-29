@@ -17,7 +17,10 @@ export class StorageService {
       const result: Record<string, unknown> = await chrome.storage.sync.get(
         STORAGE_KEYS.USER_PREFERENCES
       );
-      return (result[STORAGE_KEYS.USER_PREFERENCES] as UserPreferences | undefined) || DEFAULT_PREFERENCES;
+      return (
+        (result[STORAGE_KEYS.USER_PREFERENCES] as UserPreferences | undefined) ||
+        DEFAULT_PREFERENCES
+      );
     } catch (error) {
       console.error('Failed to get user preferences:', error);
       return DEFAULT_PREFERENCES;
@@ -85,10 +88,7 @@ export class StorageService {
   /**
    * Save selection state for a conversation
    */
-  static async setSelectionState(
-    conversationId: string,
-    selectedIds: string[],
-  ): Promise<void> {
+  static async setSelectionState(conversationId: string, selectedIds: string[]): Promise<void> {
     try {
       const key = `${STORAGE_KEYS.SELECTION_STATE}_${conversationId}`;
       await chrome.storage.local.set({

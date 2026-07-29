@@ -32,23 +32,53 @@ const { instances, MockJsPDF } = vi.hoisted(() => {
       this.calls.push({ method, args });
     }
 
-    setFontSize(...args: unknown[]) { this.record('setFontSize', args); }
-    setFont(...args: unknown[]) { this.record('setFont', args); }
-    setTextColor(...args: unknown[]) { this.record('setTextColor', args); }
-    setDrawColor(...args: unknown[]) { this.record('setDrawColor', args); }
-    setFillColor(...args: unknown[]) { this.record('setFillColor', args); }
-    setLineWidth(...args: unknown[]) { this.record('setLineWidth', args); }
-    text(...args: unknown[]) { this.record('text', args); }
-    line(...args: unknown[]) { this.record('line', args); }
-    rect(...args: unknown[]) { this.record('rect', args); }
-    roundedRect(...args: unknown[]) { this.record('roundedRect', args); }
-    addPage(...args: unknown[]) { this.record('addPage', args); }
-    addImage(...args: unknown[]) { this.record('addImage', args); }
-    setPage(...args: unknown[]) { this.record('setPage', args); }
-    getNumberOfPages() { return 1; }
+    setFontSize(...args: unknown[]) {
+      this.record('setFontSize', args);
+    }
+    setFont(...args: unknown[]) {
+      this.record('setFont', args);
+    }
+    setTextColor(...args: unknown[]) {
+      this.record('setTextColor', args);
+    }
+    setDrawColor(...args: unknown[]) {
+      this.record('setDrawColor', args);
+    }
+    setFillColor(...args: unknown[]) {
+      this.record('setFillColor', args);
+    }
+    setLineWidth(...args: unknown[]) {
+      this.record('setLineWidth', args);
+    }
+    text(...args: unknown[]) {
+      this.record('text', args);
+    }
+    line(...args: unknown[]) {
+      this.record('line', args);
+    }
+    rect(...args: unknown[]) {
+      this.record('rect', args);
+    }
+    roundedRect(...args: unknown[]) {
+      this.record('roundedRect', args);
+    }
+    addPage(...args: unknown[]) {
+      this.record('addPage', args);
+    }
+    addImage(...args: unknown[]) {
+      this.record('addImage', args);
+    }
+    setPage(...args: unknown[]) {
+      this.record('setPage', args);
+    }
+    getNumberOfPages() {
+      return 1;
+    }
     // No wrapping -- keeps the exact strings PdfExporter asked to render
     // visible to the assertions below instead of split into fragments.
-    splitTextToSize(text: string) { return [text]; }
+    splitTextToSize(text: string) {
+      return [text];
+    }
     output(type: string) {
       this.record('output', [type]);
       return new Blob(['%PDF-mock'], { type: 'application/pdf' });
@@ -111,7 +141,10 @@ function textCallsOf(instance: InstanceType<typeof MockJsPDF>): string[] {
 }
 
 /** The setFontSize value in effect when a given text string was rendered. */
-function fontSizeBeforeText(instance: InstanceType<typeof MockJsPDF>, text: string): number | undefined {
+function fontSizeBeforeText(
+  instance: InstanceType<typeof MockJsPDF>,
+  text: string
+): number | undefined {
   const idx = instance.calls.findIndex((c) => c.method === 'text' && c.args[0] === text);
   if (idx === -1) return undefined;
   for (let i = idx - 1; i >= 0; i--) {
@@ -233,7 +266,8 @@ describe('PdfExporter', () => {
         id: 'a-link-identical',
         role: 'assistant',
         content: 'fallback',
-        htmlContent: '<p>See <a href="https://example.com/">https://example.com/</a> for details.</p>',
+        htmlContent:
+          '<p>See <a href="https://example.com/">https://example.com/</a> for details.</p>',
         timestamp: new Date('2025-01-01T12:00:00Z'),
       },
     };
@@ -311,9 +345,13 @@ describe('PdfExporter', () => {
     });
 
     const instance = instances[0]!;
-    const idx = instance.calls.findIndex((c) => c.method === 'text' && c.args[0] === 'function foo() {}');
+    const idx = instance.calls.findIndex(
+      (c) => c.method === 'text' && c.args[0] === 'function foo() {}'
+    );
     expect(idx).toBeGreaterThan(-1);
-    const fontCallBefore = [...instance.calls.slice(0, idx)].reverse().find((c) => c.method === 'setFont');
+    const fontCallBefore = [...instance.calls.slice(0, idx)]
+      .reverse()
+      .find((c) => c.method === 'setFont');
     expect(fontCallBefore?.args[0]).toBe('courier');
   });
 

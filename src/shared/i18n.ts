@@ -7,7 +7,9 @@
  * Check if chrome.i18n is available (not available in test environment)
  */
 function isI18nAvailable(): boolean {
-  return typeof chrome !== 'undefined' && chrome.i18n && typeof chrome.i18n.getMessage === 'function';
+  return (
+    typeof chrome !== 'undefined' && chrome.i18n && typeof chrome.i18n.getMessage === 'function'
+  );
 }
 
 /**
@@ -43,7 +45,7 @@ export function getUILanguage(): string {
  * @returns Localized message string
  */
 export function getMessageWithValues(key: string, ...values: (string | number)[]): string {
-  const stringValues = values.map(v => String(v));
+  const stringValues = values.map((v) => String(v));
   return getMessage(key, stringValues);
 }
 

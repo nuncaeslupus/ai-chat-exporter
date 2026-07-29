@@ -46,9 +46,7 @@ export class GeminiParser extends BaseParser {
    * Trimmed text of the first match, or null when absent or blank.
    */
   private textOf(selector: string | undefined): string | null {
-    const text = selector
-      ? this.document.querySelector(selector)?.textContent.trim()
-      : undefined;
+    const text = selector ? this.document.querySelector(selector)?.textContent.trim() : undefined;
     return text === undefined || text === '' ? null : text;
   }
 

@@ -62,13 +62,24 @@ const DOCX_HEADING_BY_LEVEL: (typeof HeadingLevel)[keyof typeof HeadingLevel][] 
 ];
 
 /**
+ * Document heading level (1-6) -> docx HeadingLevel.
+ *
+ * `noUncheckedIndexedAccess` types every number-indexed read as `| undefined`,
+ * so the lookup needs a total wrapper. Callers only ever pass 1..6
+ * (`DOC_HEADING_LEVEL.title`/`.roleLabel`, or `bodyHeadingLevel`, which clamps
+ * to `DOC_HEADING_LEVEL.max`), so the fallback is unreachable in practice.
+ */
+function docxHeading(docLevel: number): (typeof HeadingLevel)[keyof typeof HeadingLevel] {
+  return DOCX_HEADING_BY_LEVEL[docLevel - 1] ?? HeadingLevel.HEADING_6;
+}
+
+/**
  * Exports conversations to DOCX (Word) format
  */
 export class DocxExporter extends BaseExporter {
   readonly format: ExportFormat = 'docx';
   readonly extension = 'docx';
-  readonly mimeType =
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  readonly mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
   /**
    * Export selected Q&A pairs to DOCX
@@ -98,10 +109,7 @@ export class DocxExporter extends BaseExporter {
   /**
    * Create a DOCX document
    */
-  private createDocument(
-    conversation: StructuredConversation,
-    options: ExportOptions
-  ): Document {
+  private createDocument(conversation: StructuredConversation, options: ExportOptions): Document {
     const sections: (Paragraph | Table)[] = [];
 
     // Title
@@ -114,7 +122,7 @@ export class DocxExporter extends BaseExporter {
             size: ptToHalfPt(DOCX_FONT_SIZE_PT.title),
           }),
         ],
-        heading: DOCX_HEADING_BY_LEVEL[DOC_HEADING_LEVEL.title - 1]!,
+        heading: docxHeading(DOC_HEADING_LEVEL.title),
         spacing: { after: 300 },
       })
     );
@@ -232,14 +240,8 @@ export class DocxExporter extends BaseExporter {
    * assistant, the user accent for the user — so a docx is identifiable as
    * ChatGPT / Claude / Gemini the way pdf and html already are.
    */
-  private renderRoleHeading(
-    label: string,
-    timestampSuffix: string,
-    labelColor: string
-  ): Paragraph {
-    const children: TextRun[] = [
-      new TextRun({ text: label, color: hexToDocxColor(labelColor) }),
-    ];
+  private renderRoleHeading(label: string, timestampSuffix: string, labelColor: string): Paragraph {
+    const children: TextRun[] = [new TextRun({ text: label, color: hexToDocxColor(labelColor) })];
     if (timestampSuffix) {
       children.push(
         new TextRun({
@@ -252,7 +254,7 @@ export class DocxExporter extends BaseExporter {
     }
     return new Paragraph({
       children,
-      heading: DOCX_HEADING_BY_LEVEL[DOC_HEADING_LEVEL.roleLabel - 1]!,
+      heading: docxHeading(DOC_HEADING_LEVEL.roleLabel),
       spacing: { before: 300, after: 150 },
       keepNext: true, // never strand the role label at the foot of a page
     });
@@ -538,7 +540,7 @@ export class DocxExporter extends BaseExporter {
       return [];
     }
 
-    const heading = DOCX_HEADING_BY_LEVEL[bodyHeadingLevel(block.level) - 1]!;
+    const heading = docxHeading(bodyHeadingLevel(block.level));
 
     return [
       new Paragraph({

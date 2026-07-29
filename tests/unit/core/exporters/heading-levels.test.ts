@@ -40,21 +40,51 @@ const { instances, MockJsPDF } = vi.hoisted(() => {
       this.calls.push({ method, args });
     }
 
-    setFontSize(...args: unknown[]) { this.record('setFontSize', args); }
-    setFont(...args: unknown[]) { this.record('setFont', args); }
-    setTextColor(...args: unknown[]) { this.record('setTextColor', args); }
-    setDrawColor(...args: unknown[]) { this.record('setDrawColor', args); }
-    setFillColor(...args: unknown[]) { this.record('setFillColor', args); }
-    setLineWidth(...args: unknown[]) { this.record('setLineWidth', args); }
-    text(...args: unknown[]) { this.record('text', args); }
-    line(...args: unknown[]) { this.record('line', args); }
-    rect(...args: unknown[]) { this.record('rect', args); }
-    roundedRect(...args: unknown[]) { this.record('roundedRect', args); }
-    addPage(...args: unknown[]) { this.record('addPage', args); }
-    addImage(...args: unknown[]) { this.record('addImage', args); }
-    setPage(...args: unknown[]) { this.record('setPage', args); }
-    getNumberOfPages() { return 1; }
-    splitTextToSize(text: string) { return [text]; }
+    setFontSize(...args: unknown[]) {
+      this.record('setFontSize', args);
+    }
+    setFont(...args: unknown[]) {
+      this.record('setFont', args);
+    }
+    setTextColor(...args: unknown[]) {
+      this.record('setTextColor', args);
+    }
+    setDrawColor(...args: unknown[]) {
+      this.record('setDrawColor', args);
+    }
+    setFillColor(...args: unknown[]) {
+      this.record('setFillColor', args);
+    }
+    setLineWidth(...args: unknown[]) {
+      this.record('setLineWidth', args);
+    }
+    text(...args: unknown[]) {
+      this.record('text', args);
+    }
+    line(...args: unknown[]) {
+      this.record('line', args);
+    }
+    rect(...args: unknown[]) {
+      this.record('rect', args);
+    }
+    roundedRect(...args: unknown[]) {
+      this.record('roundedRect', args);
+    }
+    addPage(...args: unknown[]) {
+      this.record('addPage', args);
+    }
+    addImage(...args: unknown[]) {
+      this.record('addImage', args);
+    }
+    setPage(...args: unknown[]) {
+      this.record('setPage', args);
+    }
+    getNumberOfPages() {
+      return 1;
+    }
+    splitTextToSize(text: string) {
+      return [text];
+    }
     output(type: string) {
       this.record('output', [type]);
       return new Blob(['%PDF-mock'], { type: 'application/pdf' });
@@ -106,7 +136,10 @@ const options: ExportOptions = {
 
 describe('heading levels are consistent across formats (C-2)', () => {
   it('html: title h1, role label h2, source h1 -> h3, source h3 -> h5', async () => {
-    const result = await new HtmlExporter().export(conversation, pairs, { ...options, format: 'html' });
+    const result = await new HtmlExporter().export(conversation, pairs, {
+      ...options,
+      format: 'html',
+    });
     const text = await blobToText(result.blob!);
 
     expect(text).toContain('<h1 class="title">Test Conversation</h1>');
@@ -116,7 +149,10 @@ describe('heading levels are consistent across formats (C-2)', () => {
   });
 
   it('md: title #, role label ##, source h1 -> ###, source h3 -> #####', async () => {
-    const result = await new StructuredMarkdownExporter().export(conversation, pairs, { ...options, format: 'md' });
+    const result = await new StructuredMarkdownExporter().export(conversation, pairs, {
+      ...options,
+      format: 'md',
+    });
     const text = await blobToText(result.blob!);
 
     expect(text).toContain('# Test Conversation');
@@ -126,7 +162,10 @@ describe('heading levels are consistent across formats (C-2)', () => {
   });
 
   it('docx: title Heading1, role label Heading2, source h1 -> Heading3, source h3 -> Heading5', async () => {
-    const result = await new DocxExporter().export(conversation, pairs, { ...options, format: 'docx' });
+    const result = await new DocxExporter().export(conversation, pairs, {
+      ...options,
+      format: 'docx',
+    });
     const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
 
     // Paragraph order: title, role label(s), then the body headings.
@@ -159,7 +198,10 @@ describe('heading levels are consistent across formats (C-2)', () => {
   });
 
   it('txt: has no heading-level surface — every body heading renders identically', async () => {
-    const result = await new TextExporter().export(conversation, pairs, { ...options, format: 'txt' });
+    const result = await new TextExporter().export(conversation, pairs, {
+      ...options,
+      format: 'txt',
+    });
     const text = await blobToText(result.blob!);
 
     expect(text).toContain('Alpha\n~~~~~');
@@ -169,7 +211,10 @@ describe('heading levels are consistent across formats (C-2)', () => {
   });
 
   it('json: preserves the raw source heading levels losslessly', async () => {
-    const result = await new JsonExporter().export(conversation, pairs, { ...options, format: 'json' });
+    const result = await new JsonExporter().export(conversation, pairs, {
+      ...options,
+      format: 'json',
+    });
     const parsed = JSON.parse(await blobToText(result.blob!)) as {
       pairs: { answer: { htmlContent?: string } }[];
     };
@@ -190,7 +235,8 @@ function headingStyleOf(xml: string, text: string): string | undefined {
 /** The setFontSize value in effect when a given text string was rendered. */
 function fontSizeBeforeText(instance: { calls: Call[] }, needle: string): number | undefined {
   const index = instance.calls.findIndex(
-    (call) => call.method === 'text' && typeof call.args[0] === 'string' && call.args[0].includes(needle)
+    (call) =>
+      call.method === 'text' && typeof call.args[0] === 'string' && call.args[0].includes(needle)
   );
   if (index === -1) return undefined;
   for (let i = index; i >= 0; i--) {

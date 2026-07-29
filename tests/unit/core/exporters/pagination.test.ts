@@ -42,23 +42,53 @@ const { instances, MockJsPDF } = vi.hoisted(() => {
       this.calls.push({ method, args });
     }
 
-    setFontSize(...args: unknown[]) { this.record('setFontSize', args); }
-    setFont(...args: unknown[]) { this.record('setFont', args); }
-    setTextColor(...args: unknown[]) { this.record('setTextColor', args); }
-    setDrawColor(...args: unknown[]) { this.record('setDrawColor', args); }
-    setFillColor(...args: unknown[]) { this.record('setFillColor', args); }
-    setLineWidth(...args: unknown[]) { this.record('setLineWidth', args); }
-    text(...args: unknown[]) { this.record('text', args); }
-    line(...args: unknown[]) { this.record('line', args); }
-    rect(...args: unknown[]) { this.record('rect', args); }
-    roundedRect(...args: unknown[]) { this.record('roundedRect', args); }
-    addPage(...args: unknown[]) { this.record('addPage', args); }
-    addImage(...args: unknown[]) { this.record('addImage', args); }
-    setPage(...args: unknown[]) { this.record('setPage', args); }
-    getNumberOfPages() { return 1; }
+    setFontSize(...args: unknown[]) {
+      this.record('setFontSize', args);
+    }
+    setFont(...args: unknown[]) {
+      this.record('setFont', args);
+    }
+    setTextColor(...args: unknown[]) {
+      this.record('setTextColor', args);
+    }
+    setDrawColor(...args: unknown[]) {
+      this.record('setDrawColor', args);
+    }
+    setFillColor(...args: unknown[]) {
+      this.record('setFillColor', args);
+    }
+    setLineWidth(...args: unknown[]) {
+      this.record('setLineWidth', args);
+    }
+    text(...args: unknown[]) {
+      this.record('text', args);
+    }
+    line(...args: unknown[]) {
+      this.record('line', args);
+    }
+    rect(...args: unknown[]) {
+      this.record('rect', args);
+    }
+    roundedRect(...args: unknown[]) {
+      this.record('roundedRect', args);
+    }
+    addPage(...args: unknown[]) {
+      this.record('addPage', args);
+    }
+    addImage(...args: unknown[]) {
+      this.record('addImage', args);
+    }
+    setPage(...args: unknown[]) {
+      this.record('setPage', args);
+    }
+    getNumberOfPages() {
+      return 1;
+    }
     /** One word per line — the exporter's wrapped-line count is the thing under test. */
     splitTextToSize(text: string) {
-      return String(text).split(' ').filter((w) => w.length > 0);
+      return String(text)
+        .split(' ')
+        .filter((w) => w.length > 0);
     }
     output(type: string) {
       this.record('output', [type]);
@@ -165,36 +195,40 @@ describe('pdf pagination policy', () => {
     const PARA_LINES = 8;
     for (let filler = 1; filler <= 60; filler++) {
       const pairs = [
-        buildPair(
-          '0',
-          `<p>${words('q', filler)}</p>`,
-          `<p>${words('T', PARA_LINES)}</p>`
-        ),
+        buildPair('0', `<p>${words('q', filler)}</p>`, `<p>${words('T', PARA_LINES)}</p>`),
       ];
       const calls = await renderPdf(pairs);
 
       // The target paragraph's lines are the only tokens starting with 'T'.
       const seq = calls
         .filter(
-          (c) =>
-            c.method === 'addPage' ||
-            (c.method === 'text' && /^T\d+$/.test(String(c.args[0])))
+          (c) => c.method === 'addPage' || (c.method === 'text' && /^T\d+$/.test(String(c.args[0])))
         )
         .map((c) => c.method);
 
       const firstLine = seq.indexOf('text');
       const lastLine = seq.lastIndexOf('text');
-      expect(firstLine, `filler=${filler}: target paragraph not rendered`).toBeGreaterThanOrEqual(0);
+      expect(firstLine, `filler=${filler}: target paragraph not rendered`).toBeGreaterThanOrEqual(
+        0
+      );
 
       const breakInside = seq.slice(firstLine, lastLine).indexOf('addPage');
       if (breakInside === -1) continue; // paragraph did not straddle — nothing to check
 
-      const before = seq.slice(firstLine, firstLine + breakInside).filter((m) => m === 'text').length;
-      const after = seq.slice(firstLine + breakInside, lastLine + 1).filter((m) => m === 'text').length;
-      expect(before, `filler=${filler}: orphan — only ${before} line(s) left at the page foot`)
-        .toBeGreaterThanOrEqual(PAGINATION.orphans);
-      expect(after, `filler=${filler}: widow — only ${after} line(s) carried over`)
-        .toBeGreaterThanOrEqual(PAGINATION.widows);
+      const before = seq
+        .slice(firstLine, firstLine + breakInside)
+        .filter((m) => m === 'text').length;
+      const after = seq
+        .slice(firstLine + breakInside, lastLine + 1)
+        .filter((m) => m === 'text').length;
+      expect(
+        before,
+        `filler=${filler}: orphan — only ${before} line(s) left at the page foot`
+      ).toBeGreaterThanOrEqual(PAGINATION.orphans);
+      expect(
+        after,
+        `filler=${filler}: widow — only ${after} line(s) carried over`
+      ).toBeGreaterThanOrEqual(PAGINATION.widows);
     }
   });
 
@@ -216,8 +250,12 @@ describe('pdf pagination policy', () => {
       const firstBodyCell = calls.findIndex(
         (c) => c.method === 'text' && String(c.args[0]) === 'Alice'
       );
-      expect(lastHeaderCell, `filler=${filler}: table header not rendered`).toBeGreaterThanOrEqual(0);
-      expect(firstBodyCell, `filler=${filler}: table body not rendered`).toBeGreaterThan(lastHeaderCell);
+      expect(lastHeaderCell, `filler=${filler}: table header not rendered`).toBeGreaterThanOrEqual(
+        0
+      );
+      expect(firstBodyCell, `filler=${filler}: table body not rendered`).toBeGreaterThan(
+        lastHeaderCell
+      );
 
       const brokeBetween = calls
         .slice(lastHeaderCell, firstBodyCell)
@@ -293,7 +331,10 @@ describe('docx pagination policy', () => {
           '<tbody><tr><td>Alice</td><td>30</td></tr></tbody></table>'
       )
     );
-    const rows = xml.split(/<w:tr[ >]/).slice(1).map((r) => r.split('</w:tr>')[0]!);
+    const rows = xml
+      .split(/<w:tr[ >]/)
+      .slice(1)
+      .map((r) => r.split('</w:tr>')[0]!);
     expect(rows).toHaveLength(2);
     for (const row of rows) {
       expect(row).toContain('<w:cantSplit/>');

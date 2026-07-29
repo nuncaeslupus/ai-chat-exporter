@@ -98,7 +98,9 @@ export class FilenameService {
   private static piecesToTemplate(pieces: FilenamePiece[]): string {
     return pieces
       .map((piece) =>
-        piece.type === 'literal' ? (piece.text ?? '').replace(/[{}]/g, '') : PIECE_TOKENS[piece.type]
+        piece.type === 'literal'
+          ? (piece.text ?? '').replace(/[{}]/g, '')
+          : PIECE_TOKENS[piece.type]
       )
       .join('_');
   }

@@ -146,12 +146,7 @@ export abstract class BaseParser implements IParser {
   /**
    * Create a Q&A pair from user and assistant messages
    */
-  protected createQAPair(
-    index: number,
-    question: Message,
-    answer: Message,
-    id?: string
-  ): QAPair {
+  protected createQAPair(index: number, question: Message, answer: Message, id?: string): QAPair {
     return {
       id: id ?? this.generateId(),
       index,
@@ -204,11 +199,7 @@ export abstract class BaseParser implements IParser {
         kind: player.tagName.toLowerCase() === 'video' ? 'video' : 'audio',
         src,
       };
-      const alt = (
-        player.getAttribute('aria-label') ??
-        player.getAttribute('title') ??
-        ''
-      ).trim();
+      const alt = (player.getAttribute('aria-label') ?? player.getAttribute('title') ?? '').trim();
       if (alt) {
         item.alt = alt;
       }
@@ -241,7 +232,9 @@ export abstract class BaseParser implements IParser {
     const chrome = element.querySelectorAll(
       'button, [role="button"], .sr-only, [class*="sr-only"], [class*="visually-hidden"], [style*="position: absolute"][style*="width: 1px"]'
     );
-    chrome.forEach(el => { el.remove(); });
+    chrome.forEach((el) => {
+      el.remove();
+    });
 
     // Collapse rendered math (KaTeX/MathJax) to a single representation before the
     // generic aria-hidden strip below runs. KaTeX emits up to three copies of the
@@ -252,7 +245,7 @@ export abstract class BaseParser implements IParser {
     // chosen text representation handles both platforms with one rule, so the
     // generic aria-hidden strip no longer needs a math carve-out (see below).
     const mathUnits = element.querySelectorAll('.katex, mjx-container');
-    mathUnits.forEach(mathEl => {
+    mathUnits.forEach((mathEl) => {
       // Skip units nested inside another math unit already being collapsed.
       if (mathEl.parentElement?.closest('.katex, mjx-container')) {
         return;
@@ -272,9 +265,10 @@ export abstract class BaseParser implements IParser {
       // tag it so HtmlContentParser can type it as math. The attribute is
       // `data-math-display`, NOT `data-math`: Gemini already ships
       // `data-math="<label>"` on its own math wrapper.
-      const display = mathEl.closest('.katex-display') || mathEl.getAttribute('display') === 'true'
-        ? 'block'
-        : 'inline';
+      const display =
+        mathEl.closest('.katex-display') || mathEl.getAttribute('display') === 'true'
+          ? 'block'
+          : 'inline';
       const marker = mathEl.ownerDocument.createElement('span');
       marker.setAttribute('data-math-display', display);
       marker.textContent = display === 'block' ? `$$${text}$$` : `$${text}$`;
@@ -285,13 +279,15 @@ export abstract class BaseParser implements IParser {
     // Math's aria-hidden glyphs were already collapsed away above, so no carve-out
     // is needed here.
     const ariaHidden = element.querySelectorAll('[aria-hidden="true"]');
-    ariaHidden.forEach(el => { el.remove(); });
+    ariaHidden.forEach((el) => {
+      el.remove();
+    });
 
     // Remove common ChatGPT UI artifacts
     const uiElements = element.querySelectorAll(
       '[class*="copy-code"], [class*="copy-btn"], svg, .avatar, [class*="icon"]'
     );
-    uiElements.forEach(el => {
+    uiElements.forEach((el) => {
       // Only remove if it's not inside a code block
       if (!el.closest('pre') && !el.closest('code')) {
         el.remove();
@@ -299,7 +295,9 @@ export abstract class BaseParser implements IParser {
     });
 
     // Clean up empty elements
-    element.querySelectorAll('div:empty, span:empty').forEach(el => { el.remove(); });
+    element.querySelectorAll('div:empty, span:empty').forEach((el) => {
+      el.remove();
+    });
   }
 
   /**

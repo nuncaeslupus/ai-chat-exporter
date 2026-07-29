@@ -115,7 +115,7 @@ describe('GeminiParser', () => {
         expect(pair.answer.role).toBe('assistant');
         expect(pair.answer.content.length).toBeGreaterThan(50);
       });
-      expect(pairs[0]?.answer.content).toContain("Bernoulli");
+      expect(pairs[0]?.answer.content).toContain('Bernoulli');
     });
 
     it('keeps the model thinking panel out of the answer', () => {
@@ -173,7 +173,9 @@ describe('GeminiParser', () => {
       expect(result.success).toBe(true);
       const pairs = result.conversation?.pairs ?? [];
       expect(pairs).toHaveLength(3);
-      pairs.forEach((pair) => { expect(pair.question.content).toBe(''); });
+      pairs.forEach((pair) => {
+        expect(pair.question.content).toBe('');
+      });
       expect(result.warnings).toEqual([
         'Turn 1: the question could not be read',
         'Turn 2: the question could not be read',
@@ -213,7 +215,9 @@ describe('GeminiParser', () => {
 
     it('returns success:false rather than an empty conversation when selectors match nothing', () => {
       const doc = new JSDOM(html, { url: GEMINI_URL }).window.document;
-      doc.querySelectorAll('.conversation-container').forEach((el) => { el.remove(); });
+      doc.querySelectorAll('.conversation-container').forEach((el) => {
+        el.remove();
+      });
 
       const result = new GeminiParser(doc).parse();
 

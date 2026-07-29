@@ -71,8 +71,9 @@ async function loadPopup(): Promise<void> {
   document.body.innerHTML = POPUP_BODY;
   // Nav triggers stand in for the rows the later view tasks will add; the
   // router is delegated, so `data-nav` is the whole contract between them.
-  const triggers = VIEWS.map((name) => `<button data-nav="${name}" id="nav-${name}"></button>`)
-    .join('');
+  const triggers = VIEWS.map(
+    (name) => `<button data-nav="${name}" id="nav-${name}"></button>`
+  ).join('');
   document.body.insertAdjacentHTML('beforeend', triggers);
   await import('../../../../src/extension/popup/popup');
   document.dispatchEvent(new Event('DOMContentLoaded'));

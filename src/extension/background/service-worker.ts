@@ -31,7 +31,9 @@ chrome.runtime.onInstalled.addListener((details) => {
     // chrome.tabs.create({ url: 'pages/welcome.html' });
   } else if (reason === 'update') {
     // Extension updated
-    console.log(`[${EXTENSION_NAME}] Extension updated to version ${chrome.runtime.getManifest().version}`);
+    console.log(
+      `[${EXTENSION_NAME}] Extension updated to version ${chrome.runtime.getManifest().version}`
+    );
   }
 });
 
@@ -130,12 +132,7 @@ chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
   }
 
   // Check if URL matches supported platforms
-  const supportedDomains = [
-    'chat.openai.com',
-    'chatgpt.com',
-    'claude.ai',
-    'gemini.google.com',
-  ];
+  const supportedDomains = ['chat.openai.com', 'chatgpt.com', 'claude.ai', 'gemini.google.com'];
 
   const url = new URL(tab.url);
   if (supportedDomains.some((domain) => url.hostname.includes(domain))) {
@@ -192,65 +189,86 @@ function createContextMenus(): void {
     console.log(`[${EXTENSION_NAME}] Creating context menus...`);
 
     // Create Export parent menu
-    chrome.contextMenus.create({
-      id: 'export',
-      title: chrome.i18n.getMessage('exportButton'),
-      contexts: ['page'],
-      documentUrlPatterns: SUPPORTED_URL_PATTERNS,
-    }, () => {
-      if (chrome.runtime.lastError) {
-        console.error(`[${EXTENSION_NAME}] Error creating Export menu:`, chrome.runtime.lastError);
-      } else {
-        console.log(`[${EXTENSION_NAME}] Created Export parent menu`);
+    chrome.contextMenus.create(
+      {
+        id: 'export',
+        title: chrome.i18n.getMessage('exportButton'),
+        contexts: ['page'],
+        documentUrlPatterns: SUPPORTED_URL_PATTERNS,
+      },
+      () => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            `[${EXTENSION_NAME}] Error creating Export menu:`,
+            chrome.runtime.lastError
+          );
+        } else {
+          console.log(`[${EXTENSION_NAME}] Created Export parent menu`);
+        }
       }
-    });
+    );
 
     // Create Export submenus for each format
     EXPORT_FORMATS.forEach((format) => {
-      chrome.contextMenus.create({
-        id: `export-${format.id}`,
-        parentId: 'export',
-        title: chrome.i18n.getMessage(format.labelKey),
-        contexts: ['page'],
-        documentUrlPatterns: SUPPORTED_URL_PATTERNS,
-      }, () => {
-        if (chrome.runtime.lastError) {
-          console.error(`[${EXTENSION_NAME}] Error creating Export submenu ${format.id}:`, chrome.runtime.lastError);
-        } else {
-          console.log(`[${EXTENSION_NAME}] Created Export submenu: ${format.id}`);
+      chrome.contextMenus.create(
+        {
+          id: `export-${format.id}`,
+          parentId: 'export',
+          title: chrome.i18n.getMessage(format.labelKey),
+          contexts: ['page'],
+          documentUrlPatterns: SUPPORTED_URL_PATTERNS,
+        },
+        () => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              `[${EXTENSION_NAME}] Error creating Export submenu ${format.id}:`,
+              chrome.runtime.lastError
+            );
+          } else {
+            console.log(`[${EXTENSION_NAME}] Created Export submenu: ${format.id}`);
+          }
         }
-      });
+      );
     });
 
     // Create Print parent menu
-    chrome.contextMenus.create({
-      id: 'print',
-      title: chrome.i18n.getMessage('printButton'),
-      contexts: ['page'],
-      documentUrlPatterns: SUPPORTED_URL_PATTERNS,
-    }, () => {
-      if (chrome.runtime.lastError) {
-        console.error(`[${EXTENSION_NAME}] Error creating Print menu:`, chrome.runtime.lastError);
-      } else {
-        console.log(`[${EXTENSION_NAME}] Created Print parent menu`);
+    chrome.contextMenus.create(
+      {
+        id: 'print',
+        title: chrome.i18n.getMessage('printButton'),
+        contexts: ['page'],
+        documentUrlPatterns: SUPPORTED_URL_PATTERNS,
+      },
+      () => {
+        if (chrome.runtime.lastError) {
+          console.error(`[${EXTENSION_NAME}] Error creating Print menu:`, chrome.runtime.lastError);
+        } else {
+          console.log(`[${EXTENSION_NAME}] Created Print parent menu`);
+        }
       }
-    });
+    );
 
     // Create Print submenus for each format (excluding DOCX)
     PRINT_FORMATS.forEach((format) => {
-      chrome.contextMenus.create({
-        id: `print-${format.id}`,
-        parentId: 'print',
-        title: chrome.i18n.getMessage(format.labelKey),
-        contexts: ['page'],
-        documentUrlPatterns: SUPPORTED_URL_PATTERNS,
-      }, () => {
-        if (chrome.runtime.lastError) {
-          console.error(`[${EXTENSION_NAME}] Error creating Print submenu ${format.id}:`, chrome.runtime.lastError);
-        } else {
-          console.log(`[${EXTENSION_NAME}] Created Print submenu: ${format.id}`);
+      chrome.contextMenus.create(
+        {
+          id: `print-${format.id}`,
+          parentId: 'print',
+          title: chrome.i18n.getMessage(format.labelKey),
+          contexts: ['page'],
+          documentUrlPatterns: SUPPORTED_URL_PATTERNS,
+        },
+        () => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              `[${EXTENSION_NAME}] Error creating Print submenu ${format.id}:`,
+              chrome.runtime.lastError
+            );
+          } else {
+            console.log(`[${EXTENSION_NAME}] Created Print submenu: ${format.id}`);
+          }
         }
-      });
+      );
     });
 
     console.log(`[${EXTENSION_NAME}] Context menu creation initiated`);
@@ -291,10 +309,7 @@ function sendMessageToTab(tabId: number, message: unknown): void {
       return;
     }
     if (result.reason === 'failed') {
-      console.error(
-        `[${EXTENSION_NAME}] Failed to deliver message to tab ${tabId}:`,
-        result.error,
-      );
+      console.error(`[${EXTENSION_NAME}] Failed to deliver message to tab ${tabId}:`, result.error);
     } else {
       // Not a fault: injection was refused, so the page is one this extension
       // cannot reach (restricted URL, revoked host access, dead tab).
@@ -322,7 +337,10 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     const format = menuId.replace('export-', '') as ExportFormat;
     console.log(`[${EXTENSION_NAME}] Export requested: ${format}`);
 
-    sendMessageToTab(tab.id, createMessage<ExportConversationMessage>('export_conversation', { format }));
+    sendMessageToTab(
+      tab.id,
+      createMessage<ExportConversationMessage>('export_conversation', { format })
+    );
   }
   // Handle Print actions
   else if (menuId.startsWith('print-')) {
@@ -331,7 +349,10 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     const format = menuId.replace('print-', '') as ExportFormat;
     console.log(`[${EXTENSION_NAME}] Print requested: ${format}`);
 
-    sendMessageToTab(tab.id, createMessage<PrintConversationMessage>('print_conversation', { format }));
+    sendMessageToTab(
+      tab.id,
+      createMessage<PrintConversationMessage>('print_conversation', { format })
+    );
   }
 });
 
@@ -358,7 +379,7 @@ chrome.commands.onCommand.addListener((command) => {
               // Safe cast: persisted by this extension from a previous export,
               // so it is always a valid ExportFormat when present.
               format: (format ?? DEFAULT_PREFERENCES.defaultFormat) as ExportFormat,
-            }),
+            })
           );
         })
         .catch((error: unknown) => {

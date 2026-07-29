@@ -24,7 +24,11 @@ export default tseslint.config(
       ],
       "@typescript-eslint/explicit-function-return-type": "off",
       "@typescript-eslint/explicit-module-boundary-types": "off",
-      "@typescript-eslint/no-non-null-assertion": "warn",
+      // Error in src: a wrong `!` here ships a TypeError to a user, and there
+      // are zero of them left. See the tests/** override below for why the rule
+      // is off there rather than warn -- a step that printed 287 warnings on
+      // every run was a gate nobody read.
+      "@typescript-eslint/no-non-null-assertion": "error",
       // Numbers in templates are unambiguous; the rest of the rule still applies.
       "@typescript-eslint/restrict-template-expressions": ["error", { allowNumber: true }],
       // Off: its autofix rewrites `||` to `??`, which changes behaviour wherever
@@ -36,6 +40,23 @@ export default tseslint.config(
       // rule cannot see the contract, so every synchronous implementation of
       // one is a false positive.
       "@typescript-eslint/require-await": "off",
+    },
+  },
+  {
+    files: ["tests/**/*.ts"],
+    rules: {
+      // Off in tests, not warn. The rule exists because in production `!`
+      // defers a crash to a confusing place. A test is the opposite: `!` IS
+      // the assertion -- if the value is null the test fails immediately, at
+      // the line that made the claim, which is the outcome you want.
+      //
+      // It also fights tsconfig's `noUncheckedIndexedAccess`, which types
+      // every `pairs[0]` and `lines[i]` as `| undefined`. Satisfying both would
+      // mean a runtime guard around every index read and every optional result
+      // field (`result.blob`) in the suite -- 283 of them, all noise.
+      // `noUncheckedIndexedAccess` is the stronger, type-checked guarantee;
+      // this rule is what gives way.
+      "@typescript-eslint/no-non-null-assertion": "off",
     },
   },
   {

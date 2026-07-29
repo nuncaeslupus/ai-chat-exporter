@@ -6,10 +6,7 @@
 import { detectParser } from '../../core/parsers';
 import { getExporter } from '../../core/exporters';
 import { FilenameService } from '../../core/services/filename-service';
-import {
-  ClaudeApiService,
-  type EnrichmentResult,
-} from '../../core/services/claude-api-service';
+import { ClaudeApiService, type EnrichmentResult } from '../../core/services/claude-api-service';
 import { SelectionService } from '../../core/services/selection-service';
 import { StorageService } from '../../shared/storage';
 import type { Conversation, ExportFormat } from '../../core/types';
@@ -76,9 +73,7 @@ class ContentScript {
     }
 
     if (!this.initialized) {
-      console.log(
-        `[AI Chat Exporter] Detected platform: ${parser.platformInfo.name}`,
-      );
+      console.log(`[AI Chat Exporter] Detected platform: ${parser.platformInfo.name}`);
     }
 
     const parseResult = parser.parse();
@@ -88,7 +83,9 @@ class ContentScript {
     }
 
     console.log('[AI Chat Exporter] Successfully initialized');
-    console.log(`[AI Chat Exporter] Found ${parseResult.conversation.pairs.length} conversation pairs`);
+    console.log(
+      `[AI Chat Exporter] Found ${parseResult.conversation.pairs.length} conversation pairs`
+    );
     this.initialized = true;
     return parseResult.conversation;
   }
@@ -97,13 +94,15 @@ class ContentScript {
    * Notify background script about page readiness state
    */
   private notifyPageReadyState(ready: boolean): void {
-    chrome.runtime.sendMessage({
-      type: 'page_ready_state',
-      ready: ready,
-    }).catch((error) => {
-      // Ignore errors if background script is not available
-      console.log('[AI Chat Exporter] Could not notify background script:', error);
-    });
+    chrome.runtime
+      .sendMessage({
+        type: 'page_ready_state',
+        ready: ready,
+      })
+      .catch((error) => {
+        // Ignore errors if background script is not available
+        console.log('[AI Chat Exporter] Could not notify background script:', error);
+      });
   }
 
   /**
@@ -113,7 +112,10 @@ class ContentScript {
    * degraded (see `enrichClaudeConversation`), or `undefined` when it is
    * complete. Failures throw.
    */
-  async handleExport(format: ExportFormat, selectedIndices?: number[]): Promise<string | undefined> {
+  async handleExport(
+    format: ExportFormat,
+    selectedIndices?: number[]
+  ): Promise<string | undefined> {
     // Re-parse conversation to get latest content (ChatGPT is dynamic SPA).
     // Operate on a local snapshot, not `this.conversation` — a concurrent
     // export/print call must never see or clobber this call's data (lo-08b0).
@@ -126,7 +128,9 @@ class ContentScript {
 
     conversation = applySelection(conversation, selectedIndices);
 
-    console.log(`[AI Chat Exporter] Attempting to export ${conversation.pairs.length} pairs to ${format}`);
+    console.log(
+      `[AI Chat Exporter] Attempting to export ${conversation.pairs.length} pairs to ${format}`
+    );
     let warning: string | undefined;
 
     try {
@@ -155,16 +159,12 @@ class ContentScript {
       const prefs = await StorageService.getUserPreferences();
 
       // Export conversation (use all pairs)
-      const result = await exporter.export(
-        conversation,
-        pairsToExport,
-        {
-          format,
-          filename: '',
-          includeMetadata: prefs.includeMetadata,
-          includeTimestamps: prefs.includeTimestamps,
-        }
-      );
+      const result = await exporter.export(conversation, pairsToExport, {
+        format,
+        filename: '',
+        includeMetadata: prefs.includeMetadata,
+        includeTimestamps: prefs.includeTimestamps,
+      });
 
       if (!result.success || !result.blob) {
         throw new Error(result.error || 'Export failed');
@@ -268,7 +268,9 @@ class ContentScript {
 
     conversation = applySelection(conversation, selectedIndices);
 
-    console.log(`[AI Chat Exporter] Attempting to print ${conversation.pairs.length} pairs as ${format}`);
+    console.log(
+      `[AI Chat Exporter] Attempting to print ${conversation.pairs.length} pairs as ${format}`
+    );
     let warning: string | undefined;
 
     try {
@@ -299,16 +301,12 @@ class ContentScript {
       const prefs = await StorageService.getUserPreferences();
 
       // Export conversation
-      const result = await exporter.export(
-        finalConversation,
-        pairsToExport,
-        {
-          format,
-          filename: '',
-          includeMetadata: prefs.includeMetadata,
-          includeTimestamps: prefs.includeTimestamps,
-        }
-      );
+      const result = await exporter.export(finalConversation, pairsToExport, {
+        format,
+        filename: '',
+        includeMetadata: prefs.includeMetadata,
+        includeTimestamps: prefs.includeTimestamps,
+      });
 
       if (!result.success || !result.blob) {
         throw new Error(result.error || 'Print generation failed');
