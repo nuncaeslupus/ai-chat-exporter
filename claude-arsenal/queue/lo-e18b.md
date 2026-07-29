@@ -25,7 +25,7 @@ The tests named below pass, `pnpm typecheck` is clean, and `pnpm lint` reports
 no new errors.
 
 ```bash
-pnpm vitest run tests/unit/extension/popup/ && pnpm typecheck
+pnpm vitest run tests/unit/extension/popup/ && pnpm typecheck && pnpm format:check
 ```
 
 ## Tests
