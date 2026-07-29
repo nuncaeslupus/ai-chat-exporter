@@ -186,6 +186,10 @@
     "message": "URL",
     "description": "Champ de métadonnées : URL"
   },
+  "metadataFieldDateRange": {
+    "message": "Plage de dates",
+    "description": "Champ de métadonnées : Plage de dates"
+  },
   "metadataTableHeaderField": {
     "message": "Champ",
     "description": "En-tête de tableau pour colonne de champ de métadonnées"

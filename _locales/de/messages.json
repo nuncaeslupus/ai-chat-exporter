@@ -186,6 +186,10 @@
     "message": "URL",
     "description": "Metadata field: URL"
   },
+  "metadataFieldDateRange": {
+    "message": "Zeitraum",
+    "description": "Metadata field: Date range"
+  },
   "metadataTableHeaderField": {
     "message": "Feld",
     "description": "Table header for metadata field column"

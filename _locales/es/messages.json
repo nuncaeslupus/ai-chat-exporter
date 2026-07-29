@@ -186,6 +186,10 @@
     "message": "URL",
     "description": "Campo de metadatos: URL"
   },
+  "metadataFieldDateRange": {
+    "message": "Intervalo de fechas",
+    "description": "Campo de metadatos: Intervalo de fechas"
+  },
   "metadataTableHeaderField": {
     "message": "Campo",
     "description": "Encabezado de tabla para columna de campo de metadatos"
