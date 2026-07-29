@@ -14,4 +14,5 @@ export {
 export type { SanityInput } from './output-sanity';
 export { buildSkeleton, SAFE_ATTR_VALUES } from './skeleton';
 export type { SkeletonOptions } from './skeleton';
+export { formatDriftReport } from './format-report';
 export type { SelectorFinding, SanityFinding, SanityRule, DriftReport } from './types';
