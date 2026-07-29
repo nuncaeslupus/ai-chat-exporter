@@ -21,7 +21,7 @@ The tests named below pass, `pnpm typecheck` is clean, and `pnpm lint` reports
 no new errors.
 
 ```bash
-pnpm vitest run tests/unit/core/drift/format-report.test.ts && pnpm typecheck && pnpm format:check
+pnpm vitest run tests/unit/core/drift/format-report.test.ts && pnpm typecheck
 ```
 
 ## Tests
