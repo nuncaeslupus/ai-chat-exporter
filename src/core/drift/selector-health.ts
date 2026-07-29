@@ -20,6 +20,27 @@ function countMatches(doc: Document, selector: string): number {
   }
 }
 
+/**
+ * Happy-path check: does any *required* selector fail to match? Tests only
+ * the required keys (5-7, vs. ~30 declared selectors) and stops at the first
+ * failure, so a healthy parse never pays for the full sweep — that sweep's
+ * output (`selectorFindings`) is only needed when a report is actually built.
+ */
+export function hasFailingRequiredSelector(
+  doc: Document,
+  selectors: SelectorSet,
+  requiredKeys: readonly string[]
+): boolean {
+  for (const key of requiredKeys) {
+    const value = key.startsWith('custom.')
+      ? selectors.custom?.[key.slice('custom.'.length)]
+      : (selectors as unknown as Record<string, unknown>)[key];
+    if (typeof value !== 'string') continue;
+    if (countMatches(doc, value) <= 0) return true;
+  }
+  return false;
+}
+
 export function checkSelectorHealth(
   doc: Document,
   selectors: SelectorSet,

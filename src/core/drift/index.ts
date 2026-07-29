@@ -5,7 +5,7 @@
 
 export { fingerprint } from './fingerprint';
 export type { FingerprintInput } from './fingerprint';
-export { checkSelectorHealth } from './selector-health';
+export { checkSelectorHealth, hasFailingRequiredSelector } from './selector-health';
 export {
   checkOutputSanity,
   CONTENT_SHORTFALL_RATIO,

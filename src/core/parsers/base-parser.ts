@@ -14,7 +14,13 @@ import type {
   Conversation,
 } from '../types';
 import { DEFAULT_PARSER_CONFIG } from '../types';
-import { checkOutputSanity, checkSelectorHealth, fingerprint, type DriftReport } from '../drift';
+import {
+  checkOutputSanity,
+  checkSelectorHealth,
+  hasFailingRequiredSelector,
+  fingerprint,
+  type DriftReport,
+} from '../drift';
 
 /**
  * Abstract base class for platform-specific parsers
@@ -357,11 +363,6 @@ export abstract class BaseParser implements IParser {
 
   /** The real work; `detectDrift` is the guard around it. */
   protected detectDriftUnsafe(pairs: QAPair[]): DriftReport | undefined {
-    const selectorFindings = checkSelectorHealth(
-      this.document,
-      this.selectors,
-      this.requiredSelectorKeys
-    );
     const sanityFindings = checkOutputSanity({
       pairs,
       turnCount: this.countTurnContainers(),
@@ -369,10 +370,24 @@ export abstract class BaseParser implements IParser {
       chromeStrings: this.chromeStrings,
     });
 
-    const failingSelectors = selectorFindings.filter((f) => f.required && f.matched <= 0);
-    if (failingSelectors.length === 0 && sanityFindings.length === 0) {
+    // Happy path: only the required selectors decide whether there is drift
+    // at all. The full sweep over every declared (incl. optional) selector is
+    // only worth paying for once we know a report will actually be built.
+    const requiredSelectorFailed = hasFailingRequiredSelector(
+      this.document,
+      this.selectors,
+      this.requiredSelectorKeys
+    );
+    if (!requiredSelectorFailed && sanityFindings.length === 0) {
       return undefined;
     }
+
+    const selectorFindings = checkSelectorHealth(
+      this.document,
+      this.selectors,
+      this.requiredSelectorKeys
+    );
+    const failingSelectors = selectorFindings.filter((f) => f.required && f.matched <= 0);
 
     return {
       fingerprint: fingerprint({

@@ -14,6 +14,9 @@ const SELECTORS: SelectorSet = {
   userMessage: '[data-turn="user"]',
   assistantMessage: '[data-turn="assistant"]',
   messageContent: '.content',
+  custom: {
+    optionalWidget: '.optional-widget',
+  },
 };
 
 function makePair(question: string, answer: string, index = 0): QAPair {
@@ -66,13 +69,19 @@ describe('BaseParser drift detection', () => {
   });
 
   it('attaches a drift report when a required selector matches nothing', () => {
-    const parser = parserFor('<main><div class="totally-different"></div></main>');
+    const parser = parserFor(
+      '<main><div class="totally-different"></div><div class="optional-widget"></div></main>'
+    );
     parser.pairsToReturn = [makePair('hi', 'hello there, this is a real answer')];
     const result = parser.parse();
     expect(result.drift).toBeDefined();
     expect(
       result.drift?.selectorFindings.some((f) => f.key === 'messageElement' && f.matched === 0)
     ).toBe(true);
+    // The lazy sweep still populates optional entries once a report is built.
+    const widget = result.drift?.selectorFindings.find((f) => f.key === 'custom.optionalWidget');
+    expect(widget?.matched).toBe(1);
+    expect(widget?.required).toBe(false);
   });
 
   it('attaches a drift report when a sanity rule fires', () => {
