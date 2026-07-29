@@ -44,8 +44,13 @@
      Same treatment for the tertiary value text: spec #8A9691 is 3.06:1. */
   --color-text-secondary: #63716c;
   --color-text-tertiary: #6a7470;
-  /* Decorative only — chevrons and separator dots, never text. */
-  --color-text-muted: #9aa5a1;
+  /* Decorative only — chevrons and separator dots, never text, so the bar is
+     3:1 rather than 4.5:1. Spec value is #9AA5A1, which measures 2.54:1 on
+     white and 2.37:1 on the setting-row hover tint — under even that 3:1 bar;
+     darkened until it clears it on every surface it is painted on (3.39:1
+     white, 3.16:1 sunken, 3.22:1 action bar). Same mistake as the six
+     darkened text greys — a light grey picked against the mock's white. */
+  --color-text-muted: #838e8a;
 
   /* Surfaces */
   --color-surface: #ffffff;
@@ -185,7 +190,11 @@
        clears 4.5:1 there (now 4.75:1) — the same treatment the light table's
        thirteen darkened values got, in the other direction. */
     --color-text-tertiary: #849490;
-    /* Decorative only — chevrons and separator dots, never text. */
+    /* Decorative only — chevrons and separator dots, never text; 3:1 bar. The
+       spec § 7 value already clears it in every dark pairing, so unlike the
+       light table it is sent as designed — but with only 3.03:1 on the raised
+       surface #1C2926 it has almost no headroom, so a future nudge to either
+       value will trip the contrast gate. That is deliberate. */
     --color-text-muted: #64736e;
 
     /* Surfaces */
