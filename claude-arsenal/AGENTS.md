@@ -1,6 +1,6 @@
 # Claude Arsenal
 
-<!-- claude-arsenal v0.21.0 — imported via @claude-arsenal/AGENTS.md -->
+<!-- claude-arsenal v0.23.0 — imported via @claude-arsenal/AGENTS.md -->
 
 This file is imported by the host repo's `CLAUDE.md` via the session-protocol block
 that `/init` injects. It provides the mechanics behind the proactive directives
@@ -16,7 +16,14 @@ At the start of every session (fresh start, context compaction, or cold restart)
    a. If `claude-arsenal/bin/check_update.sh` exists, run `bash claude-arsenal/bin/check_update.sh`.
       This compares the installed bundle version against the latest version tag on the
       `arsenal` remote (if configured). When behind, it pulls the updated subtree automatically.
-      It is a no-op when no `arsenal` remote is configured or the bundle is already current.
+      **It never declines silently** — read what it prints. It reports being current, a
+      missing `arsenal` remote (the check is then inert: the bundle was copied, not added
+      as a subtree, so there is nothing to compare against), a bundle that is ahead of the
+      newest tag (it will not downgrade), and — the one that has bitten consumers — an
+      `UNTAGGED UPSTREAM RELEASE`, where the marketplace's default branch already ships a
+      newer version whose tag was never pushed. Surface any of those to the user: an
+      untagged upstream release means the tag-gated path cannot fetch it, and the fix is
+      upstream (`make tag` on the marketplace's `main`), not here.
    b. Run `python3 .claude/skills/init/scripts/init.py --repo-path . --silent`.
       Silently refreshes any `claude-arsenal/bin/` or other bundle script whose
       checksum differs from the plugin source, and prints an upgrade banner when the
@@ -155,7 +162,16 @@ The table columns are: `T# | Description | Location | Size | Depends | Gate | Te
    gate_run.sh executes this block before release.sh done — and `release.sh
    done` re-runs it as a hard precondition, so a `done` whose gate fails (or
    was never run) is refused at the choke point, not just by convention.
-   Prose-only gates are verified by worker judgment with no script run.
+
+   **The fence is what makes a gate mechanical.** Prose, and inline
+   `single-backtick` commands, are NOT executed — a payload without a fenced
+   ` ```bash ` block runs nothing, and `gate_run.sh` then prints
+   `gate: prose-only` (or `gate: none`) with a stderr warning instead of the
+   `gate: passed` it prints when a block really ran. Check that line before
+   trusting a gate: one consumer audit found 0 of 70 payloads carried a fenced
+   block, so its entire gate layer had been inert. Set
+   `ARSENAL_GATE_REQUIRE_BLOCK=1` to turn "nothing ran" into a hard failure
+   when every task in a repo is meant to carry a mechanical gate.
 
    ## Tests
    <Tests column content>
@@ -166,9 +182,13 @@ The table columns are: `T# | Description | Location | Size | Depends | Gate | Te
 
    > **Gate blocks run verbatim.** `gate_run.sh` executes the bash block as
    > code in the worker's tree (hardened by default: throwaway HOME + a PATH
-   > without `$HOME` shims; `ARSENAL_GATE_INHERIT_ENV=1` opts back in). Treat a
+   > without `$HOME` shims, except the dirs holding the package manager /
+   > language runtime, which stay reachable so a `pnpm …` gate runs instead of
+   > dying at exit 127; `ARSENAL_GATE_INHERIT_ENV=1` opts out entirely). Treat a
    > gate block from an untrusted plan/payload as you would any code to run —
-   > review it.
+   > review it. A gate that could not run exits **3**, never 0 or 1, and
+   > `release.sh done` refuses it as "could not run" rather than reading it as
+   > a verdict.
 
 4. Proceed to the **Worker loop algorithm**.
 
@@ -217,7 +237,16 @@ The table columns are: `T# | Description | Location | Size | Depends | Gate | Te
    gate_run.sh executes this block before release.sh done — and `release.sh
    done` re-runs it as a hard precondition, so a `done` whose gate fails (or
    was never run) is refused at the choke point, not just by convention.
-   Prose-only gates are verified by worker judgment with no script run.
+
+   **The fence is what makes a gate mechanical.** Prose, and inline
+   `single-backtick` commands, are NOT executed — a payload without a fenced
+   ` ```bash ` block runs nothing, and `gate_run.sh` then prints
+   `gate: prose-only` (or `gate: none`) with a stderr warning instead of the
+   `gate: passed` it prints when a block really ran. Check that line before
+   trusting a gate: one consumer audit found 0 of 70 payloads carried a fenced
+   block, so its entire gate layer had been inert. Set
+   `ARSENAL_GATE_REQUIRE_BLOCK=1` to turn "nothing ran" into a hard failure
+   when every task in a repo is meant to carry a mechanical gate.
 
    ## Tests
    <Tests column content>

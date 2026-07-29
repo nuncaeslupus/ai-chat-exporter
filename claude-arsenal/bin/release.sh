@@ -122,14 +122,14 @@ fi
 # `merged` is exempt — the gate already ran at `done` and reconcile_merged.sh
 # sets `merged` from a real merge.
 #
-# (D-16) This block is NOT conditional on the payload being on disk. It used to
+# (CA-16) This block is NOT conditional on the payload being on disk. It used to
 # be, and that silently disabled the whole guard for the caller that needs it
 # most: the orchestrator's tree sits on the default branch, where a payload
 # seeded during the session exists only on the coordination ref — so `done` was
-# recorded with no gate run at all (14 of 20 releases in one measured session).
-# gate_run.sh resolves a payload from ${QUEUE_BRANCH} itself now, so the
-# precondition is obsolete. Every gate_run.sh outcome is handled explicitly and
-# none of them is silent.
+# recorded with no gate run at all (14 of 20 releases in one measured consumer
+# session). gate_run.sh resolves a payload from ${QUEUE_BRANCH} itself now, so
+# the precondition is obsolete. Every gate_run.sh outcome is handled explicitly
+# and none of them is silent.
 if [[ "${NEW_STATUS}" == "done" ]]; then
     if [[ ! -f "${GATE_RUN}" ]]; then
         echo "release.sh: refusing to mark ${TASK_ID} done — gate_run.sh is missing at '${GATE_RUN}'; the acceptance gate cannot be enforced from this tree" >&2
@@ -142,10 +142,11 @@ if [[ "${NEW_STATUS}" == "done" ]]; then
         2)
             # No payload on disk NOR on the coordination ref: the task declares
             # no gate, so there is nothing to enforce and refusing would only
-            # invent a requirement no gate exists to satisfy. Allowed — but
-            # never silently. Announce on stdout as well as stderr so a caller
-            # piping this output still sees that nothing was verified (the same
-            # reasoning as gate_run.sh's exit-3 banner).
+            # invent a requirement no gate exists to satisfy (create_task.py
+            # does not require a payload). Allowed — but never silently.
+            # Announce on stdout as well as stderr so a caller piping this
+            # output still sees that nothing was verified (the same reasoning
+            # as gate_run.sh's exit-3 banner).
             _msg="release.sh: NO ACCEPTANCE GATE RUN for ${TASK_ID} — no payload found on disk or on '${QUEUE_BRANCH}', so the task declares no gate. Recording done UNVERIFIED (the PR guards above still applied)."
             echo "${_msg}"
             echo "${_msg}" >&2

@@ -3,11 +3,29 @@
 # Runs the mechanical acceptance gate for a task, if one is defined.
 #
 # Reads claude-arsenal/queue/<task_id>.md — falling back to the coordination
-# branch (`git show arsenal-queue:…`) when the file is not on disk, so a worker
-# whose worktree predates the payload's seeding commit never has to write one
-# into its own tree — and looks for the first ```bash (or
-# ```sh) code block inside the ## Acceptance gate section. If found, executes
-# it in the repo root; if absent (prose-only gate), exits 0 immediately.
+# branch (`git show arsenal-queue:…`) when the file is not on disk, so a caller
+# whose tree predates the payload's seeding commit (the orchestrator sitting on
+# the default branch, a worker on an older base) never has to materialize one —
+# and looks for the first ```bash (or ```sh) code block inside the
+# ## Acceptance gate section. If found, executes it in the repo root; if absent
+# (prose-only gate), nothing is executed.
+#
+# A GATE THAT RAN NOTHING IS NOT A PASS, and it no longer looks like one. The
+# no-block case used to exit 0 in silence, indistinguishable from a real pass —
+# and since release.sh re-runs this script as its hard precondition for `done`,
+# a repo whose payloads all write gates as prose (or as inline single-backtick
+# commands, which the fence regex does not match) had an inert gate layer for
+# every task without a word of warning. One consumer audit found 0 of 70
+# payloads carrying a fenced block. Every outcome is now announced on stdout as
+# a `gate:` line and, when nothing ran, warned about on stderr:
+#
+#   gate: passed      a block was found and it exited 0
+#   gate: prose-only  an ## Acceptance gate section exists with no fenced block
+#   gate: none        no ## Acceptance gate section at all
+#
+# Set ARSENAL_GATE_REQUIRE_BLOCK=1 to make the two nothing-ran outcomes a hard
+# failure (exit 1) — the right setting for a repo that intends every task to
+# carry a mechanical gate.
 #
 # SECURITY: the gate block runs VERBATIM in the caller's working tree — it is
 # code, not data. A plan/payload an attacker can influence is therefore
@@ -19,11 +37,14 @@
 # are re-admitted because they are commonly $HOME-installed and without them
 # every `pnpm …` gate dies with exit 127 instead of running. This is NOT a
 # sandbox. Set ARSENAL_GATE_INHERIT_ENV=1 to run with the caller's full
-# environment for gates that need the real HOME (build caches, credentials).
+# environment for gates that genuinely need the real HOME (build caches,
+# credentials).
 #
-# Exit: 0 gate passed or no mechanical gate defined
-#       1 gate failed (command exited non-zero)
-#       2 usage/setup error
+# Exit: 0 gate passed, or nothing mechanical was defined (see the `gate:` line)
+#       1 gate failed (command exited non-zero), or nothing ran under
+#         ARSENAL_GATE_REQUIRE_BLOCK=1
+#       2 usage/setup error — including "no payload on disk NOR on the
+#         coordination ref", i.e. the task declares no gate at all
 #       3 gate COULD NOT RUN (command/interpreter not found, 126/127). Distinct
 #         from 1 so "the gate never executed" is never mistaken for a verdict.
 #         Also printed loudly on stdout, so a caller that pipes this script's
@@ -46,10 +67,12 @@ cleanup() { [[ -n "${PAYLOAD_TMP}" ]] && rm -f "${PAYLOAD_TMP}"; return 0; }
 trap cleanup EXIT
 
 if [[ ! -f "${PAYLOAD}" ]]; then
-    # A worker whose worktree base predates the payload's seeding commit has no
-    # file on disk. Read it from the coordination ref instead, into a temp file
-    # OUTSIDE the repo tree — a payload materialized inside it gets swept into
-    # the feature branch by open_task_pr.sh's `git add -A`.
+    # A caller whose tree predates the payload's seeding commit has no file on
+    # disk — the orchestrator's main tree sits on the default branch, and a
+    # worker's worktree may be cut from an older base. Read it from the
+    # coordination ref instead, into a temp file OUTSIDE the repo tree: a
+    # payload materialized inside it gets swept into the feature branch by
+    # open_task_pr.sh's `git add -A`.
     QUEUE_BRANCH="${ARSENAL_QUEUE_BRANCH:-arsenal-queue}"
     QUEUE_REMOTE="${ARSENAL_QUEUE_REMOTE:-origin}"
     PAYLOAD_TMP="$(mktemp -t "arsenal-payload-${TASK_ID}-XXXXXX.md")"
@@ -76,7 +99,7 @@ if [[ -f "${GATE_EVIDENCE_PY}" ]] && ! python3 "${GATE_EVIDENCE_PY}" "${PAYLOAD}
     exit 1
 fi
 
-python3 - "${PAYLOAD}" <<'PY'
+python3 - "${PAYLOAD}" "${TASK_ID}" <<'PY'
 import os
 import pathlib
 import re
@@ -86,24 +109,58 @@ import sys
 import tempfile
 
 payload = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+# Passed explicitly: the payload path is a temp file when it was resolved from
+# the coordination ref, so its stem is not the task id.
+task_id = sys.argv[2]
+
+# `strict` turns "nothing executable was found" into a hard failure, for repos
+# that intend every task to carry a mechanical gate.
+strict = os.environ.get("ARSENAL_GATE_REQUIRE_BLOCK", "") not in ("", "0", "false")
+
+
+def nothing_ran(kind, detail):
+    """Announce that no command was executed. Never silent: this is the state
+    that used to be indistinguishable from a real pass."""
+    print(f"gate: {kind}")
+    print(
+        f"gate_run: {task_id} — NOTHING WAS EXECUTED ({detail}). "
+        "This is not a mechanical pass; whatever verification happened was a human's "
+        "or an agent's judgment, not this gate's.",
+        file=sys.stderr,
+    )
+    if strict:
+        print(
+            "gate_run: ARSENAL_GATE_REQUIRE_BLOCK=1 — failing because the payload "
+            "defines no runnable ```bash block under '## Acceptance gate'.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    sys.exit(0)
+
 
 # Extract ## Acceptance gate section (up to next ## heading or EOF).
 section_match = re.search(
     r'##\s+Acceptance gate\s*\n(.*?)(?=\n##\s|\Z)', payload, re.DOTALL | re.IGNORECASE
 )
 if not section_match:
-    sys.exit(0)  # no gate section — nothing to run
+    nothing_ran("none", "the payload has no '## Acceptance gate' section")
 
 section = section_match.group(1)
 
-# Find first ```bash or ```sh code block inside the section.
+# Find first ```bash or ```sh code block inside the section. An inline
+# single-backtick command does NOT match and never has — that is the most
+# common way a gate ends up inert, so name it in the message.
 block_match = re.search(r'```(?:bash|sh)\s*\n(.*?)```', section, re.DOTALL)
 if not block_match:
-    sys.exit(0)  # prose-only gate — deferred to worker judgment
+    nothing_ran(
+        "prose-only",
+        "the '## Acceptance gate' section has no fenced ```bash/```sh block — "
+        "prose and inline `single-backtick` commands are not executed",
+    )
 
 cmd = block_match.group(1).strip().replace('\r', '')
 if not cmd:
-    sys.exit(0)
+    nothing_ran("prose-only", "the fenced gate block is empty")
 
 script = "#!/usr/bin/env bash\nset -euo pipefail\n" + cmd + "\n"
 
@@ -116,6 +173,7 @@ def _run(env):
 
 def _finish(rc):
     if rc == 0:
+        print("gate: passed")
         sys.exit(0)
     if rc in (126, 127):
         # The gate never executed — a missing/non-executable command, not a
@@ -123,9 +181,9 @@ def _finish(rc):
         # script's stdout keeps the message even when the pipeline eats the
         # exit status, which is how a never-run gate came to read as a pass.
         msg = (
-            f"gate_run: GATE COULD NOT RUN (exit {rc}: command not found or not "
-            "executable). This is NOT a pass — nothing was verified. If the gate "
-            "needs a $HOME-installed tool the hardened PATH does not carry, run "
+            f"gate_run: {task_id} — GATE COULD NOT RUN (exit {rc}: command not found "
+            "or not executable). This is NOT a pass — nothing was verified. If the "
+            "gate needs a $HOME-installed tool the hardened PATH does not carry, run "
             "with ARSENAL_GATE_INHERIT_ENV=1."
         )
         print(msg, flush=True)
