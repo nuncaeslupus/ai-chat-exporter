@@ -103,10 +103,6 @@
     "description": "Main button label after a degraded export"
   },
 
-  "actionsTitle": {
-    "message": "Accions",
-    "description": "Title for actions section"
-  },
   "exportButton": {
     "message": "Exportar",
     "description": "Export button label"
@@ -172,27 +168,6 @@
     "placeholders": {
       "index": { "content": "$1", "example": "1" }
     }
-  },
-
-  "qaPairSingular": {
-    "message": "parella P&R",
-    "description": "Singular form of Q&A pair"
-  },
-  "qaPairPlural": {
-    "message": "parelles P&R",
-    "description": "Plural form of Q&A pairs"
-  },
-  "wordCount": {
-    "message": "paraules",
-    "description": "Word count label"
-  },
-  "badgeCode": {
-    "message": "Codi",
-    "description": "Badge for code content"
-  },
-  "badgeImages": {
-    "message": "Imatges",
-    "description": "Badge for image content"
   },
 
   "metadataFieldPlatform": {
@@ -262,33 +237,6 @@
     "description": "Grok platform name"
   },
 
-  "contentTagCode": {
-    "message": "Codi",
-    "description": "Etiqueta per a blocs de codi"
-  },
-  "contentTagImage": {
-    "message": "Imatge",
-    "description": "Etiqueta per a una sola imatge"
-  },
-  "contentTagImages": {
-    "message": "$1 Imatges",
-    "description": "Etiqueta per a múltiples imatges. $1 = nombre d'imatges",
-    "placeholders": {
-      "count": {
-        "content": "$1",
-        "example": "3"
-      }
-    }
-  },
-  "contentTagCanvas": {
-    "message": "Llenç",
-    "description": "Etiqueta per a contingut de llenç/document"
-  },
-  "contentTagDeepResearch": {
-    "message": "Recerca Profunda",
-    "description": "Etiqueta per a respostes de recerca profunda"
-  },
-
   "pageNumberFormat": {
     "message": "Pàgina $1 de $2",
     "description": "Page number format for PDF exports. $1 = current page, $2 = total pages",
@@ -307,17 +255,6 @@
   "exportedWithChatExporter": {
     "message": "Exportat amb AI Chat Exporter",
     "description": "Footer message in HTML exports"
-  },
-
-  "imageAltText": {
-    "message": "Imatge: $1",
-    "description": "Alt text for images in exports. $1 = image description",
-    "placeholders": {
-      "description": {
-        "content": "$1",
-        "example": "screenshot"
-      }
-    }
   },
 
   "footerPrivacy": {

@@ -103,10 +103,6 @@
     "description": "Main button label after a degraded export"
   },
 
-  "actionsTitle": {
-    "message": "Acciones",
-    "description": "Título para sección de acciones"
-  },
   "exportButton": {
     "message": "Exportar",
     "description": "Etiqueta del botón exportar"
@@ -172,27 +168,6 @@
     "placeholders": {
       "index": { "content": "$1", "example": "1" }
     }
-  },
-
-  "qaPairSingular": {
-    "message": "par pregunta-respuesta",
-    "description": "Forma singular de par pregunta-respuesta"
-  },
-  "qaPairPlural": {
-    "message": "pares pregunta-respuesta",
-    "description": "Forma plural de pares pregunta-respuesta"
-  },
-  "wordCount": {
-    "message": "palabras",
-    "description": "Etiqueta de conteo de palabras"
-  },
-  "badgeCode": {
-    "message": "Código",
-    "description": "Insignia para contenido de código"
-  },
-  "badgeImages": {
-    "message": "Imágenes",
-    "description": "Insignia para contenido de imágenes"
   },
 
   "metadataFieldPlatform": {
@@ -262,33 +237,6 @@
     "description": "Nombre de plataforma Grok"
   },
 
-  "contentTagCode": {
-    "message": "Código",
-    "description": "Etiqueta para bloques de código"
-  },
-  "contentTagImage": {
-    "message": "Imagen",
-    "description": "Etiqueta para una sola imagen"
-  },
-  "contentTagImages": {
-    "message": "$1 Imágenes",
-    "description": "Etiqueta para múltiples imágenes. $1 = número de imágenes",
-    "placeholders": {
-      "count": {
-        "content": "$1",
-        "example": "3"
-      }
-    }
-  },
-  "contentTagCanvas": {
-    "message": "Lienzo",
-    "description": "Etiqueta para contenido de lienzo/documento"
-  },
-  "contentTagDeepResearch": {
-    "message": "Investigación Profunda",
-    "description": "Etiqueta para respuestas de investigación profunda"
-  },
-
   "pageNumberFormat": {
     "message": "Página $1 de $2",
     "description": "Formato de número de página para exportaciones PDF. $1 = página actual, $2 = total de páginas",
@@ -307,17 +255,6 @@
   "exportedWithChatExporter": {
     "message": "Exportado con Exportador de Chats IA",
     "description": "Mensaje de pie de página en exportaciones HTML"
-  },
-
-  "imageAltText": {
-    "message": "Imagen: $1",
-    "description": "Texto alternativo para imágenes en exportaciones. $1 = descripción de la imagen",
-    "placeholders": {
-      "description": {
-        "content": "$1",
-        "example": "captura de pantalla"
-      }
-    }
   },
 
   "footerPrivacy": {
