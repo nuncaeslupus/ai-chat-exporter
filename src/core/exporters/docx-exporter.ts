@@ -45,6 +45,7 @@ import {
   FONT_SIZE_PT,
   SPACING,
   bodyHeadingLevel,
+  brandColorFor,
   hexToDocxColor,
   mmToTwips,
   ptToHalfPt,
@@ -195,9 +196,12 @@ export class DocxExporter extends BaseExporter {
 
     // Q&A pairs
     const assistantName = this.getAssistantName(conversation.platform);
+    // The role label is text on a white page, so take the darkened
+    // on-light variant — the same token html's role label uses.
+    const assistantColor = brandColorFor(COLOR.brandTextOnLight, conversation.platform);
     const daySeparator = this.daySeparator(options.includeTimestamps);
     for (const pair of conversation.pairs) {
-      sections.push(...this.formatPair(pair, options, assistantName, daySeparator));
+      sections.push(...this.formatPair(pair, options, assistantName, assistantColor, daySeparator));
     }
 
     return new Document({
@@ -223,9 +227,19 @@ export class DocxExporter extends BaseExporter {
 
   /**
    * Render a role heading, appending a de-emphasized timestamp run when non-empty.
+   *
+   * `labelColor` is a '#rrggbb' hex — the platform brand colour for the
+   * assistant, the user accent for the user — so a docx is identifiable as
+   * ChatGPT / Claude / Gemini the way pdf and html already are.
    */
-  private renderRoleHeading(label: string, timestampSuffix: string): Paragraph {
-    const children: TextRun[] = [new TextRun({ text: label })];
+  private renderRoleHeading(
+    label: string,
+    timestampSuffix: string,
+    labelColor: string
+  ): Paragraph {
+    const children: TextRun[] = [
+      new TextRun({ text: label, color: hexToDocxColor(labelColor) }),
+    ];
     if (timestampSuffix) {
       children.push(
         new TextRun({
@@ -270,6 +284,7 @@ export class DocxExporter extends BaseExporter {
     pair: StructuredQAPair,
     options: ExportOptions,
     assistantName: string,
+    assistantColor: string,
     daySeparator: (date?: Date) => string
   ): (Paragraph | Table)[] {
     const paragraphs: (Paragraph | Table)[] = [];
@@ -283,7 +298,11 @@ export class DocxExporter extends BaseExporter {
     // User heading
     pushDaySeparator(pair.question.timestamp);
     paragraphs.push(
-      this.renderRoleHeading('User', this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps))
+      this.renderRoleHeading(
+        'User',
+        this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps),
+        COLOR.link
+      )
     );
 
     // User content
@@ -292,7 +311,11 @@ export class DocxExporter extends BaseExporter {
     // Assistant heading
     pushDaySeparator(pair.answer.timestamp);
     paragraphs.push(
-      this.renderRoleHeading(assistantName, this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps))
+      this.renderRoleHeading(
+        assistantName,
+        this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps),
+        assistantColor
+      )
     );
 
     // Assistant content

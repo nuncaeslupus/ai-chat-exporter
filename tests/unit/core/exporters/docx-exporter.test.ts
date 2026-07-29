@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Conversation, QAPair } from '../../../../src/core/types';
 import { DocxExporter } from '../../../../src/core/exporters/docx-exporter';
+import { COLOR, hexToDocxColor } from '../../../../src/core/exporters/style-tokens';
 import { extractDocxEntry } from '../../../utils/docx-helpers';
 
 /**
@@ -274,6 +275,51 @@ describe('DocxExporter', () => {
       const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
       expect(xml).not.toContain('undefined');
       expect(xml).not.toMatch(/\(\s*\)/);
+    });
+  });
+
+  describe('export() platform brand colour', () => {
+    async function roleHeadingXml(platform: string): Promise<string> {
+      const pair = buildStructuredPair();
+      // `platform` is deliberately widened to string: one case exercises an
+      // id outside the Platform union (the clean-fallback path).
+      const conversation = {
+        ...buildStructuredConversation(pair),
+        platform,
+      } as unknown as Conversation;
+      const result = await new DocxExporter().export(conversation, [pair], {
+        format: 'docx',
+        filename: 'test',
+        includeMetadata: false,
+        includeTimestamps: false,
+      });
+      return extractDocxEntry(result.blob!, 'word/document.xml');
+    }
+
+    it.each([
+      ['chatgpt', COLOR.brandTextOnLight.chatgpt],
+      ['claude', COLOR.brandTextOnLight.claude],
+      ['gemini', COLOR.brandTextOnLight.gemini],
+    ])('colours the %s assistant role label with its brand colour', async (platform, hex) => {
+      const xml = await roleHeadingXml(platform);
+      expect(xml).toContain(`<w:color w:val="${hexToDocxColor(hex)}"/>`);
+    });
+
+    it('falls back to the neutral default for an unknown platform', async () => {
+      const xml = await roleHeadingXml('some-new-bot');
+      expect(xml).toContain(`<w:color w:val="${hexToDocxColor(COLOR.brandTextOnLight.default)}"/>`);
+      // no empty / undefined colour attribute anywhere
+      expect(xml).not.toMatch(/<w:color w:val="(?:|undefined)"\s*\/>/);
+    });
+
+    it('gives each platform a distinct role-label colour', async () => {
+      const hexes = [
+        COLOR.brandTextOnLight.chatgpt,
+        COLOR.brandTextOnLight.claude,
+        COLOR.brandTextOnLight.gemini,
+        COLOR.brandTextOnLight.default,
+      ];
+      expect(new Set(hexes).size).toBe(hexes.length);
     });
   });
 });

@@ -141,6 +141,23 @@ export const COLOR = {
   },
 } as const;
 
+/**
+ * Look a platform id up in a brand palette, falling back to its neutral
+ * `default` — so an unknown platform still yields a real colour and no format
+ * ever emits an empty/undefined colour attribute.
+ *
+ * Pick the palette by surface: `COLOR.brand` is the accent (pdf's role label on
+ * white, html's border-left rule); `COLOR.brandTextOnLight` is the darkened
+ * variant for label TEXT on a light background (html's small-caps role label,
+ * docx's role heading).
+ */
+export function brandColorFor(
+  palette: typeof COLOR.brand | typeof COLOR.brandTextOnLight,
+  platform: string
+): string {
+  return palette[platform as keyof typeof palette] ?? palette.default;
+}
+
 // ---------------------------------------------------------------------------
 // Size scale — canonical, deliberately shared across the formats that use it
 // (see lo-82e7 payload's ranked divergence list: body text, code blocks,
