@@ -132,8 +132,103 @@
    */
   --text-action: 14px;
 
-  /* Elevation */
-  --shadow-menu: 0 12px 30px rgba(6, 52, 42, 0.22), 0 0 0 1px #e2e9e5;
+  /* Elevation. The hairline ring reads from the border token so dark mode
+     inherits it with the rest of the table instead of keeping a light edge. */
+  --shadow-menu: 0 12px 30px rgba(6, 52, 42, 0.22), 0 0 0 1px var(--color-border);
+}
+
+/**
+ * Dark mode (spec § 7). Because every component rule reads from the table
+ * above and none declares a colour of its own, dark mode *is* this block —
+ * the same tokens with the spec's dark values. Adding a component rule here
+ * would defeat that, so don't: put the colour in a token instead.
+ *
+ * Both palettes are held to WCAG AA by tests/unit/accessibility/contrast.test.ts,
+ * which resolves every asserted pair twice, once per table.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Accent / actions */
+    --color-accent: #3fb394;
+    /* The light table steps *down* to a pressed accent; on dark the accent is
+       the light half of the pair, so it steps up instead. It also has to work
+       as text: the selected format row paints it on the accent tint, where a
+       darker step measured 3.95:1 and failed the contrast gate. */
+    --color-accent-pressed: #55c4a6;
+    --color-accent-tint: #1e332d;
+    --color-accent-wash: #172723;
+    --color-on-accent: #07211a;
+    /* The accent is now the light half of the pair, so the overlays that tint
+       it on hover/press have to darken rather than lighten. */
+    --color-on-accent-hover: rgba(0, 0, 0, 0.1);
+    --color-on-accent-active: rgba(0, 0, 0, 0.18);
+    --color-on-accent-divider: rgba(0, 0, 0, 0.26);
+
+    /* Header */
+    --color-header: #0b1f1a;
+    --color-header-muted: #0a1a16;
+    --color-header-accent: #6fd3b5;
+    --color-header-text: #e9f0ed;
+    --color-header-text-dim: #9fb3ad;
+    --color-header-pill: rgba(255, 255, 255, 0.1);
+    --color-header-pill-text: #c9ede1;
+    --color-header-dot-idle: #8fa8a0;
+
+    /* Text. The spec gives one text value (#E9F0ED); the body step below it is
+       derived, keeping the primary/body hierarchy the light table has. */
+    --color-text-primary: #e9f0ed;
+    --color-text-body: #d5e0dc;
+    --color-text-secondary: #8fa29c;
+    /* Spec § 7 value is #7C8C87. It clears AA on the page (4.83:1) but only
+       measures 4.27:1 on the raised surface #1C2926, where the setting-row
+       value and the file-name separator actually sit; lightened until it
+       clears 4.5:1 there (now 4.75:1) — the same treatment the light table's
+       thirteen darkened values got, in the other direction. */
+    --color-text-tertiary: #849490;
+    /* Decorative only — chevrons and separator dots, never text. */
+    --color-text-muted: #64736e;
+
+    /* Surfaces */
+    --color-surface: #141e1b;
+    --color-surface-sunken: #1c2926;
+    --color-surface-bar: #101917;
+    --color-surface-hover: #182421;
+    --color-surface-key: #1c2926;
+
+    /* Borders. The spec gives the two visible weights; the hairline is derived
+       one step back toward the page, as in the light table. */
+    --color-border: #293833;
+    --color-border-strong: #2e3e38;
+    --color-border-hairline: #1f2c28;
+
+    /* Warning. The spec's § 7 table stops at the neutrals and the accent, so
+       the amber set is derived: the light pair is inverted (dark surface, light
+       ink) and then held to the same AA thresholds by the contrast test. */
+    --color-warning-surface: #2a2114;
+    --color-warning-stroke: #e0a93c;
+    --color-warning-text: #f5dfae;
+    --color-warning-text-soft: #e2cb9c;
+    --color-warning-text-strong: #f5dfae;
+    --color-warning-action: #e6c37e;
+    --color-warning-link: #e6c37e;
+    --color-warning-dot: #f0c368;
+
+    /* Skeletons (detecting) */
+    --color-skeleton: #1e2b28;
+    --color-skeleton-soft: #1a2523;
+
+    /* Error. Still provisional — the spec designs no error screen. */
+    --color-danger: #f2b8b5;
+
+    /* Disabled */
+    --color-disabled-surface: #1b2523;
+    --color-disabled-text: #6f7d78;
+    --color-disabled-icon: #5e6b66;
+    --color-disabled-border: #22302c;
+
+    /* Elevation. A dark popup needs a deeper shadow to read at all. */
+    --shadow-menu: 0 12px 30px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--color-border);
+  }
 }
 
 * {
