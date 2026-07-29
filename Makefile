@@ -32,7 +32,9 @@ typecheck: ## tsc --noEmit
 # `pnpm validate` (lint+typecheck+test) is NOT used here: eslint reports ~1157
 # pre-existing errors CI deliberately routes around (see queue task lo-0f01).
 # `validate`/`release-check` mirror what CI's `validate` job actually runs.
-validate: build ## typecheck + tests + release-config checks (mirrors CI; lint excluded, see lo-0f01)
+validate: build ## lint + format + typecheck + tests + release-config checks (mirrors CI)
+	pnpm lint
+	pnpm format:check
 	node build/check-release.cjs version
 	node build/check-release.cjs node
 	pnpm typecheck
