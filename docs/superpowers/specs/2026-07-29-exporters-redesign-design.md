@@ -24,7 +24,7 @@ palette and one set of composition rules.
 | Metadata / timestamp options | Merge into one `showMetaInfo` |
 | PDF direction | **1a** — neutral sans, role label **R2** (platform rule) |
 | PDF fonts | Embed Source Sans 3 + IBM Plex Mono |
-| Bundle sequencing | Lazy-load exporters (lo-c03f) **first** |
+| Bundle sequencing | Moot — exporters are already lazy-loaded (see 0.1) |
 | Plain-text code blocks | Fenced with language, not indented |
 | Paper size | Every paged format respects the preference |
 | Timestamps vs. meta | Times render only when `showMetaInfo` is on |
@@ -62,14 +62,32 @@ load-bearing element of the layout.
 
 ## Phase 0 — prerequisites
 
-### 0.1 Lazy-load exporters (lo-c03f)
+### 0.1 Lazy-load exporters — ALREADY DONE, no task
 
-The content script is 2.24 MB injected on every page load. Embedding four font
-faces makes that worse. Dynamic-import the exporters (and the font module) so
-they load when an export is requested, not when a page opens.
+Queue task `lo-c03f` says the content script is 2.24 MB injected on every page
+load. **That is stale.** Commit `7dc276a` ("Lazy-load exporters to shrink the
+content script bundle") landed it: `src/core/exporters/index.ts` is a registry
+of `import()` factories, and the barrel deliberately does not re-export the
+concrete classes so a static edge cannot pull them back into the eager graph.
 
-**Gate:** built content-script bundle under 500 KB; exporting still works on a
-live page for all six formats.
+Measured on `main` (`pnpm build:content`):
+
+```
+ok dist/chrome: 57.422 B eager (limit 307.200 B, 3 file(s))
+  ok dist/chrome: 13 lazy chunk URL(s) resolve
+```
+
+The eager bundle is **57 KB**, against a build-time gate of 300 KB, with jsPDF
+(388 KB), docx (360 KB) and html2canvas (202 KB) all in lazy chunks.
+
+**Therefore the font-embedding objection is void.** A static
+`import` of the base64 font module from `pdf-exporter.ts` joins the *pdf*
+chunk, which is already loaded on demand — the eager bundle does not grow at
+all. The only requirement carried forward: **the font module must be imported
+from `pdf-exporter.ts`, never from the barrel or a shared module**, or the
+split leaks.
+
+`lo-c03f` should be closed as already-done.
 
 ### 0.2 Claude per-turn timestamps
 
