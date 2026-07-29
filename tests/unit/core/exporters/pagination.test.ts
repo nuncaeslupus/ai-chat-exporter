@@ -163,6 +163,16 @@ describe('pdf pagination policy', () => {
     instances.length = 0;
   });
 
+  // These three tests each render 60 full documents through the real
+  // exporter (fuzzing every content size so role labels/paragraphs/table
+  // rows land at every possible page-boundary offset, not one lucky one).
+  // That's ~700-1050ms alone, comfortably under the default 5s testTimeout —
+  // but under concurrent CPU load (another `pnpm build`/`test:run` on the
+  // same machine) wall-clock time balloons well past that, timing out
+  // real, passing work. Raise the timeout for just these three instead of
+  // cutting the fuzz range, which would just narrow the offsets covered.
+  const HEAVY_TEST_TIMEOUT_MS = 20_000;
+
   it('never leaves a role label as the last thing drawn on a page', async () => {
     // Vary the amount of content so the role labels land at every possible
     // offset relative to the page boundary, rather than one lucky one.
@@ -189,7 +199,7 @@ describe('pdf pagination policy', () => {
         ).not.toBe('addPage');
       }
     }
-  });
+  }, HEAVY_TEST_TIMEOUT_MS);
 
   it('keeps at least `orphans` lines behind and `widows` lines over when a paragraph straddles a page', async () => {
     const PARA_LINES = 8;
@@ -230,7 +240,7 @@ describe('pdf pagination policy', () => {
         `filler=${filler}: widow — only ${after} line(s) carried over`
       ).toBeGreaterThanOrEqual(PAGINATION.widows);
     }
-  });
+  }, HEAVY_TEST_TIMEOUT_MS);
 
   it('never renders a table header row as the last thing on a page', async () => {
     const table =
@@ -265,7 +275,7 @@ describe('pdf pagination policy', () => {
         `filler=${filler}: table header stranded — page break between it and its first body row`
       ).toBe(false);
     }
-  });
+  }, HEAVY_TEST_TIMEOUT_MS);
 });
 
 describe('docx pagination policy', () => {
