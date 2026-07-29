@@ -232,6 +232,19 @@ const popupPairs: Pair[] = [
   { label: 'options footer text', fg: popupColor('.options-footer {', 'color'), bg: popupColor('.submenu-footer {', 'background'), threshold: 4.5 },
   { label: 'options footer link', fg: popupColor('.options-footer-link {', 'color'), bg: popupColor('.submenu-footer {', 'background'), threshold: 4.5 },
   { label: 'options footer link (hover)', fg: popupColor('.options-footer-link:hover {', 'color'), bg: popupColor('.submenu-footer {', 'background'), threshold: 4.5 },
+  // File name builder (R6). The chips sit on the sunken field, the resulting
+  // name on the footer bar — every one of them reuses an existing token.
+  { label: 'filename Default link', fg: popupColor('.filename-default {', 'color'), bg: popupColor('body {', 'background'), threshold: 4.5 },
+  { label: 'filename Default link (hover)', fg: popupColor('.filename-default:hover {', 'color'), bg: popupColor('body {', 'background'), threshold: 4.5 },
+  { label: 'filename piece chip', fg: popupColor('.filename-chip {', 'color'), bg: popupColor('.filename-chip {', 'background'), threshold: 4.5 },
+  { label: 'filename piece remove button', fg: popupColor('.filename-chip-remove {', 'color'), bg: popupColor('.filename-chip-remove {', 'background'), threshold: 3 },
+  { label: 'filename piece remove button (hover bg)', fg: popupColor('.filename-chip-remove {', 'color'), bg: popupColor('.filename-chip-remove:hover {', 'background'), threshold: 3 },
+  { label: 'filename `_` separator', fg: popupColor('.filename-separator {', 'color'), bg: popupColor('.filename-field {', 'background'), threshold: 4.5 },
+  { label: 'filename add chip', fg: popupColor('.filename-add-chip {', 'color'), bg: popupColor('.filename-add-chip {', 'background'), threshold: 4.5 },
+  { label: 'filename add chip (hover)', fg: popupColor('.filename-add-chip:hover {', 'color'), bg: popupColor('.filename-add-chip {', 'background'), threshold: 4.5 },
+  { label: 'filename drag hint', fg: popupColor('.filename-hint {', 'color'), bg: popupColor('body {', 'background'), threshold: 4.5 },
+  { label: 'filename resulting name', fg: popupColor('.filename-footer-name {', 'color'), bg: popupColor('.submenu-footer {', 'background'), threshold: 4.5 },
+  { label: 'filename footer icon', fg: popupColor('.filename-footer-icon {', 'color'), bg: popupColor('.submenu-footer {', 'background'), threshold: 3 },
   // Unsupported page dims the header; the same text tokens ride on it.
   { label: 'popup-version (dimmed header)', fg: popupColor('.popup-version {', 'color'), bg: popupColor("body[data-ui-state='unsupported'] .popup-header {", 'background'), threshold: 4.5 },
   { label: 'status-text (dimmed header)', fg: popupColor('.status-text {', 'color'), bg: popupColor("body[data-ui-state='unsupported'] .popup-header {", 'background'), threshold: 4.5 },

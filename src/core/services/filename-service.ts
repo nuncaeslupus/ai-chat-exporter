@@ -4,7 +4,13 @@
  */
 
 import type { Conversation } from '../types/conversation';
-import type { FilenameVariables } from '../types/config';
+import {
+  DEFAULT_FILENAME_PIECES,
+  type FilenamePiece,
+  type FilenamePieceType,
+  type FilenamePreferences,
+  type FilenameVariables,
+} from '../types/config';
 
 /**
  * Platform display names
@@ -35,9 +41,68 @@ const EXTENSION_BYTE_RESERVE = 10;
 const MAX_STEM_BYTES = MAX_FILENAME_BYTES - EXTENSION_BYTE_RESERVE;
 
 /**
+ * The template token each non-literal piece stands for. Pieces are rendered
+ * *through* the template so every piece list inherits the same empty-part
+ * collapsing, sanitisation and byte truncation the string path already has —
+ * a second renderer is exactly how a preview drifts from the real download.
+ */
+const PIECE_TOKENS: Record<Exclude<FilenamePieceType, 'literal'>, string> = {
+  platform: '{platform}',
+  model: '{model}',
+  title: '{title}',
+  date: '{date}',
+  time: '{time}',
+  pairCount: '{pairCount}',
+};
+
+/**
  * Service for generating and sanitizing filenames
  */
 export class FilenameService {
+  /**
+   * The full name a download would be saved as — the only place a filename is
+   * assembled. The popup preview and the content script's export path both
+   * call this, so the name on screen is the name on disk by construction.
+   *
+   * Preferences without `filenamePieces` take the legacy template string
+   * untouched: an install that never opened the builder keeps the exact name
+   * it had before this existed.
+   */
+  static buildFilename(
+    preferences: FilenamePreferences,
+    variables: FilenameVariables,
+    extension: string
+  ): string {
+    const { filenamePieces } = preferences;
+    const template =
+      filenamePieces === undefined
+        ? preferences.filenameTemplate
+        : this.piecesToTemplate(filenamePieces);
+
+    // Every piece removed, or every piece empty for this conversation, would
+    // otherwise download a bare ".md". The default list always yields the
+    // date at minimum, so it can never collapse in turn.
+    const stem =
+      this.generateFilename(template, variables) ||
+      this.generateFilename(this.piecesToTemplate(DEFAULT_FILENAME_PIECES), variables);
+
+    return this.addExtension(stem, extension);
+  }
+
+  /**
+   * Splice the pieces into the template grammar, `_`-separated.
+   *
+   * Braces are stripped from free text so a literal can never smuggle in a
+   * variable of its own (`{title}` typed by hand stays the word `title`).
+   */
+  private static piecesToTemplate(pieces: FilenamePiece[]): string {
+    return pieces
+      .map((piece) =>
+        piece.type === 'literal' ? (piece.text ?? '').replace(/[{}]/g, '') : PIECE_TOKENS[piece.type]
+      )
+      .join('_');
+  }
+
   /**
    * Generate filename from template and variables
    */
@@ -50,6 +115,7 @@ export class FilenameService {
     filename = filename.replace(/{date}/g, variables.date);
     filename = filename.replace(/{time}/g, variables.time);
     filename = filename.replace(/{datetime}/g, variables.datetime);
+    filename = filename.replace(/{pairCount}/g, variables.pairCount ?? '');
 
     // Handle optional model - remove if not present
     if (variables.model) {
@@ -132,6 +198,7 @@ export class FilenameService {
       date: this.formatDate(date),
       time: this.formatTime(date),
       datetime: this.formatDateTime(date),
+      pairCount: String(conversation.pairs.length),
     };
 
     // Only include model if it exists

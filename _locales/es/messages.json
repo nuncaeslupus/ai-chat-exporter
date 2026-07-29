@@ -469,5 +469,53 @@
       "total": { "content": "$2", "example": "14" },
       "words": { "content": "$3", "example": "4,120" }
     }
+  },
+
+  "filenameRestoreDefault": {
+    "message": "Por defecto",
+    "description": "Link in the file-name submenu header that restores the default piece list"
+  },
+  "filenameDragHint": {
+    "message": "Arrastra las piezas para reordenarlas.",
+    "description": "Help line under the file-name pieces field"
+  },
+  "filenameAddPiece": {
+    "message": "+ $1",
+    "description": "Chip that appends a piece to the file name. $1 = piece name",
+    "placeholders": {
+      "piece": { "content": "$1", "example": "Title" }
+    }
+  },
+  "filenameRemovePiece": {
+    "message": "Quitar pieza",
+    "description": "Accessible name of the button that removes a piece from the file name"
+  },
+  "filenamePiecePlatform": {
+    "message": "Plataforma",
+    "description": "File-name piece: the chatbot name"
+  },
+  "filenamePieceModel": {
+    "message": "Modelo",
+    "description": "File-name piece: the model name"
+  },
+  "filenamePieceTitle": {
+    "message": "Título",
+    "description": "File-name piece: the conversation title"
+  },
+  "filenamePieceDate": {
+    "message": "Fecha",
+    "description": "File-name piece: the conversation date"
+  },
+  "filenamePieceTime": {
+    "message": "Hora",
+    "description": "File-name piece: the conversation time"
+  },
+  "filenamePiecePairCount": {
+    "message": "Nº de pares",
+    "description": "File-name piece: how many question/answer pairs the conversation has"
+  },
+  "filenamePieceLiteral": {
+    "message": "Texto libre",
+    "description": "File-name piece: text the user types"
   }
 }

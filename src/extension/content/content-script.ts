@@ -170,10 +170,13 @@ class ContentScript {
         throw new Error(result.error || 'Export failed');
       }
 
-      // Generate filename
-      const variables = FilenameService.getVariablesFromConversation(conversation);
-      const baseFilename = FilenameService.generateFilename(prefs.filenameTemplate, variables);
-      const filename = FilenameService.addExtension(baseFilename, exporter.extension);
+      // Generate filename — the same call the popup's preview makes, so the
+      // name it showed is the name that lands on disk.
+      const filename = FilenameService.buildFilename(
+        prefs,
+        FilenameService.getVariablesFromConversation(conversation),
+        exporter.extension
+      );
 
       // Download file
       this.downloadFile(result.blob, filename);
