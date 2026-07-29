@@ -33,6 +33,7 @@ import {
   PDF_FONT_SIZE_PT,
   SPACING,
   bodyHeadingLevel,
+  brandColorFor,
   hexToRgbTuple,
 } from './style-tokens';
 
@@ -1054,14 +1055,8 @@ export class PdfExporter extends BaseExporter {
    * Get assistant name and color based on platform
    */
   private getAssistantInfo(platform: string): { name: string; color: [number, number, number] } {
-    const platformColors: Record<string, string> = {
-      chatgpt: COLOR.brand.chatgpt,
-      claude: COLOR.brand.claude,
-      gemini: COLOR.brand.gemini,
-    };
-
     const name = this.getRoleName('assistant', platform);
-    const color = hexToRgbTuple(platformColors[platform] ?? COLOR.brand.default);
+    const color = hexToRgbTuple(brandColorFor(COLOR.brand, platform));
 
     return { name, color };
   }
