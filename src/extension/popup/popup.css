@@ -460,6 +460,7 @@ body {
 
 /* Nothing to configure on the screens that have no conversation. */
 .popup-body[data-ui-state='unsupported'] .setting-rows,
+.popup-body[data-ui-state='noConversation'] .setting-rows,
 .popup-body[data-ui-state='reload'] .setting-rows {
   display: none;
 }
@@ -538,8 +539,9 @@ body {
   background: var(--color-surface-bar);
 }
 
-/* The unsupported / reload screens have nothing to export. */
+/* The unsupported / no-conversation / reload screens have nothing to export. */
 .popup-body[data-ui-state='unsupported'] .action-bar,
+.popup-body[data-ui-state='noConversation'] .action-bar,
 .popup-body[data-ui-state='reload'] .action-bar {
   display: none;
 }
@@ -1368,12 +1370,14 @@ section {
 
 .popup-body[data-ui-state='detecting'] #state-detecting,
 .popup-body[data-ui-state='unsupported'] #state-unsupported,
+.popup-body[data-ui-state='noConversation'] #state-no-conversation,
 .popup-body[data-ui-state='reload'] #state-reload {
   display: flex;
 }
 
 .popup-body[data-ui-state='detecting'] #main-content,
 .popup-body[data-ui-state='unsupported'] #main-content,
+.popup-body[data-ui-state='noConversation'] #main-content,
 .popup-body[data-ui-state='reload'] #main-content {
   display: none;
 }

@@ -66,6 +66,15 @@
     "description": "Mensaje cuando no se detecta chatbot"
   },
 
+  "noConversationFoundTitle": {
+    "message": "No hemos encontrado ninguna conversación aquí",
+    "description": "Título cuando la página es un chatbot compatible pero el analizador no encontró conversación"
+  },
+  "noConversationFoundMessage": {
+    "message": "Esta página es compatible, pero no se pudo leer ningún mensaje.",
+    "description": "Mensaje cuando la página es un chatbot compatible pero el analizador no encontró conversación"
+  },
+
   "reloadRequiredTitle": {
     "message": "Recarga la página para exportar esta conversación",
     "description": "Título para mensaje de recarga requerida"

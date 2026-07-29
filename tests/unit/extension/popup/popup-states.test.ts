@@ -39,6 +39,8 @@ const EN_MESSAGES: Record<string, string> = {
   statusReloadNeeded: 'Reload needed',
   statusPageCheckFailed: 'Check failed',
   statusArtifactsMissing: 'Artifacts missing',
+  noConversationFoundTitle: "Couldn't find a conversation here",
+  noConversationFoundMessage: 'This page is supported, but no messages could be read.',
   conversationUntitled: 'Untitled',
   platformChatGPT: 'ChatGPT',
   platformClaude: 'Claude',
@@ -206,6 +208,40 @@ describe('popup secondary states — unsupported page', () => {
     link.click();
 
     expect(mockTabsCreate).toHaveBeenCalledWith({ url: 'https://chatgpt.com' });
+  });
+});
+
+/**
+ * A supported URL whose content script answered but whose parser found no
+ * conversation on the page — distinct from a genuinely unsupported page
+ * (lo-72f5). Conflating the two showed the "no chatbot detected" screen, with
+ * its "open one of these pages" links, while the user was already standing on
+ * a supported page — a navigation prompt for what is actually a parse bug.
+ */
+describe('popup secondary states — no conversation found on a supported page', () => {
+  beforeEach(baseChrome);
+
+  it('does not show the unsupported screen when the URL is supported but nothing parsed', async () => {
+    mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://chatgpt.com/c/abc' }]);
+    mockTabsSendMessage.mockResolvedValue({ success: true, data: null });
+    await loadPopup();
+
+    await vi.waitFor(() => {
+      expect(uiState()).toBe('noConversation');
+    });
+    expect(uiState()).not.toBe('unsupported');
+    expect(document.getElementById('status-text')?.textContent).toBe('No conversation');
+  });
+
+  it('gives the no-conversation state its own block instead of reusing #state-unsupported', async () => {
+    mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://chatgpt.com/c/abc' }]);
+    mockTabsSendMessage.mockResolvedValue({ success: true, data: null });
+    await loadPopup();
+
+    await vi.waitFor(() => {
+      expect(uiState()).toBe('noConversation');
+    });
+    expect(document.getElementById('state-no-conversation')).not.toBeNull();
   });
 });
 
