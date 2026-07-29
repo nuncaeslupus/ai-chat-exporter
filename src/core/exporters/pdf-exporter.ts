@@ -1218,12 +1218,12 @@ export class PdfExporter extends BaseExporter {
       }
     }
 
-    for (let i = 0; i < lines.length; i++) {
+    for (const [i, line] of lines.entries()) {
       if (i === keepHere || y > limit) {
         doc.addPage();
         y = margins.top;
       }
-      doc.text(lines[i]!, margins.left, y);
+      doc.text(line, margins.left, y);
       y += lineHeight;
     }
 

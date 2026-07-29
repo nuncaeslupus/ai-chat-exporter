@@ -62,6 +62,18 @@ const DOCX_HEADING_BY_LEVEL: (typeof HeadingLevel)[keyof typeof HeadingLevel][] 
 ];
 
 /**
+ * Document heading level (1-6) -> docx HeadingLevel.
+ *
+ * `noUncheckedIndexedAccess` types every number-indexed read as `| undefined`,
+ * so the lookup needs a total wrapper. Callers only ever pass 1..6
+ * (`DOC_HEADING_LEVEL.title`/`.roleLabel`, or `bodyHeadingLevel`, which clamps
+ * to `DOC_HEADING_LEVEL.max`), so the fallback is unreachable in practice.
+ */
+function docxHeading(docLevel: number): (typeof HeadingLevel)[keyof typeof HeadingLevel] {
+  return DOCX_HEADING_BY_LEVEL[docLevel - 1] ?? HeadingLevel.HEADING_6;
+}
+
+/**
  * Exports conversations to DOCX (Word) format
  */
 export class DocxExporter extends BaseExporter {
@@ -110,7 +122,7 @@ export class DocxExporter extends BaseExporter {
             size: ptToHalfPt(DOCX_FONT_SIZE_PT.title),
           }),
         ],
-        heading: DOCX_HEADING_BY_LEVEL[DOC_HEADING_LEVEL.title - 1]!,
+        heading: docxHeading(DOC_HEADING_LEVEL.title),
         spacing: { after: 300 },
       })
     );
@@ -242,7 +254,7 @@ export class DocxExporter extends BaseExporter {
     }
     return new Paragraph({
       children,
-      heading: DOCX_HEADING_BY_LEVEL[DOC_HEADING_LEVEL.roleLabel - 1]!,
+      heading: docxHeading(DOC_HEADING_LEVEL.roleLabel),
       spacing: { before: 300, after: 150 },
       keepNext: true, // never strand the role label at the foot of a page
     });
@@ -528,7 +540,7 @@ export class DocxExporter extends BaseExporter {
       return [];
     }
 
-    const heading = DOCX_HEADING_BY_LEVEL[bodyHeadingLevel(block.level) - 1]!;
+    const heading = docxHeading(bodyHeadingLevel(block.level));
 
     return [
       new Paragraph({
