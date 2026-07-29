@@ -15,7 +15,10 @@ import { GeminiParser } from '../../../../src/core/parsers/gemini/parser';
 // (unimplemented) extractQAPairs pipeline.
 type TestableParser = GeminiParser & {
   document: Document;
-  extractContent: (element: Element, preserveHtml: boolean) => { content: string; htmlContent?: string };
+  extractContent: (
+    element: Element,
+    preserveHtml: boolean
+  ) => { content: string; htmlContent?: string };
 };
 
 describe('BaseParser cleanupElement (via GeminiParser.extractContent)', () => {
@@ -53,7 +56,9 @@ describe('BaseParser cleanupElement (via GeminiParser.extractContent)', () => {
   });
 
   it('still strips decorative aria-hidden elements that are not math output', () => {
-    const parser = buildParser('<p>Hello<span aria-hidden="true">(decorative icon)</span> world</p>');
+    const parser = buildParser(
+      '<p>Hello<span aria-hidden="true">(decorative icon)</span> world</p>'
+    );
     const element = parser.document.body;
     const { content } = parser.extractContent(element, false);
 
@@ -74,7 +79,9 @@ describe('BaseParser cleanupElement (via GeminiParser.extractContent)', () => {
     );
     const html = readFileSync(fixturePath, 'utf-8');
     const dom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-conversation' });
-    const markdown = dom.window.document.querySelector('[data-message-author-role="assistant"] .markdown');
+    const markdown = dom.window.document.querySelector(
+      '[data-message-author-role="assistant"] .markdown'
+    );
     if (!markdown) {
       throw new Error('fixture is missing the assistant .markdown content root');
     }
@@ -182,7 +189,9 @@ describe('BaseParser cleanupElement (via GeminiParser.extractContent)', () => {
       );
       const html = readFileSync(fixturePath, 'utf-8');
       const dom = new JSDOM(html, { url: 'https://claude.ai/chat/test' });
-      const markdown = dom.window.document.querySelector('div.standard-markdown, div.progressive-markdown');
+      const markdown = dom.window.document.querySelector(
+        'div.standard-markdown, div.progressive-markdown'
+      );
       if (!markdown) {
         throw new Error('fixture is missing an assistant markdown content root');
       }

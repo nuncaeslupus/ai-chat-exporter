@@ -65,28 +65,18 @@ export interface MessageResponse<T = unknown> {
 /**
  * Type guard for export conversation message
  */
-export function isExportConversationMessage(
-  msg: unknown,
-): msg is ExportConversationMessage {
+export function isExportConversationMessage(msg: unknown): msg is ExportConversationMessage {
   return (
-    typeof msg === 'object' &&
-    msg !== null &&
-    'type' in msg &&
-    msg.type === 'export_conversation'
+    typeof msg === 'object' && msg !== null && 'type' in msg && msg.type === 'export_conversation'
   );
 }
 
 /**
  * Type guard for print conversation message
  */
-export function isPrintConversationMessage(
-  msg: unknown,
-): msg is PrintConversationMessage {
+export function isPrintConversationMessage(msg: unknown): msg is PrintConversationMessage {
   return (
-    typeof msg === 'object' &&
-    msg !== null &&
-    'type' in msg &&
-    msg.type === 'print_conversation'
+    typeof msg === 'object' && msg !== null && 'type' in msg && msg.type === 'print_conversation'
   );
 }
 
@@ -104,7 +94,7 @@ export function isGetConversationMessage(msg: unknown): msg is GetConversationMe
  */
 export function createMessage<T extends BaseMessage>(
   type: T['type'],
-  data: Omit<T, 'type' | 'timestamp'>,
+  data: Omit<T, 'type' | 'timestamp'>
 ): T {
   return {
     type,

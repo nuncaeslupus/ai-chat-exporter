@@ -22,7 +22,17 @@ import type {
 import { BaseExporter } from './base-exporter';
 import { ConversationStructureService } from '../services';
 import { getMessage, getUILanguage } from '../../shared/i18n';
-import { COLOR, FONT_FAMILY, FONT_SIZE_PT, HTML_FONT_SIZE_PT, PAGINATION, SPACING, bodyHeadingLevel, mmToPx, ptToPx } from './style-tokens';
+import {
+  COLOR,
+  FONT_FAMILY,
+  FONT_SIZE_PT,
+  HTML_FONT_SIZE_PT,
+  PAGINATION,
+  SPACING,
+  bodyHeadingLevel,
+  mmToPx,
+  ptToPx,
+} from './style-tokens';
 
 export class HtmlExporter extends BaseExporter {
   readonly format: ExportFormat = 'html';
@@ -101,16 +111,24 @@ export class HtmlExporter extends BaseExporter {
                     <span class="metadata-label">${this.getMetadataLabel('platform')}:</span>
                     <span class="metadata-value">${platform}</span>
                 </div>
-                ${model ? `
+                ${
+                  model
+                    ? `
                 <div class="metadata-item">
                     <span class="metadata-label">${this.getMetadataLabel('model')}:</span>
                     <span class="metadata-value">${model}</span>
-                </div>` : ''}
-                ${dateRange ? `
+                </div>`
+                    : ''
+                }
+                ${
+                  dateRange
+                    ? `
                 <div class="metadata-item">
                     <span class="metadata-label">${this.getMetadataLabel('dateRange')}:</span>
                     <span class="metadata-value">${dateRange}</span>
-                </div>` : ''}
+                </div>`
+                    : ''
+                }
                 <div class="metadata-item">
                     <span class="metadata-label">${this.getMetadataLabel('exported')}:</span>
                     <span class="metadata-value">${date}</span>
@@ -122,11 +140,17 @@ export class HtmlExporter extends BaseExporter {
             </div>`;
   }
 
-  private generatePairs(pairs: StructuredQAPair[], platform: string, options: ExportOptions): string {
+  private generatePairs(
+    pairs: StructuredQAPair[],
+    platform: string,
+    options: ExportOptions
+  ): string {
     const assistantName = this.getRoleName('assistant', platform);
     const daySeparator = this.daySeparator(options.includeTimestamps);
 
-    return pairs.map(pair => `${this.renderDaySeparator(daySeparator(pair.question.timestamp))}
+    return pairs
+      .map(
+        (pair) => `${this.renderDaySeparator(daySeparator(pair.question.timestamp))}
             <div class="qa-pair">
                 <div class="message user-message">
                     <div class="message-header">
@@ -147,13 +171,13 @@ export class HtmlExporter extends BaseExporter {
                         ${this.renderWebSearches(pair.answer.metadata?.webSearches)}
                     </div>
                 </div>
-            </div>`).join('\n');
+            </div>`
+      )
+      .join('\n');
   }
 
   private renderDaySeparator(separator: string): string {
-    return separator
-      ? `<div class="day-separator">${this.escapeHtml(separator)}</div>`
-      : '';
+    return separator ? `<div class="day-separator">${this.escapeHtml(separator)}</div>` : '';
   }
 
   private renderTimestampSpan(date: Date | undefined, includeTimestamps: boolean): string {
@@ -166,7 +190,7 @@ export class HtmlExporter extends BaseExporter {
       return '';
     }
 
-    const artifactsWithContent = artifacts.filter(a => a.content);
+    const artifactsWithContent = artifacts.filter((a) => a.content);
     if (artifactsWithContent.length === 0) {
       return '';
     }
@@ -174,12 +198,16 @@ export class HtmlExporter extends BaseExporter {
     return `
                         <div class="artifacts-section">
                             <h3>Artifacts</h3>
-                            ${artifactsWithContent.map(artifact => `
+                            ${artifactsWithContent
+                              .map(
+                                (artifact) => `
                             <div class="artifact">
                                 <h4>${this.escapeHtml(artifact.title)}</h4>
                                 ${artifact.typeLabel ? `<p class="artifact-type"><em>Type: ${this.escapeHtml(artifact.typeLabel)}</em></p>` : ''}
                                 <pre><code class="language-${this.escapeHtml(artifact.language || '')}">${this.escapeHtml(artifact.content || '')}</code></pre>
-                            </div>`).join('\n')}
+                            </div>`
+                              )
+                              .join('\n')}
                         </div>`;
   }
 
@@ -191,130 +219,147 @@ export class HtmlExporter extends BaseExporter {
     return `
                         <div class="web-searches-section">
                             <h3>Web Search Results</h3>
-                            ${webSearches.map(search => `
+                            ${webSearches
+                              .map(
+                                (search) => `
                             <div class="web-search">
                                 <h4>${this.escapeHtml(search.query || 'References')}</h4>
                                 ${search.resultCount ? `<p class="search-count"><em>${search.resultCount} results found</em></p>` : ''}
-                                ${search.results && search.results.length > 0 ? `
+                                ${
+                                  search.results && search.results.length > 0
+                                    ? `
                                 <ul class="search-results">
-                                    ${search.results.map((result) => `
+                                    ${search.results
+                                      .map(
+                                        (result) => `
                                     <li class="search-result">
                                         <div class="result-content">
                                             <a href="${this.escapeHtml(result.url)}" target="_blank" rel="noopener noreferrer" class="result-title">${this.escapeHtml(result.title)}</a>
                                             ${result.domain ? `<span class="result-domain">${this.escapeHtml(result.domain)}</span>` : ''}
                                         </div>
-                                    </li>`).join('\n')}
-                                </ul>` : ''}
-                            </div>`).join('\n')}
+                                    </li>`
+                                      )
+                                      .join('\n')}
+                                </ul>`
+                                    : ''
+                                }
+                            </div>`
+                              )
+                              .join('\n')}
                         </div>`;
   }
 
   private renderBlocks(blocks: StructuredContentBlock[]): string {
-    return blocks.map(block => {
-      switch (block.type) {
-        case 'paragraph': {
-          const content = this.renderInline(block.content).trim();
-          return content ? `<p>${content}</p>` : '';
+    return blocks
+      .map((block) => {
+        switch (block.type) {
+          case 'paragraph': {
+            const content = this.renderInline(block.content).trim();
+            return content ? `<p>${content}</p>` : '';
+          }
+
+          case 'heading': {
+            const level = bodyHeadingLevel(block.level); // h1 is the title, h2 the role label
+            const headingContent = this.renderInline(block.content).trim();
+            return headingContent ? `<h${level}>${headingContent}</h${level}>` : '';
+          }
+
+          case 'code': {
+            const language = this.escapeHtml(block.language);
+            const code = this.escapeHtml(block.code);
+            return `<pre><code class="language-${language}">${code}</code></pre>`;
+          }
+
+          case 'list':
+            return this.renderList(block);
+
+          case 'blockquote':
+            return `<blockquote>${this.renderBlocks(block.content)}</blockquote>`;
+
+          case 'hr':
+            return '<hr>';
+
+          case 'image': {
+            const alt = this.escapeHtml(block.alt || 'image');
+            const imgUrl = this.escapeHtml(block.url);
+            const imgTitle = block.title ? ` title="${this.escapeHtml(block.title)}"` : '';
+            const imgWidth = block.width ? ` width="${block.width}"` : '';
+            const imgHeight = block.height ? ` height="${block.height}"` : '';
+            const img = `<img src="${imgUrl}" alt="${alt}"${imgTitle}${imgWidth}${imgHeight}>`;
+            // A linked thumbnail/citation: HTML is the only format that can put
+            // the image back inside its anchor, so this is where linkUrl is read.
+            if (!block.linkUrl) return img;
+            const href = this.escapeHtml(block.linkUrl);
+            return `<a href="${href}" target="_blank" rel="noopener noreferrer">${img}</a>`;
+          }
+
+          // HTML is the only format that can actually play the clip. The inner
+          // link doubles as the fallback for a browser that can't.
+          case 'media': {
+            const mediaUrl = this.escapeHtml(block.url);
+            const mediaLabel = this.escapeHtml(this.mediaLabel(block));
+            const mediaType = block.mimeType ? ` type="${this.escapeHtml(block.mimeType)}"` : '';
+            const tag = block.kind === 'video' ? 'video' : 'audio';
+            return `<${tag} controls src="${mediaUrl}"${mediaType}><a href="${mediaUrl}">${mediaLabel}</a></${tag}>`;
+          }
+
+          case 'table':
+            return this.renderTable(block);
+
+          default:
+            return '';
         }
-
-        case 'heading': {
-          const level = bodyHeadingLevel(block.level); // h1 is the title, h2 the role label
-          const headingContent = this.renderInline(block.content).trim();
-          return headingContent ? `<h${level}>${headingContent}</h${level}>` : '';
-        }
-
-        case 'code': {
-          const language = this.escapeHtml(block.language);
-          const code = this.escapeHtml(block.code);
-          return `<pre><code class="language-${language}">${code}</code></pre>`;
-        }
-
-        case 'list':
-          return this.renderList(block);
-
-        case 'blockquote':
-          return `<blockquote>${this.renderBlocks(block.content)}</blockquote>`;
-
-        case 'hr':
-          return '<hr>';
-
-        case 'image': {
-          const alt = this.escapeHtml(block.alt || 'image');
-          const imgUrl = this.escapeHtml(block.url);
-          const imgTitle = block.title ? ` title="${this.escapeHtml(block.title)}"` : '';
-          const imgWidth = block.width ? ` width="${block.width}"` : '';
-          const imgHeight = block.height ? ` height="${block.height}"` : '';
-          const img = `<img src="${imgUrl}" alt="${alt}"${imgTitle}${imgWidth}${imgHeight}>`;
-          // A linked thumbnail/citation: HTML is the only format that can put
-          // the image back inside its anchor, so this is where linkUrl is read.
-          if (!block.linkUrl) return img;
-          const href = this.escapeHtml(block.linkUrl);
-          return `<a href="${href}" target="_blank" rel="noopener noreferrer">${img}</a>`;
-        }
-
-        // HTML is the only format that can actually play the clip. The inner
-        // link doubles as the fallback for a browser that can't.
-        case 'media': {
-          const mediaUrl = this.escapeHtml(block.url);
-          const mediaLabel = this.escapeHtml(this.mediaLabel(block));
-          const mediaType = block.mimeType ? ` type="${this.escapeHtml(block.mimeType)}"` : '';
-          const tag = block.kind === 'video' ? 'video' : 'audio';
-          return `<${tag} controls src="${mediaUrl}"${mediaType}><a href="${mediaUrl}">${mediaLabel}</a></${tag}>`;
-        }
-
-        case 'table':
-          return this.renderTable(block);
-
-        default:
-          return '';
-      }
-    }).filter(Boolean).join('\n');
+      })
+      .filter(Boolean)
+      .join('\n');
   }
 
   private renderInline(content: InlineContent[]): string {
-    return content.map(item => {
-      const text = this.escapeHtml(item.text);
+    return content
+      .map((item) => {
+        const text = this.escapeHtml(item.text);
 
-      switch (item.type) {
-        case 'text':
-          return text;
+        switch (item.type) {
+          case 'text':
+            return text;
 
-        case 'bold':
-          return `<strong>${text}</strong>`;
+          case 'bold':
+            return `<strong>${text}</strong>`;
 
-        case 'italic':
-          return `<em>${text}</em>`;
+          case 'italic':
+            return `<em>${text}</em>`;
 
-        case 'code':
-          return `<code class="inline-code">${text}</code>`;
+          case 'code':
+            return `<code class="inline-code">${text}</code>`;
 
-        case 'link': {
-          const linkUrl = this.escapeHtml(item.url || '#');
-          return `<a href="${linkUrl}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+          case 'link': {
+            const linkUrl = this.escapeHtml(item.url || '#');
+            return `<a href="${linkUrl}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+          }
+
+          case 'strikethrough':
+            return `<del>${text}</del>`;
+
+          // lo-320b: the delimited LaTeX source, tagged so it is identifiable as
+          // math rather than prose that happens to contain "$". Deliberately NOT
+          // MathML or a KaTeX span: converting LaTeX to either needs a TeX parser,
+          // and KaTeX's stylesheet + fonts would have to be inlined to keep the
+          // export self-contained (no remote subresource, pinned since PR #54).
+          // The class is the hook for a reader who wants to run KaTeX auto-render
+          // over the saved file themselves.
+          case 'math':
+            return `<span class="math math-${item.display === 'block' ? 'display' : 'inline'}">${text}</span>`;
+
+          default:
+            return text;
         }
-
-        case 'strikethrough':
-          return `<del>${text}</del>`;
-
-        // lo-320b: the delimited LaTeX source, tagged so it is identifiable as
-        // math rather than prose that happens to contain "$". Deliberately NOT
-        // MathML or a KaTeX span: converting LaTeX to either needs a TeX parser,
-        // and KaTeX's stylesheet + fonts would have to be inlined to keep the
-        // export self-contained (no remote subresource, pinned since PR #54).
-        // The class is the hook for a reader who wants to run KaTeX auto-render
-        // over the saved file themselves.
-        case 'math':
-          return `<span class="math math-${item.display === 'block' ? 'display' : 'inline'}">${text}</span>`;
-
-        default:
-          return text;
-      }
-    }).join('');
+      })
+      .join('');
   }
 
   private renderList(block: ListBlock): string {
     const tag = block.ordered ? 'ol' : 'ul';
-    const items = block.items.map(item => this.renderListItem(item)).join('\n');
+    const items = block.items.map((item) => this.renderListItem(item)).join('\n');
     return `<${tag}>${items}</${tag}>`;
   }
 
@@ -359,9 +404,9 @@ export class HtmlExporter extends BaseExporter {
       '<': '&lt;',
       '>': '&gt;',
       '"': '&quot;',
-      "'": '&#039;'
+      "'": '&#039;',
     };
-    return text.replace(/[&<>"']/g, char => map[char] || char);
+    return text.replace(/[&<>"']/g, (char) => map[char] || char);
   }
 
   private generateCSS(): string {
@@ -1209,5 +1254,4 @@ export class HtmlExporter extends BaseExporter {
         });
     </script>`;
   }
-
 }

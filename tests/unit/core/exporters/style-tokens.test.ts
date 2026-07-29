@@ -43,9 +43,18 @@ describe('style-tokens unit conversions', () => {
 });
 
 describe('pdf/docx/html source no longer contains a bare font-size literal', () => {
-  const pdfSrc = readFileSync(resolve(__dirname, '../../../../src/core/exporters/pdf-exporter.ts'), 'utf-8');
-  const docxSrc = readFileSync(resolve(__dirname, '../../../../src/core/exporters/docx-exporter.ts'), 'utf-8');
-  const htmlSrc = readFileSync(resolve(__dirname, '../../../../src/core/exporters/html-exporter.ts'), 'utf-8');
+  const pdfSrc = readFileSync(
+    resolve(__dirname, '../../../../src/core/exporters/pdf-exporter.ts'),
+    'utf-8'
+  );
+  const docxSrc = readFileSync(
+    resolve(__dirname, '../../../../src/core/exporters/docx-exporter.ts'),
+    'utf-8'
+  );
+  const htmlSrc = readFileSync(
+    resolve(__dirname, '../../../../src/core/exporters/html-exporter.ts'),
+    'utf-8'
+  );
 
   it('pdf never calls setFontSize with a bare number', () => {
     expect(pdfSrc).not.toMatch(/setFontSize\(\s*\d/);

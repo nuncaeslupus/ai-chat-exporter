@@ -85,7 +85,10 @@ const CONVERSATION = {
   id: 'conv-1',
   title: 'Test conversation',
   platform: 'claude',
-  pairs: [createTestQAPair(0, 'First question', 'First answer'), createTestQAPair(1, 'Second', 'Answer')],
+  pairs: [
+    createTestQAPair(0, 'First question', 'First answer'),
+    createTestQAPair(1, 'Second', 'Answer'),
+  ],
   url: 'https://claude.ai/chat/abc',
 };
 
@@ -143,7 +146,7 @@ describe('popup secondary states — the state switch', () => {
     for (const state of ['detecting', 'unsupported', 'reload']) {
       expect(POPUP_CSS).toContain(`[data-ui-state='${state}'] #state-${state}`);
     }
-    expect(POPUP_CSS).toContain(".state-block {\n  display: none;");
+    expect(POPUP_CSS).toContain('.state-block {\n  display: none;');
     expect(POPUP_CSS).toContain("[data-ui-state='warning'] .warning-card");
   });
 });
@@ -343,9 +346,10 @@ describe('popup secondary states — reload needed', () => {
       resolve(__dirname, '../../../../src/extension/popup/popup.html'),
       'utf-8'
     );
-    const block = /<div class="state-block[^"]*" id="state-reload"[\s\S]*?<\/div>\s*<div id="main-content">/.exec(
-      html
-    )?.[0];
+    const block =
+      /<div class="state-block[^"]*" id="state-reload"[\s\S]*?<\/div>\s*<div id="main-content">/.exec(
+        html
+      )?.[0];
     expect(block).toContain('<kbd>Ctrl</kbd>');
     expect(block).toContain('<kbd>R</kbd>');
   });

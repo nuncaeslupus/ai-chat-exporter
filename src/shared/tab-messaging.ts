@@ -58,7 +58,7 @@ async function injectContentScripts(tabId: number): Promise<void> {
  */
 export async function sendTabMessage<T>(
   tabId: number,
-  message: unknown,
+  message: unknown
 ): Promise<TabMessageResult<T>> {
   try {
     return { ok: true, response: (await chrome.tabs.sendMessage(tabId, message)) as T };

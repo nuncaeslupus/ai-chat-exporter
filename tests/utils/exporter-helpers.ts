@@ -23,8 +23,12 @@ export async function blobToText(blob: Blob): Promise<string> {
   // Fallback: use FileReader (works in JSDOM)
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => { resolve(reader.result as string); };
-    reader.onerror = () => { reject(new Error('Failed to read blob')); };
+    reader.onload = () => {
+      resolve(reader.result as string);
+    };
+    reader.onerror = () => {
+      reject(new Error('Failed to read blob'));
+    };
     reader.readAsText(blob);
   });
 }
@@ -32,11 +36,7 @@ export async function blobToText(blob: Blob): Promise<string> {
 /**
  * Create a simple test message
  */
-export function createTestMessage(
-  role: 'user' | 'assistant',
-  content: string,
-  id?: string
-) {
+export function createTestMessage(role: 'user' | 'assistant', content: string, id?: string) {
   return {
     id: id ?? `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     role,
@@ -48,12 +48,7 @@ export function createTestMessage(
 /**
  * Create a test Q&A pair
  */
-export function createTestQAPair(
-  index: number,
-  question: string,
-  answer: string,
-  selected = true
-) {
+export function createTestQAPair(index: number, question: string, answer: string, selected = true) {
   return {
     id: `pair-${index}`,
     index,

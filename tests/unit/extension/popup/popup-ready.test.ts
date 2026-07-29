@@ -64,8 +64,18 @@ function pairAt(index: number, date?: string): QAPair {
   return {
     id: `pair-${String(index)}`,
     index,
-    question: { id: `q-${String(index)}`, role: 'user', content: `Question ${String(index)}`, ...stamp },
-    answer: { id: `a-${String(index)}`, role: 'assistant', content: `Answer ${String(index)}`, ...stamp },
+    question: {
+      id: `q-${String(index)}`,
+      role: 'user',
+      content: `Question ${String(index)}`,
+      ...stamp,
+    },
+    answer: {
+      id: `a-${String(index)}`,
+      role: 'assistant',
+      content: `Answer ${String(index)}`,
+      ...stamp,
+    },
     selected: true,
   };
 }
@@ -107,7 +117,7 @@ describe('popup ready view — conversation meta line', () => {
     mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://gemini.google.com/app/abc' }]);
   });
 
-  it('composes platform, pair count and the conversation\'s own date range', async () => {
+  it("composes platform, pair count and the conversation's own date range", async () => {
     await loadPopup(
       conversationWith([
         pairAt(0, '2026-07-26T10:00:00Z'),

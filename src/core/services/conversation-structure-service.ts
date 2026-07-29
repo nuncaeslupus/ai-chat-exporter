@@ -130,9 +130,7 @@ export class ConversationStructureService {
     const legacyImages: MediaItem[] = Array.isArray(message.metadata?.images)
       ? message.metadata.images.map((image) => ({ ...image, kind: 'image' as const }))
       : [];
-    const media: MediaItem[] = Array.isArray(message.metadata?.media)
-      ? message.metadata.media
-      : [];
+    const media: MediaItem[] = Array.isArray(message.metadata?.media) ? message.metadata.media : [];
 
     for (const item of [...legacyImages, ...media]) {
       if (!item.src) {

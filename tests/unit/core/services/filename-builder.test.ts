@@ -68,10 +68,7 @@ describe('piece rendering', () => {
     [[{ type: 'platform' }, { type: 'title' }, { type: 'date' }], 'ChatGPT_My-Chat_2026-07-29.txt'],
     [[{ type: 'model' }, { type: 'time' }], 'gpt-4_14-30.txt'],
     [[{ type: 'title' }, { type: 'pairCount' }], 'My-Chat_3.txt'],
-    [
-      [{ type: 'literal', text: 'chat' }, { type: 'date' }],
-      'chat_2026-07-29.txt',
-    ],
+    [[{ type: 'literal', text: 'chat' }, { type: 'date' }], 'chat_2026-07-29.txt'],
   ] as [FilenamePiece[], string][])('renders %j as %s', (pieces, expected) => {
     expect(FilenameService.buildFilename(prefs(pieces), VARIABLES, 'txt')).toBe(expected);
   });

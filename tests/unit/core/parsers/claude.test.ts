@@ -100,7 +100,9 @@ describe('ClaudeParser', () => {
     });
 
     it('handles model without "Claude" prefix', () => {
-      const modelEl = document.querySelector('[data-testid="model-selector-dropdown"] div.whitespace-nowrap');
+      const modelEl = document.querySelector(
+        '[data-testid="model-selector-dropdown"] div.whitespace-nowrap'
+      );
       if (modelEl) modelEl.textContent = 'Opus 4';
 
       const model = parser.getModel();
@@ -149,7 +151,7 @@ describe('ClaudeParser', () => {
       const pairs = result.conversation!.pairs;
 
       expect(pairs.length).toBeGreaterThan(0);
-      pairs.forEach(pair => {
+      pairs.forEach((pair) => {
         expect(pair.question.role).toBe('user');
         expect(pair.question.content).toBeTruthy();
       });
@@ -160,7 +162,7 @@ describe('ClaudeParser', () => {
       const pairs = result.conversation!.pairs;
 
       expect(pairs.length).toBeGreaterThan(0);
-      pairs.forEach(pair => {
+      pairs.forEach((pair) => {
         expect(pair.answer.role).toBe('assistant');
         expect(pair.answer.content).toBeTruthy();
       });
@@ -272,7 +274,9 @@ describe('ClaudeParser', () => {
     });
 
     it('handles empty conversation', () => {
-      const container = document.querySelector('div.overflow-y-scroll.overflow-x-hidden.pt-6.flex-1');
+      const container = document.querySelector(
+        'div.overflow-y-scroll.overflow-x-hidden.pt-6.flex-1'
+      );
       if (container) {
         container.innerHTML = '';
       }
@@ -328,7 +332,8 @@ describe('ClaudeParser', () => {
         const clonedUser = userBlock.cloneNode(true) as Element;
         const clonedAssistant = assistantBlock.cloneNode(true) as Element;
         clonedUser.querySelector('p.whitespace-pre-wrap')!.textContent = `Turn${n} question`;
-        clonedAssistant.querySelector('p.font-claude-response-body')!.textContent = `Turn${n} answer`;
+        clonedAssistant.querySelector('p.font-claude-response-body')!.textContent =
+          `Turn${n} answer`;
         container.appendChild(clonedUser);
         container.appendChild(clonedAssistant);
       }
@@ -340,7 +345,9 @@ describe('ClaudeParser', () => {
       // redesign that collapsed its wrapper divs plausibly would -- leave
       // turns 1 and 3 untouched.
       const turn2UserBlock = document.querySelectorAll('div[data-test-render-count="2"]')[1]!;
-      turn2UserBlock.querySelectorAll('div.relative.group\\/thumbnail').forEach((el) => { el.remove(); });
+      turn2UserBlock.querySelectorAll('div.relative.group\\/thumbnail').forEach((el) => {
+        el.remove();
+      });
       turn2UserBlock.querySelector('div[data-testid="user-message"]')!.remove();
 
       const result = new ClaudeParser(document).parse();
@@ -364,7 +371,9 @@ describe('ClaudeParser', () => {
     });
 
     it('returns success:false rather than an empty conversation when selectors match nothing', () => {
-      const container = document.querySelector('div.overflow-y-scroll.overflow-x-hidden.pt-6.flex-1');
+      const container = document.querySelector(
+        'div.overflow-y-scroll.overflow-x-hidden.pt-6.flex-1'
+      );
       container!.innerHTML = '';
 
       const result = parser.parse();

@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 
 /** Chrome's "no content script in this tab" rejection, matched by tab-messaging. */
-const NO_RECEIVER = new Error(
-  'Could not establish connection. Receiving end does not exist.',
-);
+const NO_RECEIVER = new Error('Could not establish connection. Receiving end does not exist.');
 
 /** Let every pending microtask in the send/inject/retry chain settle. */
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
@@ -14,10 +12,7 @@ describe('export keyboard shortcut', () => {
   let insertCSSMock: ReturnType<typeof vi.fn>;
   let setBadgeTextMock: ReturnType<typeof vi.fn>;
   let onCommandHandler: (command: string) => void;
-  let onClickedHandler: (
-    info: { menuItemId: string },
-    tab: { id: number } | undefined,
-  ) => void;
+  let onClickedHandler: (info: { menuItemId: string }, tab: { id: number } | undefined) => void;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -36,9 +31,7 @@ describe('export keyboard shortcut', () => {
         onMessage: { addListener: vi.fn() },
         getManifest: vi.fn(() => ({
           version: '1.0.0',
-          content_scripts: [
-            { js: ['content/content-script.js'], css: ['content/styles.css'] },
-          ],
+          content_scripts: [{ js: ['content/content-script.js'], css: ['content/styles.css'] }],
         })),
       },
       action: {
@@ -142,7 +135,7 @@ describe('export keyboard shortcut', () => {
     // No point retrying a tab nothing can be injected into.
     expect(sendMessageMock).toHaveBeenCalledTimes(1);
     const flagged = setBadgeTextMock.mock.calls.filter(
-      ([details]) => (details as { text: string }).text === '!',
+      ([details]) => (details as { text: string }).text === '!'
     );
     expect(flagged).toHaveLength(1);
   });
@@ -158,8 +151,8 @@ describe('export keyboard shortcut', () => {
     expect(setBadgeTextMock).toHaveBeenCalledWith({ text: '!' });
     expect(
       errorSpy.mock.calls.some((call) =>
-        call.some((arg) => typeof arg === 'string' && arg.includes('Tab was discarded')),
-      ),
+        call.some((arg) => typeof arg === 'string' && arg.includes('Tab was discarded'))
+      )
     ).toBe(true);
 
     errorSpy.mockRestore();

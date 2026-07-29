@@ -90,7 +90,4 @@ export type {
   ClaudeApiConversationResponse,
   ClaudeApiRequest,
 } from './claude-api';
-export {
-  isToolUseContent,
-  isArtifactContent,
-} from './claude-api';
+export { isToolUseContent, isArtifactContent } from './claude-api';

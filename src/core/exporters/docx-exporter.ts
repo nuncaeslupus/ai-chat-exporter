@@ -67,8 +67,7 @@ const DOCX_HEADING_BY_LEVEL: (typeof HeadingLevel)[keyof typeof HeadingLevel][] 
 export class DocxExporter extends BaseExporter {
   readonly format: ExportFormat = 'docx';
   readonly extension = 'docx';
-  readonly mimeType =
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  readonly mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
   /**
    * Export selected Q&A pairs to DOCX
@@ -98,10 +97,7 @@ export class DocxExporter extends BaseExporter {
   /**
    * Create a DOCX document
    */
-  private createDocument(
-    conversation: StructuredConversation,
-    options: ExportOptions
-  ): Document {
+  private createDocument(conversation: StructuredConversation, options: ExportOptions): Document {
     const sections: (Paragraph | Table)[] = [];
 
     // Title
@@ -232,14 +228,8 @@ export class DocxExporter extends BaseExporter {
    * assistant, the user accent for the user — so a docx is identifiable as
    * ChatGPT / Claude / Gemini the way pdf and html already are.
    */
-  private renderRoleHeading(
-    label: string,
-    timestampSuffix: string,
-    labelColor: string
-  ): Paragraph {
-    const children: TextRun[] = [
-      new TextRun({ text: label, color: hexToDocxColor(labelColor) }),
-    ];
+  private renderRoleHeading(label: string, timestampSuffix: string, labelColor: string): Paragraph {
+    const children: TextRun[] = [new TextRun({ text: label, color: hexToDocxColor(labelColor) })];
     if (timestampSuffix) {
       children.push(
         new TextRun({
