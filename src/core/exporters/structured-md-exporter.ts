@@ -116,10 +116,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
       // Assistant answer
       pushDaySeparator(pair.answer.timestamp);
       lines.push(
-        roleLabel(
-          this.getRoleName('assistant', conversation.platform),
-          pair.answer.timestamp
-        )
+        roleLabel(this.getRoleName('assistant', conversation.platform), pair.answer.timestamp)
       );
       lines.push('');
       lines.push(...this.renderBlocks(pair.answer.blocks));

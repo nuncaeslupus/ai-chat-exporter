@@ -173,11 +173,12 @@ describe('R-4: the question quote is a closed block', () => {
       question: { id: 'q', role: 'user', content: 'asked', timestamp: undefined },
       answer: { id: 'a', role: 'assistant', content: 'answered', timestamp: undefined },
     } as unknown as QAPair;
-    const result = await new StructuredMarkdownExporter().export(
-      buildConversation(pair),
-      [pair],
-      { format: 'md', filename: 't', includeMetadata: false, includeTimestamps: false }
-    );
+    const result = await new StructuredMarkdownExporter().export(buildConversation(pair), [pair], {
+      format: 'md',
+      filename: 't',
+      includeMetadata: false,
+      includeTimestamps: false,
+    });
     const text = await blobToText(result.blob!);
 
     // A quote ending on '>' would let Markdown's lazy continuation swallow the
