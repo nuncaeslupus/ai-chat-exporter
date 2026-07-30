@@ -24,7 +24,11 @@
     "package:chrome": "cd dist/chrome && zip -r ../ai-chat-exporter-chrome.zip .",
     "package:firefox": "cd dist/firefox && zip -r ../ai-chat-exporter-firefox.zip .",
     "package:source": "zip -r dist/ai-chat-exporter-source.zip . -x 'node_modules/*' -x 'dist/*' -x '.git/*' -x '*.log' -x '.vscode/*' -x '.idea/*' -x '*.zip' -x 'tmp/*' -x 'coverage/*' -x '.nyc_output/*' -x '.claude/*' -x '.agents/*' -x 'claude-arsenal/*'",
-    "package:all": "node build/package-all.cjs"
+    "package:all": "node build/package-all.cjs",
+    "generate:pdf-fonts": "node scripts/generate-pdf-fonts.mjs",
+    "prebuild": "pnpm generate:pdf-fonts",
+    "pretest": "pnpm generate:pdf-fonts",
+    "pretypecheck": "pnpm generate:pdf-fonts"
   },
   "keywords": [
     "browser-extension",
@@ -42,6 +46,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/source-sans-3": "^5.3.0",
     "@types/chrome": "^0.2.2",
     "@types/jsdom": "^27.0.0",
     "@types/node": "^22.15.21",
@@ -54,7 +60,8 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.65.0",
     "vite": "^6.3.5",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "wawoff2": "^2.0.1"
   },
   "dependencies": {
     "docx": "^9.7.1",

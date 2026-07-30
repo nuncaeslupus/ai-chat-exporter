@@ -180,6 +180,12 @@ describe('an artifact with content renders exactly once per export format', () =
         splitTextToSize(text: string) {
           return [text];
         }
+        addFileToVFS(...args: unknown[]) {
+          this.record('addFileToVFS', args);
+        }
+        addFont(...args: unknown[]) {
+          this.record('addFont', args);
+        }
         getTextWidth(text: string) {
           return text.length * 2;
         }
