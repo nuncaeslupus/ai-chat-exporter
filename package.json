@@ -58,7 +58,7 @@
     "prettier": "^3.5.3",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.65.0",
-    "vite": "^6.3.5",
+    "vite": "^8.1.5",
     "vitest": "^4.1.10",
     "wawoff2": "^2.0.1"
   },
