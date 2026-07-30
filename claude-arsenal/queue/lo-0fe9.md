@@ -58,3 +58,37 @@ temporarily adding an unimported file under `src/`, then removing it.
 
 ## Location
 `vitest.config.ts`, plus a possible new check under `tests/`.
+
+---
+
+## OWNER DECISION 2026-07-30 — take BOTH option 1 and option 2
+
+Do the import check **and** recalibrate the thresholds. Option 3 (comments only)
+is explicitly rejected.
+
+**Measured blast radius for option 1 (2026-07-30, `main` @ `c357de3`):** of 56
+`.ts` files under `src/` (excluding `*.generated.ts` and `*.d.ts`), only **2** are
+never named in any test file — `src/core/exporters/artifact-content.ts` and
+`src/core/exporters/base-exporter.ts`. Both are genuinely exercised
+**transitively**: `base-exporter.ts` through its subclasses, and
+`artifact-content.ts` through the exporters that import `isProseArtifact`.
+
+So make the check **transitive-import reachability**, not "named directly in a
+test file" — a direct-name check produces exactly those 2 false positives. Walk
+the import graph from the test files and assert every `src/**/*.ts` is reachable.
+Expect **zero** violations today; if you find more than the 2 above, investigate
+rather than adding exclusions.
+
+Prove the check is not vacuous: temporarily add an unimported file under `src/`,
+confirm the check FAILS, then remove it. Say in the PR that you did this — an
+unproven guard is the same defect class this task exists to fix.
+
+**For option 2**, measure the real v4 numbers first (`pnpm test:coverage`) and set
+each of the four floors just under the measured value, so the floor is meaningful
+without being brittle. Current floors are 40/58/73/40, which were calibrated
+against vitest 3's larger denominator (47 files) and are now far below what v4
+actually reports (~84.7% statements over 28 files). State the before/after floor
+values and the measured values in the PR.
+
+Also fix the stale `// measured on main` comments in `vitest.config.ts` — they
+describe a denominator that no longer exists.
