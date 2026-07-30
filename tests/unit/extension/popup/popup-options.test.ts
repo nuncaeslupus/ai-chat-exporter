@@ -238,13 +238,14 @@ describe('options submenu — the filename row', () => {
 });
 
 describe('options submenu — the footer', () => {
-  it('carries the version, the two links and Done', async () => {
+  // P-4: version + Privacy + GitHub moved to the gear view (popup-settings.test.ts)
+  // to free this footer -- it now carries only Done.
+  it('carries only Done', async () => {
     await loadPopup();
 
     const footer = document.querySelector('#view-options .submenu-footer');
-    expect(footer?.querySelector('#options-footer-version')?.textContent).toBe('v1.1.1');
-    const links = Array.from(footer?.querySelectorAll('a') ?? []).map((a) => a.textContent?.trim());
-    expect(links).toEqual(['Privacy', 'GitHub']);
+    expect(footer?.querySelector('#options-footer-version')).toBeNull();
+    expect(footer?.querySelectorAll('a')).toHaveLength(0);
     expect(footer?.querySelector('[data-nav="main"]')?.textContent?.trim()).toBe('Done');
   });
 });

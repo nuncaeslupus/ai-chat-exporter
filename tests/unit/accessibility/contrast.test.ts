@@ -228,6 +228,13 @@ function makePopupPairs(popupColor: Resolve): Pair[] {
       bg: popupColor('.popup-header {', 'background'),
       threshold: 4.5,
     },
+    // P-4: the gear icon button, beside the status pill.
+    {
+      label: 'header gear icon',
+      fg: popupColor('.header-gear {', 'color'),
+      bg: popupColor('.popup-header {', 'background'),
+      threshold: 4.5,
+    },
     {
       label: 'conversation-title',
       fg: popupColor('.conversation-title {', 'color'),

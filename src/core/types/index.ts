@@ -74,6 +74,7 @@ export type {
   FilenamePieceType,
   FilenamePreferences,
   PrintOptions,
+  ThemePreference,
 } from './config';
 export {
   DEFAULT_FILENAME_TEMPLATE,

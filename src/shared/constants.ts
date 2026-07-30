@@ -3,6 +3,7 @@
  */
 
 import type { UserPreferences } from './messages';
+import type { ThemePreference } from '../core/types/config';
 
 export const EXTENSION_NAME = 'AI Chat Exporter';
 
@@ -13,6 +14,7 @@ export const STORAGE_KEYS = {
   USER_PREFERENCES: 'user_preferences',
   LAST_EXPORT_FORMAT: 'last_export_format',
   SELECTION_STATE: 'selection_state',
+  THEME_PREFERENCE: 'theme_preference',
 } as const;
 
 /**
@@ -38,6 +40,14 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   defaultFormat: 'pdf' as const,
   autoSelectAll: true,
 };
+
+/**
+ * Default popup theme preference. Stored separately from `UserPreferences`
+ * (see `StorageService.getThemePreference`) -- it is popup-only app
+ * configuration, not an export option, so it must not trip the Options row's
+ * changed-from-default dot, which is derived from `DEFAULT_PREFERENCES` alone.
+ */
+export const DEFAULT_THEME: ThemePreference = 'auto';
 
 /**
  * Supported platforms
