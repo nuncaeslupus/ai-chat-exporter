@@ -507,13 +507,18 @@ export class HtmlExporter extends BaseExporter {
             box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
         }
 
+        /*
+         * The fill marks who is ASKING (R-6). It used to sit on the assistant,
+         * so the background tracked who was *answering* — the reverse of what a
+         * reader needs when skimming for their own questions.
+         */
         .user-message {
-            background: white;
+            background: ${COLOR.surfaceTurn};
             border-left: 4px solid ${COLOR.link};
         }
 
         .assistant-message {
-            background: ${COLOR.surfaceMuted};
+            background: transparent;
             border-left: 4px solid ${COLOR.brand.default};
         }
 
@@ -534,12 +539,19 @@ export class HtmlExporter extends BaseExporter {
         }
 
         .message-role {
-            display: inline;
+            display: inline-block;
             margin: 0;
             font-weight: 600;
             font-size: ${ptToPx(this.htmlSizes.roleLabel)}px;
             text-transform: uppercase;
             letter-spacing: 0.05em;
+            /*
+             * The brand rule (R-6) — the one place the platform's colour appears
+             * in the body. currentColor picks up whichever brandTextOnLight the
+             * role rules below set, so the rule can never drift from its label.
+             */
+            border-bottom: 2px solid currentColor;
+            padding-bottom: 1px;
         }
 
         .user-message .message-role {
@@ -691,27 +703,27 @@ export class HtmlExporter extends BaseExporter {
             text-decoration: underline;
         }
 
+        /*
+         * Horizontal rules only (R-6). A full grid and an alternating row fill
+         * both competed with the turn fill; a table reads fine with one rule per
+         * row and nothing else.
+         */
         .message-content table {
             border-collapse: collapse;
             width: 100%;
             margin: 1rem 0;
-            border: 1px solid ${COLOR.border};
         }
 
         .message-content th,
         .message-content td {
-            border: 1px solid ${COLOR.border};
+            border-bottom: 1px solid ${COLOR.border};
             padding: 0.5rem 0.75rem;
             text-align: left;
         }
 
         .message-content th {
-            background: ${COLOR.surfaceSubtle};
+            border-bottom: 1.5px solid ${COLOR.textMuted};
             font-weight: 600;
-        }
-
-        .message-content tr:nth-child(even) {
-            background: ${COLOR.surfaceSubtle};
         }
 
         .message-content strong {
@@ -929,13 +941,18 @@ export class HtmlExporter extends BaseExporter {
                 color: #58a6ff;
             }
 
+            /*
+             * Same inversion as light mode (R-6): the fill marks who is asking.
+             * Dark mode previously tinted BOTH messages, which meant it carried
+             * no who-is-asking signal at all.
+             */
             .user-message {
-                background: #161b22;
+                background: #1c2128;
                 border-left-color: #58a6ff;
             }
 
             .assistant-message {
-                background: #1c2128;
+                background: transparent;
                 border-left-color: #8b949e;
             }
 
@@ -989,21 +1006,19 @@ export class HtmlExporter extends BaseExporter {
                 color: #58a6ff;
             }
 
-            .message-content table {
-                border-color: #30363d;
-            }
-
+            /*
+             * Dark mode keeps step with R-6's light table: horizontal rules
+             * only, no th fill and no alternating row fill. Overriding just the
+             * colours here would have left the dark table with a grid and
+             * stripes the light one no longer has.
+             */
             .message-content th,
             .message-content td {
-                border-color: #30363d;
+                border-bottom-color: #30363d;
             }
 
             .message-content th {
-                background: #1c2128;
-            }
-
-            .message-content tr:nth-child(even) {
-                background: #161b22;
+                border-bottom-color: #8b949e;
             }
 
             .artifacts-section {

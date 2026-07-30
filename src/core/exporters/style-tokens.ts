@@ -294,11 +294,21 @@ export const DOCX_FONT_SIZE_PT = {
 } as const;
 
 export const HTML_FONT_SIZE_PT = {
-  title: 24,
-  /** Document heading levels 1-6, index 0 = level 1 — maps 1:1 onto `.message-content hN`. */
-  headingByLevel: [22.5, 18, 15, 13.5, 12, 10.5],
+  /** The shared 20pt document title (R-6), down from a screen-sized 24. */
+  title: 20,
+  /**
+   * Document heading levels 1-6, index 0 = level 1 — maps 1:1 onto
+   * `.message-content hN`. Same ramp as `PDF_HEADING_SCALE_PT`: the design asks
+   * every format to share one scale, and a body H1 is 13pt in both now.
+   */
+  headingByLevel: [20, 13, 12, 11.5, 11, 10.5],
+  /**
+   * The role label stays 10.5 here while pdf uses 8.5. Deliberate: this is a
+   * screen document read at arm's length, not a printed page, and 8.5pt
+   * small-caps is uncomfortably small on a monitor.
+   */
   roleLabel: 10.5,
-  timestamp: 9.75,
+  timestamp: 9,
 } as const;
 
 // ---------------------------------------------------------------------------

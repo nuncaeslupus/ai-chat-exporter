@@ -11,7 +11,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { JSDOM } from 'jsdom';
-import type { Conversation } from '../../../../src/core/types';
+import type { Conversation, ExportOptions, QAPair } from '../../../../src/core/types';
 import { HtmlExporter } from '../../../../src/core/exporters/html-exporter';
 import { blobToText } from '../../../utils/exporter-helpers';
 
@@ -374,5 +374,103 @@ describe('exported HTML makes no third-party requests', () => {
     const html = await exportWithSearch();
     expect(html).toContain('Example result');
     expect(html).toContain('https://example.com/article');
+  });
+});
+
+describe('R-6: HTML adopts the redesign', () => {
+  const pair = {
+    id: 'p0',
+    index: 0,
+    selected: true,
+    question: {
+      id: 'q0',
+      role: 'user',
+      content: 'asked',
+      timestamp: new Date('2025-01-01T12:04:00Z'),
+    },
+    answer: {
+      id: 'a0',
+      role: 'assistant',
+      content: 'answered',
+      htmlContent:
+        '<p>answered</p><table><thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table>',
+      timestamp: new Date('2025-01-01T12:05:00Z'),
+    },
+  } as unknown as QAPair;
+
+  const conversation = {
+    id: 'c1',
+    title: 'Systematic research',
+    platform: 'chatgpt',
+    model: 'gpt-4o',
+    url: 'https://chatgpt.com/c/test',
+    createdAt: new Date('2025-01-01T15:12:00Z'),
+    pairs: [pair],
+  } as unknown as Conversation;
+
+  async function render(): Promise<string> {
+    const result = await new HtmlExporter().export(conversation, [pair], {
+      format: 'html',
+      filename: 'test',
+      includeMetadata: true,
+      includeTimestamps: true,
+    } as unknown as ExportOptions);
+    return blobToText(result.blob!);
+  }
+
+  /** The base stylesheet, before any @media override. */
+  function baseCss(html: string): string {
+    return html.split('@media')[0]!;
+  }
+
+  it('puts the turn fill on the question, not the answer', async () => {
+    const css = baseCss(await render());
+    const user = /\.user-message \{([^}]*)\}/.exec(css)![1]!;
+    const assistant = /\.assistant-message \{([^}]*)\}/.exec(css)![1]!;
+
+    // The background marks who is ASKING now, which is the reverse of before.
+    expect(user).toMatch(/background:\s*#F6F7F6/i);
+    expect(assistant).toMatch(/background:\s*(transparent|none)/i);
+  });
+
+  it('rules the role label with the platform brand colour', async () => {
+    const css = baseCss(await render());
+    expect(css).toMatch(/\.message-role\b[^}]*border-bottom/);
+  });
+
+  it('gives tables horizontal rules only', async () => {
+    const css = baseCss(await render());
+    const cells = /\.message-content th,\s*\.message-content td \{([^}]*)\}/.exec(css)![1]!;
+
+    // No full grid: only a bottom rule per row.
+    expect(cells).not.toMatch(/border:\s*1px/);
+    expect(cells).toMatch(/border-bottom:/);
+  });
+
+  it('drops the alternating row fill everywhere, not just in light mode', async () => {
+    // The whole document, not just baseCss: the dark-mode block had its own copy
+    // of the striping, so checking only the base stylesheet passed while dark
+    // mode still striped its tables.
+    const html = await render();
+    expect(html).not.toMatch(/tr:nth-child\(even\)/);
+  });
+
+  it('inverts the dark-mode fill the same way, so both modes agree', async () => {
+    const html = await render();
+    const dark = html.slice(html.indexOf('prefers-color-scheme: dark'));
+    const assistant = /\.assistant-message \{([^}]*)\}/.exec(dark)![1]!;
+    expect(assistant).toMatch(/background:\s*transparent/i);
+  });
+
+  it('scales the document title to the shared 20pt', async () => {
+    const html = await render();
+    // 20pt = 26.67px at 96dpi.
+    expect(baseCss(html)).toMatch(/\.title \{[^}]*font-size:\s*26\.67px/);
+  });
+
+  it('keeps the role label out of the heading outline', async () => {
+    const html = await render();
+    expect(html).toContain('<p class="message-role">');
+    expect(html).not.toMatch(/<h[1-6] class="message-role">/);
   });
 });
