@@ -2,7 +2,7 @@
  * Popup styles for AI Chat Exporter extension
  *
  * Layout contract (docs/design/popup-redesign.md, direction 5a + R11 scale-up):
- * fixed 56px header + fixed 320px body, 420px wide. Every state paints inside
+ * fixed 56px header + fixed 320px body, 428px wide. Every state paints inside
  * that box, so the popup never changes height. Growing content scrolls in a
  * `flex:1; overflow-y:auto; min-height:0` child.
  */
@@ -92,9 +92,16 @@
   --color-disabled-border: #e6ece9;
 
   /* Geometry — the whole point of the redesign: these do not change. */
-  --popup-width: 420px;
+  --popup-width: 428px;
   --header-height: 56px;
   --body-height: 320px;
+
+  /* Horizontal inset shared by every full-width band (header, setting rows,
+     submenu bands). Raised from 18px per author feedback 2026-07-30 ("more
+     internal left and right padding"); --popup-width grew by the same 8px so
+     the content column keeps its width instead of shrinking. One token, so
+     the next inset change is this line and nothing else. */
+  --pad-x: 22px;
 
   /* Radii */
   --radius-key: 5px;
@@ -267,7 +274,7 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px 18px;
+  padding: 14px var(--pad-x);
   background: var(--color-header);
 }
 
@@ -328,7 +335,7 @@ body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 16px 18px 0;
+  padding: 16px var(--pad-x) 0;
 }
 
 /* Status pill in the header */
@@ -455,7 +462,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 14px 18px 0;
+  padding: 14px var(--pad-x) 0;
 }
 
 /* Nothing to configure on the screens that have no conversation. */
@@ -518,6 +525,11 @@ body {
 
 .setting-row-chevron {
   flex-shrink: 0;
+  /* Author feedback 2026-07-30: the arrow read as pinned to the popup's right
+     edge (`.setting-row`'s own `0 2px` padding left only 2px between chevron
+     and the row's hover-tint edge). This margin adds the rest of the visible
+     gap; `.option-row-chevron` below matches it to the same total inset. */
+  margin-right: 8px;
   color: var(--color-text-muted);
 }
 
@@ -792,7 +804,7 @@ section {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 13px 18px 9px;
+  padding: 13px var(--pad-x) 9px;
 }
 
 .submenu-back {
@@ -844,7 +856,7 @@ section {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 0 12px 0 18px;
+  padding: 0 12px 0 var(--pad-x);
   list-style: none;
 }
 
@@ -970,7 +982,7 @@ section {
   display: flex;
   align-items: center;
   gap: 11px;
-  padding: 10px 18px 13px;
+  padding: 10px var(--pad-x) 13px;
   background: var(--color-surface-bar);
 }
 
@@ -1014,7 +1026,7 @@ section {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  padding: 0 18px;
+  padding: 0 var(--pad-x);
 }
 
 .option-row {
@@ -1058,7 +1070,7 @@ section {
 .option-row--choice {
   display: block;
   /* A fieldset sizes to its content by default; without this a long
-     translation of the three steps pushes past the fixed 420px popup. */
+     translation of the three steps pushes past the fixed 428px popup. */
   min-width: 0;
   margin: 0;
   padding: 11px 0;
@@ -1127,6 +1139,10 @@ section {
 .option-row-chevron {
   flex: none;
   margin-top: 3px;
+  /* Matches `.setting-row-chevron`'s total 10px inset (its 2px row padding +
+     8px margin): `.option-row` has no horizontal padding of its own, so this
+     row supplies the full 10px itself — same author feedback, same value. */
+  margin-right: 10px;
   color: var(--color-text-muted);
 }
 
@@ -1201,7 +1217,7 @@ section {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 0 18px;
+  padding: 0 var(--pad-x);
 }
 
 /* The composed name. Wraps rather than scrolls: the box must not grow. */
@@ -1336,25 +1352,58 @@ section {
   text-overflow: ellipsis;
 }
 
-/* Scrollbar */
+/*
+ * Scrollbar — every scrolling area in the popup gets the same slim,
+ * self-coloured bar (author feedback 2026-07-30: the format menu's OS
+ * default was "a wide grey gutter" that broke its rounded, floating look).
+ * `scrollbar-width`/`scrollbar-color` cover Firefox and Chrome 121+; the
+ * `::-webkit-scrollbar*` rules below are the fallback for older Chrome.
+ * Colours are the existing border tokens, so dark mode is free.
+ */
+.view-scroll,
+.format-menu-list,
+.qa-selection-list,
+.options-list,
+.filename-body,
+.drift-report-body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
 .view-scroll::-webkit-scrollbar,
-.qa-selection-list::-webkit-scrollbar {
+.format-menu-list::-webkit-scrollbar,
+.qa-selection-list::-webkit-scrollbar,
+.options-list::-webkit-scrollbar,
+.filename-body::-webkit-scrollbar,
+.drift-report-body::-webkit-scrollbar {
   width: 6px;
 }
 
 .view-scroll::-webkit-scrollbar-track,
-.qa-selection-list::-webkit-scrollbar-track {
+.format-menu-list::-webkit-scrollbar-track,
+.qa-selection-list::-webkit-scrollbar-track,
+.options-list::-webkit-scrollbar-track,
+.filename-body::-webkit-scrollbar-track,
+.drift-report-body::-webkit-scrollbar-track {
   background: transparent;
 }
 
 .view-scroll::-webkit-scrollbar-thumb,
-.qa-selection-list::-webkit-scrollbar-thumb {
+.format-menu-list::-webkit-scrollbar-thumb,
+.qa-selection-list::-webkit-scrollbar-thumb,
+.options-list::-webkit-scrollbar-thumb,
+.filename-body::-webkit-scrollbar-thumb,
+.drift-report-body::-webkit-scrollbar-thumb {
   background: var(--color-border);
   border-radius: 3px;
 }
 
 .view-scroll::-webkit-scrollbar-thumb:hover,
-.qa-selection-list::-webkit-scrollbar-thumb:hover {
+.format-menu-list::-webkit-scrollbar-thumb:hover,
+.qa-selection-list::-webkit-scrollbar-thumb:hover,
+.options-list::-webkit-scrollbar-thumb:hover,
+.filename-body::-webkit-scrollbar-thumb:hover,
+.drift-report-body::-webkit-scrollbar-thumb:hover {
   background: var(--color-border-strong);
 }
 
