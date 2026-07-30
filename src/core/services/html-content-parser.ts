@@ -360,6 +360,41 @@ export class HtmlContentParser {
   /**
    * Parse inline content with formatting
    */
+  /**
+   * An element's text as inline PROSE: whitespace collapsed to single spaces.
+   *
+   * D-23. Chat platforms pretty-print their markup, so an inline widget — a
+   * web-search citation pill, a tooltip wrapper — carries the page's newlines
+   * and indentation in its `textContent`. Flattened raw, one sentence became ten
+   * lines in md and txt, and the blank lines split the Markdown paragraph into
+   * several. Text NODES were already normalised here; element flattening was not,
+   * which is why it only showed up around widgets.
+   *
+   * Deliberately not used for inline `<code>` or for a math marker: there the
+   * whitespace is content, not source formatting.
+   */
+  private static inlineText(el: Element): string {
+    return (el.textContent || '').replace(/\s+/g, ' ');
+  }
+
+  /**
+   * Append a text run, merging it into the previous one when that is also plain
+   * text.
+   *
+   * Each flattened widget contributes both a leading and a trailing space, so
+   * without merging the pieces join as `research  MDN Web Docs  web.dev .` —
+   * doubled spaces and a gap before the full stop. Merging lets the collapse run
+   * across the seam between two runs, which is where the doubling lives.
+   */
+  private static pushText(result: InlineContent[], text: string): void {
+    const previous = result[result.length - 1];
+    if (previous?.type === 'text') {
+      previous.text = `${previous.text}${text}`.replace(/\s+/g, ' ');
+      return;
+    }
+    result.push({ type: 'text', text });
+  }
+
   private static parseInlineContent(
     element: Element,
     excludeElements: Element[] = []
@@ -380,7 +415,7 @@ export class HtmlContentParser {
           // Normalize whitespace: collapse sequences of whitespace into single spaces
           // This preserves spacing while removing unwanted newlines from HTML formatting
           const normalizedText = originalText.replace(/\s+/g, ' ');
-          result.push({ type: 'text', text: normalizedText });
+          this.pushText(result, normalizedText);
         }
         continue;
       }
@@ -411,7 +446,7 @@ export class HtmlContentParser {
           if (children.length > 0) {
             result.push({
               type: 'bold',
-              text: el.textContent || '',
+              text: this.inlineText(el),
               children,
             });
           }
@@ -423,7 +458,7 @@ export class HtmlContentParser {
           if (children.length > 0) {
             result.push({
               type: 'italic',
-              text: el.textContent || '',
+              text: this.inlineText(el),
               children,
             });
           }
@@ -443,7 +478,7 @@ export class HtmlContentParser {
           const href = (el as HTMLAnchorElement).href;
           result.push({
             type: 'link',
-            text: el.textContent || '',
+            text: this.inlineText(el),
             url: href,
           });
           break;
@@ -452,7 +487,7 @@ export class HtmlContentParser {
         case 's': {
           result.push({
             type: 'strikethrough',
-            text: el.textContent || '',
+            text: this.inlineText(el),
           });
           break;
         }
@@ -465,10 +500,11 @@ export class HtmlContentParser {
             result.push(...this.parseInlineContent(el));
             break;
           }
-          // For other elements, just extract text
-          const text = el.textContent || '';
-          if (text) {
-            result.push({ type: 'text', text });
+          // Any other element is flattened as prose — this is the citation-pill
+          // path, and the one that made D-23 visible.
+          const text = this.inlineText(el);
+          if (text.trim()) {
+            this.pushText(result, text);
           }
         }
       }

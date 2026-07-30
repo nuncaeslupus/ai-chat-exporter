@@ -395,3 +395,51 @@ describe('HtmlContentParser', () => {
     });
   });
 });
+
+describe('D-23: prose keeps its shape around inline widgets', () => {
+  /** The flattened text of a paragraph block, as an exporter would render it. */
+  function paragraphText(html: string): string {
+    const blocks = HtmlContentParser.parse(html) as ParagraphBlock[];
+    return blocks
+      .filter((b) => b.type === 'paragraph')
+      .map((b) => b.content.map((c) => c.text).join(''))
+      .join('\n');
+  }
+
+  it('collapses the source indentation around a citation pill', () => {
+    // ChatGPT wraps each citation in a pretty-printed span, so the raw
+    // textContent carries the page's newlines and indentation. Unfixed, one
+    // sentence became ten lines in md and txt, and the blank lines split the
+    // Markdown paragraph into several.
+    const html = [
+      '<p>Backed by research',
+      '            <span class="citation">',
+      '              MDN Web Docs',
+      '            </span>',
+      '          and',
+      '            <span class="citation">',
+      '              web.dev',
+      '            </span>.',
+      '</p>',
+    ].join('\n');
+
+    const text = paragraphText(html);
+    expect(text).not.toContain('\n');
+    // No doubled spaces either: each flattened widget contributes a leading and
+    // a trailing space, so the collapse has to run across the seam between runs.
+    expect(text).not.toMatch(/ {2}/);
+    expect(text.trim()).toBe('Backed by research MDN Web Docs and web.dev .');
+  });
+
+  it('normalises a link label spanning several source lines', () => {
+    const html = '<p>See <a href="https://example.com">\n   the\n   source\n</a> for more.</p>';
+    expect(paragraphText(html)).not.toContain('\n');
+  });
+
+  it('leaves inline code untouched, where whitespace is content', () => {
+    // A snippet's spacing is meaningful; only prose gets collapsed.
+    const blocks = HtmlContentParser.parse('<p><code>a  +  b</code></p>') as ParagraphBlock[];
+    const code = blocks[0]!.content.find((c) => c.type === 'code');
+    expect(code?.text).toBe('a  +  b');
+  });
+});
