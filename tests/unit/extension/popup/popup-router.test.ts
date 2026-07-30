@@ -2,12 +2,13 @@
  * Popup shell — view router and fixed body box (lo-c39f).
  *
  * The redesign's whole premise is that the popup is one fixed box — 48+260 as
- * drawn, 56+320 since R11 scaled it up: the view swaps inside it and the box
- * never changes. These tests assert the state machine (which container is
- * visible, which UI state is recorded), not rendered pixel values — jsdom has
- * no layout engine, so heights are guarded by the class staying put rather
- * than by measurement. The declared numbers are guarded at the bottom of this
- * file, straight off popup.css.
+ * drawn, 56+320 since R11 scaled it up, 56+340 since the P-5 spacing pass: the
+ * view swaps inside it and the box never changes size between states. These
+ * tests assert the state machine (which container is visible, which UI state
+ * is recorded), not rendered pixel values — jsdom has no layout engine, so
+ * heights are guarded by the class staying put rather than by measurement.
+ * The declared numbers are guarded at the bottom of this file, straight off
+ * popup.css.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -279,9 +280,9 @@ const ROOT_BLOCK = /:root\s*\{([\s\S]*?)\n\}/.exec(POPUP_CSS)?.[1] ?? '';
 
 describe('popup geometry and type tokens', () => {
   it.each([
-    ['--popup-width', '428px'],
+    ['--popup-width', '436px'],
     ['--header-height', '56px'],
-    ['--body-height', '320px'],
+    ['--body-height', '340px'],
   ])('declares %s as %s', (token, value) => {
     expect(ROOT_BLOCK).toContain(`${token}: ${value};`);
   });

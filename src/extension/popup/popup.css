@@ -1,9 +1,10 @@
 /**
  * Popup styles for AI Chat Exporter extension
  *
- * Layout contract (docs/design/popup-redesign.md, direction 5a + R11 scale-up):
- * fixed 56px header + fixed 320px body, 428px wide. Every state paints inside
- * that box, so the popup never changes height. Growing content scrolls in a
+ * Layout contract (docs/design/popup-redesign.md, direction 5a + R11 scale-up
+ * + P-5 spacing pass): fixed 56px header + fixed 340px body, 436px wide.
+ * Every state paints inside that box, so the popup never changes size
+ * between views. Growing content scrolls in a
  * `flex:1; overflow-y:auto; min-height:0` child.
  */
 
@@ -91,17 +92,44 @@
   --color-disabled-icon: #bac4c0;
   --color-disabled-border: #e6ece9;
 
-  /* Geometry — the whole point of the redesign: these do not change. */
-  --popup-width: 428px;
+  /*
+   * Geometry — fixed regardless of view, so the popup never resizes between
+   * states. `--body-height` is the one dimension the P-5 spacing pass was
+   * explicitly allowed to grow ("maybe we need to do it taller"): raised from
+   * 320 to 340 to give the action bar's privacy line real breathing room and
+   * the submenus a bigger scroll band, without shrinking anything that used
+   * to fit.
+   */
+  --popup-width: 436px;
   --header-height: 56px;
-  --body-height: 320px;
+  --body-height: 340px;
 
   /* Horizontal inset shared by every full-width band (header, setting rows,
-     submenu bands). Raised from 18px per author feedback 2026-07-30 ("more
-     internal left and right padding"); --popup-width grew by the same 8px so
-     the content column keeps its width instead of shrinking. One token, so
-     the next inset change is this line and nothing else. */
-  --pad-x: 22px;
+     submenu bands). Raised from 18 to 22px in #183 ("more internal left and
+     right padding"), then to 26px in the P-5 pass ("a little more"); each
+     time --popup-width grew by 2x the increase so the content column keeps
+     its width instead of shrinking. One token, so the next inset change is
+     this line and nothing else. */
+  --pad-x: 26px;
+
+  /* How far a navigable row's chevron sits from that row's own edge (which
+     already sits `--pad-x` in from the popup edge). #183 set this to a
+     uniform 10px; the P-5 pass raises it further, still uniform across every
+     navigable row — Contenido, Opciones and Nombre del archivo all read from
+     this one token so they can never drift apart again. */
+  --chevron-inset: 14px;
+
+  /*
+   * Vertical spacing scale (P-5: "put some order in the popup spacing...
+   * redistribute spaces better"). Mirrors `--pad-x`'s role on the horizontal
+   * axis: `--space-tight` is the gap *within* one setting (a label glued to
+   * the control it governs); `--space-loose` is the gap *between* settings,
+   * so two adjacent groups read as visually distinct instead of one uniform
+   * wall of rows. Component rules read from here instead of a scattered
+   * literal, so the next spacing adjustment is this block and nothing else.
+   */
+  --space-tight: 8px;
+  --space-loose: 16px;
 
   /* Radii */
   --radius-key: 5px;
@@ -402,7 +430,7 @@ body {
   background: var(--color-header-pill);
 }
 
-/* Body — fixed 320px. Every view lives inside; the box never resizes. */
+/* Body — fixed 340px. Every view lives inside; the box never resizes. */
 .popup-body {
   position: relative;
   flex: none;
@@ -519,12 +547,13 @@ body {
    * The mock's title is one line; real ones are not, so clamp and leave the
    * full title in the tooltip.
    *
-   * R11 re-measured the ceiling on the 320px body. The original reason — "past
-   * two lines the setting rows scroll out of reach" — is gone: R2 moved the
-   * rows out of the scroll region, so they are in view at any title length. Two
-   * is still the right number for a different, measured reason: in the 118px
-   * scroll band a 2-line title leaves 26.8px of slack, 3 lines clears by only
-   * 2.4px (one wrapped meta line eats it) and 4 overflows by 22px.
+   * R11 re-measured the ceiling on the 320px body; the P-5 spacing pass grew
+   * it to 340px, re-measured again below. The original reason — "past two
+   * lines the setting rows scroll out of reach" — is gone: R2 moved the rows
+   * out of the scroll region, so they are in view at any title length. Two
+   * is still the right number for a different, measured reason: in the 124px
+   * scroll band a 2-line title leaves 32.8px of slack, 3 lines clears by only
+   * 8.4px (one wrapped meta line eats it) and 4 overflows by 16px.
    */
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -619,29 +648,30 @@ body {
 
 .setting-row-chevron {
   flex-shrink: 0;
-  /* Author feedback 2026-07-30: the arrow read as pinned to the popup's right
-     edge (`.setting-row`'s own `0 2px` padding left only 2px between chevron
-     and the row's hover-tint edge). This margin adds the rest of the visible
-     gap; `.option-row-chevron` below matches it to the same total inset. */
-  margin-right: 8px;
+  /* `.setting-row`'s own `0 2px` padding already supplies 2px of the total
+     `--chevron-inset`; this margin makes up the rest, so the two together
+     always equal the token. `.option-row-chevron` below matches the token
+     directly (that row has no padding of its own to share the load). */
+  margin-right: calc(var(--chevron-inset) - 2px);
   color: var(--color-text-muted);
 }
 
 /*
  * Action bar — split export button, print, privacy line.
  *
- * The one part of the box that did NOT grow with R11. The author's call on the
- * 5a bar: "button is big enough". So the 50px split button, its 42px right
- * half, the 50x50 print button and the 14px label all keep their 5a numbers
- * while everything around them scales. Only the privacy line takes a scale
- * token, which is the bar's whole ~2px of growth.
+ * The split button/print button did NOT grow with R11. The author's call on
+ * the 5a bar: "button is big enough". So the 50px split button, its 42px
+ * right half, the 50x50 print button and the 14px label all keep their 5a
+ * numbers. The P-5 pass gives the privacy line real room above and below
+ * instead: the gap above it and the padding below it both read from
+ * `--space-loose`, up from 8px/10px.
  */
 .action-bar {
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px 10px;
+  gap: var(--space-loose);
+  padding: 12px 14px var(--space-loose);
   background: var(--color-surface-bar);
 }
 
@@ -721,19 +751,19 @@ body {
 /*
  * ── Format menu ───────────────────────────────────────────────────────────
  * Floats over the main view, anchored to the split button's chevron. It is
- * positioned against `.popup-body`, so it lives entirely inside the 320px box
+ * positioned against `.popup-body`, so it lives entirely inside the 340px box
  * and the popup never resizes. Visibility is this one attribute.
  *
- * `left`/`right`/`bottom` track the action bar, which R11 left at its 5a size,
- * so they keep their 5a values — only the taller privacy line moved `bottom`
- * by the 2px the bar grew.
+ * `left`/`right` track the action bar's own horizontal padding, which R11 left
+ * at its 5a size, so they keep their 5a values. `bottom` tracks the action
+ * bar's total height, which grows with `--space-loose` in the P-5 pass.
  */
 .format-menu {
   display: none;
   position: absolute;
   left: 14px;
   right: 14px;
-  bottom: 78px;
+  bottom: 120px;
   max-height: 207px;
   flex-direction: column;
   border-radius: var(--radius-lg);
@@ -888,7 +918,7 @@ section {
 
 /*
  * ── Submenus (Content, Options) ───────────────────────────────────────────
- * Three bands in the same 320px box: header and footer are `flex:none`, only
+ * Three bands in the same 340px box: header and footer are `flex:none`, only
  * the middle band scrolls. Nothing here can grow the popup. The header, the
  * footer bar and the Done button are shared by every submenu; what differs
  * is only the band between them.
@@ -1129,7 +1159,10 @@ section {
   display: flex;
   align-items: center;
   gap: 11px;
-  padding: 11px 0;
+  /* Vertical padding is between-setting spacing, not within it — reads from
+     `--space-loose` so adjacent settings look like separate groups instead of
+     one uniform wall of rows. */
+  padding: var(--space-loose) 0;
   border: none;
   background: none;
   font-family: inherit;
@@ -1164,15 +1197,22 @@ section {
 .option-row--choice {
   display: block;
   /* A fieldset sizes to its content by default; without this a long
-     translation of the three steps pushes past the fixed 428px popup. */
+     translation of the three steps pushes past the fixed popup width. */
   min-width: 0;
   margin: 0;
-  padding: 11px 0;
+  padding: var(--space-loose) 0;
 }
 
-/* `legend` ships its own inline padding; the rows above start flush left. */
+/*
+ * Same left edge as the checkbox row's label and the nav row's stack:
+ * checkbox width (17px) + row gap (11px) = 28px in from the list's own
+ * `--pad-x` inset. `legend` ships its own inline padding, which put this
+ * flush left instead — strip it and indent explicitly so the label sets the
+ * alignment, not a UA default.
+ */
 .option-row--choice > .option-row-label {
   padding: 0;
+  margin-left: calc(17px + 11px);
 }
 
 .option-choices {
@@ -1180,7 +1220,10 @@ section {
   /* Seven locales, three labels: the long ones wrap rather than clip. */
   flex-wrap: wrap;
   gap: 8px 14px;
-  margin-top: 8px;
+  /* Tight — reads as the legend's own control, not a second row. Same left
+     edge as the legend above it (checkbox width + row gap; see there). */
+  margin-top: var(--space-tight);
+  margin-left: calc(17px + 11px);
 }
 
 .option-choice {
@@ -1204,7 +1247,7 @@ section {
 /* Navigation row: label over the filename, chevron aligned to the label. */
 .option-row--nav {
   align-items: flex-start;
-  padding: 10px 0;
+  padding: var(--space-loose) 0;
 }
 
 /* Keeps the label on the same left edge as the two checkbox rows above. */
@@ -1233,10 +1276,10 @@ section {
 .option-row-chevron {
   flex: none;
   margin-top: 3px;
-  /* Matches `.setting-row-chevron`'s total 10px inset (its 2px row padding +
-     8px margin): `.option-row` has no horizontal padding of its own, so this
-     row supplies the full 10px itself — same author feedback, same value. */
-  margin-right: 10px;
+  /* `.option-row` has no horizontal padding of its own, so this row supplies
+     the full `--chevron-inset` itself — same token `.setting-row-chevron`
+     reads from, so every navigable row stays in agreement. */
+  margin-right: var(--chevron-inset);
   color: var(--color-text-muted);
 }
 
@@ -1519,7 +1562,7 @@ section {
  * ── Secondary states ──────────────────────────────────────────────────────
  * Exactly one block paints, picked by `data-ui-state` on the body box. No JS
  * display juggling, so two states can never be visible at once — and each one
- * still lives inside the same 320px, so the popup does not resize.
+ * still lives inside the same 340px, so the popup does not resize.
  */
 .state-block {
   display: none;
@@ -1586,11 +1629,12 @@ section {
  * Warning state: the card takes the room the setting rows had. The mock shows
  * no rows here either.
  *
- * R11 re-measured this on the 320px body. Retry no longer falls off the fold
- * outright — with the rows shown it now clears it by 2.6px instead of the 99px
- * it used to miss by — but that margin is one wrapped card title wide, and the
- * band still overflows by 100px, which puts the whole conversation block below
- * the fold. So the rows stay hidden; without them the card fits with 0 overflow.
+ * R11 re-measured this on the 320px body (grown to 340px by the P-5 spacing
+ * pass, which only adds slack here). Retry no longer falls off the fold
+ * outright — with the rows shown it cleared by a card-title's width of margin
+ * at best, and the band still overflowed by a wide margin, which put the whole
+ * conversation block below the fold. So the rows stay hidden; without them the
+ * card fits with room to spare.
  */
 .popup-body[data-ui-state='warning'] .setting-rows {
   display: none;
