@@ -71,6 +71,15 @@ export const DEFAULT_FILENAME_PIECES: FilenamePiece[] = [{ type: 'title' }, { ty
 export const DEFAULT_FILENAME_TEMPLATE = '{platform}_{title}_{datetime}';
 
 /**
+ * Popup-only theme preference. `auto` follows the OS via
+ * `prefers-color-scheme`; `light`/`dark` pin the popup to one palette
+ * regardless of the OS, via a `data-theme` attribute on the document root
+ * (see popup.css). Exported HTML is out of scope -- it keeps its own
+ * `prefers-color-scheme` block and adapts to whoever opens the file.
+ */
+export type ThemePreference = 'light' | 'dark' | 'auto';
+
+/**
  * Print options
  */
 export interface PrintOptions {

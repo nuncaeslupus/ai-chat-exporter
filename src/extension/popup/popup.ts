@@ -24,6 +24,7 @@ import {
   DEFAULT_FILENAME_PIECES,
   type FilenamePiece,
   type FilenamePieceType,
+  type ThemePreference,
 } from '../../core/types/config';
 import { StorageService } from '../../shared/storage';
 import { DEFAULT_PREFERENCES, MESSAGE_TYPES, RETRYABLE_WARNING_KEYS } from '../../shared/constants';
@@ -34,10 +35,10 @@ import { isDriftSuppressed, suppressDrift } from '../../core/drift/suppression';
 import type { DriftReport } from '../../core/drift/types';
 
 /**
- * The popup's five views. Only one is visible at a time and they all render
+ * The popup's views. Only one is visible at a time and they all render
  * inside the same fixed-height body box, so switching never resizes the popup.
  */
-const VIEWS = ['main', 'content', 'options', 'filename', 'report'] as const;
+const VIEWS = ['main', 'content', 'options', 'filename', 'report', 'settings'] as const;
 type PopupView = (typeof VIEWS)[number];
 
 function isPopupView(value: string): value is PopupView {
@@ -386,6 +387,29 @@ class PopupController {
     this.renderFilenameBuilder();
 
     await this.updateOptionsDot();
+
+    // Popup-only theme (the gear view), stored separately from the export
+    // preferences above -- see StorageService.getThemePreference.
+    const theme = await StorageService.getThemePreference();
+    this.applyTheme(theme);
+    for (const input of this.themeInputs()) {
+      input.checked = input.value === theme;
+    }
+  }
+
+  /**
+   * Drive the popup's palette from a `data-theme` attribute on the document
+   * root. `light`/`dark` override `@media (prefers-color-scheme: dark)` in
+   * popup.css in both directions (see that file); `auto` matches neither
+   * override selector, so the OS preference alone decides, unchanged.
+   */
+  private applyTheme(theme: ThemePreference): void {
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+
+  /** The three theme radios. Empty until the Settings view is in the DOM. */
+  private themeInputs(): HTMLInputElement[] {
+    return [...document.querySelectorAll<HTMLInputElement>('input[name="settings-theme"]')];
   }
 
   /** The fixed-height box every view and state renders into. */
@@ -538,6 +562,16 @@ class PopupController {
     for (const step of this.fontScaleInputs()) {
       step.addEventListener('change', () => {
         void this.persistPreference({ fontScale: step.value as FontScale });
+      });
+    }
+
+    // Theme (the gear view): a popup-only preference, stored and applied
+    // straight away -- it must not touch the Options row's changed dot.
+    for (const input of this.themeInputs()) {
+      input.addEventListener('change', () => {
+        const theme = input.value as ThemePreference;
+        this.applyTheme(theme);
+        void StorageService.setThemePreference(theme);
       });
     }
 

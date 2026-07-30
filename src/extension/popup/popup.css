@@ -157,9 +157,16 @@
  *
  * Both palettes are held to WCAG AA by tests/unit/accessibility/contrast.test.ts,
  * which resolves every asserted pair twice, once per table.
+ *
+ * `:not([data-theme='light'])` is the popup-only theme preference (gear view):
+ * it stops this OS-driven block from firing once the user has explicitly
+ * chosen light, even while the OS itself prefers dark. The other direction --
+ * forcing dark while the OS is light -- can't be expressed as a media-query
+ * guard at all (`prefers-color-scheme: dark` simply never matches a light OS),
+ * so `:root[data-theme='dark']` below repeats this exact table, unconditionally.
  */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     /* Accent / actions */
     --color-accent: #3fb394;
     /* The light table steps *down* to a pressed accent; on dark the accent is
@@ -247,6 +254,70 @@
   }
 }
 
+/*
+ * Explicit dark (gear view's theme control set to "dark"): the exact same
+ * values as the media-query block above, unconditionally -- see the comment
+ * there for why `prefers-color-scheme` alone can't cover forcing dark while
+ * the OS itself is light. The attribute selector outranks the plain `:root`
+ * above regardless of the OS, so this always wins when set.
+ */
+:root[data-theme='dark'] {
+  --color-accent: #3fb394;
+  --color-accent-pressed: #55c4a6;
+  --color-accent-tint: #1e332d;
+  --color-accent-wash: #172723;
+  --color-on-accent: #07211a;
+  --color-on-accent-hover: rgba(0, 0, 0, 0.1);
+  --color-on-accent-active: rgba(0, 0, 0, 0.18);
+  --color-on-accent-divider: rgba(0, 0, 0, 0.26);
+
+  --color-header: #0b1f1a;
+  --color-header-muted: #0a1a16;
+  --color-header-accent: #6fd3b5;
+  --color-header-text: #e9f0ed;
+  --color-header-text-dim: #9fb3ad;
+  --color-header-pill: rgba(255, 255, 255, 0.1);
+  --color-header-pill-text: #c9ede1;
+  --color-header-dot-idle: #8fa8a0;
+
+  --color-text-primary: #e9f0ed;
+  --color-text-body: #d5e0dc;
+  --color-text-secondary: #8fa29c;
+  --color-text-tertiary: #849490;
+  --color-text-muted: #64736e;
+
+  --color-surface: #141e1b;
+  --color-surface-sunken: #1c2926;
+  --color-surface-bar: #101917;
+  --color-surface-hover: #182421;
+  --color-surface-key: #1c2926;
+
+  --color-border: #293833;
+  --color-border-strong: #2e3e38;
+  --color-border-hairline: #1f2c28;
+
+  --color-warning-surface: #2a2114;
+  --color-warning-stroke: #e0a93c;
+  --color-warning-text: #f5dfae;
+  --color-warning-text-soft: #e2cb9c;
+  --color-warning-text-strong: #f5dfae;
+  --color-warning-action: #e6c37e;
+  --color-warning-link: #e6c37e;
+  --color-warning-dot: #f0c368;
+
+  --color-skeleton: #1e2b28;
+  --color-skeleton-soft: #1a2523;
+
+  --color-danger: #f2b8b5;
+
+  --color-disabled-surface: #1b2523;
+  --color-disabled-text: #6f7d78;
+  --color-disabled-icon: #5e6b66;
+  --color-disabled-border: #22302c;
+
+  --shadow-menu: 0 12px 30px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--color-border);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -306,6 +377,29 @@ body {
   color: var(--color-header-text-dim);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
+}
+
+/*
+ * Gear icon — app-level configuration (theme, About), beside the status pill.
+ * A second, deliberate entry point next to the Options row: Options is
+ * per-export, this is not.
+ */
+.header-gear {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-chip);
+  background: none;
+  color: var(--color-header-text-dim);
+  cursor: pointer;
+}
+
+.header-gear:hover {
+  background: var(--color-header-pill);
 }
 
 /* Body — fixed 320px. Every view lives inside; the box never resizes. */
@@ -1150,7 +1244,11 @@ section {
   color: var(--color-text-secondary);
 }
 
-/* Footer: version, the two links, Done. */
+/*
+ * Footer: version, the two links, Done. About (version/Privacy/GitHub) moved
+ * to the gear view's footer, which reuses this same class -- Options' own
+ * footer keeps it only for the `.submenu-done` right-alignment rule below.
+ */
 .options-footer {
   gap: 9px;
   font-size: var(--text-2xs);

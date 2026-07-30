@@ -2,8 +2,9 @@
  * Chrome storage wrapper for extension data persistence
  */
 
-import { STORAGE_KEYS, DEFAULT_PREFERENCES } from './constants';
+import { STORAGE_KEYS, DEFAULT_PREFERENCES, DEFAULT_THEME } from './constants';
 import type { UserPreferences } from './messages';
+import type { ThemePreference } from '../core/types/config';
 
 /**
  * Preferences written before `includeMetadata` and `includeTimestamps` merged.
@@ -66,6 +67,42 @@ export class StorageService {
       });
     } catch (error) {
       console.error('Failed to save user preferences:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get the popup's theme preference (light/dark/auto).
+   *
+   * Stored under its own key rather than folded into `UserPreferences`: it is
+   * popup-only app configuration (the gear), not an export option, so it must
+   * never affect the Options row's changed-from-default dot -- that dot is
+   * derived from `DEFAULT_PREFERENCES` alone (see popup.ts's `updateOptionsDot`).
+   */
+  static async getThemePreference(): Promise<ThemePreference> {
+    try {
+      const result: Record<string, unknown> = await chrome.storage.sync.get(
+        STORAGE_KEYS.THEME_PREFERENCE
+      );
+      return (
+        (result[STORAGE_KEYS.THEME_PREFERENCE] as ThemePreference | undefined) ?? DEFAULT_THEME
+      );
+    } catch (error) {
+      console.error('Failed to get theme preference:', error);
+      return DEFAULT_THEME;
+    }
+  }
+
+  /**
+   * Save the popup's theme preference.
+   */
+  static async setThemePreference(theme: ThemePreference): Promise<void> {
+    try {
+      await chrome.storage.sync.set({
+        [STORAGE_KEYS.THEME_PREFERENCE]: theme,
+      });
+    } catch (error) {
+      console.error('Failed to save theme preference:', error);
       throw error;
     }
   }

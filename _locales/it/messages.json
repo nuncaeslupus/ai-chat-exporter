@@ -337,6 +337,30 @@
     "message": "Alcune impostazioni sono state modificate",
     "description": "Tooltip of the dot marking non-default settings"
   },
+  "settingsButtonLabel": {
+    "message": "Impostazioni",
+    "description": "Accessible name of the header's gear icon button"
+  },
+  "settingsTitle": {
+    "message": "Impostazioni",
+    "description": "Title of the gear submenu (theme + About)"
+  },
+  "settingsThemeLabel": {
+    "message": "Tema",
+    "description": "Label of the three-step theme control in the gear submenu"
+  },
+  "settingsThemeLight": {
+    "message": "Chiaro",
+    "description": "Theme option: always use the light palette"
+  },
+  "settingsThemeDark": {
+    "message": "Scuro",
+    "description": "Theme option: always use the dark palette"
+  },
+  "settingsThemeAuto": {
+    "message": "Automatico",
+    "description": "Theme option: follow the OS light/dark setting"
+  },
   "exportButtonFormat": {
     "message": "Esporta $1",
     "description": "Main export button label. $1 = format name",

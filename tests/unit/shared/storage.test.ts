@@ -89,3 +89,38 @@ describe('R-0: migrating to showMetaInfo', () => {
     );
   });
 });
+
+describe('P-4: the gear view theme preference', () => {
+  beforeEach(() => {
+    // A real in-memory store per test -- the previous describe block leaves
+    // chrome.storage.sync.set as a no-op (its last seed() stub), which would
+    // make every write here silently vanish.
+    const store: Record<string, unknown> = {};
+    Object.assign(chrome.storage.sync, {
+      get: (key: string) => Promise.resolve({ [key]: store[key] }),
+      set: (items: Record<string, unknown>) => {
+        Object.assign(store, items);
+        return Promise.resolve();
+      },
+    });
+  });
+
+  it('round-trips light/dark/auto', async () => {
+    await StorageService.setThemePreference('dark');
+    expect(await StorageService.getThemePreference()).toBe('dark');
+
+    await StorageService.setThemePreference('light');
+    expect(await StorageService.getThemePreference()).toBe('light');
+  });
+
+  it('defaults to auto when nothing has been saved yet', async () => {
+    expect(await StorageService.getThemePreference()).toBe('auto');
+  });
+
+  it('is stored under its own key, separate from user_preferences', async () => {
+    await StorageService.setThemePreference('dark');
+
+    expect((await chrome.storage.sync.get('theme_preference')).theme_preference).toBe('dark');
+    expect((await chrome.storage.sync.get('user_preferences')).user_preferences).toBeUndefined();
+  });
+});
