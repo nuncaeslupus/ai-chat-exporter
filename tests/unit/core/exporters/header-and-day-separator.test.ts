@@ -252,10 +252,11 @@ describe('export header carries all five fields in every format', () => {
     expect(parsed.model).toBe('gpt-4');
     expect(parsed.url).toBe('https://chatgpt.com/c/1');
     expect(parsed.exportedAt).toBeTruthy();
-    expect(parsed.dateRange).toEqual({
-      from: '2025-01-01T09:15:00.000Z',
-      to: '2025-01-02T09:16:00.000Z',
-    });
+    // R-7 writes ISO-8601 with a UTC offset rather than normalizing to `Z`, so
+    // compare the instants — a literal string here would depend on the runner's
+    // timezone.
+    expect(new Date(parsed.dateRange.from).toISOString()).toBe('2025-01-01T09:15:00.000Z');
+    expect(new Date(parsed.dateRange.to).toISOString()).toBe('2025-01-02T09:16:00.000Z');
   });
 
   it('a single-day conversation reports one date, not a range', async () => {
@@ -306,7 +307,9 @@ describe('day separators mark each day change in every format', () => {
     const parsed = JSON.parse(text) as {
       pairs: { question: { timestamp: string }; answer: { timestamp: string } }[];
     };
-    expect(parsed.pairs[1]!.question.timestamp).toBe('2025-01-02T09:15:00.000Z');
+    expect(new Date(parsed.pairs[1]!.question.timestamp).toISOString()).toBe(
+      '2025-01-02T09:15:00.000Z'
+    );
   });
 
   it.each([
