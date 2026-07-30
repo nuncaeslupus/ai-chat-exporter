@@ -182,10 +182,28 @@ const options: ExportOptions = {
 };
 
 /** Every artifact must contribute both its title and its body to the output. */
+/**
+ * Strip tags so an assertion sees what the reader sees.
+ *
+ * R-8 splits code into one span per highlighted token, so an artifact body is no
+ * longer a contiguous substring of the markup — searching the raw HTML for it
+ * silently stopped matching.
+ */
+function visibleText(rendered: string): string {
+  return rendered
+    .replace(/<[^>]+>/g, '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
 function expectEveryArtifact(rendered: string): void {
+  const text = visibleText(rendered);
   for (const artifact of ARTIFACTS) {
-    expect(rendered).toContain(artifact.title);
-    expect(rendered).toContain(artifact.content!);
+    expect(rendered.includes(artifact.title) || text.includes(artifact.title)).toBe(true);
+    expect(rendered.includes(artifact.content!) || text.includes(artifact.content!)).toBe(true);
   }
 }
 
