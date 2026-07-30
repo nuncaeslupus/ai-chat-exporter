@@ -73,12 +73,17 @@ export function mmToPx(mm: number): number {
 export const FONT_FAMILY = {
   body: {
     pdf: 'helvetica',
-    docx: 'Arial',
+    /**
+     * Calibri and Consolas (below) ship with every Office install on Windows and
+     * Mac (R-3), so Word never substitutes and the document keeps its measured
+     * line breaks. Arial/Courier New were merely common, not guaranteed.
+     */
+    docx: 'Calibri',
     css: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
   },
   code: {
     pdf: 'courier',
-    docx: 'Courier New',
+    docx: 'Consolas',
     css: "'Courier New', Courier, monospace",
   },
 } as const;

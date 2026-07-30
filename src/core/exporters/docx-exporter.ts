@@ -6,6 +6,8 @@
 
 import {
   AlignmentType,
+  Footer,
+  PageNumber,
   Document,
   Paragraph,
   TextRun,
@@ -22,6 +24,7 @@ import type { IRunOptions } from 'docx';
 
 // IRunOptions is declared readonly; the switch below builds one field by field.
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
+import { DEFAULT_DOCX_OPTIONS } from '../types';
 import type {
   ExportFormat,
   ExportOptions,
@@ -262,6 +265,8 @@ export class DocxExporter extends BaseExporter {
       },
       sections: [
         {
+          properties: { page: this.pageProperties(options) },
+          footers: { default: this.pageFooter() },
           children: sections,
         },
       ],
@@ -276,11 +281,86 @@ export class DocxExporter extends BaseExporter {
    * `Heading 3` and the outline would read upside down. The values are Word's
    * own defaults, so `normal` renders exactly as it did before this existed.
    */
-  private headingStyles(): Record<string, { run: { size: number } }> {
+  /**
+   * Page geometry (R-3).
+   *
+   * DOCX declared no page size at all and took the `docx` library's default
+   * regardless of the user's preference, so choosing Letter still produced an A4
+   * document. Margins match the pdf's 20/18/16 mm.
+   */
+  private pageProperties(options: ExportOptions): {
+    size: { width: number; height: number };
+    margin: { top: number; right: number; bottom: number; left: number };
+  } {
+    // Word page sizes in twips (1in = 1440).
+    const SIZES = {
+      a4: { width: 11906, height: 16838 },
+      letter: { width: 12240, height: 15840 },
+      legal: { width: 12240, height: 20160 },
+    } as const;
+    const pageSize = options.docxOptions?.pageSize ?? DEFAULT_DOCX_OPTIONS.pageSize;
+
+    return {
+      size: SIZES[pageSize],
+      margin: {
+        top: mmToTwips(20),
+        right: mmToTwips(18),
+        bottom: mmToTwips(16),
+        left: mmToTwips(18),
+      },
+    };
+  }
+
+  /**
+   * Footer with the page number as a real Word FIELD, not literal text (R-3), so
+   * it renumbers when the document reflows or the reader edits it.
+   */
+  private pageFooter(): Footer {
+    return new Footer({
+      children: [
+        new Paragraph({
+          alignment: AlignmentType.RIGHT,
+          children: [
+            new TextRun({
+              children: [PageNumber.CURRENT],
+              size: ptToHalfPt(this.sizes.meta),
+              color: hexToDocxColor(COLOR.textFaint),
+            }),
+          ],
+        }),
+      ],
+    });
+  }
+
+  /**
+   * Fully-declared heading styles (R-3).
+   *
+   * Size alone was already overridden; font and colour are stated now too, so a
+   * heading cannot pick up the reader's Normal style or Office theme and change
+   * the document's shape between two machines — the problem the design calls out.
+   *
+   * Deliberately still Word's built-in `Heading N` rather than custom
+   * `ChatTitle`/`ChatBody` styles as the design suggests: Word's Navigation Pane,
+   * generated tables of contents and heading semantics for screen readers all key
+   * off `Heading N`. Renaming would make the document render identically and
+   * navigate worse. Declaring the formatting solves the stated problem without
+   * that cost.
+   */
+  private headingStyles(): Record<
+    string,
+    { run: { size: number; font: string; color: string; bold: boolean } }
+  > {
     return Object.fromEntries(
       this.docxSizes.headingByLevel.map((pt, index) => [
         `heading${index + 1}`,
-        { run: { size: ptToHalfPt(pt) } },
+        {
+          run: {
+            size: ptToHalfPt(pt),
+            font: FONT_FAMILY.body.docx,
+            color: hexToDocxColor(COLOR.textPrimary),
+            bold: true,
+          },
+        },
       ])
     );
   }

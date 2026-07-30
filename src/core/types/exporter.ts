@@ -67,6 +67,14 @@ export interface DOCXExportOptions {
   author?: string;
   /** Whether to use styled headings */
   useHeadings: boolean;
+  /**
+   * Page size, matching `PDFExportOptions.pageSize` (R-3).
+   *
+   * DOCX previously declared no page size at all and silently took the `docx`
+   * library's default regardless of what the user chose, so a Letter preference
+   * produced an A4 document.
+   */
+  pageSize: 'a4' | 'letter' | 'legal';
 }
 
 /**
@@ -74,6 +82,7 @@ export interface DOCXExportOptions {
  */
 export const DEFAULT_DOCX_OPTIONS: DOCXExportOptions = {
   useHeadings: true,
+  pageSize: 'a4',
 };
 
 /**
