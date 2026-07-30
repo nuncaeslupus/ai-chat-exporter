@@ -49,6 +49,14 @@ export class ClaudeApiService {
   private static organizationIdCache = new WeakMap<Document, string | null>();
 
   /**
+   * Organization id resolved via `resolveOrganizationId` (cookie or API),
+   * keyed by document instance for the same session-scoping reason as
+   * `organizationIdCache` above: without it, every export/print click in the
+   * page session would re-read the cookie and re-hit `GET /api/organizations`.
+   */
+  private static apiOrganizationIdCache = new WeakMap<Document, string | null>();
+
+  /**
    * Extract organization ID from DOM
    * Claude stores the org ID in various places in the page
    */
@@ -67,6 +75,16 @@ export class ClaudeApiService {
    * a last resort: it serializes the entire page, which is multi-MB and
    * synchronous on a long conversation, so it must only run once every
    * cheaper source below has failed.
+   *
+   * D-25: a live, signed-in capture showed all six of these failing —
+   * `__NEXT_DATA__`, `data-organization-id`, the `/api/{uuid}/files/` image
+   * pattern, and all three `organization*` regexes are simply absent from the
+   * current page, and the localStorage key Claude's own bundle reads is
+   * `lastActiveOrg`, not the `lastOrganizationId` step 2 checks below. This is
+   * now only the last-resort fallback behind `resolveOrganizationId` (cookie,
+   * then API) — kept as-is rather than pruned, in case an older/different
+   * Claude UI still populates one of these. Don't re-add strategies here
+   * without fresh evidence they fire on a current page.
    */
   private static findOrganizationId(document: Document): string | null {
     // Try multiple approaches to find the organization ID
@@ -151,9 +169,159 @@ export class ClaudeApiService {
   }
 
   /**
+   * `lastActiveOrg=<uuid>`, read straight off `document.cookie`. Verified
+   * against the live service: the cookie is present on a signed-in page and
+   * its value is a bare uuid, no prefix or encoding. Tried first: it is
+   * same-origin, synchronous, needs no extra host permission and no network
+   * round trip, and — unlike every other source here — it names the *active*
+   * organization outright instead of requiring a pick among several.
+   *
+   * The value is still URI-decoded and searched for a uuid substring rather
+   * than assumed to equal the whole cookie value — cheap insurance so a
+   * future format change degrades to the API fallback instead of building a
+   * broken conversation-API URL.
+   */
+  private static readonly UUID_PATTERN =
+    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+  private static readOrganizationIdFromCookie(document: Document): string | null {
+    const match = /(?:^|;\s*)lastActiveOrg=([^;]+)/.exec(document.cookie);
+    if (!match?.[1]) {
+      return null;
+    }
+    const value = decodeURIComponent(match[1]);
+    return this.UUID_PATTERN.exec(value)?.[0] ?? null;
+  }
+
+  /**
+   * Resolve the organization ID from the `lastActiveOrg` cookie, then
+   * `GET /api/organizations` (proxied through the background worker, which
+   * already holds the claude.ai session cookies for the existing
+   * conversation-data fetch), instead of scraping the page. Falls back to the
+   * DOM scrape (`findOrganizationId`) when neither resolves — strictly
+   * additive, so a page where scraping still works is unaffected.
+   *
+   * Cached per document/session: a failed resolution (`null`) is cached too,
+   * so it costs at most one cookie read + one network call per page session,
+   * not one per export.
+   *
+   * The API response shape is unverified against the live service from this
+   * environment. Confirmed live: `uuid` (string) is the conversation-API
+   * organization id; `id` is a *number*, not a uuid, and is never used for
+   * this. `parseOrganizations` tolerates a bare array or
+   * `{ organizations: [...] }` / `{ data: [...] }`.
+   */
+  private static async resolveOrganizationId(document: Document): Promise<string | null> {
+    if (this.apiOrganizationIdCache.has(document)) {
+      return this.apiOrganizationIdCache.get(document) ?? null;
+    }
+
+    const cookieOrganizationId = this.readOrganizationIdFromCookie(document);
+    if (cookieOrganizationId) {
+      this.apiOrganizationIdCache.set(document, cookieOrganizationId);
+      return cookieOrganizationId;
+    }
+
+    let resolved: string | null = null;
+    try {
+      const response = await chrome.runtime.sendMessage<unknown, MessageResponse<unknown>>({
+        type: 'fetch_claude_organizations',
+      });
+
+      if (response.success && response.data) {
+        resolved = this.pickOrganizationId(this.parseOrganizations(response.data), document);
+      }
+    } catch (error) {
+      console.warn('[Claude API Service] Failed to fetch organizations from API:', error);
+    }
+
+    this.apiOrganizationIdCache.set(document, resolved);
+    return resolved;
+  }
+
+  /** One entry of the (unverified) `GET /api/organizations` response this service reads. */
+  private static parseOrganizations(
+    data: unknown
+  ): { uuid: string; parentOrganizationUuid: string | null }[] {
+    const list = Array.isArray(data)
+      ? data
+      : ((data as { organizations?: unknown; data?: unknown } | null)?.organizations ??
+        (data as { organizations?: unknown; data?: unknown } | null)?.data);
+
+    if (!Array.isArray(list)) {
+      return [];
+    }
+
+    const organizations: { uuid: string; parentOrganizationUuid: string | null }[] = [];
+    for (const entry of list) {
+      if (!entry || typeof entry !== 'object') {
+        continue;
+      }
+      // Confirmed live: `uuid` is the string id this service needs; `id` is a
+      // number and would build an invalid API URL, so it is never accepted
+      // as a substitute.
+      const uuid = (entry as { uuid?: unknown }).uuid;
+      if (typeof uuid !== 'string' || !uuid) {
+        continue;
+      }
+      const parentUuid = (entry as { parent_organization_uuid?: unknown }).parent_organization_uuid;
+      organizations.push({
+        uuid,
+        parentOrganizationUuid: typeof parentUuid === 'string' && parentUuid ? parentUuid : null,
+      });
+    }
+    return organizations;
+  }
+
+  /**
+   * A Team/Enterprise account can genuinely belong to several organizations
+   * (confirmed live: this is not a hypothetical edge case), and nothing in
+   * the response is a documented "this one is active" flag. So, in order:
+   *
+   * 1. Prefer whichever candidate the DOM scrape independently agrees with
+   *    — a real signal already computed for the fallback path.
+   * 2. Otherwise prefer a top-level organization (no `parent_organization_uuid`)
+   *    over a sub-organization, on the reasoning that a sub-org is more
+   *    likely a team workspace than the account being exported from. This is
+   *    unverified — the field's exact semantics have not been confirmed —
+   *    and used only when it narrows the field to exactly one candidate.
+   * 3. Otherwise fall back to the first entry and say so with a warning,
+   *    rather than silently guessing.
+   */
+  private static pickOrganizationId(
+    organizations: { uuid: string; parentOrganizationUuid: string | null }[],
+    document: Document
+  ): string | null {
+    if (organizations.length === 0) {
+      return null;
+    }
+    if (organizations.length === 1) {
+      return organizations[0]?.uuid ?? null;
+    }
+
+    const domOrganizationId = this.findOrganizationId(document);
+    if (domOrganizationId && organizations.some((org) => org.uuid === domOrganizationId)) {
+      return domOrganizationId;
+    }
+
+    const rootOrganizations = organizations.filter((org) => !org.parentOrganizationUuid);
+    if (rootOrganizations.length === 1) {
+      return rootOrganizations[0]?.uuid ?? null;
+    }
+
+    console.warn(
+      '[Claude API Service] Multiple organizations returned and none could be disambiguated; using the first.'
+    );
+    return organizations[0]?.uuid ?? null;
+  }
+
+  /**
    * Extract conversation ID and organization ID from Claude page
    */
-  static extractIdsFromPage(url: string, document: Document): ClaudeApiRequest | null {
+  static async extractIdsFromPage(
+    url: string,
+    document: Document
+  ): Promise<ClaudeApiRequest | null> {
     try {
       const urlObj = new URL(url);
 
@@ -165,7 +333,8 @@ export class ClaudeApiService {
       }
 
       const conversationId = pathMatch[1];
-      const organizationId = this.extractOrganizationId(document);
+      const organizationId =
+        (await this.resolveOrganizationId(document)) ?? this.extractOrganizationId(document);
 
       if (!organizationId) {
         console.warn(

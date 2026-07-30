@@ -68,6 +68,23 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
     return true; // Keep channel open for async response
   }
 
+  // Handle Claude organizations fetch (used to discover the org ID instead of
+  // scraping the page for it — see claude-api-service.ts)
+  if (isClaudeOrganizationsFetchMessage(message)) {
+    handleClaudeOrganizationsFetch()
+      .then((data) => {
+        sendResponse({ success: true, data });
+      })
+      .catch((error) => {
+        console.error(`[${EXTENSION_NAME}] Claude organizations fetch failed:`, error);
+        sendResponse({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      });
+    return true; // Keep channel open for async response
+  }
+
   // Handle other message types here
   sendResponse({ success: true });
   return false;
@@ -83,6 +100,20 @@ function isClaudeApiFetchMessage(message: unknown): message is ClaudeApiFetchMes
     typeof message === 'object' &&
     message !== null &&
     (message as { type?: unknown }).type === 'fetch_claude_api_data'
+  );
+}
+
+interface ClaudeOrganizationsFetchMessage {
+  type: 'fetch_claude_organizations';
+}
+
+function isClaudeOrganizationsFetchMessage(
+  message: unknown
+): message is ClaudeOrganizationsFetchMessage {
+  return (
+    typeof message === 'object' &&
+    message !== null &&
+    (message as { type?: unknown }).type === 'fetch_claude_organizations'
   );
 }
 
@@ -118,6 +149,42 @@ async function handleClaudeApiFetch(request: {
     return data;
   } catch (error) {
     console.error(`[${EXTENSION_NAME}] Claude API fetch error:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch the signed-in user's Claude organizations. Used to discover the
+ * organization ID directly from the API instead of scraping it out of the
+ * page — see `ClaudeApiService.resolveOrganizationIdViaApi`.
+ *
+ * ponytail: never logs or returns anything from the response beyond the raw
+ * JSON needed by the caller — this is account data.
+ */
+async function handleClaudeOrganizationsFetch(): Promise<unknown> {
+  const apiUrl = 'https://claude.ai/api/organizations';
+
+  console.log(`[${EXTENSION_NAME}] Fetching Claude organizations:`, apiUrl);
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      credentials: 'include', // Include cookies for authentication
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data: unknown = await response.json();
+    console.log(`[${EXTENSION_NAME}] Claude organizations response received`);
+
+    return data;
+  } catch (error) {
+    console.error(`[${EXTENSION_NAME}] Claude organizations fetch error:`, error);
     throw error;
   }
 }

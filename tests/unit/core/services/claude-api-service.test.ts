@@ -132,6 +132,182 @@ describe('ClaudeApiService', () => {
     });
   });
 
+  describe('extractIdsFromPage() — organization resolution (D-25)', () => {
+    const url = 'https://claude.ai/chat/00000000-0000-4000-8000-000000000000';
+
+    function makeBlankDocument(): Document {
+      return document.implementation.createHTMLDocument('test');
+    }
+
+    /** `chrome.runtime.sendMessage`'s overloaded declaration makes `vi.mocked()`
+     * infer a `void` return type from the callback-style overload; cast to the
+     * plain `vi.fn()` mock it actually is (see `tests/setup/vitest.setup.ts`). */
+    function mockSendMessage(): ReturnType<typeof vi.fn> {
+      return chrome.runtime.sendMessage as unknown as ReturnType<typeof vi.fn>;
+    }
+
+    /** A detached `createHTMLDocument()` document has no working cookie jar
+     * in jsdom, so `document.cookie` is faked the same way `spyOnInnerHtmlAccess`
+     * fakes `innerHTML` above. */
+    function makeDocumentWithCookie(cookie: string): Document {
+      const doc = makeBlankDocument();
+      Object.defineProperty(doc, 'cookie', { configurable: true, value: cookie });
+      return doc;
+    }
+
+    it('uses the lastActiveOrg cookie before ever calling the API', async () => {
+      const doc = makeDocumentWithCookie(
+        'sessionKeyLC=abc; lastActiveOrg=11111111-1111-4111-8111-111111111111'
+      );
+
+      const ids = await ClaudeApiService.extractIdsFromPage(url, doc);
+
+      expect(ids).toEqual({
+        organizationId: '11111111-1111-4111-8111-111111111111',
+        conversationId: '00000000-0000-4000-8000-000000000000',
+      });
+      expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('extracts the uuid out of an encoded/prefixed cookie value rather than requiring an exact match', async () => {
+      // Confirmed live the cookie is a bare uuid with no prefix/encoding, but
+      // the extraction is defensive against a future format change: it
+      // searches the decoded value for a uuid substring instead of assuming
+      // the whole value is one.
+      const doc = makeDocumentWithCookie(
+        'lastActiveOrg=org%3A22222222-2222-4222-8222-222222222222'
+      );
+
+      const ids = await ClaudeApiService.extractIdsFromPage(url, doc);
+
+      expect(ids?.organizationId).toBe('22222222-2222-4222-8222-222222222222');
+      expect(chrome.runtime.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('falls through to the API when the cookie value contains no uuid', async () => {
+      const doc = makeDocumentWithCookie('lastActiveOrg=not-a-uuid');
+      mockSendMessage().mockResolvedValueOnce({
+        success: true,
+        data: [{ uuid: 'api-org-1' }],
+      });
+
+      const ids = await ClaudeApiService.extractIdsFromPage(url, doc);
+
+      expect(ids?.organizationId).toBe('api-org-1');
+    });
+
+    it('uses the API-discovered organization id when the endpoint returns exactly one organization', async () => {
+      const doc = makeBlankDocument();
+      mockSendMessage().mockResolvedValueOnce({
+        success: true,
+        data: [{ uuid: 'api-org-1' }],
+      });
+
+      const ids = await ClaudeApiService.extractIdsFromPage(url, doc);
+
+      expect(ids).toEqual({
+        organizationId: 'api-org-1',
+        conversationId: '00000000-0000-4000-8000-000000000000',
+      });
+    });
+
+    it('never uses the numeric "id" field in place of "uuid" (id is a number, not the API uuid)', async () => {
+      const doc = makeBlankDocument();
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      // Only entry has a numeric `id`, no `uuid` — must not be mistaken for one.
+      mockSendMessage().mockResolvedValueOnce({
+        success: true,
+        data: [{ id: 42 }],
+      });
+
+      const ids = await ClaudeApiService.extractIdsFromPage(url, doc);
+
+      expect(ids).toBeNull();
+      warnSpy.mockRestore();
+    });
+
+    it('prefers the organization the DOM scrape independently confirms when several are returned', async () => {
+      const doc = makeDataAttributeDocument('api-org-2');
+      mockSendMessage().mockResolvedValueOnce({
+        success: true,
+        data: [{ uuid: 'api-org-1' }, { uuid: 'api-org-2' }],
+      });
+
+      const ids = await ClaudeApiService.extractIdsFromPage(url, doc);
+
+      expect(ids?.organizationId).toBe('api-org-2');
+    });
+
+    it('prefers the top-level organization (no parent_organization_uuid) when the DOM gives no signal', async () => {
+      const doc = makeBlankDocument();
+      mockSendMessage().mockResolvedValueOnce({
+        success: true,
+        data: [{ uuid: 'sub-org', parent_organization_uuid: 'root-org' }, { uuid: 'root-org' }],
+      });
+
+      const ids = await ClaudeApiService.extractIdsFromPage(url, doc);
+
+      expect(ids?.organizationId).toBe('root-org');
+    });
+
+    it('falls back to the first organization when several are returned and none can be disambiguated', async () => {
+      const doc = makeBlankDocument();
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      mockSendMessage().mockResolvedValueOnce({
+        success: true,
+        data: [{ uuid: 'api-org-1' }, { uuid: 'api-org-2' }],
+      });
+
+      const ids = await ClaudeApiService.extractIdsFromPage(url, doc);
+
+      expect(ids?.organizationId).toBe('api-org-1');
+      warnSpy.mockRestore();
+    });
+
+    it('falls back to the DOM scrape when the API call fails', async () => {
+      const doc = makeNextDataDocument('dom-org-1');
+      mockSendMessage().mockRejectedValueOnce(new Error('network error'));
+
+      const ids = await ClaudeApiService.extractIdsFromPage(url, doc);
+
+      expect(ids?.organizationId).toBe('dom-org-1');
+    });
+
+    it('falls back to the DOM scrape when the API returns no organizations', async () => {
+      const doc = makeNextDataDocument('dom-org-2');
+      mockSendMessage().mockResolvedValueOnce({ success: true, data: [] });
+
+      const ids = await ClaudeApiService.extractIdsFromPage(url, doc);
+
+      expect(ids?.organizationId).toBe('dom-org-2');
+    });
+
+    it('returns null and warns when the cookie, the API, and every DOM strategy all fail', async () => {
+      const doc = makeBlankDocument();
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      mockSendMessage().mockResolvedValueOnce({ success: false });
+
+      const ids = await ClaudeApiService.extractIdsFromPage(url, doc);
+
+      expect(ids).toBeNull();
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Organization ID not found'));
+      warnSpy.mockRestore();
+    });
+
+    it('does not re-hit the organizations endpoint for a second export in the same document/session', async () => {
+      const doc = makeBlankDocument();
+      const sendMessageMock = mockSendMessage().mockResolvedValue({
+        success: true,
+        data: [{ uuid: 'api-org-1' }],
+      });
+
+      await ClaudeApiService.extractIdsFromPage(url, doc);
+      await ClaudeApiService.extractIdsFromPage(url, doc);
+
+      expect(sendMessageMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('enrichConversation()', () => {
     it('attributes an artifact to its matching pair when DOM and API shapes agree', () => {
       const conversation = makeConversation([makePair(0, 'Q1', 'A1'), makePair(1, 'Q2', 'A2')]);
