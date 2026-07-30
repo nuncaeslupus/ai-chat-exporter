@@ -26,6 +26,7 @@ import {
 import {
   CHATGPT_SELECTORS,
   EMBEDDED_FRAME_REPORT_ATTR,
+  EMBEDDED_FRAME_REPORT_HTML_ATTR,
 } from '../../core/parsers/chatgpt/selectors';
 
 /** How often to check whether the print document has finished loading. */
@@ -721,7 +722,14 @@ function handleDeepResearchFrameMessage(event: MessageEvent): void {
   );
   for (const frame of frames) {
     if (frame.contentWindow === event.source) {
-      frame.setAttribute(EMBEDDED_FRAME_REPORT_ATTR, event.data.text);
+      // The frame relays exactly one of the two (see DeepResearchFrameMessage)
+      // -- HTML preferred when present, so the parser can route it through the
+      // same structure-parsing path an ordinary message's HTML already takes.
+      if (event.data.html) {
+        frame.setAttribute(EMBEDDED_FRAME_REPORT_HTML_ATTR, event.data.html);
+      } else if (event.data.text) {
+        frame.setAttribute(EMBEDDED_FRAME_REPORT_ATTR, event.data.text);
+      }
       return;
     }
   }

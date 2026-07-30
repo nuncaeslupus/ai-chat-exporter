@@ -13,15 +13,24 @@
  * on the shell is what makes that nested document reachable via
  * `contentDocument` despite being cross-document from this script's own.
  *
- * Relays the rendered text out to the parent page over `postMessage`; the
- * parent's content script (content-script.ts) matches the message back to the
- * right <iframe> element by `event.source` and stashes the text there for the
- * ChatGPT parser to read. If this script never runs, never finds any text, or
- * the message never arrives, the parser's fallback (naming the widget,
+ * Relays sanitized HTML out to the parent page over `postMessage` -- HTML,
+ * not flattened text, is what lets the report keep its headings, lists and
+ * tables through the same structure-parsing path an ordinary ChatGPT message
+ * already goes through (D-31). Falls back to flattened text when the HTML
+ * path comes back empty, over its sanity bound, or -- the D-33 re-land --
+ * carries materially less substance than the text tier would have (a light-DOM
+ * clone can legitimately miss content a render-based text capture does not;
+ * see `isMaterialContentLoss`). Never a partial report presented as complete.
+ *
+ * The parent's content script (content-script.ts) matches the message back to
+ * the right <iframe> element by `event.source` and stashes it there for the
+ * ChatGPT parser to read. If this script never runs, never finds any content,
+ * or the message never arrives, the parser's fallback (naming the widget,
  * lo-f132) is what ships -- never an exception, never fabricated content.
  */
 
 import { createDeepResearchFrameMessage } from '../../shared/deep-research-relay';
+import { sanitizeHtml } from '../../core/utils/sanitize-html';
 
 /**
  * How long to wait after the last DOM mutation before treating the report as
@@ -47,6 +56,38 @@ const MAX_OBSERVE_MS = 30_000;
  * blob into every exporter.
  */
 const MAX_PLAUSIBLE_LENGTH = 200_000;
+
+/**
+ * Same idea as `MAX_PLAUSIBLE_LENGTH`, sized for sanitized HTML rather than
+ * flattened text. Markup is bulkier than the text it wraps -- opening/closing
+ * tags plus whatever attributes survive sanitizing -- typically 2-3x the
+ * flattened length for a rich document. Tripling the text bound keeps the same
+ * order-of-magnitude safety margin over the "tens of KB" a real report
+ * actually is, while staying well under the multi-megabyte pathological
+ * captures the original bound existed to reject.
+ */
+const MAX_PLAUSIBLE_HTML_LENGTH = 600_000;
+
+/**
+ * D-33 (re-land of D-31/#196, reverted in #198 for silently dropping the
+ * entire report body on a live page): the HTML tier's `cloneNode()`-based
+ * capture only walks the light DOM. Real Chrome's `innerText` (what the text
+ * tier uses) reflects the *rendered* tree instead, which composes across
+ * boundaries a light-DOM clone cannot see (Shadow DOM being the best-documented
+ * case). If the HTML tier ever captures dramatically less text than the text
+ * tier would, that is exactly the #198 failure mode -- a "successful",
+ * non-empty, in-bounds HTML relay that is nevertheless a near-empty shell.
+ *
+ * A modest gap between the two tiers is normal (script/style stripping,
+ * whitespace collapsing); this ratio is deliberately generous so only a
+ * *dramatic* shortfall trips it.
+ */
+const MIN_HTML_TEXT_RATIO = 0.5;
+
+/** Whether the HTML tier's own text substance is materially less than the text tier's. */
+function isMaterialContentLoss(htmlTextLength: number, textTierLength: number): boolean {
+  return textTierLength > 0 && htmlTextLength < textTierLength * MIN_HTML_TEXT_RATIO;
+}
 
 /**
  * Finds the nested frame the report renders into. `#root` is what the widget
@@ -99,8 +140,64 @@ function extractText(doc: Document): string {
   return (clone.textContent ?? '').trim();
 }
 
+/**
+ * Sanitized HTML of the target document's body -- structure intact (headings,
+ * lists, tables), unlike `extractText`'s flattened string -- plus the text
+ * length of the same clone (before sanitizing/serializing), which `relay()`
+ * uses to check the HTML tier's substance against the text tier's.
+ *
+ * Removes `<script>`/`<style>` from a *clone* first, before ever building the
+ * `innerHTML` string: the nested body's raw `textContent` measured ~13.3 MB on
+ * a live page, almost entirely inlined `<script>` bodies, and serializing that
+ * just to strip it a moment later would be wasted work on every relay tick.
+ *
+ * `sanitizeHtml` (reused, not reinvented) still runs afterwards for the rest
+ * of its cleanup -- iframe/object/embed removal, `on*` attributes,
+ * `javascript:` URLs -- since this HTML is headed for live DOM on the parent
+ * page.
+ */
+function extractHtml(doc: Document): { html: string; textLength: number } | null {
+  const body = doc.body;
+  if (!body) {
+    return null;
+  }
+  const clone = body.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll('script, style').forEach((el) => el.remove());
+  const textLength = (clone.textContent ?? '').trim().length;
+  const html = sanitizeHtml(clone.innerHTML).trim();
+  return html ? { html, textLength } : null;
+}
+
 function relay(): void {
-  const text = extractText(targetDocument());
+  const doc = targetDocument();
+  const text = extractText(doc);
+  const htmlResult = extractHtml(doc);
+
+  if (htmlResult) {
+    if (htmlResult.html.length > MAX_PLAUSIBLE_HTML_LENGTH) {
+      console.warn(
+        `[ai-chat-exporter] deep-research-frame: captured ${htmlResult.html.length} chars of ` +
+          `HTML, over the ${MAX_PLAUSIBLE_HTML_LENGTH} sanity bound -- falling back to plain text`
+      );
+    } else if (isMaterialContentLoss(htmlResult.textLength, text.length)) {
+      // Non-negotiable: never lose content to gain formatting. The HTML tier
+      // "succeeded" (non-empty, in bounds) but captured far less text than the
+      // text tier did -- exactly the #198 failure mode. Ugly-and-complete beats
+      // pretty-and-empty.
+      console.warn(
+        `[ai-chat-exporter] deep-research-frame: HTML tier captured only ` +
+          `${htmlResult.textLength} chars of text vs ${text.length} from the text tier -- ` +
+          `falling back to plain text to avoid silently truncating the report`
+      );
+    } else {
+      window.parent.postMessage(createDeepResearchFrameMessage({ html: htmlResult.html }), '*');
+      return;
+    }
+  }
+
+  // Fall back to the flattened-text relay -- still real captured content,
+  // just without structure -- rather than relaying nothing just because the
+  // HTML path came back empty, over its sanity bound, or short on substance.
   if (!text) {
     return;
   }
@@ -113,7 +210,7 @@ function relay(): void {
     );
     return;
   }
-  window.parent.postMessage(createDeepResearchFrameMessage(text), '*');
+  window.parent.postMessage(createDeepResearchFrameMessage({ text }), '*');
 }
 
 function watch(): void {

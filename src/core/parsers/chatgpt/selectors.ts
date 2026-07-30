@@ -102,6 +102,17 @@ export const CHATGPT_SELECTORS = {
 export const EMBEDDED_FRAME_REPORT_ATTR = 'data-ai-chat-exporter-report-text';
 
 /**
+ * Same as `EMBEDDED_FRAME_REPORT_ATTR`, but for the sanitized-HTML relay
+ * (D-31/D-33) -- preferred when present, since it carries the report's
+ * headings, lists and tables through the structure-parsing path instead of a
+ * flattened string. Falls back to `EMBEDDED_FRAME_REPORT_ATTR` when the relay
+ * could only manage flattened text (HTML path failed, came back over its
+ * sanity bound, or lost too much substance; see deep-research-frame.ts's
+ * `relay()`).
+ */
+export const EMBEDDED_FRAME_REPORT_HTML_ATTR = 'data-ai-chat-exporter-report-html';
+
+/**
  * ChatGPT URL patterns for detection
  */
 export const CHATGPT_URL_PATTERNS = [
