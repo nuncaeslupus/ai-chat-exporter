@@ -148,8 +148,7 @@ const conversation: Conversation = {
 const options: ExportOptions = {
   format: 'md',
   filename: 'test',
-  includeMetadata: false,
-  includeTimestamps: false,
+  showMetaInfo: false,
 };
 
 describe('web search citations survive export in all six formats', () => {

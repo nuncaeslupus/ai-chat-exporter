@@ -93,10 +93,14 @@ export interface ExportOptions {
   format: ExportFormat;
   /** Filename (without extension) */
   filename: string;
-  /** Whether to include metadata */
-  includeMetadata: boolean;
-  /** Whether to include timestamps */
-  includeTimestamps: boolean;
+  /**
+   * Whether to include meta-information: the header block AND per-message times.
+   *
+   * One switch, because a message time IS meta-info. It was two, and one of them
+   * governed nothing — no parser wrote `Message.timestamp`, so `includeTimestamps`
+   * rendered nothing in any format until Claude's API times were wired up.
+   */
+  showMetaInfo: boolean;
   /** Type-size step; absent means `normal` (preferences predating the setting) */
   fontScale?: FontScale;
   /** PDF-specific options */
@@ -110,8 +114,7 @@ export interface ExportOptions {
  */
 export const DEFAULT_EXPORT_OPTIONS: Omit<ExportOptions, 'filename'> = {
   format: 'md',
-  includeMetadata: true,
-  includeTimestamps: true,
+  showMetaInfo: true,
   fontScale: 'normal',
   pdfOptions: DEFAULT_PDF_OPTIONS,
   docxOptions: DEFAULT_DOCX_OPTIONS,

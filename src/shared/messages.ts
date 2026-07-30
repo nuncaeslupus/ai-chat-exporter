@@ -62,8 +62,7 @@ export function isGetDriftSkeletonMessage(message: unknown): message is GetDrift
  * User preferences interface
  */
 export interface UserPreferences extends FilenamePreferences {
-  includeMetadata: boolean;
-  includeTimestamps: boolean;
+  showMetaInfo: boolean;
   includeCodeBlocks: boolean;
   /** Type-size step applied to pdf/docx/html exports. */
   fontScale: FontScale;

@@ -49,8 +49,7 @@ describe('JsonExporter', () => {
       const result = await exporter.export(conversation, selectedPairs, {
         format: 'json',
         filename: 'test',
-        includeMetadata: true,
-        includeTimestamps: true,
+        showMetaInfo: true,
       });
       expect(result.success).toBe(true);
       expect(result.blob).toBeInstanceOf(Blob);
@@ -61,8 +60,7 @@ describe('JsonExporter', () => {
       const result = await exporter.export(conversation, selectedPairs, {
         format: 'json',
         filename: 'test',
-        includeMetadata: true,
-        includeTimestamps: true,
+        showMetaInfo: true,
       });
       const text = await blobToText(result.blob!);
       expect(() => JSON.parse(text) as JsonExport).not.toThrow();
@@ -72,8 +70,7 @@ describe('JsonExporter', () => {
       const result = await exporter.export(conversation, selectedPairs, {
         format: 'json',
         filename: 'test',
-        includeMetadata: true,
-        includeTimestamps: true,
+        showMetaInfo: true,
       });
       const text = await blobToText(result.blob!);
       const parsed = JSON.parse(text) as JsonExport;
@@ -86,8 +83,7 @@ describe('JsonExporter', () => {
       const result = await exporter.export(conversation, selectedPairs, {
         format: 'json',
         filename: 'test',
-        includeMetadata: true,
-        includeTimestamps: true,
+        showMetaInfo: true,
       });
       const text = await blobToText(result.blob!);
       const parsed = JSON.parse(text) as JsonExport;
@@ -100,8 +96,7 @@ describe('JsonExporter', () => {
       const result = await exporter.export(conversation, selectedPairs, {
         format: 'json',
         filename: 'test',
-        includeMetadata: true,
-        includeTimestamps: true,
+        showMetaInfo: true,
       });
       const text = await blobToText(result.blob!);
       expect(text).toContain('\n'); // Has newlines (formatted)
@@ -109,13 +104,12 @@ describe('JsonExporter', () => {
     });
   });
 
-  describe('includeMetadata gating', () => {
-    it('omits title/platform/url/model/createdAt when includeMetadata is false', async () => {
+  describe('showMetaInfo gating', () => {
+    it('omits title/platform/url/model/createdAt when showMetaInfo is false', async () => {
       const result = await exporter.export(conversation, selectedPairs, {
         format: 'json',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: true,
+        showMetaInfo: false,
       });
       const text = await blobToText(result.blob!);
       const parsed = JSON.parse(text) as JsonExport;
@@ -126,12 +120,11 @@ describe('JsonExporter', () => {
       expect(parsed.createdAt).toBeUndefined();
     });
 
-    it('includes title/platform/url/model/createdAt when includeMetadata is true', async () => {
+    it('includes title/platform/url/model/createdAt when showMetaInfo is true', async () => {
       const result = await exporter.export(conversation, selectedPairs, {
         format: 'json',
         filename: 'test',
-        includeMetadata: true,
-        includeTimestamps: true,
+        showMetaInfo: true,
       });
       const text = await blobToText(result.blob!);
       const parsed = JSON.parse(text) as JsonExport;
@@ -148,8 +141,7 @@ describe('JsonExporter', () => {
       const valid = exporter.validateOptions({
         format: 'json',
         filename: 'test',
-        includeMetadata: true,
-        includeTimestamps: false,
+        showMetaInfo: true,
       });
       expect(valid).toBe(true);
     });
@@ -158,8 +150,7 @@ describe('JsonExporter', () => {
       const valid = exporter.validateOptions({
         format: 'pdf',
         filename: 'test',
-        includeMetadata: true,
-        includeTimestamps: false,
+        showMetaInfo: true,
       });
       expect(valid).toBe(false);
     });
@@ -198,8 +189,7 @@ describe('R-7: JSON schema and stability', () => {
   const options = {
     format: 'json',
     filename: 'test',
-    includeMetadata: true,
-    includeTimestamps: true,
+    showMetaInfo: true,
   } as unknown as ExportOptions;
 
   async function render(opts = options): Promise<string> {
@@ -300,8 +290,7 @@ describe('R-7: the UTC offset itself', () => {
       const r = await new JsonExporter().export(conv, [pair], {
         format: 'json',
         filename: 't',
-        includeMetadata: false,
-        includeTimestamps: true,
+        showMetaInfo: true,
       } as unknown as ExportOptions);
       const parsed = JSON.parse(await blobToText(r.blob!)) as JsonExport;
       return parsed.pairs[0]!.question.timestamp!;

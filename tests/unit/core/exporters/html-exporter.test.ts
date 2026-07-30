@@ -52,8 +52,7 @@ async function exportAndRun(codeHtml: string) {
   const result = await exporter.export(conversation, conversation.pairs, {
     format: 'html',
     filename: 'test',
-    includeMetadata: true,
-    includeTimestamps: false,
+    showMetaInfo: true,
   });
   expect(result.success).toBe(true);
   if (!result.blob) {
@@ -127,14 +126,13 @@ describe('HtmlExporter structural contract', () => {
     } as unknown as Conversation;
   }
 
-  async function exportStructured(includeMetadata: boolean) {
+  async function exportStructured(showMetaInfo: boolean) {
     const conversation = buildStructuredConversation();
     const exporter = new HtmlExporter();
     const result = await exporter.export(conversation, conversation.pairs, {
       format: 'html',
       filename: 'test',
-      includeMetadata,
-      includeTimestamps: false,
+      showMetaInfo,
     });
     expect(result.success).toBe(true);
     return { conversation, html: await blobToText(result.blob!) };
@@ -167,8 +165,7 @@ describe('HtmlExporter structural contract', () => {
     const result = await exporter.export(conversation, conversation.pairs, {
       format: 'html',
       filename: 'test',
-      includeMetadata: false,
-      includeTimestamps: false,
+      showMetaInfo: false,
     });
     const html = await blobToText(result.blob!);
 
@@ -269,29 +266,34 @@ describe('HtmlExporter per-message timestamps', () => {
     } as unknown as Conversation;
   }
 
-  it('renders a per-message timestamp when includeTimestamps is on', async () => {
+  it('renders a per-message timestamp when showMetaInfo is on', async () => {
     const exporter = new HtmlExporter();
     const conversation = buildStructuredConversation();
     const result = await exporter.export(conversation, conversation.pairs, {
       format: 'html',
       filename: 'test',
-      includeMetadata: false,
-      includeTimestamps: true,
+      showMetaInfo: true,
     });
     const html = await blobToText(result.blob!);
     expect(html).toContain('(12:00:00)');
     // The day is announced once by a day separator, not repeated per message.
-    expect(html).not.toContain('2025-01-01 12:00:00');
+    // The date belongs to the header (which showMetaInfo also turns on) and to
+    // the day separator — never to a per-message stamp.
+    // The per-message stamp lives in .message-timestamp and carries a time only.
+    const stamps = [...html.matchAll(/<span class="message-timestamp">([^<]*)<\/span>/g)].map(
+      (m) => m[1] ?? ''
+    );
+    expect(stamps.length).toBeGreaterThan(0);
+    expect(stamps.every((t) => !t.includes('2025-01-01'))).toBe(true);
   });
 
-  it('omits the timestamp when includeTimestamps is off', async () => {
+  it('omits the timestamp when showMetaInfo is off', async () => {
     const exporter = new HtmlExporter();
     const conversation = buildStructuredConversation();
     const result = await exporter.export(conversation, conversation.pairs, {
       format: 'html',
       filename: 'test',
-      includeMetadata: false,
-      includeTimestamps: false,
+      showMetaInfo: false,
     });
     const html = await blobToText(result.blob!);
     expect(html).not.toContain('12:00:00');
@@ -305,8 +307,7 @@ describe('HtmlExporter per-message timestamps', () => {
     const result = await exporter.export(conversation, conversation.pairs, {
       format: 'html',
       filename: 'test',
-      includeMetadata: false,
-      includeTimestamps: true,
+      showMetaInfo: true,
     });
     const html = await blobToText(result.blob!);
     expect(html).not.toContain('undefined');
@@ -350,8 +351,7 @@ describe('exported HTML makes no third-party requests', () => {
     const result = await exporter.export(conversation, conversation.pairs, {
       format: 'html',
       filename: 'test',
-      includeMetadata: true,
-      includeTimestamps: false,
+      showMetaInfo: true,
     });
     expect(result.success).toBe(true);
     return blobToText(result.blob!);
@@ -416,8 +416,7 @@ describe('R-6: HTML adopts the redesign', () => {
     const result = await new HtmlExporter().export(conversation, [pair], {
       format: 'html',
       filename: 'test',
-      includeMetadata: true,
-      includeTimestamps: true,
+      showMetaInfo: true,
     } as unknown as ExportOptions);
     return blobToText(result.blob!);
   }
@@ -509,8 +508,7 @@ describe('prose artifacts render as prose, not as source', () => {
     const result = await new HtmlExporter().export(conversation, conversation.pairs, {
       format: 'html',
       filename: 'test',
-      includeMetadata: false,
-      includeTimestamps: false,
+      showMetaInfo: false,
     } as unknown as ExportOptions);
     return blobToText(result.blob!);
   }

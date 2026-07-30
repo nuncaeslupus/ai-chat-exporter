@@ -56,7 +56,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
     lines.push('');
 
     // Metadata as a table
-    if (options.includeMetadata) {
+    if (options.showMetaInfo) {
       lines.push(
         `| **${getMessage('metadataTableHeaderField')}** | **${getMessage('metadataTableHeaderValue')}** |`
       );
@@ -83,7 +83,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
     lines.push('');
 
     // Q&A pairs
-    const daySeparator = this.daySeparator(options.includeTimestamps);
+    const daySeparator = this.daySeparator(options.showMetaInfo);
     const pushDaySeparator = (date?: Date): void => {
       const separator = daySeparator(date);
       if (separator) {
@@ -101,7 +101,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
      * why this is local rather than a change to the shared helper.
      */
     const roleLabel = (name: string, timestamp?: Date): string => {
-      if (!options.includeTimestamps || !timestamp) return `**${name}**`;
+      if (!options.showMetaInfo || !timestamp) return `**${name}**`;
       return `**${name}** · ${this.formatTime(timestamp).slice(0, 5)}`;
     };
 

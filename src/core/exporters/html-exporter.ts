@@ -128,7 +128,7 @@ export class HtmlExporter extends BaseExporter {
     <div class="container">
         <header class="header">
             <h1 class="title">${title}</h1>
-            ${options.includeMetadata ? this.generateMetadata(platform, model, dateRange, date, url) : ''}
+            ${options.showMetaInfo ? this.generateMetadata(platform, model, dateRange, date, url) : ''}
         </header>
 
         <main class="conversation">
@@ -191,7 +191,7 @@ export class HtmlExporter extends BaseExporter {
     options: ExportOptions
   ): string {
     const assistantName = this.getRoleName('assistant', platform);
-    const daySeparator = this.daySeparator(options.includeTimestamps);
+    const daySeparator = this.daySeparator(options.showMetaInfo);
 
     return pairs
       .map(
@@ -199,7 +199,7 @@ export class HtmlExporter extends BaseExporter {
             <div class="qa-pair">
                 <div class="message user-message">
                     <div class="message-header">
-                        <p class="message-role">${this.getRoleName('user')}</p>${this.renderTimestampSpan(pair.question.timestamp, options.includeTimestamps)}
+                        <p class="message-role">${this.getRoleName('user')}</p>${this.renderTimestampSpan(pair.question.timestamp, options.showMetaInfo)}
                     </div>
                     <div class="message-content">
                         ${this.renderBlocks(pair.question.blocks)}
@@ -208,7 +208,7 @@ export class HtmlExporter extends BaseExporter {
                 ${this.renderDaySeparator(daySeparator(pair.answer.timestamp))}
                 <div class="message assistant-message" data-platform="${platform}">
                     <div class="message-header">
-                        <p class="message-role">${assistantName}</p>${this.renderTimestampSpan(pair.answer.timestamp, options.includeTimestamps)}
+                        <p class="message-role">${assistantName}</p>${this.renderTimestampSpan(pair.answer.timestamp, options.showMetaInfo)}
                     </div>
                     <div class="message-content">
                         ${this.renderBlocks(pair.answer.blocks)}

@@ -92,8 +92,7 @@ const POPUP_DOM = `
     <select id="format-select" disabled><option value="md">Markdown</option></select>
     <button id="export-button" disabled></button>
     <button id="print-button" disabled></button>
-    <input type="checkbox" id="option-include-metadata" />
-    <input type="checkbox" id="option-include-timestamps" />
+    <input type="checkbox" id="option-show-meta-info" />
     <fieldset class="option-row option-row--choice">
       <legend data-i18n="optionFontScale">Text size</legend>
       <label><input type="radio" name="option-font-scale" value="compact" /></label>

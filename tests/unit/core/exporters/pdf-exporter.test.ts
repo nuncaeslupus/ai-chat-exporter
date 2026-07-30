@@ -170,8 +170,7 @@ describe('PdfExporter', () => {
     const result = await new PdfExporter().export(conversation, pairs, {
       format: 'pdf',
       filename: 'test',
-      includeMetadata: true,
-      includeTimestamps: false,
+      showMetaInfo: true,
     });
 
     expect(result.success).toBe(true);
@@ -184,8 +183,7 @@ describe('PdfExporter', () => {
     await new PdfExporter().export(conversation, pairs, {
       format: 'pdf',
       filename: 'test',
-      includeMetadata: true,
-      includeTimestamps: false,
+      showMetaInfo: true,
     });
 
     const instance = instances[0]!;
@@ -205,8 +203,7 @@ describe('PdfExporter', () => {
     await new PdfExporter().export(conversation, pairs, {
       format: 'pdf',
       filename: 'test',
-      includeMetadata: false,
-      includeTimestamps: false,
+      showMetaInfo: false,
     });
 
     const instance = instances[0]!;
@@ -247,8 +244,7 @@ describe('PdfExporter', () => {
     await new PdfExporter().export(conversation, [pair], {
       format: 'pdf',
       filename: 'test',
-      includeMetadata: false,
-      includeTimestamps: false,
+      showMetaInfo: false,
     });
 
     const instance = instances[0]!;
@@ -290,8 +286,7 @@ describe('PdfExporter', () => {
     await new PdfExporter().export(conversation, [pair], {
       format: 'pdf',
       filename: 'test',
-      includeMetadata: false,
-      includeTimestamps: false,
+      showMetaInfo: false,
     });
 
     const instance = instances[0]!;
@@ -332,8 +327,7 @@ describe('PdfExporter', () => {
     await new PdfExporter().export(conversation, [pair], {
       format: 'pdf',
       filename: 'test',
-      includeMetadata: false,
-      includeTimestamps: false,
+      showMetaInfo: false,
     });
 
     const combined = textCallsOf(instances[0]!).join(' ');
@@ -346,8 +340,7 @@ describe('PdfExporter', () => {
     await new PdfExporter().export(conversation, pairs, {
       format: 'pdf',
       filename: 'test',
-      includeMetadata: false,
-      includeTimestamps: false,
+      showMetaInfo: false,
     });
 
     const instance = instances[0]!;
@@ -362,28 +355,31 @@ describe('PdfExporter', () => {
   });
 
   describe('per-message timestamps', () => {
-    it('renders a per-message timestamp when includeTimestamps is on', async () => {
+    it('renders a per-message timestamp when showMetaInfo is on', async () => {
       const { conversation, pairs } = buildConversation();
       await new PdfExporter().export(conversation, pairs, {
         format: 'pdf',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: true,
+        showMetaInfo: true,
       });
 
       const rendered = textCallsOf(instances[0]!);
       expect(rendered.some((t) => t.includes('(12:00:00)'))).toBe(true);
-      // The day is announced once by a day separator, not repeated per message.
-      expect(rendered.some((t) => t.includes('2025-01-01 12:00:00'))).toBe(false);
+      // The date belongs to the header (which showMetaInfo also turns on) and to
+      // the day separator — never to a per-message stamp. Assert on the ROLE
+      // LABEL line rather than the whole document, which now legitimately
+      // contains a full "Exported: <date> <time>" too.
+      const roleLines = rendered.filter((t) => /^\w+.*\(\d{2}:\d{2}:\d{2}\)/.test(t));
+      expect(roleLines.length).toBeGreaterThan(0);
+      expect(roleLines.every((t) => !t.includes('2025-01-01'))).toBe(true);
     });
 
-    it('omits the timestamp when includeTimestamps is off', async () => {
+    it('omits the timestamp when showMetaInfo is off', async () => {
       const { conversation, pairs } = buildConversation();
       await new PdfExporter().export(conversation, pairs, {
         format: 'pdf',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: false,
+        showMetaInfo: false,
       });
 
       const rendered = textCallsOf(instances[0]!);
@@ -419,8 +415,7 @@ describe('PdfExporter', () => {
       await new PdfExporter().export(conversation, [pair], {
         format: 'pdf',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: true,
+        showMetaInfo: true,
       });
 
       const rendered = textCallsOf(instances[0]!);
@@ -437,8 +432,7 @@ describe('R-2: page chrome and the R2 role label', () => {
     await new PdfExporter().export(conversation, pairs, {
       format: 'pdf',
       filename: 'test',
-      includeMetadata: true,
-      includeTimestamps: false,
+      showMetaInfo: true,
     } as never);
     return instances[0]!;
   }
@@ -453,8 +447,9 @@ describe('R-2: page chrome and the R2 role label', () => {
     const calls = instance.calls;
     // The assistant's name comes from i18n, absent in this harness, so match the
     // label's shape rather than the resolved word.
+    // showMetaInfo turns times on too, so the label may carry a "(HH:MM:SS)".
     const labelIndex = calls.findIndex(
-      (c) => c.method === 'text' && /^[A-Za-z]+:$/.test(String(c.args[0]))
+      (c) => c.method === 'text' && /^[A-Za-z]+( \(\d{2}:\d{2}:\d{2}\))?:$/.test(String(c.args[0]))
     );
     expect(labelIndex).toBeGreaterThan(-1);
 

@@ -182,8 +182,7 @@ class ContentScript {
       const result = await exporter.export(conversation, pairsToExport, {
         format,
         filename: '',
-        includeMetadata: prefs.includeMetadata,
-        includeTimestamps: prefs.includeTimestamps,
+        showMetaInfo: prefs.showMetaInfo,
         fontScale: prefs.fontScale,
       });
 
@@ -327,8 +326,7 @@ class ContentScript {
       const result = await exporter.export(finalConversation, pairsToExport, {
         format,
         filename: '',
-        includeMetadata: prefs.includeMetadata,
-        includeTimestamps: prefs.includeTimestamps,
+        showMetaInfo: prefs.showMetaInfo,
         fontScale: prefs.fontScale,
       });
 

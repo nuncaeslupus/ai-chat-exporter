@@ -147,8 +147,7 @@ function conversationWith(results: { title: string; url: string; domain?: string
 const options: ExportOptions = {
   format: 'md',
   filename: 'test',
-  includeMetadata: false,
-  includeTimestamps: false,
+  showMetaInfo: false,
 };
 
 async function exportAll(conversation: Conversation, pairs: QAPair[]) {

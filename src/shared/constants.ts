@@ -31,8 +31,7 @@ export const MESSAGE_TYPES = {
  * Default user preferences
  */
 export const DEFAULT_PREFERENCES: UserPreferences = {
-  includeMetadata: true,
-  includeTimestamps: true,
+  showMetaInfo: true,
   includeCodeBlocks: true,
   fontScale: 'normal',
   filenameTemplate: '{title}_{date}',

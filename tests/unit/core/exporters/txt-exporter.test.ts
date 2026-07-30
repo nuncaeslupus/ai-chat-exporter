@@ -49,8 +49,7 @@ describe('TextExporter', () => {
       const result = await exporter.export(conversation, selectedPairs, {
         format: 'txt',
         filename: 'test',
-        includeMetadata: true,
-        includeTimestamps: false,
+        showMetaInfo: true,
       });
       expect(result.success).toBe(true);
       expect(result.blob).toBeInstanceOf(Blob);
@@ -61,8 +60,7 @@ describe('TextExporter', () => {
       const result = await exporter.export(conversation, selectedPairs, {
         format: 'txt',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: false,
+        showMetaInfo: false,
       });
       const text = await blobToText(result.blob!);
       expect(text).not.toContain('##'); // No markdown headings
@@ -76,8 +74,7 @@ describe('TextExporter', () => {
       const result = await exporter.export(conversation, selectedPairs, {
         format: 'txt',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: false,
+        showMetaInfo: false,
       });
       const text = await blobToText(result.blob!);
       expect(text).toMatch(/\n-{20,}/); // Has separator lines
@@ -87,8 +84,7 @@ describe('TextExporter', () => {
       const result = await exporter.export(conversation, selectedPairs, {
         format: 'txt',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: false,
+        showMetaInfo: false,
       });
       const text = await blobToText(result.blob!);
       expect(text).toContain('Test Conversation');
@@ -98,8 +94,7 @@ describe('TextExporter', () => {
       const result = await exporter.export(conversation, selectedPairs, {
         format: 'txt',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: false,
+        showMetaInfo: false,
       });
       const text = await blobToText(result.blob!);
       expect(text).not.toContain('Platform:');
@@ -110,8 +105,7 @@ describe('TextExporter', () => {
       const result = await exporter.export(conversation, selectedPairs, {
         format: 'txt',
         filename: 'test',
-        includeMetadata: true,
-        includeTimestamps: false,
+        showMetaInfo: true,
       });
       const text = await blobToText(result.blob!);
       expect(text).toContain('Platform:');
@@ -120,25 +114,28 @@ describe('TextExporter', () => {
   });
 
   describe('per-message timestamps', () => {
-    it('renders a per-message timestamp when includeTimestamps is on', async () => {
+    it('renders a per-message timestamp when showMetaInfo is on', async () => {
       const result = await exporter.export(conversation, selectedPairs, {
         format: 'txt',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: true,
+        showMetaInfo: true,
       });
       const text = await blobToText(result.blob!);
       expect(text).toContain('· 12:00');
-      // The day is announced once by a day separator, not repeated per message.
-      expect(text).not.toContain('2025-01-01 12:00:00');
+      // The date belongs to the header (which showMetaInfo also turns on) and to
+      // the day separator — never to a per-message stamp. Assert on the ROLE
+      // LABEL line rather than the whole document, which now legitimately
+      // contains a full "Exported: <date> <time>" too.
+      const roleLines = text.split('\n').filter((l) => /^[A-Z]+ ·/.test(l));
+      expect(roleLines.length).toBeGreaterThan(0);
+      expect(roleLines.every((l) => !l.includes('2025-01-01'))).toBe(true);
     });
 
-    it('omits the timestamp when includeTimestamps is off', async () => {
+    it('omits the timestamp when showMetaInfo is off', async () => {
       const result = await exporter.export(conversation, selectedPairs, {
         format: 'txt',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: false,
+        showMetaInfo: false,
       });
       const text = await blobToText(result.blob!);
       expect(text).not.toContain('12:00:00');
@@ -163,8 +160,7 @@ describe('TextExporter', () => {
       const result = await exporter.export(createTestConversation([pair]), [pair], {
         format: 'txt',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: true,
+        showMetaInfo: true,
       });
       const text = await blobToText(result.blob!);
       expect(text).not.toContain('undefined');
@@ -200,8 +196,7 @@ describe('TextExporter', () => {
       const result = await exporter.export(conversation, [pair], {
         format: 'txt',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: false,
+        showMetaInfo: false,
       });
       const text = await blobToText(result.blob!);
       expect(text).toContain('the source');
@@ -214,8 +209,7 @@ describe('TextExporter', () => {
       const result = await exporter.export(conversation, [pair], {
         format: 'txt',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: false,
+        showMetaInfo: false,
       });
       const text = await blobToText(result.blob!);
       expect(text).toContain('https://example.com/');
@@ -228,8 +222,7 @@ describe('TextExporter', () => {
       const valid = exporter.validateOptions({
         format: 'txt',
         filename: 'test',
-        includeMetadata: true,
-        includeTimestamps: false,
+        showMetaInfo: true,
       });
       expect(valid).toBe(true);
     });
@@ -238,8 +231,7 @@ describe('TextExporter', () => {
       const valid = exporter.validateOptions({
         format: 'pdf',
         filename: 'test',
-        includeMetadata: true,
-        includeTimestamps: false,
+        showMetaInfo: true,
       });
       expect(valid).toBe(false);
     });
@@ -273,7 +265,7 @@ describe('R-5: the 72-column plain-text layout', () => {
       },
     }) as unknown as QAPair;
 
-  async function render(includeTimestamps = true): Promise<string> {
+  async function render(showMetaInfo = true): Promise<string> {
     const pair = richPair();
     const conversation = {
       id: 'c1',
@@ -287,8 +279,7 @@ describe('R-5: the 72-column plain-text layout', () => {
     const result = await new TextExporter().export(conversation, [pair], {
       format: 'txt',
       filename: 'test',
-      includeMetadata: true,
-      includeTimestamps,
+      showMetaInfo,
     } as never);
     return blobToText(result.blob!);
   }

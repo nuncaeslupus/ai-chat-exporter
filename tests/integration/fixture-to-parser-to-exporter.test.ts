@@ -81,8 +81,7 @@ function parseComprehensiveFixture(): Conversation {
 const EXPORT_OPTIONS = (format: ExportFormat) => ({
   format,
   filename: 'integration-test',
-  includeMetadata: true,
-  includeTimestamps: true,
+  showMetaInfo: true,
 });
 
 describe('fixture -> parser -> every exporter', () => {

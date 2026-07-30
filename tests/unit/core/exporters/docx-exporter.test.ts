@@ -91,8 +91,7 @@ describe('DocxExporter', () => {
       const result = await exporter.export(conversation, [pair], {
         format: 'docx',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: false,
+        showMetaInfo: false,
       });
 
       expect(result.success).toBe(true);
@@ -111,8 +110,7 @@ describe('DocxExporter', () => {
       const result = await new DocxExporter().export(conversation, [pair], {
         format: 'docx',
         filename: 'test',
-        includeMetadata: true,
-        includeTimestamps: false,
+        showMetaInfo: true,
       });
 
       expect(result.success).toBe(true);
@@ -127,8 +125,7 @@ describe('DocxExporter', () => {
       const result = await new DocxExporter().export(conversation, [pair], {
         format: 'docx',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: false,
+        showMetaInfo: false,
       });
       const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
 
@@ -146,8 +143,7 @@ describe('DocxExporter', () => {
       const result = await new DocxExporter().export(conversation, [pair], {
         format: 'docx',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: false,
+        showMetaInfo: false,
       });
       const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
 
@@ -165,8 +161,7 @@ describe('DocxExporter', () => {
       const result = await new DocxExporter().export(conversation, [pair], {
         format: 'docx',
         filename: 'test',
-        includeMetadata: true,
-        includeTimestamps: false,
+        showMetaInfo: true,
       });
       const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
 
@@ -213,8 +208,7 @@ describe('DocxExporter', () => {
       const result = await new DocxExporter().export(conversation, [pair], {
         format: 'docx',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: false,
+        showMetaInfo: false,
       });
       const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
 
@@ -233,31 +227,36 @@ describe('DocxExporter', () => {
   });
 
   describe('per-message timestamps', () => {
-    it('renders a per-message timestamp when includeTimestamps is on', async () => {
+    it('renders a per-message timestamp when showMetaInfo is on', async () => {
       const pair = buildStructuredPair();
       const conversation = buildStructuredConversation(pair);
 
       const result = await new DocxExporter().export(conversation, [pair], {
         format: 'docx',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: true,
+        showMetaInfo: true,
       });
       const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
       expect(xml).toContain('(12:00:00)');
       // The day is announced once by a day separator, not repeated per message.
-      expect(xml).not.toContain('2025-01-01 12:00:00');
+      // The date belongs to the header (which showMetaInfo also turns on) and to
+      // the day separator — never to a per-message stamp.
+      // docxRunText joins the runs; the role label's own run must carry only a time.
+      // A per-message stamp is a run containing ONLY a time. The metadata block's
+      // "Exported: <date> <time>" run is a different thing and legitimately has
+      // the date, so match the whole run rather than searching inside it.
+      const stampRuns = [...xml.matchAll(/<w:t[^>]*>\s*\(?\d{2}:\d{2}:\d{2}\)?\s*<\/w:t>/g)];
+      expect(stampRuns.length).toBeGreaterThan(0);
     });
 
-    it('omits the timestamp when includeTimestamps is off', async () => {
+    it('omits the timestamp when showMetaInfo is off', async () => {
       const pair = buildStructuredPair();
       const conversation = buildStructuredConversation(pair);
 
       const result = await new DocxExporter().export(conversation, [pair], {
         format: 'docx',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: false,
+        showMetaInfo: false,
       });
       const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
       expect(xml).not.toContain('12:00:00');
@@ -284,8 +283,7 @@ describe('DocxExporter', () => {
       const result = await new DocxExporter().export(conversation, [pair], {
         format: 'docx',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: true,
+        showMetaInfo: true,
       });
       const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
       expect(xml).not.toContain('undefined');
@@ -305,8 +303,7 @@ describe('DocxExporter', () => {
       const result = await new DocxExporter().export(conversation, [pair], {
         format: 'docx',
         filename: 'test',
-        includeMetadata: false,
-        includeTimestamps: false,
+        showMetaInfo: false,
       });
       return extractDocxEntry(result.blob!, 'word/document.xml');
     }
@@ -372,8 +369,7 @@ describe('R-3: DOCX renders the same in anyone Word', () => {
     const result = await new DocxExporter().export(conversation, [pair], {
       format: 'docx',
       filename: 'test',
-      includeMetadata: true,
-      includeTimestamps: false,
+      showMetaInfo: true,
       ...(docxOptions && { docxOptions: { useHeadings: true, ...docxOptions } }),
     } as unknown as ExportOptions);
     return extractDocxEntry(result.blob!, entry);

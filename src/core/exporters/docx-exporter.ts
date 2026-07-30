@@ -165,7 +165,7 @@ export class DocxExporter extends BaseExporter {
     );
 
     // Metadata
-    if (options.includeMetadata) {
+    if (options.showMetaInfo) {
       sections.push(
         new Paragraph({
           children: [
@@ -244,7 +244,7 @@ export class DocxExporter extends BaseExporter {
     // The role label is text on a white page, so take the darkened
     // on-light variant — the same token html's role label uses.
     const assistantColor = brandColorFor(COLOR.brandTextOnLight, conversation.platform);
-    const daySeparator = this.daySeparator(options.includeTimestamps);
+    const daySeparator = this.daySeparator(options.showMetaInfo);
     for (const pair of conversation.pairs) {
       sections.push(...this.formatPair(pair, options, assistantName, assistantColor, daySeparator));
     }
@@ -445,7 +445,7 @@ export class DocxExporter extends BaseExporter {
     paragraphs.push(
       this.renderRoleLabel(
         'User',
-        this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps),
+        this.formatTimestampSuffix(pair.question.timestamp, options.showMetaInfo),
         COLOR.link
       )
     );
@@ -458,7 +458,7 @@ export class DocxExporter extends BaseExporter {
     paragraphs.push(
       this.renderRoleLabel(
         assistantName,
-        this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps),
+        this.formatTimestampSuffix(pair.answer.timestamp, options.showMetaInfo),
         assistantColor
       )
     );

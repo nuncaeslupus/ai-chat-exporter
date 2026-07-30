@@ -25,8 +25,7 @@ const EN_MESSAGES: Record<string, string> = {
   platformClaude: 'Claude',
   rowOptions: 'Options',
   rowOptionsChanged: 'Some settings have been changed',
-  optionIncludeMetadata: 'Header with the chat details',
-  optionIncludeTimestamps: 'Time on each message',
+  optionShowMetaInfo: 'Show meta-info',
   optionFontScale: 'Text size',
   optionsFilenameRow: 'File name',
   footerPrivacy: 'Privacy',
@@ -110,8 +109,7 @@ async function storedPreferences(): Promise<Record<string, unknown>> {
 }
 
 const PREFERENCE_OF: Record<string, string> = {
-  'option-include-metadata': 'includeMetadata',
-  'option-include-timestamps': 'includeTimestamps',
+  'option-show-meta-info': 'showMetaInfo',
 };
 
 /** Flip a checkbox the way a click does, and wait for the write to land. */
@@ -142,36 +140,32 @@ beforeEach(() => {
 });
 
 describe('options submenu — the setting rows', () => {
-  it('binds the two checkboxes to the stored preferences and defaults them on', async () => {
+  it('binds the meta-info checkbox to the stored preference and defaults it on', async () => {
     await loadPopup();
 
-    expect(toggle('option-include-metadata').checked).toBe(true);
-    expect(toggle('option-include-timestamps').checked).toBe(true);
+    expect(toggle('option-show-meta-info').checked).toBe(true);
   });
 
-  it('writes a toggle through StorageService and survives a re-open', async () => {
+  it('writes the toggle through StorageService and survives a re-open', async () => {
     await loadPopup();
-    await setToggle('option-include-timestamps', false);
+    await setToggle('option-show-meta-info', false);
 
     // Re-open: a fresh popup instance reading the same storage.
     await loadPopup();
 
-    expect(toggle('option-include-timestamps').checked).toBe(false);
-    expect(toggle('option-include-metadata').checked).toBe(true);
+    expect(toggle('option-show-meta-info').checked).toBe(false);
   });
 
-  it('offers no preference for the day-change date — timestamps imply it', async () => {
+  it('offers one meta-info row, not two — a message time IS meta-info', async () => {
     await loadPopup();
 
     const labels = Array.from(document.querySelectorAll('#view-options .option-row-label')).map(
       (node) => node.textContent
     );
-    expect(labels).toEqual([
-      'Header with the chat details',
-      'Time on each message',
-      'Text size',
-      'File name',
-    ]);
+    // The separate "Time on each message" row is gone: it governed nothing for
+    // years (no parser wrote Message.timestamp), and the day-change date was
+    // never a preference either — timestamps imply it.
+    expect(labels).toEqual(['Show meta-info', 'Text size', 'File name']);
   });
 
   it('opens the filename view from its row without a display juggle', async () => {
@@ -191,12 +185,12 @@ describe('options submenu — the changed-from-default dot', () => {
     await loadPopup();
     expect(dotHidden()).toBe(true);
 
-    await setToggle('option-include-metadata', false);
+    await setToggle('option-show-meta-info', false);
     await vi.waitFor(() => {
       expect(dotHidden()).toBe(false);
     });
 
-    await setToggle('option-include-metadata', true);
+    await setToggle('option-show-meta-info', true);
     await vi.waitFor(() => {
       expect(dotHidden()).toBe(true);
     });
@@ -204,7 +198,7 @@ describe('options submenu — the changed-from-default dot', () => {
 
   it('is still shown on a re-open, derived from storage rather than a stored flag', async () => {
     await loadPopup();
-    await setToggle('option-include-metadata', false);
+    await setToggle('option-show-meta-info', false);
 
     await loadPopup();
 

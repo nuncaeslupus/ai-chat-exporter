@@ -7,7 +7,6 @@
     "message": "Exportieren Sie KI-Chatbot-Konversationen als PDF, Markdown, DOCX und mehr",
     "description": "Extension description"
   },
-
   "statusDetecting": {
     "message": "Erkennung läuft...",
     "description": "Status message while detecting chatbot"
@@ -56,7 +55,6 @@
     "message": "Ohne Titel",
     "description": "Fallback conversation title when none is available"
   },
-
   "noChatbotDetectedTitle": {
     "message": "Hier gibt es keine Unterhaltung zum Exportieren",
     "description": "Title for no chatbot detected message"
@@ -65,7 +63,6 @@
     "message": "Öffnen Sie einen Chat auf einer dieser Seiten – er wird in einem neuen Tab geöffnet.",
     "description": "Message when no chatbot is detected"
   },
-
   "noConversationFoundTitle": {
     "message": "Hier wurde keine Unterhaltung gefunden",
     "description": "Title shown when the page is a supported chatbot but its parser found no conversation"
@@ -74,7 +71,6 @@
     "message": "Diese Seite wird unterstützt, aber es konnten keine Nachrichten gelesen werden.",
     "description": "Message shown when the page is a supported chatbot but its parser found no conversation"
   },
-
   "reloadRequiredTitle": {
     "message": "Laden Sie die Seite neu, um diese Unterhaltung zu exportieren",
     "description": "Title for reload required message"
@@ -119,7 +115,6 @@
     "message": "Erneut exportieren",
     "description": "Main button label after a degraded export"
   },
-
   "exportButton": {
     "message": "Exportieren",
     "description": "Export button label"
@@ -128,7 +123,6 @@
     "message": "Drucken",
     "description": "Print button label"
   },
-
   "formatPDF": {
     "message": "PDF-Dokument",
     "description": "PDF format option"
@@ -153,14 +147,9 @@
     "message": "JSON-Daten",
     "description": "JSON format option"
   },
-
-  "optionIncludeMetadata": {
-    "message": "Kopfzeile mit den Chat-Daten",
-    "description": "Label for the toggle controlling whether exports include the metadata block"
-  },
-  "optionIncludeTimestamps": {
-    "message": "Uhrzeit bei jeder Nachricht",
-    "description": "Label for the toggle controlling whether exports include message timestamps"
+  "optionShowMetaInfo": {
+    "message": "Meta-Infos anzeigen",
+    "description": "Label for the toggle controlling whether exports include the metadata header block and per-message times"
   },
   "optionFontScale": {
     "message": "Textgröße",
@@ -182,7 +171,6 @@
     "message": "Dateiname",
     "description": "Label of the file-name navigation row in the Options submenu"
   },
-
   "qaSelectionTitle": {
     "message": "Paare auswählen",
     "description": "Title of the Content submenu, the pair chooser"
@@ -199,10 +187,12 @@
     "message": "Frage-Antwort-Paar $1",
     "description": "Checkbox label used when a pair's question has no text. $1 = 1-based pair number",
     "placeholders": {
-      "index": { "content": "$1", "example": "1" }
+      "index": {
+        "content": "$1",
+        "example": "1"
+      }
     }
   },
-
   "metadataFieldPlatform": {
     "message": "Plattform",
     "description": "Metadata field: Platform"
@@ -231,7 +221,6 @@
     "message": "Wert",
     "description": "Table header for metadata value column"
   },
-
   "roleUser": {
     "message": "Benutzer",
     "description": "User role label"
@@ -252,7 +241,6 @@
     "message": "Gemini",
     "description": "Gemini assistant name"
   },
-
   "platformChatGPT": {
     "message": "ChatGPT",
     "description": "ChatGPT platform name"
@@ -273,7 +261,6 @@
     "message": "Grok",
     "description": "Grok platform name"
   },
-
   "pageNumberFormat": {
     "message": "Seite $1 von $2",
     "description": "Page number format for PDF exports. $1 = current page, $2 = total pages",
@@ -288,12 +275,10 @@
       }
     }
   },
-
   "exportedWithChatExporter": {
     "message": "Exportiert mit AI Chat Exporter",
     "description": "Footer message in HTML exports"
   },
-
   "footerPrivacy": {
     "message": "Datenschutz",
     "description": "Privacy policy link in the Options submenu footer"
@@ -302,7 +287,6 @@
     "message": "GitHub",
     "description": "GitHub footer link"
   },
-
   "metaPairsSingular": {
     "message": "$1 Paar",
     "description": "Conversation meta line, one pair. $1 = pair count",
@@ -439,12 +423,20 @@
     "message": "$1 von $2 · $3 Wörter",
     "description": "Pair chooser footer. $1 = selected pairs, $2 = total pairs, $3 = words in the selection",
     "placeholders": {
-      "count": { "content": "$1", "example": "2" },
-      "total": { "content": "$2", "example": "14" },
-      "words": { "content": "$3", "example": "4,120" }
+      "count": {
+        "content": "$1",
+        "example": "2"
+      },
+      "total": {
+        "content": "$2",
+        "example": "14"
+      },
+      "words": {
+        "content": "$3",
+        "example": "4,120"
+      }
     }
   },
-
   "filenameRestoreDefault": {
     "message": "Standard",
     "description": "Link in the file-name submenu header that restores the default piece list"
@@ -457,7 +449,10 @@
     "message": "+ $1",
     "description": "Chip that appends a piece to the file name. $1 = piece name",
     "placeholders": {
-      "piece": { "content": "$1", "example": "Title" }
+      "piece": {
+        "content": "$1",
+        "example": "Title"
+      }
     }
   },
   "filenameRemovePiece": {
