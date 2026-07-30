@@ -67,7 +67,7 @@ const DOCX_HEADING_BY_LEVEL: (typeof HeadingLevel)[keyof typeof HeadingLevel][] 
  *
  * `noUncheckedIndexedAccess` types every number-indexed read as `| undefined`,
  * so the lookup needs a total wrapper. Callers only ever pass 1..6
- * (`DOC_HEADING_LEVEL.title`/`.roleLabel`, or `bodyHeadingLevel`, which clamps
+ * (`DOC_HEADING_LEVEL.title`, or `bodyHeadingLevel`, which clamps
  * to `DOC_HEADING_LEVEL.max`), so the fallback is unreachable in practice.
  */
 function docxHeading(docLevel: number): (typeof HeadingLevel)[keyof typeof HeadingLevel] {
@@ -264,19 +264,31 @@ export class DocxExporter extends BaseExporter {
   }
 
   /**
-   * Render a role heading, appending a de-emphasized timestamp run when non-empty.
+   * Render the role label, appending a de-emphasized timestamp run when non-empty.
    *
    * `labelColor` is a '#rrggbb' hex — the platform brand colour for the
    * assistant, the user accent for the user — so a docx is identifiable as
    * ChatGPT / Claude / Gemini the way pdf and html already are.
+   *
+   * Not a heading (R-1). It used to borrow Word's `Heading 2`, which both
+   * rendered it enormous and cost the body its two highest heading levels. The
+   * weight is declared here instead: bold, small, brand-coloured. R-3 moves
+   * this onto a named `ChatRole` style so it does not depend on Word's
+   * paragraph defaults at all.
    */
-  private renderRoleHeading(label: string, timestampSuffix: string, labelColor: string): Paragraph {
-    const children: TextRun[] = [new TextRun({ text: label, color: hexToDocxColor(labelColor) })];
+  private renderRoleLabel(label: string, timestampSuffix: string, labelColor: string): Paragraph {
+    const children: TextRun[] = [
+      new TextRun({
+        text: label,
+        bold: true,
+        size: ptToHalfPt(this.sizes.roleLabel),
+        color: hexToDocxColor(labelColor),
+      }),
+    ];
     if (timestampSuffix) {
       children.push(
         new TextRun({
           text: timestampSuffix,
-          italics: true,
           size: ptToHalfPt(this.sizes.meta),
           color: hexToDocxColor(COLOR.textMuted),
         })
@@ -284,7 +296,6 @@ export class DocxExporter extends BaseExporter {
     }
     return new Paragraph({
       children,
-      heading: docxHeading(DOC_HEADING_LEVEL.roleLabel),
       spacing: { before: 300, after: 150 },
       keepNext: true, // never strand the role label at the foot of a page
     });
@@ -330,7 +341,7 @@ export class DocxExporter extends BaseExporter {
     // User heading
     pushDaySeparator(pair.question.timestamp);
     paragraphs.push(
-      this.renderRoleHeading(
+      this.renderRoleLabel(
         'User',
         this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps),
         COLOR.link
@@ -343,7 +354,7 @@ export class DocxExporter extends BaseExporter {
     // Assistant heading
     pushDaySeparator(pair.answer.timestamp);
     paragraphs.push(
-      this.renderRoleHeading(
+      this.renderRoleLabel(
         assistantName,
         this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps),
         assistantColor

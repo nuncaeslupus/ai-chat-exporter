@@ -88,26 +88,40 @@ export const FONT_FAMILY = {
 // most of the literals it replaces resolved to)
 // ---------------------------------------------------------------------------
 
+/**
+ * Neutral grey, not the blue-tinged Tailwind default scale this replaced (R-1).
+ * The design's point: the only colour on an exported page is the platform's,
+ * and only in the role-label rule and in links — so the ink itself must not
+ * carry a hue of its own.
+ */
 const GRAY = {
-  50: '#f9fafb',
-  100: '#f3f4f6',
-  200: '#e5e7eb',
-  300: '#d1d5db',
-  400: '#9ca3af',
-  500: '#6b7280',
-  700: '#374151',
-  800: '#1f2937',
-  900: '#111827',
+  50: '#F6F7F6', // turn fill / subtle surface
+  100: '#EDEFEE', // code-block background
+  200: '#E3E6E4', // rules
+  300: '#CBD0CD', // blockquote rule
+  400: '#98A0A3', // page numbers and other de-emphasized chrome
+  /**
+   * Labels and footers. The design names `#6B7378`, but that value on the
+   * design's own `#F6F7F6` turn fill measures **4.496:1** — short of WCAG AA
+   * (4.5:1) by 0.004. Darkened ~1% to clear it, keeping the fill exactly as
+   * designed since the fill is the more visible of the two. Caught by
+   * tests/unit/accessibility/contrast.test.ts, not by eye.
+   */
+  500: '#6A7277',
+  700: '#33393C', // body
+  800: '#242A2C',
+  900: '#14181A', // headings
 } as const;
 
 /**
- * A darker muted gray, required (not stylistic) on html's `surfaceMuted`
- * (#f3f4f6, the assistant-message background): `GRAY[500]` alone falls
- * just under the WCAG AA 4.5:1 threshold there (4.39:1), caught by
+ * A muted grey that clears WCAG AA on `surfaceMuted` specifically. `GRAY[500]`
+ * on the old `#f3f4f6` fell just under 4.5:1 (4.39:1), caught by
  * tests/unit/accessibility/contrast.test.ts. Kept distinct from
  * `COLOR.textMuted` on purpose — this is an accessibility floor, not drift.
+ * Re-derived for the R-1 neutral palette: hueless, and darker than the old
+ * blue-tinged value so it holds against the slightly darker code background.
  */
-const TEXT_MUTED_ON_SURFACE_MUTED = '#686f7d';
+const TEXT_MUTED_ON_SURFACE_MUTED = '#5C6366';
 
 export const COLOR = {
   textPrimary: GRAY[900], // titles, artifact/search-result headings
@@ -120,7 +134,12 @@ export const COLOR = {
   blockquoteBorder: GRAY[300], // canonical blockquote rule colour (pdf & html already agreed on this)
   surfaceSubtle: GRAY[50], // table header background, alternating row background
   surfaceMuted: GRAY[100], // pdf code-block background; html code-on-dark text colour
-  link: '#2563eb', // also the "user" role accent colour
+  /**
+   * The fill that marks a *turn*. R-6 moves it from the answer to the question:
+   * the background says who is asking, not who is answering.
+   */
+  surfaceTurn: GRAY[50],
+  link: '#1F5FBF', // also the "user" role accent colour
 
   /**
    * Canonical platform brand colours. pdf's original values are canonical —
@@ -135,10 +154,17 @@ export const COLOR = {
     gemini: '#4285f4',
     default: GRAY[500],
   },
+  /**
+   * Darkened brand variants for label TEXT on a light surface. Re-derived for
+   * R-1: the previous values cleared AA on the old `#f3f4f6` but land at
+   * 4.35-4.38:1 on the new, slightly darker `#EDEFEE` code surface. Each is
+   * darkened the minimum needed to clear 4.5:1 there (2-3%), which keeps the
+   * hue and still reads as the brand.
+   */
   brandTextOnLight: {
-    chatgpt: '#0c7e62',
-    claude: '#ab5834',
-    gemini: '#1165f1',
+    chatgpt: '#0C7B60',
+    claude: '#A65532',
+    gemini: '#1163EC',
     default: TEXT_MUTED_ON_SURFACE_MUTED,
   },
 } as const;
@@ -167,10 +193,32 @@ export function brandColorFor(
 // ---------------------------------------------------------------------------
 
 export const FONT_SIZE_PT = {
-  body: 12, // paragraph / list-item / default document text
-  meta: 10, // metadata block, timestamps baked into captions, artifact "Type:", search-result count, footer
-  code: 10, // code block body text (and code-as-artifact content)
+  body: 10.5, // paragraph / list-item / default document text — "a document has to fit"
+  meta: 8.5, // metadata block, artifact "Type:", search-result count, footer
+  code: 9, // code block body text (and code-as-artifact content)
   codeLabel: 8, // language tag rendered above a code block
+  /**
+   * The role label ("User" / the assistant's name). R-1's central change: this
+   * used to be a level-2 *heading* at 15 pt, which is why it rendered enormous
+   * and outranked the body headings underneath it. It is a label now.
+   */
+  roleLabel: 8.5,
+} as const;
+
+/**
+ * Five token classes, not twenty (R-1). Dark and low-saturation so each clears
+ * WCAG AA on the code-block background and they stay distinguishable printed in
+ * greyscale — both asserted in tests/unit/accessibility/contrast.test.ts.
+ *
+ * `highlight.js` (already a dependency) produces far more scopes than this; R-8
+ * maps them down onto these five rather than adding a palette per language.
+ */
+export const CODE_TOKEN_COLOR = {
+  keyword: '#9C3F63',
+  function: '#4C5FA8', // functions and class names
+  string: '#12665A',
+  number: '#8A5A1A', // numbers and constants
+  comment: '#8D9598',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -178,24 +226,29 @@ export const FONT_SIZE_PT = {
 // ---------------------------------------------------------------------------
 
 /**
- * Every exported document spends its top heading levels on chrome: level 1 is
- * the conversation title, level 2 is the role label (User / assistant name).
- * Body headings therefore start at level 3, which is what `bodyHeadingLevel`
- * derives — the offset is not arbitrary, it is `DOC_HEADING_LEVEL.roleLabel`.
+ * An exported document spends exactly ONE heading level on chrome: level 1, the
+ * conversation title. Body headings therefore start at level 2 — the offset is
+ * not arbitrary, it is `DOC_HEADING_LEVEL.title`.
+ *
+ * R-1 removed `roleLabel` from this table. The role label used to sit at level
+ * 2, which cost body headings the two highest levels *and* rendered the label
+ * itself as a heading (15 pt in pdf, Word's `Heading 2` in docx). It is styled
+ * as a label now — see `FONT_SIZE_PT.roleLabel` — so the level it used to
+ * occupy goes back to the body, and Markdown's `##` becomes available for a
+ * real heading again.
  *
  * txt and json have no heading-level surface: json passes the source markup
  * through losslessly, txt collapses every heading to an underlined line.
  */
 export const DOC_HEADING_LEVEL = {
   title: 1,
-  roleLabel: 2,
   max: 6,
 } as const;
 
 /** Source heading level (1-6) -> document heading level, clamped to 6. */
 export function bodyHeadingLevel(sourceLevel: number): number {
   const source = Math.max(sourceLevel, 1);
-  return Math.min(source + DOC_HEADING_LEVEL.roleLabel, DOC_HEADING_LEVEL.max);
+  return Math.min(source + DOC_HEADING_LEVEL.title, DOC_HEADING_LEVEL.max);
 }
 
 // ---------------------------------------------------------------------------
@@ -206,20 +259,23 @@ export function bodyHeadingLevel(sourceLevel: number): number {
 
 /**
  * pdf has no structural heading levels — font size is its only level surface,
- * so this table is indexed by DOCUMENT level (index 0 = level 1 = title,
- * index 1 = level 2 = role label) and must stay monotonic. Body headings read
- * off levels 3-6, which is why they can no longer outrank the role label the
- * way the old source-level-indexed table let them.
+ * so this table is indexed by DOCUMENT level (index 0 = level 1 = title) and
+ * must stay monotonic. Body headings now read off levels 2-6.
+ *
+ * R-1 pulled the role label out of this ramp. It was index 1 (15 pt), which
+ * made it the second-largest thing on the page and forced body headings down to
+ * levels 3-6. Its size comes from `FONT_SIZE_PT.roleLabel` (8.5 pt) now — a
+ * label, not a heading — so the ramp below is body headings only, and the
+ * design's 13 pt body H1 lands at index 1.
  */
-const PDF_HEADING_SCALE_PT = [20, 15, 14, 13, 12, 11] as const;
+const PDF_HEADING_SCALE_PT = [20, 13, 12, 11.5, 11, 10.5] as const;
 
 export const PDF_FONT_SIZE_PT = {
   headingByLevel: PDF_HEADING_SCALE_PT,
   title: PDF_HEADING_SCALE_PT[0], // DOC_HEADING_LEVEL.title
-  roleLabel: PDF_HEADING_SCALE_PT[1], // DOC_HEADING_LEVEL.roleLabel
-  sectionLabel: 11, // "Artifacts:" / "Web Search Results:"
-  artifactTitle: 10,
-  small: 9, // page numbers, table header/body text, search-result title
+  sectionLabel: 10, // "Artifacts:" / "Web Search Results:"
+  artifactTitle: 9.5,
+  small: 8.5, // page numbers, table header/body text, search-result title
 } as const;
 
 export const DOCX_FONT_SIZE_PT = {

@@ -4,12 +4,13 @@
  * The canonical document outline (see DOC_HEADING_LEVEL in style-tokens.ts):
  *
  *   level 1 = conversation title
- *   level 2 = role label (User / assistant name)
- *   level 3+ = body headings -> min(sourceLevel + 2, 6)
+ *   level 2+ = body headings -> min(sourceLevel + 1, 6)
  *
- * So a source <h1> lands at document level 3 and a source <h3> at level 5 in
- * every format that has a heading-level surface, and never at or above the
- * role label's level.
+ * R-1 demoted the role label out of the heading outline: it is a *label*, not a
+ * level-2 heading, which is why it used to render enormous. Only the title now
+ * occupies a heading level, so body headings start at 2 — a source <h1> lands at
+ * document level 2 and a source <h3> at level 4, in every format that has a
+ * heading-level surface.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -135,7 +136,7 @@ const options: ExportOptions = {
 };
 
 describe('heading levels are consistent across formats (C-2)', () => {
-  it('html: title h1, role label h2, source h1 -> h3, source h3 -> h5', async () => {
+  it('html: title h1, source h1 -> h2, source h3 -> h4', async () => {
     const result = await new HtmlExporter().export(conversation, pairs, {
       ...options,
       format: 'html',
@@ -143,12 +144,16 @@ describe('heading levels are consistent across formats (C-2)', () => {
     const text = await blobToText(result.blob!);
 
     expect(text).toContain('<h1 class="title">Test Conversation</h1>');
-    expect(text).toContain('<h2 class="message-role">');
-    expect(text).toContain('<h3>Alpha</h3>');
-    expect(text).toContain('<h5>Gamma</h5>');
+    expect(text).toContain('<h2>Alpha</h2>');
+    expect(text).toContain('<h4>Gamma</h4>');
+
+    // R-1: the role label is not a heading. It was a hardcoded <h2>, which now
+    // that body h1 lands at level 2 would duplicate that level in the outline.
+    expect(text).not.toMatch(/<h[1-6] class="message-role">/);
+    expect(text).toContain('<p class="message-role">');
   });
 
-  it('md: title #, role label ##, source h1 -> ###, source h3 -> #####', async () => {
+  it('md: title #, role label is not a heading, source h1 -> ##, source h3 -> ####', async () => {
     const result = await new StructuredMarkdownExporter().export(conversation, pairs, {
       ...options,
       format: 'md',
@@ -156,29 +161,31 @@ describe('heading levels are consistent across formats (C-2)', () => {
     const text = await blobToText(result.blob!);
 
     expect(text).toContain('# Test Conversation');
-    expect(text).toMatch(/^## .*User/m);
-    expect(text).toContain('### Alpha');
-    expect(text).toContain('##### Gamma');
+    expect(text).toContain('## Alpha');
+    expect(text).toContain('#### Gamma');
+    // R-1: the role label is a label, not a level-2 heading.
+    expect(text).not.toMatch(/^#+ .*User/m);
   });
 
-  it('docx: title Heading1, role label Heading2, source h1 -> Heading3, source h3 -> Heading5', async () => {
+  it('docx: title Heading1, role label is not a Heading, source h1 -> Heading2, source h3 -> Heading4', async () => {
     const result = await new DocxExporter().export(conversation, pairs, {
       ...options,
       format: 'docx',
     });
     const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
 
-    // Paragraph order: title, role label(s), then the body headings.
     const styles = [...xml.matchAll(/<w:pStyle w:val="(Heading\d)"\/>/g)].map((m) => m[1]);
     expect(styles[0]).toBe('Heading1'); // conversation title
-    expect(styles[1]).toBe('Heading2'); // "User" role label
-    expect(styles).toContain('Heading3'); // source h1
-    expect(styles).toContain('Heading5'); // source h3
+    expect(styles).toContain('Heading2'); // source h1
+    expect(styles).toContain('Heading4'); // source h3
 
     const alphaLevel = headingStyleOf(xml, 'Alpha');
     const gammaLevel = headingStyleOf(xml, 'Gamma');
-    expect(alphaLevel).toBe('Heading3');
-    expect(gammaLevel).toBe('Heading5');
+    expect(alphaLevel).toBe('Heading2');
+    expect(gammaLevel).toBe('Heading4');
+
+    // R-1: the role label no longer borrows a Heading style.
+    expect(headingStyleOf(xml, 'User')).toBeUndefined();
   });
 
   it('pdf: font sizes decrease monotonically title > role label > source h1 > source h3', async () => {
@@ -192,9 +199,14 @@ describe('heading levels are consistent across formats (C-2)', () => {
     const alphaSize = fontSizeBeforeText(instance, 'Alpha');
     const gammaSize = fontSizeBeforeText(instance, 'Gamma');
 
-    expect(titleSize).toBeGreaterThan(roleSize!);
-    expect(roleSize).toBeGreaterThan(alphaSize!);
+    // The body outline is still strictly monotonic: title > source h1 > source h3.
+    expect(titleSize).toBeGreaterThan(alphaSize!);
     expect(alphaSize).toBeGreaterThan(gammaSize!);
+
+    // R-1: the role label is NOT in that hierarchy. It used to be the
+    // second-largest thing on the page (15 pt, index 1 of the heading ramp);
+    // it is a small label now, below every body heading.
+    expect(roleSize).toBeLessThan(gammaSize!);
   });
 
   it('txt: has no heading-level surface — every body heading renders identically', async () => {

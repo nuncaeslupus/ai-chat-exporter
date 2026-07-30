@@ -166,7 +166,7 @@ export class HtmlExporter extends BaseExporter {
             <div class="qa-pair">
                 <div class="message user-message">
                     <div class="message-header">
-                        <h2 class="message-role">${this.getRoleName('user')}</h2>${this.renderTimestampSpan(pair.question.timestamp, options.includeTimestamps)}
+                        <p class="message-role">${this.getRoleName('user')}</p>${this.renderTimestampSpan(pair.question.timestamp, options.includeTimestamps)}
                     </div>
                     <div class="message-content">
                         ${this.renderBlocks(pair.question.blocks)}
@@ -175,7 +175,7 @@ export class HtmlExporter extends BaseExporter {
                 ${this.renderDaySeparator(daySeparator(pair.answer.timestamp))}
                 <div class="message assistant-message" data-platform="${platform}">
                     <div class="message-header">
-                        <h2 class="message-role">${assistantName}</h2>${this.renderTimestampSpan(pair.answer.timestamp, options.includeTimestamps)}
+                        <p class="message-role">${assistantName}</p>${this.renderTimestampSpan(pair.answer.timestamp, options.includeTimestamps)}
                     </div>
                     <div class="message-content">
                         ${this.renderBlocks(pair.answer.blocks)}

@@ -228,7 +228,9 @@ describe('HtmlExporter structural contract', () => {
     expect(idx('Some text')).toBeLessThan(idx('function foo() { return 1; }')); // paragraph before code
     // A content heading of level 2 is shifted down two levels since the
     // document title already occupies <h1>.
-    expect(html).toContain('<h4>Section Heading</h4>');
+    // Source h2 -> document level 3 (R-1: bodyHeadingLevel is source + 1, since
+    // only the conversation title occupies a heading level now).
+    expect(html).toContain('<h3>Section Heading</h3>');
   });
 });
 

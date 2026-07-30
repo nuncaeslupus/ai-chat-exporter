@@ -391,9 +391,10 @@ export class PdfExporter extends BaseExporter {
       pageHeight
     );
 
-    // Role label
+    // Role label — a label, not a heading (R-1), so its size comes from the
+    // shared token table rather than pdf's body-heading ramp.
     doc.setFont(FONT_FAMILY.body.pdf, 'bold');
-    doc.setFontSize(this.pdfSizes.roleLabel);
+    doc.setFontSize(this.sizes.roleLabel);
     doc.setTextColor(...roleColor);
     doc.text(`${role}:`, margins.left, y);
     y += lineHeight * 1.2;

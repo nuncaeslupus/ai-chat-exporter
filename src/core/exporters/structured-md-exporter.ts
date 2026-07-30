@@ -50,7 +50,6 @@ export class StructuredMarkdownExporter extends BaseExporter {
 
   private generateMarkdown(conversation: StructuredConversation, options: ExportOptions): string {
     const lines: string[] = [];
-    const roleHashes = '#'.repeat(DOC_HEADING_LEVEL.roleLabel);
 
     // Title
     lines.push(`${'#'.repeat(DOC_HEADING_LEVEL.title)} ${conversation.title}`);
@@ -96,7 +95,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
       // User question
       pushDaySeparator(pair.question.timestamp);
       lines.push(
-        `${roleHashes} 👤 ${this.getRoleName('user')}${this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps)}`
+        `**${this.getRoleName('user')}**${this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps)}`
       );
       lines.push('');
       lines.push(...this.renderBlocks(pair.question.blocks));
@@ -104,7 +103,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
       // Assistant answer
       pushDaySeparator(pair.answer.timestamp);
       lines.push(
-        `${roleHashes} 🤖 ${this.getRoleName('assistant', conversation.platform)}${this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps)}`
+        `**${this.getRoleName('assistant', conversation.platform)}**${this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps)}`
       );
       lines.push('');
       lines.push(...this.renderBlocks(pair.answer.blocks));
