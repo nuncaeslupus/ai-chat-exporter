@@ -5,12 +5,15 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["assets/*"],
+      "resources": [
+        "assets/*"
+      ],
       "matches": [
         "https://chat.openai.com/*",
         "https://chatgpt.com/*",
         "https://claude.ai/*",
-        "https://gemini.google.com/*"
+        "https://gemini.google.com/*",
+        "https://*.web-sandbox.oaiusercontent.com/*"
       ]
     }
   ]
