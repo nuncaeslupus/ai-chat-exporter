@@ -20,7 +20,12 @@ import type {
   WebSearchResult,
 } from '../types';
 import { BaseExporter } from './base-exporter';
-import { highlightCode, loadHighlighter, type Highlighter } from './code-highlight';
+import {
+  highlightCode,
+  loadHighlighter,
+  loadMarkdownRenderer,
+  type Highlighter,
+} from './code-highlight';
 import { ConversationStructureService } from '../services';
 import { getMessage, getUILanguage } from '../../shared/i18n';
 import {
@@ -58,6 +63,12 @@ export class HtmlExporter extends BaseExporter {
   private highlighter: Highlighter | null = null;
 
   /**
+   * Markdown -> sanitized HTML, for prose artifacts. Null when `marked` could not
+   * be loaded, in which case a prose artifact falls back to a code block.
+   */
+  private markdown: ((md: string) => string | null) | null = null;
+
+  /**
    * The document used to parse hljs output into tokens. `globalThis.document`
    * exists in the content script and under jsdom; guarded so a DOM-less runtime
    * degrades to plain code instead of throwing.
@@ -75,6 +86,9 @@ export class HtmlExporter extends BaseExporter {
       this.sizes = scaleFontSizes(FONT_SIZE_PT, options.fontScale);
       this.htmlSizes = scaleFontSizes(HTML_FONT_SIZE_PT, options.fontScale);
       this.highlighter = await loadHighlighter();
+      this.markdown = await loadMarkdownRenderer(this.highlighter, (code, language) =>
+        this.renderCodeTokens(code, language)
+      );
 
       // Convert to structured format (only the selected pairs)
       const structured = ConversationStructureService.toStructured({
@@ -235,11 +249,39 @@ export class HtmlExporter extends BaseExporter {
                             <div class="artifact">
                                 <h4>${this.escapeHtml(artifact.title)}</h4>
                                 ${artifact.typeLabel ? `<p class="artifact-type"><em>Type: ${this.escapeHtml(artifact.typeLabel)}</em></p>` : ''}
-                                <pre><code class="language-${this.escapeHtml(artifact.language || '')}">${this.escapeHtml(artifact.content || '')}</code></pre>
+                                ${this.renderArtifactBody(artifact)}
                             </div>`
                               )
                               .join('\n')}
                         </div>`;
+  }
+
+  /**
+   * An artifact's body: prose artifacts are RENDERED, code artifacts are shown as
+   * code.
+   *
+   * A deep-research report is a Markdown document, and putting it in
+   * `<pre><code>` showed the reader raw `##` and `[text](url)` instead of the
+   * report — the one artifact type that is prose, displayed as if it were source.
+   * The Markdown exporter already made this distinction; html did not.
+   *
+   * The rendered HTML is sanitized: artifact content is scraped from the page and
+   * `marked` passes raw inline HTML straight through, so this is a re-injection
+   * point in a file the reader will actually open. Falls back to a code block when
+   * the Markdown renderer is unavailable, which is strictly safe.
+   */
+  private renderArtifactBody(artifact: Artifact): string {
+    const content = artifact.content ?? '';
+    const isProse = artifact.type === 'document' || artifact.language === 'markdown';
+
+    if (isProse && this.markdown && content) {
+      const rendered = this.markdown(content);
+      if (rendered !== null) {
+        return `<div class="artifact-document">${rendered}</div>`;
+      }
+    }
+
+    return `<pre><code class="language-${this.escapeHtml(artifact.language || '')}">${this.renderCodeTokens(content, artifact.language)}</code></pre>`;
   }
 
   private renderWebSearches(webSearches?: WebSearchResult[]): string {

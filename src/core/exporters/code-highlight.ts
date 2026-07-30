@@ -240,3 +240,53 @@ export function tokenLines(tokens: CodeToken[]): CodeToken[][] {
   }
   return lines;
 }
+
+/**
+ * Load `marked` on demand and return a Markdown -> sanitized-HTML function.
+ *
+ * Dynamic for the same reason as the highlighter: it belongs in the lazily-loaded
+ * exporter chunk, not the eager content script.
+ *
+ * The output is sanitized before it is returned. `marked` passes raw inline HTML
+ * through by default, and an artifact's content is scraped from the page, so this
+ * is a re-injection point into a file the reader will open and the browser will
+ * render. Returns null on any failure — including no DOM to sanitize with — so
+ * the caller falls back to showing the source rather than emitting unsanitized
+ * markup.
+ */
+export async function loadMarkdownRenderer(
+  highlighter: Highlighter | null,
+  renderCode: (code: string, language: string | undefined) => string
+): Promise<((md: string) => string | null) | null> {
+  try {
+    const [{ marked }, { sanitizeHtml }] = await Promise.all([
+      import('marked'),
+      import('../utils/sanitize-html'),
+    ]);
+    marked.setOptions({ gfm: true, breaks: false });
+
+    // A code fence inside a prose artifact goes through the same five-token
+    // renderer as any other code block. Without this, one document would show
+    // highlighted code in a message and unhighlighted code in a research report.
+    marked.use({
+      renderer: {
+        code({ text, lang }) {
+          const language = lang && highlighter?.getLanguage(lang) ? lang : undefined;
+          return `<pre><code class="language-${language ?? 'plaintext'}">${renderCode(text, language)}</code></pre>`;
+        },
+      },
+    });
+
+    return (md: string): string | null => {
+      try {
+        if (typeof globalThis.document === 'undefined') return null;
+        const html = marked.parse(md, { async: false });
+        return typeof html === 'string' ? sanitizeHtml(html) : null;
+      } catch {
+        return null;
+      }
+    };
+  } catch {
+    return null;
+  }
+}

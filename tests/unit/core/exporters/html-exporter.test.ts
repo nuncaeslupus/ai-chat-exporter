@@ -478,3 +478,98 @@ describe('R-6: HTML adopts the redesign', () => {
     expect(html).not.toMatch(/<h[1-6] class="message-role">/);
   });
 });
+
+describe('prose artifacts render as prose, not as source', () => {
+  function conversationWithArtifact(artifact: Record<string, unknown>): Conversation {
+    return {
+      id: 'c1',
+      title: 'Research',
+      platform: 'gemini',
+      url: 'https://gemini.google.com/app/1',
+      createdAt: new Date('2026-07-29T15:12:00Z'),
+      pairs: [
+        {
+          id: 'p0',
+          index: 0,
+          selected: true,
+          question: { id: 'q0', role: 'user', content: 'research this' },
+          answer: {
+            id: 'a0',
+            role: 'assistant',
+            content: 'here it is',
+            metadata: { artifacts: [artifact] },
+          },
+        },
+      ],
+    } as unknown as Conversation;
+  }
+
+  async function render(artifact: Record<string, unknown>): Promise<string> {
+    const conversation = conversationWithArtifact(artifact);
+    const result = await new HtmlExporter().export(conversation, conversation.pairs, {
+      format: 'html',
+      filename: 'test',
+      includeMetadata: false,
+      includeTimestamps: false,
+    } as unknown as ExportOptions);
+    return blobToText(result.blob!);
+  }
+
+  it('renders a deep-research markdown document instead of showing its source', async () => {
+    const html = await render({
+      type: 'document',
+      title: 'Deep research report',
+      language: 'markdown',
+      content: '## Findings\n\nFive anchored folds, with a [source](https://example.com).\n',
+    });
+
+    // Rendered: a real heading and a real link.
+    expect(html).toContain('<h2>Findings</h2>');
+    expect(html).toContain('<a href="https://example.com">source</a>');
+    expect(html).toContain('class="artifact-document"');
+    // Not shown as source.
+    expect(html).not.toContain('## Findings');
+  });
+
+  it('still shows a code artifact as code', async () => {
+    const html = await render({
+      type: 'code',
+      title: 'snippet',
+      language: 'python',
+      content: 'def f():\n    return 1\n',
+    });
+
+    expect(html).toContain('<pre><code class="language-python">');
+    expect(html).not.toContain('class="artifact-document"');
+  });
+
+  it('sanitizes a prose artifact, since marked passes raw HTML through', async () => {
+    const html = await render({
+      type: 'document',
+      title: 'Hostile report',
+      language: 'markdown',
+      content: '## Title\n\n<script>window.__pwned = 1</script>\n\n<img src=x onerror=alert(1)>\n',
+    });
+
+    // The heading still renders...
+    expect(html).toContain('<h2>Title</h2>');
+    // ...but nothing executable survives into a file the reader will open.
+    expect(html).not.toContain('<script>window.__pwned');
+    expect(html).not.toContain('onerror=');
+  });
+
+  it('highlights a code fence inside a prose artifact, like any other code block', async () => {
+    const html = await render({
+      type: 'document',
+      title: 'Report with code',
+      language: 'markdown',
+      content: '## Method\n\n```python\ndef f():\n    return "x"\n```\n',
+    });
+
+    // One document must not show highlighted code in a message and plain code in
+    // a research report.
+    const doc = html.slice(html.indexOf('artifact-document'));
+    expect(doc).toContain('class="tok-keyword"');
+    expect(doc).toContain('class="tok-string"');
+  });
+});
