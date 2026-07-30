@@ -36,6 +36,34 @@ export class ConversationStructureService {
   }
 
   /**
+   * Every heading level present in a conversation's body content (D-32),
+   * recursing into blockquotes so nested headings are captured too. Feeds
+   * `buildHeadingLevelMap` (style-tokens.ts) to normalise heading levels
+   * relative to what the source actually uses, rather than assuming `h1`.
+   *
+   * Scanned across the whole conversation, not per message/pair: different
+   * answers may use different source levels, and two answers sharing one
+   * document need one shared scale.
+   */
+  static collectHeadingLevels(conversation: StructuredConversation): number[] {
+    const levels: number[] = [];
+    const walk = (blocks: StructuredContentBlock[]): void => {
+      for (const block of blocks) {
+        if (block.type === 'heading') {
+          levels.push(block.level);
+        } else if (block.type === 'blockquote') {
+          walk(block.content);
+        }
+      }
+    };
+    for (const pair of conversation.pairs) {
+      walk(pair.question.blocks);
+      walk(pair.answer.blocks);
+    }
+    return levels;
+  }
+
+  /**
    * Convert a Q&A pair to structured format
    */
   private static convertPair(pair: QAPair, index: number): StructuredQAPair {

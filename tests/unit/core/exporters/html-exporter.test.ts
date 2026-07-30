@@ -227,11 +227,11 @@ describe('HtmlExporter structural contract', () => {
     // R-8 splits the code across token spans, so the literal source string is
     // no longer present verbatim in the markup; anchor on the <pre> instead.
     expect(idx('Some text')).toBeLessThan(idx('<pre><code class="language-js">'));
-    // A content heading of level 2 is shifted down two levels since the
-    // document title already occupies <h1>.
-    // Source h2 -> document level 3 (R-1: bodyHeadingLevel is source + 1, since
-    // only the conversation title occupies a heading level now).
-    expect(html).toContain('<h3>Section Heading</h3>');
+    // D-32: body headings are normalised, not offset by a flat +1. h2 is the
+    // ONLY source heading level present in this conversation, so it ranks
+    // first and lands on document level 2 (<h2>) -- the level right after the
+    // title, regardless of the raw source number.
+    expect(html).toContain('<h2>Section Heading</h2>');
   });
 });
 

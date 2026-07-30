@@ -1,16 +1,23 @@
 /**
- * C-2: heading-level mapping must be consistent across every export format.
+ * C-2 / D-32: heading-level mapping must be consistent across every export format.
  *
  * The canonical document outline (see DOC_HEADING_LEVEL in style-tokens.ts):
  *
  *   level 1 = conversation title
- *   level 2+ = body headings -> min(sourceLevel + 1, 6)
+ *   level 2+ = body headings
  *
  * R-1 demoted the role label out of the heading outline: it is a *label*, not a
  * level-2 heading, which is why it used to render enormous. Only the title now
- * occupies a heading level, so body headings start at 2 — a source <h1> lands at
- * document level 2 and a source <h3> at level 4, in every format that has a
- * heading-level surface.
+ * occupies a heading level, so body headings start at 2.
+ *
+ * D-32: body headings are NORMALISED, not offset by a flat +1. `bodyHeadingLevel`
+ * ranks the *distinct* source heading levels actually present in a conversation
+ * (see `buildHeadingLevelMap` / `ConversationStructureService.collectHeadingLevels`)
+ * and assigns consecutive document levels starting at 2, closing any gaps. So a
+ * source whose shallowest heading is <h3> still lands on document level 2 (`##`)
+ * instead of being squeezed to `####` — the reported "titles don't look like
+ * titles" symptom a flat +1 offset produced when ChatGPT's shallowest heading is
+ * <h3>. A source mixing <h1> and <h3> (below) ranks them 1st/2nd -> levels 2/3.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -20,6 +27,7 @@ import { TextExporter } from '../../../../src/core/exporters/txt-exporter';
 import { JsonExporter } from '../../../../src/core/exporters/json-exporter';
 import { DocxExporter } from '../../../../src/core/exporters/docx-exporter';
 import { HtmlExporter } from '../../../../src/core/exporters/html-exporter';
+import { PDF_FONT_SIZE_PT } from '../../../../src/core/exporters/style-tokens';
 import { blobToText } from '../../../utils/exporter-helpers';
 import { extractDocxEntry } from '../../../utils/docx-helpers';
 
@@ -145,7 +153,7 @@ const options: ExportOptions = {
 };
 
 describe('heading levels are consistent across formats (C-2)', () => {
-  it('html: title h1, source h1 -> h2, source h3 -> h4', async () => {
+  it('html: title h1, source h1 -> h2, source h3 -> h3 (ranked, gap closed)', async () => {
     const result = await new HtmlExporter().export(conversation, pairs, {
       ...options,
       format: 'html',
@@ -154,7 +162,7 @@ describe('heading levels are consistent across formats (C-2)', () => {
 
     expect(text).toContain('<h1 class="title">Test Conversation</h1>');
     expect(text).toContain('<h2>Alpha</h2>');
-    expect(text).toContain('<h4>Gamma</h4>');
+    expect(text).toContain('<h3>Gamma</h3>');
 
     // R-1: the role label is not a heading. It was a hardcoded <h2>, which now
     // that body h1 lands at level 2 would duplicate that level in the outline.
@@ -162,7 +170,7 @@ describe('heading levels are consistent across formats (C-2)', () => {
     expect(text).toContain('<p class="message-role">');
   });
 
-  it('md: title #, role label is not a heading, source h1 -> ##, source h3 -> ####', async () => {
+  it('md: title #, role label is not a heading, source h1 -> ##, source h3 -> ### (ranked, gap closed)', async () => {
     const result = await new StructuredMarkdownExporter().export(conversation, pairs, {
       ...options,
       format: 'md',
@@ -171,12 +179,12 @@ describe('heading levels are consistent across formats (C-2)', () => {
 
     expect(text).toContain('# Test Conversation');
     expect(text).toContain('## Alpha');
-    expect(text).toContain('#### Gamma');
+    expect(text).toContain('### Gamma');
     // R-1: the role label is a label, not a level-2 heading.
     expect(text).not.toMatch(/^#+ .*User/m);
   });
 
-  it('docx: title Heading1, role label is not a Heading, source h1 -> Heading2, source h3 -> Heading4', async () => {
+  it('docx: title Heading1, role label is not a Heading, source h1 -> Heading2, source h3 -> Heading3 (ranked, gap closed)', async () => {
     const result = await new DocxExporter().export(conversation, pairs, {
       ...options,
       format: 'docx',
@@ -186,12 +194,12 @@ describe('heading levels are consistent across formats (C-2)', () => {
     const styles = [...xml.matchAll(/<w:pStyle w:val="(Heading\d)"\/>/g)].map((m) => m[1]);
     expect(styles[0]).toBe('Heading1'); // conversation title
     expect(styles).toContain('Heading2'); // source h1
-    expect(styles).toContain('Heading4'); // source h3
+    expect(styles).toContain('Heading3'); // source h3, ranked directly after h1
 
     const alphaLevel = headingStyleOf(xml, 'Alpha');
     const gammaLevel = headingStyleOf(xml, 'Gamma');
     expect(alphaLevel).toBe('Heading2');
-    expect(gammaLevel).toBe('Heading4');
+    expect(gammaLevel).toBe('Heading3');
 
     // R-1: the role label no longer borrows a Heading style.
     expect(headingStyleOf(xml, 'User')).toBeUndefined();
@@ -244,6 +252,127 @@ describe('heading levels are consistent across formats (C-2)', () => {
     expect(parsed.pairs[0]!.answer.htmlContent).toContain('<h3>Gamma</h3>');
   });
 });
+
+describe('D-32: body headings are normalised (ranked + gap-closed), not offset', () => {
+  it('source starting at h3 (no h1/h2 at all) -> ## in every format', async () => {
+    const { conversation: convo, pairs: p } = fixture('<h3>OnlyThree</h3><p>Body</p>');
+
+    await expectDocLevel(convo, p, 'OnlyThree', 2);
+  });
+
+  it('source h2+h4, gap closed -> ##/### (not ##/####) in every format', async () => {
+    const { conversation: convo, pairs: p } = fixture('<h2>Two</h2><h4>Four</h4><p>Body</p>');
+
+    await expectDocLevel(convo, p, 'Two', 2);
+    await expectDocLevel(convo, p, 'Four', 3);
+  });
+
+  it('source starting at h1 -> ## still (no regression)', async () => {
+    const { conversation: convo, pairs: p } = fixture('<h1>Solo</h1><p>Body</p>');
+
+    await expectDocLevel(convo, p, 'Solo', 2);
+  });
+
+  it('deep nesting (h1..h6 all present) still clamps at document level 6', async () => {
+    const { conversation: convo, pairs: p } = fixture(
+      '<h1>L1</h1><h2>L2</h2><h3>L3</h3><h4>L4</h4><h5>L5</h5><h6>L6</h6><p>Body</p>'
+    );
+
+    // Ranks 0-5 -> document levels 2,3,4,5,6,7 clamped to max 6 -- L5 and L6
+    // collide on level 6, which is the clamp under test.
+    await expectDocLevel(convo, p, 'L1', 2);
+    await expectDocLevel(convo, p, 'L2', 3);
+    await expectDocLevel(convo, p, 'L3', 4);
+    await expectDocLevel(convo, p, 'L4', 5);
+    await expectDocLevel(convo, p, 'L5', 6);
+    await expectDocLevel(convo, p, 'L6', 6);
+  });
+
+  it("txt: three underline styles (title/role/heading) are unaffected by ranking -- every body heading still gets '~'", async () => {
+    const { conversation: convo, pairs: p } = fixture('<h2>Two</h2><h4>Four</h4><p>Body</p>');
+
+    const result = await new TextExporter().export(convo, p, { ...options, format: 'txt' });
+    const text = await blobToText(result.blob!);
+
+    // txt has no heading-level surface (R-5): both the shallowest (h2, ranked
+    // to document level 2) and the deepest (h4, ranked to document level 3)
+    // source heading collapse to the same single '~' underline style.
+    expect(text).toContain('Two\n~~~');
+    expect(text).toContain('Four\n~~~~');
+  });
+});
+
+/** One Q&A pair whose answer's htmlContent is exactly `answerHtml`. */
+function fixture(answerHtml: string): { conversation: Conversation; pairs: QAPair[] } {
+  const p: QAPair[] = [
+    {
+      id: 'p1',
+      index: 0,
+      selected: true,
+      question: {
+        id: 'q1',
+        role: 'user',
+        content: 'question',
+        timestamp: new Date('2025-01-01T00:00:00Z'),
+      },
+      answer: {
+        id: 'a1',
+        role: 'assistant',
+        content: 'answer',
+        htmlContent: answerHtml,
+        timestamp: new Date('2025-01-01T00:00:01Z'),
+      },
+    },
+  ] as unknown as QAPair[];
+
+  const convo: Conversation = {
+    id: 'c1',
+    title: 'Test Conversation',
+    platform: 'claude',
+    url: 'https://claude.ai/chat/1',
+    createdAt: new Date('2025-01-01T00:00:00Z'),
+    pairs: p,
+  } as unknown as Conversation;
+
+  return { conversation: convo, pairs: p };
+}
+
+/**
+ * Export `convo`/`p` through md, html, docx and pdf, and assert that the
+ * heading containing `headingText` landed on document level `docLevel` in
+ * every one of them (D-32's required "assert across formats, not md alone").
+ */
+async function expectDocLevel(
+  convo: Conversation,
+  p: QAPair[],
+  headingText: string,
+  docLevel: number
+): Promise<void> {
+  const hashes = '#'.repeat(docLevel);
+
+  const mdResult = await new StructuredMarkdownExporter().export(convo, p, {
+    ...options,
+    format: 'md',
+  });
+  const mdText = await blobToText(mdResult.blob!);
+  expect(mdText).toContain(`${hashes} ${headingText}`);
+  expect(mdText).not.toContain(`${hashes}# ${headingText}`); // not one level deeper too
+
+  const htmlResult = await new HtmlExporter().export(convo, p, { ...options, format: 'html' });
+  const htmlText = await blobToText(htmlResult.blob!);
+  expect(htmlText).toContain(`<h${docLevel}>${headingText}</h${docLevel}>`);
+
+  const docxResult = await new DocxExporter().export(convo, p, { ...options, format: 'docx' });
+  const docxXml = await extractDocxEntry(docxResult.blob!, 'word/document.xml');
+  expect(headingStyleOf(docxXml, headingText)).toBe(`Heading${docLevel}`);
+
+  instances.length = 0;
+  const { PdfExporter } = await import('../../../../src/core/exporters/pdf-exporter');
+  await new PdfExporter().export(convo, p, { ...options, format: 'pdf' });
+  const pdfInstance = instances[0]!;
+  const expectedPt = PDF_FONT_SIZE_PT.headingByLevel[docLevel - 1];
+  expect(fontSizeBeforeText(pdfInstance, headingText)).toBe(expectedPt);
+}
 
 /** The Heading style applied to the docx paragraph containing `text`. */
 function headingStyleOf(xml: string, text: string): string | undefined {

@@ -38,10 +38,12 @@ import {
   PAGINATION,
   SPACING,
   bodyHeadingLevel,
+  buildHeadingLevelMap,
   mmToPx,
   ptToPx,
   scaleFontSizes,
 } from './style-tokens';
+import type { HeadingLevelMap } from './style-tokens';
 
 export class HtmlExporter extends BaseExporter {
   readonly format: ExportFormat = 'html';
@@ -133,7 +135,12 @@ export class HtmlExporter extends BaseExporter {
         </header>
 
         <main class="conversation">
-            ${this.generatePairs(conversation.pairs, conversation.platform, options)}
+            ${this.generatePairs(
+              conversation.pairs,
+              conversation.platform,
+              options,
+              buildHeadingLevelMap(ConversationStructureService.collectHeadingLevels(conversation))
+            )}
         </main>
 
         <footer class="footer">
@@ -189,7 +196,8 @@ export class HtmlExporter extends BaseExporter {
   private generatePairs(
     pairs: StructuredQAPair[],
     platform: string,
-    options: ExportOptions
+    options: ExportOptions,
+    levelMap: HeadingLevelMap
   ): string {
     const assistantName = this.getRoleName('assistant', platform);
     const daySeparator = this.daySeparator(options.showMetaInfo);
@@ -203,7 +211,7 @@ export class HtmlExporter extends BaseExporter {
                         <p class="message-role">${this.getRoleName('user')}</p>${this.renderTimestampSpan(pair.question.timestamp, options.showMetaInfo)}
                     </div>
                     <div class="message-content">
-                        ${this.renderBlocks(pair.question.blocks)}
+                        ${this.renderBlocks(pair.question.blocks, levelMap)}
                     </div>
                 </div>
                 ${this.renderDaySeparator(daySeparator(pair.answer.timestamp))}
@@ -212,7 +220,7 @@ export class HtmlExporter extends BaseExporter {
                         <p class="message-role">${assistantName}</p>${this.renderTimestampSpan(pair.answer.timestamp, options.showMetaInfo)}
                     </div>
                     <div class="message-content">
-                        ${this.renderBlocks(pair.answer.blocks)}
+                        ${this.renderBlocks(pair.answer.blocks, levelMap)}
                         ${this.renderArtifacts(pair.answer.metadata?.artifacts)}
                         ${this.renderWebSearches(pair.answer.metadata?.webSearches)}
                     </div>
@@ -323,7 +331,7 @@ export class HtmlExporter extends BaseExporter {
                         </div>`;
   }
 
-  private renderBlocks(blocks: StructuredContentBlock[]): string {
+  private renderBlocks(blocks: StructuredContentBlock[], levelMap: HeadingLevelMap): string {
     return blocks
       .map((block) => {
         switch (block.type) {
@@ -333,7 +341,7 @@ export class HtmlExporter extends BaseExporter {
           }
 
           case 'heading': {
-            const level = bodyHeadingLevel(block.level); // h1 is the title, h2 the role label
+            const level = bodyHeadingLevel(block.level, levelMap); // h1 is the title, h2 the role label
             const headingContent = this.renderInline(block.content).trim();
             return headingContent ? `<h${level}>${headingContent}</h${level}>` : '';
           }
@@ -347,7 +355,7 @@ export class HtmlExporter extends BaseExporter {
             return this.renderList(block);
 
           case 'blockquote':
-            return `<blockquote>${this.renderBlocks(block.content)}</blockquote>`;
+            return `<blockquote>${this.renderBlocks(block.content, levelMap)}</blockquote>`;
 
           case 'hr':
             return '<hr>';

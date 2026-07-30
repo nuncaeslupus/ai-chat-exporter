@@ -37,10 +37,12 @@ import {
   SPACING,
   bodyHeadingLevel,
   brandColorFor,
+  buildHeadingLevelMap,
   fontScaleFactor,
   hexToRgbTuple,
   scaleFontSizes,
 } from './style-tokens';
+import type { HeadingLevelMap } from './style-tokens';
 
 /**
  * jsPDF types `splitTextToSize` as returning `any`; it returns the wrapped lines.
@@ -83,6 +85,15 @@ export class PdfExporter extends BaseExporter {
   private pdfSizes = scaleFontSizes(PDF_FONT_SIZE_PT);
 
   /**
+   * Normalised source-heading-level -> document-heading-level map (D-32), set
+   * once per export from the conversation's actual heading levels -- same
+   * per-instance-state pattern as `sizes`/`pdfSizes` above (a fresh exporter is
+   * built per export), so the many nested render* methods below can read it
+   * without threading it through every call's already-long parameter list.
+   */
+  private headingLevelMap: HeadingLevelMap = new Map();
+
+  /**
    * The families this document actually draws with — the embedded faces once
    * `registerFonts` succeeds, the built-ins if it could not. Read rather than
    * `FONT_FAMILY.*.pdf` directly, so a registration failure degrades to a
@@ -122,6 +133,9 @@ export class PdfExporter extends BaseExporter {
         ...conversation,
         pairs: selectedPairs,
       });
+      this.headingLevelMap = buildHeadingLevelMap(
+        ConversationStructureService.collectHeadingLevels(structured)
+      );
 
       // Extract and load all images before rendering
       const imageUrls = this.extractImageUrls(structured);
@@ -916,7 +930,7 @@ export class PdfExporter extends BaseExporter {
       // Font size is pdf's only heading-level surface — index the shared scale
       // by document level so a body heading can never outrank the role label.
       const fontSize =
-        this.pdfSizes.headingByLevel[bodyHeadingLevel(block.level) - 1] ??
+        this.pdfSizes.headingByLevel[bodyHeadingLevel(block.level, this.headingLevelMap) - 1] ??
         this.pdfSizes.sectionLabel;
       doc.setFontSize(fontSize);
       doc.setFont(this.fonts.body, 'bold');
