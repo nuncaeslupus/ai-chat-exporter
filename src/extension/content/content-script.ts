@@ -450,13 +450,15 @@ class ContentScript {
   private async renderMarkdownToCleanHtml(markdown: string, title: string): Promise<string> {
     // Loaded on demand: this is the print-only path, and full highlight.js is
     // ~950 KB (194 languages) that every page load would otherwise pay for.
-    const [{ marked }, { default: hljs }] = await Promise.all([
+    const [{ marked }, { default: hljs }, { requireDoubleTildeStrikethrough }] = await Promise.all([
       import('marked'),
       import('highlight.js'),
+      import('../../core/utils/markdown-options'),
     ]);
 
     // Configure marked for GitHub Flavored Markdown with syntax highlighting
     marked.setOptions({ gfm: true, breaks: false });
+    requireDoubleTildeStrikethrough(marked);
     marked.use({
       renderer: {
         code({ text, lang }) {
