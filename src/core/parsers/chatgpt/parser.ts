@@ -11,7 +11,13 @@ import type {
   WebSearchResult,
 } from '../../types';
 import { BaseParser } from '../base-parser';
-import { CHATGPT_SELECTORS, EMBEDDED_FRAME_REPORT_ATTR, isChatGPTUrl } from './selectors';
+import {
+  CHATGPT_SELECTORS,
+  EMBEDDED_FRAME_REPORT_ATTR,
+  EMBEDDED_FRAME_REPORT_HTML_ATTR,
+  isChatGPTUrl,
+} from './selectors';
+import { sanitizeHtml } from '../../utils/sanitize-html';
 
 /**
  * Parser for ChatGPT conversations
@@ -387,12 +393,22 @@ export class ChatGPTParser extends BaseParser {
       // extractContent, not raw textContent, because the turn wrapper carries
       // ChatGPT's screenreader label ("ChatGPT said:") and shipping that as the
       // answer is how a Deep Research export came out 13 characters long.
-      const text =
-        this.extractEmbeddedWidgetContent(element) ?? this.extractContent(element, false).content;
-      if (!text) {
+      const widget = this.extractEmbeddedWidgetContent(element);
+      const content = widget?.content ?? this.extractContent(element, false).content;
+      if (!content) {
         return null;
       }
-      return this.createMessage('assistant', text, undefined, messageId);
+      const message = this.createMessage('assistant', content, widget?.htmlContent, messageId);
+
+      // The relayed report content never carries the research-stats bar (it's
+      // widget chrome, stripped before it reaches the parser) -- the real
+      // duration/source/search counts still come from the outer page's own
+      // research-completed button, exactly like the ordinary branch below.
+      const researchInfo = this.extractDeepResearchInfo(element);
+      if (researchInfo) {
+        message.metadata = { ...message.metadata, research: researchInfo };
+      }
+      return message;
     }
 
     const { content, htmlContent } = this.extractContent(contentElement, config.preserveHtml);
@@ -652,15 +668,35 @@ export class ChatGPTParser extends BaseParser {
    * with real markdown would keep the markdown and drop this -- no capture
    * shows one; extend `extractCombinedMessage` the same way if one turns up.
    */
-  private extractEmbeddedWidgetContent(element: Element): string | null {
+  private extractEmbeddedWidgetContent(
+    element: Element
+  ): { content: string; htmlContent?: string } | null {
     const frame = element.querySelector(this.selectors.custom.embeddedWidgetFrame);
     if (!frame) {
       return null;
     }
 
+    const reportHtml = frame.getAttribute(EMBEDDED_FRAME_REPORT_HTML_ATTR)?.trim();
+    if (reportHtml) {
+      const container = frame.ownerDocument.createElement('div');
+      // Re-sanitize even though deep-research-frame.ts already sanitized before
+      // relaying: this string is about to become live DOM in the page's own
+      // content-script context, and that's a security-sensitive spot worth a
+      // second, cheap pass rather than trusting the relay unconditionally.
+      container.innerHTML = sanitizeHtml(reportHtml);
+      this.replaceDiagramsWithMarker(container);
+      this.stripDigitOdometerRuns(container);
+      this.stripResearchStatsHeader(container);
+      this.dedupeAdjacentDuplicates(container);
+      const { content, htmlContent } = this.extractContent(container, true);
+      if (content) {
+        return htmlContent ? { content, htmlContent } : { content };
+      }
+    }
+
     const reportText = frame.getAttribute(EMBEDDED_FRAME_REPORT_ATTR)?.trim();
     if (reportText) {
-      return reportText;
+      return { content: this.stripDigitOdometerDumpFromText(reportText) };
     }
 
     const title = frame.getAttribute('title');
@@ -671,8 +707,160 @@ export class ChatGPTParser extends BaseParser {
       .replace(/\b[a-z]/g, (c) => c.toUpperCase());
 
     return name
-      ? `[${name}: rendered in an embedded viewer ChatGPT does not expose to the page]`
+      ? { content: `[${name}: rendered in an embedded viewer ChatGPT does not expose to the page]` }
       : null;
+  }
+
+  /**
+   * Drop an element that is exactly repeated by its immediately following
+   * sibling, keeping the later one. The relayed Deep Research report was
+   * observed with its title rendered twice in a row -- widget chrome (a
+   * title bar, rendered before the report body) showing the title as plain
+   * text, immediately followed by the report's own heading with the same
+   * text. Keeping the later element is the general rule: chrome/furniture
+   * renders before content, not after, so of two adjacent blocks with
+   * identical text the second is the more likely to carry the real
+   * structure (e.g. an actual heading tag, where the first is a plain div).
+   * Dropping an exact, immediate repeat at all is safe generically: authored
+   * prose essentially never repeats a whole block verbatim back-to-back.
+   */
+  private dedupeAdjacentDuplicates(root: Element): void {
+    const containers = [root, ...Array.from(root.querySelectorAll('*'))];
+    for (const parent of containers) {
+      let previous: Element | null = null;
+      for (const child of Array.from(parent.children)) {
+        const text = child.textContent?.trim() ?? '';
+        if (text && previous && (previous.textContent?.trim() ?? '') === text) {
+          previous.remove();
+        }
+        previous = child;
+      }
+    }
+  }
+
+  /**
+   * Drop a run of 10+ consecutive sibling elements whose own text is exactly
+   * one digit. ChatGPT renders the citation/search counters as an animated
+   * "odometer" column -- all ten digits sit in the DOM, translated out of
+   * view by CSS, so a text-based capture (real Chrome's `innerText` included
+   * -- it reflects `display`/`visibility`/`opacity`, not `transform`) picks up
+   * every one, with the actual counts nowhere in that text.
+   *
+   * ponytail: a structural guess (10+ consecutive single-digit siblings), not
+   * a selector confirmed live -- this worker has no browser access to the
+   * real sandboxed widget DOM. It matches the reported shape (ten stacked
+   * digits per counter, two counters). The real duration/source/search counts
+   * are unaffected either way: they come from the outer page's own
+   * research-completed button (`extractDeepResearchInfo`), never from this
+   * relayed content. Swap in a real selector once a live capture confirms the
+   * exact markup.
+   */
+  private stripDigitOdometerRuns(root: Element): void {
+    const DIGIT_RUN_THRESHOLD = 10;
+    const containers = [root, ...Array.from(root.querySelectorAll('*'))];
+    for (const parent of containers) {
+      const children = Array.from(parent.children);
+      let runStart = -1;
+      for (let i = 0; i <= children.length; i++) {
+        const child = children[i];
+        const isDigit = !!child && /^\d$/.test(child.textContent?.trim() ?? '');
+        if (isDigit) {
+          runStart = runStart === -1 ? i : runStart;
+          continue;
+        }
+        if (runStart !== -1 && i - runStart >= DIGIT_RUN_THRESHOLD) {
+          for (let j = runStart; j < i; j++) {
+            children[j]?.remove();
+          }
+        }
+        runStart = -1;
+      }
+    }
+  }
+
+  /**
+   * A line that is either the "Research completed in …" lead-in or nothing
+   * but the trailing "N citations · N searches" (English) / "N fuentes · N
+   * búsquedas" (Spanish) tail -- once `stripDigitOdometerRuns` has removed the
+   * digit spans, that tail's own count is gone too, which is exactly the
+   * "counts missing" shape the bug report describes.
+   */
+  private static readonly RESEARCH_STATS_LEAF_RE =
+    /^research completed in\b.*$|^(?:[\d\s·.,]|citations?|searches?|sources?|fuentes?|búsquedas?)+$/i;
+
+  /**
+   * Drop the report's own "Research completed in Xm · N citations · N
+   * searches" header line entirely, rather than leaving a truncated residue
+   * (numbers already gone once the odometer digits are stripped) sitting in
+   * the body as an orphaned paragraph. Safe to drop outright: the real
+   * duration/source/search counts are already recovered from the outer
+   * page's stable, non-animated research-completed button
+   * (`extractDeepResearchInfo`), so this relayed copy is pure duplicate
+   * chrome either way.
+   *
+   * Only matches leaf elements (no element children) so it can never eat an
+   * ancestor that happens to also wrap unrelated report content.
+   */
+  private stripResearchStatsHeader(root: Element): void {
+    const leaves = [root, ...Array.from(root.querySelectorAll('*'))].filter(
+      (el) => el.children.length === 0
+    );
+    for (const leaf of leaves) {
+      const text = leaf.textContent?.trim() ?? '';
+      if (text && ChatGPTParser.RESEARCH_STATS_LEAF_RE.test(text)) {
+        leaf.remove();
+      }
+    }
+  }
+
+  /**
+   * Text-only fallback of `stripDigitOdometerRuns` + `stripResearchStatsHeader`,
+   * for the plain-text relay tier (no DOM to walk there -- just a flattened
+   * string). Real Chrome's `innerText` puts each rendered line on its own
+   * line, which is the reported shape: one odometer digit per line, and the
+   * research-stats lead-in/tail each on their own line too.
+   */
+  private stripDigitOdometerDumpFromText(text: string): string {
+    const lines = text.split('\n');
+    const kept: string[] = [];
+    let run: string[] = [];
+    const flushRun = (): void => {
+      if (run.length < 10) {
+        kept.push(...run);
+      }
+      run = [];
+    };
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (/^\d$/.test(trimmed)) {
+        run.push(line);
+        continue;
+      }
+      flushRun();
+      if (trimmed && ChatGPTParser.RESEARCH_STATS_LEAF_RE.test(trimmed)) {
+        continue;
+      }
+      kept.push(line);
+    }
+    flushRun();
+    return kept.join('\n');
+  }
+
+  /**
+   * Replace a diagram (rendered as inline SVG -- ChatGPT's Deep Research
+   * report uses this for a Mermaid timeline) with a short honest marker
+   * instead of letting it flatten to a bare dump of its text nodes (axis
+   * dates, stray labels) further down the pipeline, or vanish silently when
+   * `extractContent`'s cleanup strips the `<svg>` as decorative chrome.
+   * Matches the existing precedent for unrepresentable embedded content (see
+   * the widget-name marker below).
+   */
+  private replaceDiagramsWithMarker(root: Element): void {
+    root.querySelectorAll('svg').forEach((svg) => {
+      const marker = svg.ownerDocument.createElement('p');
+      marker.textContent = '[Diagram: not shown -- not representable in this export]';
+      svg.replaceWith(marker);
+    });
   }
 
   /**

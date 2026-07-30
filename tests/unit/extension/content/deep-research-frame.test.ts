@@ -3,6 +3,11 @@
  * (`*.web-sandbox.oaiusercontent.com`), reads the report it rendered, and
  * relays it to the parent page over `postMessage`. content-script.ts (tested
  * separately) is the receiving side.
+ *
+ * D-31: the relay prefers sanitized HTML (keeps headings/lists/tables intact
+ * for the structure-parsing path) and falls back to flattened text -- today's
+ * behavior -- when the HTML path comes back empty or over its own sanity
+ * bound.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
@@ -12,6 +17,9 @@ const QUIET_PERIOD_MS = 500;
 
 /** Must match MAX_PLAUSIBLE_LENGTH in deep-research-frame.ts. */
 const MAX_PLAUSIBLE_LENGTH = 200_000;
+
+/** Must match MAX_PLAUSIBLE_HTML_LENGTH in deep-research-frame.ts. */
+const MAX_PLAUSIBLE_HTML_LENGTH = 600_000;
 
 async function loadFrameScript(): Promise<void> {
   vi.resetModules();
@@ -37,18 +45,21 @@ describe('deep-research-frame relay', () => {
     document.documentElement.replaceChild(freshBody, document.body);
   });
 
-  it("relays the frame's rendered text to the parent on load", async () => {
-    document.body.textContent = 'The full Deep Research report.';
+  it("relays the frame's rendered content as HTML on load", async () => {
+    document.body.innerHTML = '<h1>Report Title</h1><p>The full Deep Research report.</p>';
 
     await loadFrameScript();
 
     expect(postMessageSpy).toHaveBeenCalledWith(
-      { type: 'ai-chat-exporter:deep-research-report', text: 'The full Deep Research report.' },
+      {
+        type: 'ai-chat-exporter:deep-research-report',
+        html: '<h1>Report Title</h1><p>The full Deep Research report.</p>',
+      },
       '*'
     );
   });
 
-  it('sends nothing when the frame has no rendered text yet', async () => {
+  it('sends nothing when the frame has no rendered content yet', async () => {
     document.body.textContent = '   ';
 
     await loadFrameScript();
@@ -56,14 +67,26 @@ describe('deep-research-frame relay', () => {
     expect(postMessageSpy).not.toHaveBeenCalled();
   });
 
-  it('re-relays updated text once mutations settle (progressive/virtualized rendering)', async () => {
+  it('strips inlined <script>/<style> before relaying, never counting them toward the bound', async () => {
+    document.body.innerHTML =
+      '<p>Real content.</p>' + `<script>${'x'.repeat(500_000)}</script>` + '<style>body{}</style>';
+
+    await loadFrameScript();
+
+    expect(postMessageSpy).toHaveBeenCalledWith(
+      { type: 'ai-chat-exporter:deep-research-report', html: '<p>Real content.</p>' },
+      '*'
+    );
+  });
+
+  it('re-relays updated content once mutations settle (progressive/virtualized rendering)', async () => {
     vi.useFakeTimers();
-    document.body.textContent = 'Partial report...';
+    document.body.innerHTML = '<p>Partial report...</p>';
 
     await loadFrameScript();
     expect(postMessageSpy).toHaveBeenCalledTimes(1);
 
-    document.body.textContent = 'Partial report... now complete.';
+    document.body.innerHTML = '<p>Partial report... now complete.</p>';
     // MutationObserver callbacks are queued as microtasks, not macrotasks --
     // flush the microtask queue before advancing the (faked) debounce timer.
     await Promise.resolve();
@@ -74,7 +97,7 @@ describe('deep-research-frame relay', () => {
     expect(postMessageSpy).toHaveBeenLastCalledWith(
       {
         type: 'ai-chat-exporter:deep-research-report',
-        text: 'Partial report... now complete.',
+        html: '<p>Partial report... now complete.</p>',
       },
       '*'
     );
@@ -89,17 +112,17 @@ describe('deep-research-frame relay', () => {
   // `<iframe>`, which is enough to unit-test the *selection* logic below with
   // a stubbed nested frame.
   describe('nested #root frame selection', () => {
-    it("prefers the nested #root iframe's document over the shell's own text", async () => {
+    it("prefers the nested #root iframe's document over the shell's own content", async () => {
       document.body.textContent = 'shell noise, not the report';
       const iframe = document.createElement('iframe');
       iframe.id = 'root';
       document.body.appendChild(iframe);
-      iframe.contentDocument!.body.textContent = 'The nested report.';
+      iframe.contentDocument!.body.innerHTML = '<p>The nested report.</p>';
 
       await loadFrameScript();
 
       expect(postMessageSpy).toHaveBeenCalledWith(
-        { type: 'ai-chat-exporter:deep-research-report', text: 'The nested report.' },
+        { type: 'ai-chat-exporter:deep-research-report', html: '<p>The nested report.</p>' },
         '*'
       );
     });
@@ -107,18 +130,47 @@ describe('deep-research-frame relay', () => {
     it('falls back to the first <iframe> when no #root id is present', async () => {
       const iframe = document.createElement('iframe');
       document.body.appendChild(iframe);
-      iframe.contentDocument!.body.textContent = 'Report via fallback iframe.';
+      iframe.contentDocument!.body.innerHTML = '<p>Report via fallback iframe.</p>';
 
       await loadFrameScript();
 
       expect(postMessageSpy).toHaveBeenCalledWith(
-        { type: 'ai-chat-exporter:deep-research-report', text: 'Report via fallback iframe.' },
+        {
+          type: 'ai-chat-exporter:deep-research-report',
+          html: '<p>Report via fallback iframe.</p>',
+        },
         '*'
       );
     });
 
-    it('relays nothing when the captured text exceeds the sanity bound', async () => {
-      document.body.textContent = 'x'.repeat(MAX_PLAUSIBLE_LENGTH + 1);
+    it('falls back to flattened text when HTML exceeds its sanity bound but the text does not', async () => {
+      // A long attribute (not more elements) inflates sanitized-HTML length
+      // without the DOM-element count that made an earlier, tag-repetition
+      // version of this test slow under parallel load: one text char per
+      // element, but ~9 KB of surviving `class` attribute per element, so a
+      // handful of elements clears MAX_PLAUSIBLE_HTML_LENGTH while the
+      // flattened text stays tiny -- the layered-fallback path, not just the
+      // single bound the text-only relay used to have.
+      const repeatCount = 100;
+      const filler = 'x'.repeat(9_000);
+      const unit = `<b class="${filler}">x</b>`;
+      document.body.innerHTML = unit.repeat(repeatCount);
+      expect(unit.repeat(repeatCount).length).toBeGreaterThan(MAX_PLAUSIBLE_HTML_LENGTH);
+      expect('x'.repeat(repeatCount).length).toBeLessThan(MAX_PLAUSIBLE_LENGTH);
+
+      await loadFrameScript();
+
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        { type: 'ai-chat-exporter:deep-research-report', text: 'x'.repeat(repeatCount) },
+        '*'
+      );
+    });
+
+    it('relays nothing when both the HTML and the flattened text exceed their sanity bounds', async () => {
+      // Plain text (no tags) makes the sanitized HTML the same length as the
+      // flattened text, so a single string over the larger (HTML) bound
+      // exceeds both tiers at once.
+      document.body.textContent = 'x'.repeat(MAX_PLAUSIBLE_HTML_LENGTH + 1);
 
       await loadFrameScript();
 
@@ -136,11 +188,14 @@ describe('deep-research-frame relay', () => {
       expect(postMessageSpy).not.toHaveBeenCalled();
 
       // The child document is populated/navigated later; `load` re-fires.
-      iframe.contentDocument!.body.textContent = 'Report loaded after navigation.';
+      iframe.contentDocument!.body.innerHTML = '<p>Report loaded after navigation.</p>';
       iframe.dispatchEvent(new Event('load'));
 
       expect(postMessageSpy).toHaveBeenCalledWith(
-        { type: 'ai-chat-exporter:deep-research-report', text: 'Report loaded after navigation.' },
+        {
+          type: 'ai-chat-exporter:deep-research-report',
+          html: '<p>Report loaded after navigation.</p>',
+        },
         '*'
       );
     });

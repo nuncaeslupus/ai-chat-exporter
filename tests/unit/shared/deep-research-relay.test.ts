@@ -29,8 +29,13 @@ describe('DEEP_RESEARCH_FRAME_ORIGIN_RE', () => {
 });
 
 describe('isDeepResearchFrameMessage', () => {
-  it('accepts a message built by createDeepResearchFrameMessage', () => {
-    const message = createDeepResearchFrameMessage('the report text');
+  it('accepts a text message built by createDeepResearchFrameMessage', () => {
+    const message = createDeepResearchFrameMessage({ text: 'the report text' });
+    expect(isDeepResearchFrameMessage(message)).toBe(true);
+  });
+
+  it('accepts an html message built by createDeepResearchFrameMessage', () => {
+    const message = createDeepResearchFrameMessage({ html: '<p>the report</p>' });
     expect(isDeepResearchFrameMessage(message)).toBe(true);
   });
 
@@ -38,7 +43,7 @@ describe('isDeepResearchFrameMessage', () => {
     expect(isDeepResearchFrameMessage({ type: 'something-else', text: 'x' })).toBe(false);
   });
 
-  it('rejects data with a non-string text field', () => {
+  it('rejects data with a non-string text field and no html field', () => {
     expect(
       isDeepResearchFrameMessage({ type: 'ai-chat-exporter:deep-research-report', text: 42 })
     ).toBe(false);
