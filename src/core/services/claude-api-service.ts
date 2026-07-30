@@ -6,8 +6,10 @@
 import type {
   ClaudeApiConversationResponse,
   ClaudeApiRequest,
+  ClaudeApiChatMessage,
   Artifact,
   Conversation,
+  QAPair,
 } from '../types';
 import { isArtifactContent } from '../types';
 import type { MessageResponse } from '../../shared/messages';
@@ -292,14 +294,73 @@ export class ClaudeApiService {
   }
 
   /**
-   * Enrich conversation with artifact content from API.
+   * Pair up each Q&A pair with the API messages that produced it.
+   *
+   * The DOM exposes no id related to the API's uuid, so the match is
+   * *positional*: the Nth pair is the Nth human message and the Nth assistant
+   * message. That assumption breaks when the two disagree in shape (an edited,
+   * regenerated or deleted turn), so both counts are validated up front and a
+   * mismatch bails out with a user-facing warning rather than guessing.
+   */
+  private static matchPairsToApiMessages(
+    conversation: Conversation,
+    apiData: ClaudeApiConversationResponse
+  ):
+    | {
+        matched: {
+          pair: QAPair;
+          human: ClaudeApiChatMessage | undefined;
+          assistant: ClaudeApiChatMessage | undefined;
+        }[];
+      }
+    | { warning: string } {
+    const humanMessages = apiData.chat_messages.filter((m) => m.sender === 'human');
+    const assistantMessages = apiData.chat_messages.filter((m) => m.sender === 'assistant');
+    const pairCount = conversation.pairs.length;
+
+    if (assistantMessages.length !== pairCount || humanMessages.length !== pairCount) {
+      // Always state the actual measured counts for both sides (never just
+      // the one the brief's original wording assumed was the culprit) so the
+      // message can never claim two equal counts while reporting a mismatch.
+      const plural = (n: number, noun: string): string =>
+        `${String(n)} ${noun}${n === 1 ? '' : 's'}`;
+      const warning =
+        `Artifact contents and message times were left out of this export: the page shows ${String(pairCount)} ` +
+        `Q&A pairs, but Claude reports ${plural(humanMessages.length, 'human message')} and ` +
+        `${plural(assistantMessages.length, 'assistant message')}, so they could not be matched to the right ` +
+        'turn (this happens when a turn was edited, regenerated or deleted). Reload the conversation and ' +
+        'export again.';
+      console.warn(`[Claude API Service] ${warning}`);
+      return { warning };
+    }
+
+    return {
+      matched: conversation.pairs.map((pair, index) => ({
+        pair,
+        human: humanMessages[index],
+        assistant: assistantMessages[index],
+      })),
+    };
+  }
+
+  /** An API `created_at` as a Date, or undefined when it is absent or unparseable. */
+  private static parseApiTime(iso?: string): Date | undefined {
+    if (!iso) return undefined;
+    const date = new Date(iso);
+    return Number.isNaN(date.getTime()) ? undefined : date;
+  }
+
+  /**
+   * Enrich conversation with artifact content and per-message timestamps
+   * from the API.
    *
    * The DOM scrape and the API response are independently sourced and share
    * no common identifier: the API exposes a stable `uuid` per message, but
    * the DOM-scraped `Message.id` is generated locally by the parser and has
    * no relationship to it. So a Q&A pair can only be matched to its API
    * message *positionally* — by assuming the Nth DOM pair corresponds to the
-   * Nth assistant message in the API response.
+   * Nth human message and Nth assistant message in the API response (see
+   * `matchPairsToApiMessages`).
    *
    * That assumption breaks when the two disagree in shape (an edited or
    * regenerated turn, a deleted message, ...). Rather than guess, this bails
@@ -312,60 +373,38 @@ export class ClaudeApiService {
    * title-matching, which silently collides when two artifacts share a
    * title.
    */
-  static enrichConversationWithArtifacts(
+  static enrichConversation(
     conversation: Conversation,
     apiData: ClaudeApiConversationResponse
   ): EnrichmentResult {
     const artifactsByMessageUuid = this.extractArtifacts(apiData);
+    const match = this.matchPairsToApiMessages(conversation, apiData);
 
-    if (artifactsByMessageUuid.size === 0) {
-      return { conversation };
+    if ('warning' in match) {
+      return { conversation, warning: match.warning };
     }
 
-    const assistantMessages = apiData.chat_messages.filter(
-      (message) => message.sender === 'assistant'
-    );
-
-    if (assistantMessages.length !== conversation.pairs.length) {
-      const warning =
-        `Artifact contents were left out of this export: the page shows ${String(conversation.pairs.length)} ` +
-        `replies but Claude reports ${String(assistantMessages.length)}, so artifacts could not be ` +
-        'matched to the right reply (this happens when a turn was edited, regenerated ' +
-        'or deleted). Reload the conversation and export again.';
-      console.warn(`[Claude API Service] ${warning}`);
-      return { conversation, warning };
-    }
-
-    // Enrich conversation pairs with artifact content, matching each pair to
-    // its API message by ordinal position (validated above) and its
-    // artifacts by the message's own stable uuid.
-    const enrichedPairs = conversation.pairs.map((pair, pairIndex) => {
-      const assistantMessage = assistantMessages[pairIndex];
-      const apiArtifacts = assistantMessage
-        ? artifactsByMessageUuid.get(assistantMessage.uuid)
-        : undefined;
-
-      if (!apiArtifacts) {
-        return pair;
-      }
+    const enrichedPairs = match.matched.map(({ pair, human, assistant }) => {
+      const apiArtifacts = assistant ? artifactsByMessageUuid.get(assistant.uuid) : undefined;
+      const questionTime = this.parseApiTime(human?.created_at);
+      const answerTime = this.parseApiTime(assistant?.created_at);
 
       return {
         ...pair,
+        question: {
+          ...pair.question,
+          ...(questionTime && { timestamp: questionTime }),
+        },
         answer: {
           ...pair.answer,
-          metadata: {
-            ...pair.answer.metadata,
-            artifacts: apiArtifacts,
-          },
+          ...(answerTime && { timestamp: answerTime }),
+          ...(apiArtifacts && {
+            metadata: { ...pair.answer.metadata, artifacts: apiArtifacts },
+          }),
         },
       };
     });
 
-    return {
-      conversation: {
-        ...conversation,
-        pairs: enrichedPairs,
-      },
-    };
+    return { conversation: { ...conversation, pairs: enrichedPairs } };
   }
 }

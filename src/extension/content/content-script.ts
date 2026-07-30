@@ -241,7 +241,7 @@ class ContentScript {
         return { conversation, warning: degraded };
       }
 
-      const enriched = ClaudeApiService.enrichConversationWithArtifacts(conversation, apiData);
+      const enriched = ClaudeApiService.enrichConversation(conversation, apiData);
       console.log('[AI Chat Exporter] Claude conversation enriched successfully');
 
       return enriched;

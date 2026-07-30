@@ -27,7 +27,7 @@ vi.mock('../../../../src/core/services/claude-api-service', () => ({
   ClaudeApiService: {
     extractIdsFromPage: (...args: unknown[]) => mockExtractIds(...args) as unknown,
     fetchConversationData: (...args: unknown[]) => mockFetchApiData(...args) as unknown,
-    enrichConversationWithArtifacts: (...args: unknown[]) => mockEnrich(...args) as unknown,
+    enrichConversation: (...args: unknown[]) => mockEnrich(...args) as unknown,
   },
 }));
 
