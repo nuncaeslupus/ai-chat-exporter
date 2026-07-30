@@ -91,7 +91,9 @@
             <div id="main-content">
               <!--
                 Degraded export. Shown only in the `warning` state; the full
-                reason lands in the detail line and its `title`.
+                reason lands in the detail line, which renders in full instead
+                of clipping to two lines. Retry is hidden when the reason
+                can't plausibly change on a second attempt.
               -->
               <div class="warning-card" id="warning-card" role="status">
                 <svg class="warning-card-icon" width="17" height="17" viewBox="0 0 16 16" fill="none" aria-hidden="true">

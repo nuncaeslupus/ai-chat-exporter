@@ -26,7 +26,7 @@ import {
   type FilenamePieceType,
 } from '../../core/types/config';
 import { StorageService } from '../../shared/storage';
-import { DEFAULT_PREFERENCES, MESSAGE_TYPES } from '../../shared/constants';
+import { DEFAULT_PREFERENCES, MESSAGE_TYPES, RETRYABLE_WARNING_KEYS } from '../../shared/constants';
 import { SelectionService } from '../../core/services/selection-service';
 import { FilenameService } from '../../core/services/filename-service';
 import { formatDriftReport } from '../../core/drift/format-report';
@@ -1191,18 +1191,28 @@ class PopupController {
   }
 
   /**
-   * Degraded export: the amber card carries the reason, the header badge the
-   * short label. Both keep the full text in their `title` — the card's detail
-   * line is two rows tall and a long reason is clipped there.
+   * Degraded export. `reason` is a locale key the content script returns —
+   * resolved here with `getMessage()` so the card reads in the UI language
+   * (a caller that still returns raw prose degrades gracefully: `getMessage`
+   * falls back to its input when the lookup misses). The card's detail line
+   * renders the full text (no more two-line clamp); the header badge is a
+   * narrow no-wrap label, so it keeps the full text in its `title` instead.
+   * Retry is only shown for a reason in `RETRYABLE_WARNING_KEYS` — a cause
+   * that can't change on a second attempt gets no dead button.
    */
   private showWarning(reason: string): void {
     this.setUiState('warning');
-    this.updateStatus('warning', getMessage('statusArtifactsMissing'), reason);
+    const detail = getMessage(reason);
+    this.updateStatus('warning', getMessage('statusArtifactsMissing'), detail);
 
-    const detail = document.getElementById('warning-card-detail');
-    if (detail) {
-      detail.textContent = reason;
-      detail.title = reason;
+    const detailEl = document.getElementById('warning-card-detail');
+    if (detailEl) {
+      detailEl.textContent = detail;
+    }
+
+    const retryButton = document.getElementById('warning-retry-button');
+    if (retryButton) {
+      retryButton.hidden = !RETRYABLE_WARNING_KEYS.has(reason);
     }
   }
 

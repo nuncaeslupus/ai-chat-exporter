@@ -107,6 +107,14 @@
     "message": "Retry",
     "description": "Link that runs the degraded export again"
   },
+  "warningArtifactsIdsMissing": {
+    "message": "Artifact contents and Claude's per-message timestamps were left out of this export because this page's conversation details couldn't be found. Reload the page, make sure you're signed in to claude.ai, then export again.",
+    "description": "Warning shown when the Claude conversation or organization id can't be read from the page — reloading is the fix, not retrying"
+  },
+  "warningArtifactsFetchFailed": {
+    "message": "Artifact contents and Claude's per-message timestamps were left out of this export because Claude's conversation data couldn't be fetched. This can be temporary — try exporting again.",
+    "description": "Warning shown when the Claude API request for enrichment data fails or returns nothing — retrying may succeed"
+  },
   "exportButtonAgain": {
     "message": "Export again",
     "description": "Main button label after a degraded export"

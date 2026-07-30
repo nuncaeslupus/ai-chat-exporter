@@ -107,6 +107,14 @@
     "message": "Erneut versuchen",
     "description": "Link that runs the degraded export again"
   },
+  "warningArtifactsIdsMissing": {
+    "message": "Artefaktinhalte und die Zeitstempel der einzelnen Claude-Nachrichten wurden bei diesem Export weggelassen, weil die Unterhaltungsdaten auf dieser Seite nicht gefunden werden konnten. Lade die Seite neu, stelle sicher, dass du bei claude.ai angemeldet bist, und exportiere erneut.",
+    "description": "Warning shown when the Claude conversation or organization id can't be read from the page — reloading is the fix, not retrying"
+  },
+  "warningArtifactsFetchFailed": {
+    "message": "Artefaktinhalte und die Zeitstempel der einzelnen Claude-Nachrichten wurden bei diesem Export weggelassen, weil die Unterhaltungsdaten von Claude nicht abgerufen werden konnten. Das kann vorübergehend sein – versuche den Export erneut.",
+    "description": "Warning shown when the Claude API request for enrichment data fails or returns nothing — retrying may succeed"
+  },
   "exportButtonAgain": {
     "message": "Erneut exportieren",
     "description": "Main button label after a degraded export"

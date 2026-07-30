@@ -107,6 +107,14 @@
     "message": "Torna-ho a provar",
     "description": "Link that runs the degraded export again"
   },
+  "warningArtifactsIdsMissing": {
+    "message": "El contingut dels artefactes i les hores de cada missatge de Claude no s'han inclòs en aquesta exportació perquè no s'han pogut trobar les dades de la conversa en aquesta pàgina. Recarrega la pàgina, comprova que has iniciat sessió a claude.ai i torna a exportar.",
+    "description": "Warning shown when the Claude conversation or organization id can't be read from the page — reloading is the fix, not retrying"
+  },
+  "warningArtifactsFetchFailed": {
+    "message": "El contingut dels artefactes i les hores de cada missatge de Claude no s'han inclòs en aquesta exportació perquè no s'han pogut obtenir les dades de la conversa de Claude. Això pot ser temporal: torna a intentar l'exportació.",
+    "description": "Warning shown when the Claude API request for enrichment data fails or returns nothing — retrying may succeed"
+  },
   "exportButtonAgain": {
     "message": "Exporta de nou",
     "description": "Main button label after a degraded export"

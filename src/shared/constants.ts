@@ -68,6 +68,26 @@ export const EXPORT_FORMATS = {
 export const TOAST_DURATION = 3000;
 
 /**
+ * Locale keys the content script hands back (as `MessageResponse.warning`)
+ * when Claude enrichment degrades an export, so the popup resolves the
+ * user-facing text with `getMessage()` instead of the content script
+ * hardcoding English prose.
+ */
+export const WARNING_KEYS = {
+  /** The page's own conversation/organization id couldn't be read — reload/sign-in fixes it, not a retry. */
+  IDS_MISSING: 'warningArtifactsIdsMissing',
+  /** The Claude API call for enrichment data failed or returned nothing — can be a one-off network blip. */
+  FETCH_FAILED: 'warningArtifactsFetchFailed',
+} as const;
+
+/**
+ * Warning keys whose underlying cause could plausibly clear on a second
+ * attempt. The popup only offers Retry for a key in this set — never by
+ * matching on the (translated) message text.
+ */
+export const RETRYABLE_WARNING_KEYS: ReadonlySet<string> = new Set([WARNING_KEYS.FETCH_FAILED]);
+
+/**
  * Button injection retry settings
  */
 export const INJECTION_CONFIG = {

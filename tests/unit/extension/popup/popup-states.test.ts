@@ -15,6 +15,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { createTestQAPair } from '../../../utils/exporter-helpers';
+import { WARNING_KEYS } from '../../../../src/shared/constants';
 
 const mockTabsQuery = vi.fn();
 const mockTabsSendMessage = vi.fn();
@@ -53,6 +54,10 @@ const EN_MESSAGES: Record<string, string> = {
   exportButtonAgain: 'Export again',
   exportWarningTitle: 'Saved, but incomplete',
   exportWarningRetry: 'Retry',
+  warningArtifactsIdsMissing:
+    "Artifact contents and Claude's per-message timestamps were left out of this export because this page's conversation details couldn't be found. Reload the page, make sure you're signed in to claude.ai, then export again.",
+  warningArtifactsFetchFailed:
+    "Artifact contents and Claude's per-message timestamps were left out of this export because Claude's conversation data couldn't be fetched. This can be temporary — try exporting again.",
   formatNameMD: 'Markdown',
   platformLinkOpen: 'Open $1 in a new tab',
   reloadPageButton: 'Reload the page',
@@ -456,14 +461,14 @@ describe('popup secondary states — nothing selected', () => {
   });
 });
 
-describe('popup secondary states — exported with warnings', () => {
+describe('popup secondary states — exported with warnings (persistent cause, D-26)', () => {
   beforeEach(() => {
     baseChrome();
     mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://claude.ai/chat/abc' }]);
     mockTabsSendMessage.mockImplementation((_tabId: number, message: { type: string }) =>
       message.type === 'get_conversation'
         ? Promise.resolve({ success: true, data: CONVERSATION })
-        : Promise.resolve({ success: true, warning: 'Two Claude artifacts were left out.' })
+        : Promise.resolve({ success: true, warning: WARNING_KEYS.IDS_MISSING })
     );
   });
 
@@ -471,7 +476,7 @@ describe('popup secondary states — exported with warnings', () => {
     localStorage.removeItem('lastExportFormat');
   });
 
-  it('shows the warning card with the reason and relabels the main button', async () => {
+  it('resolves the warning key through getMessage(), shows it in full, and hides the dead Retry', async () => {
     await loadPopup();
     await vi.waitFor(() => {
       expect(uiState()).toBe('ready');
@@ -484,12 +489,40 @@ describe('popup secondary states — exported with warnings', () => {
       expect(uiState()).toBe('warning');
     });
     const detail = document.getElementById('warning-card-detail');
-    expect(detail?.textContent).toBe('Two Claude artifacts were left out.');
-    expect(detail?.getAttribute('title')).toBe('Two Claude artifacts were left out.');
+    // Never the raw key, never English-only prose — resolved via getMessage().
+    expect(detail?.textContent).toBe(EN_MESSAGES.warningArtifactsIdsMissing);
     expect(document.getElementById('export-button-label')?.textContent).toBe('Export again');
+    // The cause is persistent (missing page ids) — retrying re-runs the exact
+    // same export and fails identically, so no button is offered at all.
+    expect((document.getElementById('warning-retry-button') as HTMLButtonElement).hidden).toBe(
+      true
+    );
   });
 
-  it('retries the export from the card without closing the popup', async () => {
+  it('does not clamp the warning detail text to two lines', () => {
+    // Regression for the tooltip-only-readable clamp: the card's detail line
+    // must render in full; the fixed-height body's `.view-scroll` scrolls if
+    // a long reason ever runs past it.
+    expect(POPUP_CSS).not.toMatch(/\.warning-card-detail\s*\{[^}]*-webkit-line-clamp/);
+  });
+});
+
+describe('popup secondary states — exported with warnings (transient cause, D-26)', () => {
+  beforeEach(() => {
+    baseChrome();
+    mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://claude.ai/chat/abc' }]);
+    mockTabsSendMessage.mockImplementation((_tabId: number, message: { type: string }) =>
+      message.type === 'get_conversation'
+        ? Promise.resolve({ success: true, data: CONVERSATION })
+        : Promise.resolve({ success: true, warning: WARNING_KEYS.FETCH_FAILED })
+    );
+  });
+
+  afterEach(() => {
+    localStorage.removeItem('lastExportFormat');
+  });
+
+  it('shows Retry and retries the export from the card without closing the popup', async () => {
     const close = vi.spyOn(window, 'close').mockImplementation(() => undefined);
     await loadPopup();
     await vi.waitFor(() => {
@@ -499,6 +532,11 @@ describe('popup secondary states — exported with warnings', () => {
     await vi.waitFor(() => {
       expect(uiState()).toBe('warning');
     });
+    // The API call could just as easily succeed on a second try, so Retry
+    // is offered for this reason.
+    expect((document.getElementById('warning-retry-button') as HTMLButtonElement).hidden).toBe(
+      false
+    );
 
     mockTabsSendMessage.mockClear();
     document.getElementById('warning-retry-button')?.click();
