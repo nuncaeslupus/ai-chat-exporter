@@ -518,3 +518,141 @@ describe('R-2b: embedded fonts and what they mean for transliteration', () => {
     expect(sanitizeTextForPDF('₹5')).not.toContain('₹');
   });
 });
+
+describe('R-2b: the question turn fill', () => {
+  it('fills the question box before drawing its label, and only once', async () => {
+    instances.length = 0;
+    const { conversation, pairs } = buildConversation();
+    await new PdfExporter().export(conversation, pairs, {
+      format: 'pdf',
+      filename: 'test',
+      showMetaInfo: false,
+    });
+
+    const instance = instances[0]!;
+    const calls = instance.calls;
+
+    const fillIdx = calls.findIndex(
+      (c) =>
+        c.method === 'setFillColor' &&
+        c.args.join(',') === hexToRgbTuple(COLOR.surfaceTurn).join(',')
+    );
+    expect(fillIdx).toBeGreaterThan(-1);
+
+    const rectIdx = calls.findIndex((c) => c.method === 'rect');
+    expect(rectIdx).toBeGreaterThan(fillIdx);
+
+    // The question's role label text must be drawn AFTER the fill rect --
+    // jsPDF has no z-order, so a rect drawn later would cover it.
+    const questionLabelIdx = calls.findIndex(
+      (c) => c.method === 'text' && /^[A-Za-z]+:$/.test(String(c.args[0]))
+    );
+    expect(questionLabelIdx).toBeGreaterThan(rectIdx);
+
+    // The dry-run measurement pass stubs `rect`/`text`, so it draws nothing;
+    // only the real pass should produce a rect.
+    expect(calls.filter((c) => c.method === 'rect')).toHaveLength(1);
+  });
+
+  it('does not fill the answer', async () => {
+    instances.length = 0;
+    const { conversation, pairs } = buildConversation();
+    await new PdfExporter().export(conversation, pairs, {
+      format: 'pdf',
+      filename: 'test',
+      showMetaInfo: false,
+    });
+
+    const calls = instances[0]!.calls;
+    // Exactly one rect (the question's) — none for the answer.
+    expect(calls.filter((c) => c.method === 'rect')).toHaveLength(1);
+  });
+});
+
+describe('R-2b: tables — horizontal rules and numeric right-alignment', () => {
+  async function renderTable() {
+    const pair: QAPair = {
+      id: 'pair-table',
+      index: 0,
+      selected: true,
+      question: {
+        id: 'q-table',
+        role: 'user',
+        content: 'question',
+        timestamp: new Date('2025-01-01T12:00:00Z'),
+      },
+      answer: {
+        id: 'a-table',
+        role: 'assistant',
+        content: 'fallback',
+        htmlContent:
+          '<table><thead><tr><th>Name</th><th>Count</th></tr></thead>' +
+          '<tbody><tr><td>Alpha</td><td>10</td></tr><tr><td>Beta</td><td>200</td></tr></tbody></table>',
+        timestamp: new Date('2025-01-01T12:00:00Z'),
+      },
+    };
+    const conversation: Conversation = {
+      id: 'test-conversation-table',
+      title: 'Table Test',
+      platform: 'claude',
+      model: 'claude-3',
+      pairs: [pair],
+      url: 'https://claude.ai/chat/table-test',
+      createdAt: new Date('2025-01-01T12:00:00Z'),
+    };
+
+    instances.length = 0;
+    await new PdfExporter().export(conversation, [pair], {
+      format: 'pdf',
+      filename: 'test',
+      showMetaInfo: false,
+    });
+    return instances[0]!;
+  }
+
+  it('draws no full grid and no fill for the table — lines only', async () => {
+    const instance = await renderTable();
+    // Only the question's turn-fill rect — no header/row background fill.
+    expect(instance.calls.filter((c) => c.method === 'rect')).toHaveLength(1);
+  });
+
+  it('right-aligns the numeric column and left-aligns the text column', async () => {
+    const instance = await renderTable();
+    const numericCell = instance.calls.find((c) => c.method === 'text' && c.args[0] === '10');
+    const textCell = instance.calls.find((c) => c.method === 'text' && c.args[0] === 'Alpha');
+
+    expect((numericCell?.args[3] as { align?: string } | undefined)?.align).toBe('right');
+    expect((textCell?.args[3] as { align?: string } | undefined)?.align).toBeUndefined();
+  });
+});
+
+describe('R-2b: the code-language tab', () => {
+  it('renders the language as a chip above the code block, not inline', async () => {
+    instances.length = 0;
+    const { conversation, pairs } = buildConversation();
+    await new PdfExporter().export(conversation, pairs, {
+      format: 'pdf',
+      filename: 'test',
+      showMetaInfo: false,
+    });
+
+    const calls = instances[0]!.calls;
+    // Two roundedRects for a code block with a language: the tab chip, then
+    // the code block's own background.
+    const roundedRects = calls.filter((c) => c.method === 'roundedRect');
+    expect(roundedRects).toHaveLength(2);
+
+    const tabTextIdx = calls.findIndex((c) => c.method === 'text' && c.args[0] === 'JS');
+    expect(tabTextIdx).toBeGreaterThan(-1);
+
+    // The tab chip is drawn (setFillColor + roundedRect) BEFORE its label text.
+    const chipRectIdx = calls.indexOf(roundedRects[0]!);
+    expect(chipRectIdx).toBeLessThan(tabTextIdx);
+
+    // The code itself is drawn after the tab, in the monospace font.
+    const codeTextIdx = calls.findIndex(
+      (c) => c.method === 'text' && c.args[0] === 'function foo() {}'
+    );
+    expect(codeTextIdx).toBeGreaterThan(tabTextIdx);
+  });
+});
