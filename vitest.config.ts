@@ -34,20 +34,23 @@ export default defineConfig({
         // percentage down by the size of the fonts.
         'src/core/exporters/pdf-fonts.generated.ts',
       ],
-      // Floor set just under measured coverage (statements/lines 20.27%,
-      // branches 60.8%, functions 81.15% as of this change) so it actually
-      // gates instead of failing on arrival. Raise as testing tasks land.
       // Floors are set just under the measured value on main and ratcheted up as
       // tests land. Re-measure before raising: because coverage only counts files
       // the suite actually imports, adding a test file can *lower* a percentage by
-      // pulling more uncovered source into the denominator.
-      // Measured on main at 2026-07-28: statements 41.99, branches 59.59,
-      // functions 75.00, lines 41.99.
+      // pulling more uncovered source into the denominator. Vitest 4 also removed
+      // `coverage.all` (which vitest 3 defaulted to `true`), so a file no test
+      // imports no longer appears in this report at 0% -- it just vanishes from
+      // the denominator instead of dragging the aggregate down. Setting `all: true`
+      // is inert on the shipped @vitest/coverage-v8@4.1.10. That regression signal
+      // is now covered separately by tests/unit/import-reachability.test.ts, which
+      // asserts every src/**/*.ts file is reachable from a test file.
+      // Measured on main at 2026-07-30 (vitest 4.1.10, @vitest/coverage-v8@4.1.10):
+      // statements 84.70, branches 70.32, functions 90.72, lines 85.02.
       thresholds: {
-        statements: 40,
-        branches: 58,
-        functions: 73,
-        lines: 40,
+        statements: 83,
+        branches: 69,
+        functions: 89,
+        lines: 83,
       },
     },
   },
