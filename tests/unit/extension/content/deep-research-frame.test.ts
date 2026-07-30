@@ -5,7 +5,7 @@
  * separately) is the receiving side.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 
 /** Must match QUIET_PERIOD_MS in deep-research-frame.ts. */
 const QUIET_PERIOD_MS = 500;
@@ -16,7 +16,7 @@ async function loadFrameScript(): Promise<void> {
 }
 
 describe('deep-research-frame relay', () => {
-  let postMessageSpy: ReturnType<typeof vi.spyOn>;
+  let postMessageSpy: MockInstance;
 
   beforeEach(() => {
     document.body.innerHTML = '';

@@ -11,7 +11,7 @@
  * these tests drive fails here rather than in the browser.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { createTestQAPair } from '../../../utils/exporter-helpers';
@@ -271,8 +271,8 @@ describe('popup secondary states — no conversation found on a supported page',
  * into the console — while a genuine failure still has to.
  */
 describe('popup secondary states — no content script in the tab', () => {
-  let consoleError: ReturnType<typeof vi.spyOn>;
-  let consoleDebug: ReturnType<typeof vi.spyOn>;
+  let consoleError: MockInstance;
+  let consoleDebug: MockInstance;
 
   beforeEach(() => {
     baseChrome();
