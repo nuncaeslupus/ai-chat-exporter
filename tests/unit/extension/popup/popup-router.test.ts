@@ -266,7 +266,7 @@ describe('popup fixed body box', () => {
 /*
  * The box's declared size and the type scale, read straight out of popup.css.
  * jsdom cannot lay the popup out, so these guard the *declarations* the browser
- * measurements were taken against: 420x(56+320), and every font size coming
+ * measurements were taken against: 428x(56+320), and every font size coming
  * from one token block so the next resize is that block and nothing else.
  */
 const POPUP_CSS = readFileSync(
@@ -279,7 +279,7 @@ const ROOT_BLOCK = /:root\s*\{([\s\S]*?)\n\}/.exec(POPUP_CSS)?.[1] ?? '';
 
 describe('popup geometry and type tokens', () => {
   it.each([
-    ['--popup-width', '420px'],
+    ['--popup-width', '428px'],
     ['--header-height', '56px'],
     ['--body-height', '320px'],
   ])('declares %s as %s', (token, value) => {
