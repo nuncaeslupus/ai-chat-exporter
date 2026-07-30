@@ -6,6 +6,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import type { Conversation, QAPair } from '../../../../src/core/types';
 import { HtmlExporter } from '../../../../src/core/exporters/html-exporter';
 import {
@@ -72,6 +74,56 @@ describe('HtmlExporter', () => {
       expect(html).toContain('Exportiert mit AI Chat Exporter');
       expect(html).not.toContain('>Platform<');
       expect(html).not.toContain('>User<');
+    });
+
+    it('takes the date-range label from the locale bundle, not an English fallback', async () => {
+      // Reads the real bundle, so a deleted/renamed key fails here rather than
+      // silently rendering English into a German export header.
+      const de = JSON.parse(
+        readFileSync(resolve(__dirname, '../../../../_locales/de/messages.json'), 'utf-8')
+      ) as Record<string, { message: string }>;
+
+      globalThis.chrome = {
+        ...originalChrome,
+        i18n: {
+          getUILanguage: () => 'de',
+          getMessage: (key: string) => de[key]?.message ?? '',
+        },
+      } as unknown as typeof chrome;
+
+      const result = await exporter.export(conversation, selectedPairs, {
+        format: 'html',
+        filename: 'test',
+        includeMetadata: true,
+        includeTimestamps: false,
+      });
+      const html = await blobToText(result.blob!);
+
+      expect(html).toContain(de.metadataFieldDateRange?.message);
+      expect(html).not.toContain('Date range');
+    });
+
+    it('names the assistant after the platform, not the generic role label', async () => {
+      // `roleChatGPT` is the declared key; a lookup that misses it falls through
+      // to `roleAssistant`, so a German ChatGPT export reads "Assistent".
+      globalThis.chrome = {
+        ...originalChrome,
+        i18n: {
+          getUILanguage: () => 'de',
+          getMessage: (key: string) => DE_MESSAGES[key] ?? '',
+        },
+      } as unknown as typeof chrome;
+
+      const result = await exporter.export(conversation, selectedPairs, {
+        format: 'html',
+        filename: 'test',
+        includeMetadata: true,
+        includeTimestamps: false,
+      });
+      const html = await blobToText(result.blob!);
+
+      expect(html).toContain('<h2 class="message-role">ChatGPT</h2>');
+      expect(html).not.toContain('Assistent');
     });
 
     it('falls back to English labels and lang="en" when i18n is unavailable', async () => {

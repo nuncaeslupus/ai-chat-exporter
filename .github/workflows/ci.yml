@@ -18,11 +18,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: node build/check-release.cjs version
       - run: node build/check-release.cjs node
+      - run: pnpm lint
+      - run: pnpm format:check
       - run: pnpm typecheck
       - run: pnpm test:coverage
       - run: pnpm build
-      # pnpm lint is not gated yet: the config is strictTypeChecked and had never
-      # run, so it reports 1151 pre-existing errors. See queue task for the cleanup.
       - run: node build/check-release.cjs manifest
       # Report-only: a hard fail on a transitive advisory would block every PR
       # on a timeline nobody here controls (upstream patch release, advisory

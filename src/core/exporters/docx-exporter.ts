@@ -5,6 +5,7 @@
  */
 
 import {
+  AlignmentType,
   Document,
   Paragraph,
   TextRun,
@@ -17,6 +18,10 @@ import {
   TableCell,
   WidthType,
 } from 'docx';
+import type { IRunOptions } from 'docx';
+
+// IRunOptions is declared readonly; the switch below builds one field by field.
+type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 import type {
   ExportFormat,
   ExportOptions,
@@ -24,21 +29,50 @@ import type {
   Conversation,
   QAPair,
   StructuredContentBlock,
+  StructuredConversation,
+  StructuredQAPair,
   InlineContent,
   ListBlock,
+  TableBlock,
 } from '../types';
 import { BaseExporter } from './base-exporter';
 import { ConversationStructureService } from '../services';
 import {
   COLOR,
   DOCX_FONT_SIZE_PT,
+  DOC_HEADING_LEVEL,
   FONT_FAMILY,
   FONT_SIZE_PT,
   SPACING,
+  bodyHeadingLevel,
+  brandColorFor,
+  scaleFontSizes,
   hexToDocxColor,
   mmToTwips,
   ptToHalfPt,
 } from './style-tokens';
+
+/** Document heading level 1-6 -> docx HeadingLevel, index 0 = level 1. */
+const DOCX_HEADING_BY_LEVEL: (typeof HeadingLevel)[keyof typeof HeadingLevel][] = [
+  HeadingLevel.HEADING_1,
+  HeadingLevel.HEADING_2,
+  HeadingLevel.HEADING_3,
+  HeadingLevel.HEADING_4,
+  HeadingLevel.HEADING_5,
+  HeadingLevel.HEADING_6,
+];
+
+/**
+ * Document heading level (1-6) -> docx HeadingLevel.
+ *
+ * `noUncheckedIndexedAccess` types every number-indexed read as `| undefined`,
+ * so the lookup needs a total wrapper. Callers only ever pass 1..6
+ * (`DOC_HEADING_LEVEL.title`/`.roleLabel`, or `bodyHeadingLevel`, which clamps
+ * to `DOC_HEADING_LEVEL.max`), so the fallback is unreachable in practice.
+ */
+function docxHeading(docLevel: number): (typeof HeadingLevel)[keyof typeof HeadingLevel] {
+  return DOCX_HEADING_BY_LEVEL[docLevel - 1] ?? HeadingLevel.HEADING_6;
+}
 
 /**
  * Exports conversations to DOCX (Word) format
@@ -46,8 +80,15 @@ import {
 export class DocxExporter extends BaseExporter {
   readonly format: ExportFormat = 'docx';
   readonly extension = 'docx';
-  readonly mimeType =
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  readonly mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+  /**
+   * The size tables for this export, already multiplied by the chosen step.
+   * Set once per export (a fresh exporter is built per export), so no run
+   * below can be emitted at an unscaled size.
+   */
+  private sizes = scaleFontSizes(FONT_SIZE_PT);
+  private docxSizes = scaleFontSizes(DOCX_FONT_SIZE_PT);
 
   /**
    * Export selected Q&A pairs to DOCX
@@ -58,6 +99,9 @@ export class DocxExporter extends BaseExporter {
     options: ExportOptions
   ): Promise<ExportResult> {
     try {
+      this.sizes = scaleFontSizes(FONT_SIZE_PT, options.fontScale);
+      this.docxSizes = scaleFontSizes(DOCX_FONT_SIZE_PT, options.fontScale);
+
       // Convert to structured format (only the selected pairs)
       const structured = ConversationStructureService.toStructured({
         ...conversation,
@@ -77,10 +121,7 @@ export class DocxExporter extends BaseExporter {
   /**
    * Create a DOCX document
    */
-  private createDocument(
-    conversation: any, // StructuredConversation
-    options: ExportOptions
-  ): Document {
+  private createDocument(conversation: StructuredConversation, options: ExportOptions): Document {
     const sections: (Paragraph | Table)[] = [];
 
     // Title
@@ -90,9 +131,10 @@ export class DocxExporter extends BaseExporter {
           new TextRun({
             text: conversation.title,
             bold: true,
-            size: ptToHalfPt(DOCX_FONT_SIZE_PT.title),
+            size: ptToHalfPt(this.docxSizes.title),
           }),
         ],
+        heading: docxHeading(DOC_HEADING_LEVEL.title),
         spacing: { after: 300 },
       })
     );
@@ -104,7 +146,7 @@ export class DocxExporter extends BaseExporter {
           children: [
             new TextRun({
               text: `Platform: ${this.formatPlatformName(conversation.platform)}`,
-              size: ptToHalfPt(FONT_SIZE_PT.meta),
+              size: ptToHalfPt(this.sizes.meta),
               color: hexToDocxColor(COLOR.textMuted),
             }),
           ],
@@ -118,7 +160,23 @@ export class DocxExporter extends BaseExporter {
             children: [
               new TextRun({
                 text: `Model: ${conversation.model}`,
-                size: ptToHalfPt(FONT_SIZE_PT.meta),
+                size: ptToHalfPt(this.sizes.meta),
+                color: hexToDocxColor(COLOR.textMuted),
+              }),
+            ],
+            spacing: { after: 100 },
+          })
+        );
+      }
+
+      const dateRange = this.formatDateRange(conversation.pairs);
+      if (dateRange) {
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: `${this.getMetadataLabel('dateRange')}: ${dateRange}`,
+                size: ptToHalfPt(this.sizes.meta),
                 color: hexToDocxColor(COLOR.textMuted),
               }),
             ],
@@ -133,7 +191,7 @@ export class DocxExporter extends BaseExporter {
             children: [
               new TextRun({
                 text: `Exported: ${this.formatTimestamp(conversation.createdAt)}`,
-                size: ptToHalfPt(FONT_SIZE_PT.meta),
+                size: ptToHalfPt(this.sizes.meta),
                 color: hexToDocxColor(COLOR.textMuted),
               }),
             ],
@@ -147,7 +205,7 @@ export class DocxExporter extends BaseExporter {
           children: [
             new TextRun({
               text: `URL: ${conversation.url}`,
-              size: ptToHalfPt(FONT_SIZE_PT.meta),
+              size: ptToHalfPt(this.sizes.meta),
               color: hexToDocxColor(COLOR.textMuted),
             }),
           ],
@@ -158,8 +216,12 @@ export class DocxExporter extends BaseExporter {
 
     // Q&A pairs
     const assistantName = this.getAssistantName(conversation.platform);
+    // The role label is text on a white page, so take the darkened
+    // on-light variant — the same token html's role label uses.
+    const assistantColor = brandColorFor(COLOR.brandTextOnLight, conversation.platform);
+    const daySeparator = this.daySeparator(options.includeTimestamps);
     for (const pair of conversation.pairs) {
-      sections.push(...this.formatPair(pair, options, assistantName));
+      sections.push(...this.formatPair(pair, options, assistantName, assistantColor, daySeparator));
     }
 
     return new Document({
@@ -170,9 +232,10 @@ export class DocxExporter extends BaseExporter {
           document: {
             run: {
               font: FONT_FAMILY.body.docx,
-              size: ptToHalfPt(FONT_SIZE_PT.body),
+              size: ptToHalfPt(this.sizes.body),
             },
           },
+          ...this.headingStyles(),
         },
       },
       sections: [
@@ -184,44 +247,107 @@ export class DocxExporter extends BaseExporter {
   }
 
   /**
-   * Render a role heading, appending a de-emphasized timestamp run when non-empty.
+   * Size overrides for Word's built-in `Heading 1`-`Heading 6` styles.
+   *
+   * Without them a heading's size comes from Word's default stylesheet and
+   * stays put while the body text scales — at `large` the body would outgrow
+   * `Heading 3` and the outline would read upside down. The values are Word's
+   * own defaults, so `normal` renders exactly as it did before this existed.
    */
-  private renderRoleHeading(label: string, timestampSuffix: string): Paragraph {
-    const children: TextRun[] = [new TextRun({ text: label })];
+  private headingStyles(): Record<string, { run: { size: number } }> {
+    return Object.fromEntries(
+      this.docxSizes.headingByLevel.map((pt, index) => [
+        `heading${index + 1}`,
+        { run: { size: ptToHalfPt(pt) } },
+      ])
+    );
+  }
+
+  /**
+   * Render a role heading, appending a de-emphasized timestamp run when non-empty.
+   *
+   * `labelColor` is a '#rrggbb' hex — the platform brand colour for the
+   * assistant, the user accent for the user — so a docx is identifiable as
+   * ChatGPT / Claude / Gemini the way pdf and html already are.
+   */
+  private renderRoleHeading(label: string, timestampSuffix: string, labelColor: string): Paragraph {
+    const children: TextRun[] = [new TextRun({ text: label, color: hexToDocxColor(labelColor) })];
     if (timestampSuffix) {
       children.push(
         new TextRun({
           text: timestampSuffix,
           italics: true,
-          size: ptToHalfPt(FONT_SIZE_PT.meta),
+          size: ptToHalfPt(this.sizes.meta),
           color: hexToDocxColor(COLOR.textMuted),
         })
       );
     }
     return new Paragraph({
       children,
-      heading: HeadingLevel.HEADING_2,
+      heading: docxHeading(DOC_HEADING_LEVEL.roleLabel),
       spacing: { before: 300, after: 150 },
+      keepNext: true, // never strand the role label at the foot of a page
+    });
+  }
+
+  /**
+   * A day-change marker, centred and de-emphasized like the timestamps it
+   * replaces. Not a heading: it carries no outline weight.
+   */
+  private renderDaySeparator(separator: string): Paragraph {
+    return new Paragraph({
+      children: [
+        new TextRun({
+          text: separator,
+          size: ptToHalfPt(this.sizes.meta),
+          color: hexToDocxColor(COLOR.textMuted),
+        }),
+      ],
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 300, after: 150 },
+      keepNext: true, // it introduces the message below it; alone at a page foot it is a dead line
     });
   }
 
   /**
    * Format a single Q&A pair as DOCX paragraphs
    */
-  private formatPair(pair: any, options: ExportOptions, assistantName: string): (Paragraph | Table)[] {
+  private formatPair(
+    pair: StructuredQAPair,
+    options: ExportOptions,
+    assistantName: string,
+    assistantColor: string,
+    daySeparator: (date?: Date) => string
+  ): (Paragraph | Table)[] {
     const paragraphs: (Paragraph | Table)[] = [];
+    const pushDaySeparator = (date?: Date): void => {
+      const separator = daySeparator(date);
+      if (separator) {
+        paragraphs.push(this.renderDaySeparator(separator));
+      }
+    };
 
     // User heading
+    pushDaySeparator(pair.question.timestamp);
     paragraphs.push(
-      this.renderRoleHeading('User', this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps))
+      this.renderRoleHeading(
+        'User',
+        this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps),
+        COLOR.link
+      )
     );
 
     // User content
     paragraphs.push(...this.renderBlocks(pair.question.blocks));
 
     // Assistant heading
+    pushDaySeparator(pair.answer.timestamp);
     paragraphs.push(
-      this.renderRoleHeading(assistantName, this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps))
+      this.renderRoleHeading(
+        assistantName,
+        this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps),
+        assistantColor
+      )
     );
 
     // Assistant content
@@ -229,7 +355,7 @@ export class DocxExporter extends BaseExporter {
 
     // Add artifacts if present
     if (pair.answer.metadata?.artifacts && Array.isArray(pair.answer.metadata.artifacts)) {
-      const artifactsWithContent = pair.answer.metadata.artifacts.filter((a: any) => a.content);
+      const artifactsWithContent = pair.answer.metadata.artifacts.filter((a) => a.content);
 
       if (artifactsWithContent.length > 0) {
         paragraphs.push(
@@ -248,7 +374,7 @@ export class DocxExporter extends BaseExporter {
                 new TextRun({
                   text: artifact.title,
                   bold: true,
-                  size: ptToHalfPt(DOCX_FONT_SIZE_PT.artifactTitle),
+                  size: ptToHalfPt(this.docxSizes.artifactTitle),
                 }),
               ],
               spacing: { before: 150, after: 50 },
@@ -263,7 +389,7 @@ export class DocxExporter extends BaseExporter {
                   new TextRun({
                     text: `Type: ${artifact.typeLabel}`,
                     italics: true,
-                    size: ptToHalfPt(FONT_SIZE_PT.meta),
+                    size: ptToHalfPt(this.sizes.meta),
                   }),
                 ],
                 spacing: { after: 100 },
@@ -281,7 +407,7 @@ export class DocxExporter extends BaseExporter {
                 children: [
                   new TextRun({
                     text: artifact.content || '',
-                    size: ptToHalfPt(FONT_SIZE_PT.body),
+                    size: ptToHalfPt(this.sizes.body),
                   }),
                 ],
                 spacing: { after: 150 },
@@ -297,7 +423,7 @@ export class DocxExporter extends BaseExporter {
                     new TextRun({
                       text: line,
                       font: FONT_FAMILY.code.docx,
-                      size: ptToHalfPt(FONT_SIZE_PT.code),
+                      size: ptToHalfPt(this.sizes.code),
                     }),
                   ],
                   spacing: { after: 0 },
@@ -327,10 +453,10 @@ export class DocxExporter extends BaseExporter {
           paragraphs.push(
             new Paragraph({
               children: [
-                new TextRun({ text: result.title, size: ptToHalfPt(FONT_SIZE_PT.body) }),
+                new TextRun({ text: result.title, size: ptToHalfPt(this.sizes.body) }),
                 new TextRun({
                   text: ` — ${result.url}`,
-                  size: ptToHalfPt(FONT_SIZE_PT.meta),
+                  size: ptToHalfPt(this.sizes.meta),
                   italics: true,
                 }),
               ],
@@ -376,12 +502,29 @@ export class DocxExporter extends BaseExporter {
           elements.push(this.renderHorizontalRule());
           break;
 
+        // Word gets no embedded picture here; label it and keep the URL so the
+        // image is still reachable.
         case 'image':
           elements.push(
             new Paragraph({
               children: [
                 new TextRun({
-                  text: `[Image: ${block.alt || 'image'}]`,
+                  text: `[Image: ${block.alt || 'image'}] ${block.url}`,
+                  italics: true,
+                }),
+              ],
+              spacing: { before: 100, after: 100 },
+            })
+          );
+          break;
+
+        // Word can't play the clip inline; label it and keep the URL.
+        case 'media':
+          elements.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: `[${this.mediaLabel(block)}] ${block.url}`,
                   italics: true,
                 }),
               ],
@@ -427,22 +570,14 @@ export class DocxExporter extends BaseExporter {
       return [];
     }
 
-    // Map heading levels (shift by 2 since we use HEADING_2 for user/assistant)
-    const headingLevels: (typeof HeadingLevel)[keyof typeof HeadingLevel][] = [
-      HeadingLevel.HEADING_3,
-      HeadingLevel.HEADING_4,
-      HeadingLevel.HEADING_5,
-      HeadingLevel.HEADING_6,
-      HeadingLevel.HEADING_6,
-      HeadingLevel.HEADING_6,
-    ];
-    const heading: (typeof HeadingLevel)[keyof typeof HeadingLevel] = headingLevels[Math.min(block.level - 1, headingLevels.length - 1)]!;
+    const heading = docxHeading(bodyHeadingLevel(block.level));
 
     return [
       new Paragraph({
         children: textRuns,
         heading: heading,
         spacing: { before: 250, after: 150 },
+        keepNext: true, // a heading stays with the content it introduces
       }),
     ];
   }
@@ -460,11 +595,12 @@ export class DocxExporter extends BaseExporter {
           children: [
             new TextRun({
               text: language.toUpperCase(),
-              size: ptToHalfPt(FONT_SIZE_PT.codeLabel),
+              size: ptToHalfPt(this.sizes.codeLabel),
               bold: true,
             }),
           ],
           spacing: { before: 100, after: 50 },
+          keepNext: true, // the language tag belongs with the code it labels
         })
       );
     }
@@ -480,11 +616,12 @@ export class DocxExporter extends BaseExporter {
             new TextRun({
               text: line,
               font: FONT_FAMILY.code.docx,
-              size: ptToHalfPt(FONT_SIZE_PT.code),
+              size: ptToHalfPt(this.sizes.code),
               break: i > 0 ? 1 : 0,
             })
         ),
         spacing: { before: 50, after: 150 },
+        keepLines: true, // a code block reads as one unit — do not fragment it
       })
     );
 
@@ -578,7 +715,7 @@ export class DocxExporter extends BaseExporter {
   /**
    * Render a table
    */
-  private renderTable(block: any): Table {
+  private renderTable(block: TableBlock): Table {
     const rows: TableRow[] = [];
 
     // Render header rows
@@ -594,7 +731,10 @@ export class DocxExporter extends BaseExporter {
             shading: { fill: hexToDocxColor(COLOR.surfaceSubtle) }, // matches pdf/html table header background
           })
       );
-      rows.push(new TableRow({ children: headerCells }));
+      // cantSplit: the row never breaks down the middle across a page boundary.
+      // tableHeader: Word repeats it at the top of each continuation page, which
+      // is its native answer to "header stranded at the foot of a page".
+      rows.push(new TableRow({ children: headerCells, cantSplit: true, tableHeader: true }));
     }
 
     // Render body rows
@@ -610,7 +750,7 @@ export class DocxExporter extends BaseExporter {
               ],
             })
         );
-        rows.push(new TableRow({ children: bodyCells }));
+        rows.push(new TableRow({ children: bodyCells, cantSplit: true }));
       }
     }
 
@@ -630,7 +770,7 @@ export class DocxExporter extends BaseExporter {
     overrides?: { italics?: boolean; color?: string; bold?: boolean }
   ): TextRun[] {
     return content.map((item) => {
-      const options: any = {
+      const options: Mutable<IRunOptions> = {
         text: item.text,
       };
 
@@ -645,7 +785,7 @@ export class DocxExporter extends BaseExporter {
 
         case 'code':
           options.font = FONT_FAMILY.code.docx;
-          options.size = ptToHalfPt(FONT_SIZE_PT.code);
+          options.size = ptToHalfPt(this.sizes.code);
           break;
 
         case 'link':
@@ -659,6 +799,16 @@ export class DocxExporter extends BaseExporter {
 
         case 'strikethrough':
           options.strike = true;
+          break;
+
+        // lo-320b: OMML is Word's native math and the `docx` library does export
+        // the builders for it (Math, MathRun, MathSum, MathFraction, …) — but
+        // they take a built OMML tree, not a TeX string, so using them means
+        // shipping a LaTeX parser. Deliberate fallback: the delimited source in
+        // the code font, matching how inline `code` is marked, so it reads as a
+        // formula and stays copy-pasteable into a real math tool.
+        case 'math':
+          options.font = FONT_FAMILY.code.docx;
           break;
       }
 

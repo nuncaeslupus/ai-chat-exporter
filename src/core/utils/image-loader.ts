@@ -23,7 +23,7 @@ export interface LoadedImage {
  */
 export async function loadImageAsDataUrl(
   url: string,
-  maxWidth: number = 800,
+  maxWidth = 800,
   timeoutMs = 5000
 ): Promise<LoadedImage | null> {
   try {
@@ -147,8 +147,8 @@ function notifyEmbedFailures(failedCount: number): void {
  */
 export async function loadImagesParallel(
   urls: string[],
-  maxWidth: number = 800,
-  concurrency: number = 3
+  maxWidth = 800,
+  concurrency = 3
 ): Promise<Map<string, LoadedImage | null>> {
   const results = new Map<string, LoadedImage | null>();
 

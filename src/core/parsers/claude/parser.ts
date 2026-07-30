@@ -41,6 +41,62 @@ function setCachedImageDataUrl(src: string, dataUrl: string): void {
 }
 
 /**
+ * Artifact format token -> (type, language).
+ *
+ * claude.ai labels an artifact block `"<Kind> · <FORMAT>"` (e.g. `"Code · JSX"`,
+ * `"Document · MD"`). `<Kind>` is translated -- it is "Documento" on a Spanish
+ * UI -- but `<FORMAT>` is not, so the format token is the locale-independent
+ * signal and is preferred over any `includes()` check against the visible
+ * label (lo-2478).
+ */
+const ARTIFACT_FORMATS: Record<string, { type: string; language: string }> = {
+  md: { type: 'document', language: 'markdown' },
+  markdown: { type: 'document', language: 'markdown' },
+  txt: { type: 'document', language: 'text' },
+  svg: { type: 'image', language: 'svg' },
+  mermaid: { type: 'diagram', language: 'mermaid' },
+  jsx: { type: 'react', language: 'react' },
+  tsx: { type: 'react', language: 'react' },
+};
+
+/**
+ * Resolve an artifact's type from its label, locale-independently where
+ * possible. `format` is the token after the "·" separator; when the label has
+ * no separator (older markup, and the only shape the pre-2026 fixtures carry)
+ * this falls back to matching the visible label, which only works on an
+ * English or Spanish UI.
+ */
+function resolveArtifactType(label: string, format: string): { type: string; language?: string } {
+  const known = ARTIFACT_FORMATS[format];
+  if (known) {
+    return { type: known.type, language: known.language };
+  }
+  if (format) {
+    // Any other format token ("HTML", "PY", "CSV", ...) is source of some
+    // kind: type it as code and carry the token through as the language,
+    // rather than the 'unknown' the label chain used to yield.
+    return { type: 'code', language: format };
+  }
+
+  if (label.includes('Imagen') || label.includes('Image')) {
+    return { type: 'image', language: 'svg' };
+  }
+  if (label.includes('interactivo') || label.includes('interactive')) {
+    return { type: 'react', language: 'react' };
+  }
+  if (label.includes('Documento') || label.includes('Document')) {
+    return { type: 'document', language: 'markdown' };
+  }
+  if (label.includes('Diagrama') || label.includes('Diagram')) {
+    return { type: 'diagram', language: 'mermaid' };
+  }
+  if (label.includes('Código') || label.includes('Code')) {
+    return { type: 'code' };
+  }
+  return { type: 'unknown' };
+}
+
+/**
  * Parser for Claude conversations
  */
 export class ClaudeParser extends BaseParser {
@@ -51,6 +107,10 @@ export class ClaudeParser extends BaseParser {
   };
 
   readonly selectors = CLAUDE_SELECTORS;
+
+  protected override get requiredSelectorKeys(): readonly string[] {
+    return [...super.requiredSelectorKeys, 'custom.turnContainer', 'custom.userTurnWrapper'];
+  }
 
   /**
    * Check if this parser can handle the current page
@@ -122,9 +182,11 @@ export class ClaudeParser extends BaseParser {
    */
   getButtonInjectionPoint(): HTMLElement | null {
     // Try to find the container with the model selector button
-    const modelButton = this.document.querySelector('button[data-testid="model-selector-dropdown"]');
+    const modelButton = this.document.querySelector(
+      'button[data-testid="model-selector-dropdown"]'
+    );
     if (modelButton?.parentElement) {
-      return modelButton.parentElement as HTMLElement;
+      return modelButton.parentElement;
     }
 
     // Fallback: try the buttonArea selector
@@ -253,7 +315,7 @@ export class ClaudeParser extends BaseParser {
     if (!contentElement) {
       // If no text but has images, create a message indicating images only
       if (images.length > 0) {
-        const imageDescriptions = images.map(img => img.alt || 'image').join(', ');
+        const imageDescriptions = images.map((img) => img.alt || 'image').join(', ');
         return this.createMessageWithMetadata(
           'user',
           `[Uploaded images: ${imageDescriptions}]`,
@@ -289,8 +351,10 @@ export class ClaudeParser extends BaseParser {
   /**
    * Extract user uploaded images
    */
-  private extractUserUploadedImages(element: Element): Array<{ src: string; alt?: string; width?: number; height?: number }> {
-    const images: Array<{ src: string; alt?: string; width?: number; height?: number }> = [];
+  private extractUserUploadedImages(
+    element: Element
+  ): { src: string; alt?: string; width?: number; height?: number }[] {
+    const images: { src: string; alt?: string; width?: number; height?: number }[] = [];
 
     const imageContainers = element.querySelectorAll('div.relative.group\\/thumbnail');
 
@@ -306,7 +370,9 @@ export class ClaudeParser extends BaseParser {
       }
 
       // Try to get alt from img, or from data-testid attribute on container's child
-      const alt = img.getAttribute('alt') || container.querySelector('[data-testid]')?.getAttribute('data-testid');
+      const alt =
+        img.getAttribute('alt') ||
+        container.querySelector('[data-testid]')?.getAttribute('data-testid');
       const widthAttr = img.getAttribute('width');
       const heightAttr = img.getAttribute('height');
 
@@ -314,7 +380,9 @@ export class ClaudeParser extends BaseParser {
       // Note: If it's already a data URL or http(s) URL, keep it as is
       const finalSrc = this.tryGetImageDataUrl(img, src);
 
-      const imageData: { src: string; alt?: string; width?: number; height?: number } = { src: finalSrc };
+      const imageData: { src: string; alt?: string; width?: number; height?: number } = {
+        src: finalSrc,
+      };
       if (alt) imageData.alt = alt;
       // Only include dimensions if they're actually specified in the HTML
       if (widthAttr) imageData.width = parseInt(widthAttr, 10);
@@ -375,18 +443,15 @@ export class ClaudeParser extends BaseParser {
    */
   private extractAssistantMessage(element: Element, config: ParserConfig): Message | null {
     const messageId = this.generateId();
-    console.log('[Claude Parser] extractAssistantMessage called for element:', element.tagName);
 
     // Extract all content parts
     const contentParts: string[] = [];
     const htmlParts: string[] = [];
 
     // Extract web searches
-    console.log('[Claude Parser] About to extract web searches...');
     const webSearches = this.extractWebSearches(element);
-    console.log('[Claude Parser] Web searches extracted:', webSearches.length);
     if (webSearches.length > 0) {
-      webSearches.forEach(search => {
+      webSearches.forEach((search) => {
         contentParts.push(`[Web Search: ${search.query}]`);
         if (search.results && search.results.length > 0) {
           contentParts.push(`Found ${search.resultCount || search.results.length} results`);
@@ -395,8 +460,9 @@ export class ClaudeParser extends BaseParser {
     }
 
     // Extract text content from standard-markdown or progressive-markdown
-    const markdownContainers = element.querySelectorAll('div.standard-markdown, div.progressive-markdown');
-    console.log('[Claude Parser] Found markdown containers:', markdownContainers.length);
+    const markdownContainers = element.querySelectorAll(
+      'div.standard-markdown, div.progressive-markdown'
+    );
     markdownContainers.forEach((container) => {
       const { content, htmlContent } = this.extractContent(container, config.preserveHtml);
       if (content) {
@@ -408,26 +474,19 @@ export class ClaudeParser extends BaseParser {
     });
 
     // Extract artifacts
-    console.log('[Claude Parser] About to extract artifacts...');
     const artifacts = this.extractArtifacts(element);
-    console.log('[Claude Parser] Artifacts extracted:', artifacts.length);
     if (artifacts.length > 0) {
-      artifacts.forEach(artifact => {
+      artifacts.forEach((artifact) => {
         contentParts.push(`[${artifact.typeLabel || artifact.type}: ${artifact.title}]`);
       });
     }
 
-    console.log('[Claude Parser] Total content parts:', contentParts.length);
     if (contentParts.length === 0) {
-      console.log('[Claude Parser] No content parts, returning null');
       return null;
     }
 
     // Combine all content
     const combinedContent = contentParts.join('\n\n');
-    console.log('[Claude Parser] Combined content preview (first 500 chars):', combinedContent.substring(0, 500));
-    console.log('[Claude Parser] Combined content includes Web Search:', combinedContent.includes('[Web Search:'));
-    console.log('[Claude Parser] Combined content includes artifacts:', combinedContent.includes('[Imagen:') || combinedContent.includes('[Documento:') || combinedContent.includes('[Diagrama:'));
     const combinedHtml = htmlParts.length > 0 ? htmlParts.join('\n') : undefined;
 
     // Extract timestamp
@@ -453,59 +512,44 @@ export class ClaudeParser extends BaseParser {
   }
 
   /**
-   * Extract artifacts/canvases from a message
+   * Extract artifacts/canvases from a message.
+   *
+   * The artifact *block* (title + type label) lives inside the turn; the
+   * artifact *body* lives in the side panel, outside every turn container, so
+   * it is fetched once per message and matched back by title.
    */
   private extractArtifacts(element: Element): Artifact[] {
     const artifacts: Artifact[] = [];
 
-    const artifactContainers = element.querySelectorAll('div.pt-3.pb-3');
-    console.log('[Claude Parser] Found artifact containers:', artifactContainers.length);
+    const cellSelector = this.selectors.custom?.artifactContainer || 'div.artifact-block-cell';
+    const titleSelector =
+      this.selectors.custom?.artifactTitle || 'div.leading-tight.text-sm.line-clamp-1';
+    const typeSelector =
+      this.selectors.custom?.artifactType || 'div.text-xs.line-clamp-1.text-text-400';
 
-    artifactContainers.forEach((container) => {
-      // Check if this contains an artifact
-      const artifactBlock = container.querySelector('div.artifact-block-cell');
-      console.log('[Claude Parser] Artifact block found:', !!artifactBlock);
-      if (!artifactBlock) {
-        return;
-      }
+    const cells = element.querySelectorAll(cellSelector);
+    if (cells.length === 0) {
+      return artifacts;
+    }
+    const panel = this.extractArtifactPanel();
 
-      // Extract title
-      const titleElement = artifactBlock.querySelector('div.leading-tight.text-sm.line-clamp-1');
-      const title = titleElement?.textContent?.trim() || 'Untitled Artifact';
-      console.log('[Claude Parser] Artifact title:', title);
+    cells.forEach((cell) => {
+      const title = cell.querySelector(titleSelector)?.textContent?.trim() || 'Untitled Artifact';
 
-      // Extract type label (e.g., "Imagen", "Artefacto interactivo", "Documento", "Diagrama")
-      const typeElement = artifactBlock.querySelector('div.text-xs.line-clamp-1.text-text-400');
-      const typeLabel = typeElement?.textContent?.trim() || '';
-      console.log('[Claude Parser] Artifact typeLabel:', typeLabel);
+      // e.g. "Code · JSX", "Document · MD", or -- older markup -- just "Imagen".
+      const typeLabel = cell.querySelector(typeSelector)?.textContent?.trim() || '';
+      const format = typeLabel.includes('·')
+        ? (typeLabel.split('·').pop() ?? '').trim().toLowerCase()
+        : '';
 
-      // Determine artifact type based on label
-      let type = 'unknown';
-      let language: string | undefined;
+      const { type, language } = resolveArtifactType(typeLabel, format);
 
-      if (typeLabel.includes('Imagen') || typeLabel.includes('Image')) {
-        type = 'image';
-        language = 'svg';
-      } else if (typeLabel.includes('interactivo') || typeLabel.includes('interactive')) {
-        type = 'react';
-        language = 'react';
-      } else if (typeLabel.includes('Documento') || typeLabel.includes('Document')) {
-        type = 'document';
-        language = 'markdown';
-      } else if (typeLabel.includes('Diagrama') || typeLabel.includes('Diagram')) {
-        type = 'diagram';
-        language = 'mermaid';
-      } else if (typeLabel.includes('Código') || typeLabel.includes('Code')) {
-        type = 'code';
-      }
-
-      const artifact: Artifact = {
-        type,
-        title,
-        typeLabel,
-      };
+      const artifact: Artifact = { type, title, typeLabel };
       if (language) {
         artifact.language = language;
+      }
+      if (panel?.title === title) {
+        artifact.content = panel.content;
       }
 
       artifacts.push(artifact);
@@ -515,13 +559,65 @@ export class ClaudeParser extends BaseParser {
   }
 
   /**
+   * Read the body of the artifact currently open in the side panel.
+   *
+   * Returns null when no panel is open or its body is not readable. Without
+   * this every artifact reaches the export as a bare "[Type: Title]" marker:
+   * all five non-JSON exporters filter on `artifact.content`, so a
+   * content-less artifact renders no body anywhere (lo-2478).
+   *
+   * ponytail: only the artifact the user has open is readable, and only in the
+   * panel's rendered ("Preview"/markdown) mode -- a code artifact previews
+   * inside a cross-origin sandboxed <iframe> whose source the content script
+   * cannot touch, so it keeps the marker line only. Upgrade path if that
+   * matters: drive the panel's "Code" toggle, which renders the source into
+   * the page, before parsing.
+   */
+  private extractArtifactPanel(): { title: string; content: string } | null {
+    const panelSelector = this.selectors.custom?.artifactPanel;
+    const panelTitleSelector = this.selectors.custom?.artifactPanelTitle;
+    const panelBodySelector = this.selectors.custom?.artifactPanelBody;
+    if (!panelSelector || !panelTitleSelector || !panelBodySelector) {
+      return null;
+    }
+
+    const panel = this.document.querySelector(panelSelector);
+    if (!panel) {
+      return null;
+    }
+
+    const title = this.document.querySelector(panelTitleSelector)?.getAttribute('title')?.trim();
+    if (!title) {
+      return null;
+    }
+
+    const body = panel.querySelector(panelBodySelector);
+    if (!body) {
+      return null;
+    }
+
+    // textContent alone would run every heading and paragraph together, so
+    // join the body's block-level children instead of flattening the whole
+    // subtree in one go. ponytail: still flat inside a child -- a list's items
+    // run together, same as the Gemini Deep Research body does. Reach for a
+    // real HTML-to-markdown pass only if that turns out to bother anyone.
+    const content = Array.from(body.children)
+      .map((child) => this.extractContent(child, false).content)
+      .filter(Boolean)
+      .join('\n\n');
+
+    return content ? { title, content } : null;
+  }
+
+  /**
    * Extract web search results from a message
    */
   private extractWebSearches(element: Element): WebSearchResult[] {
     const searches: WebSearchResult[] = [];
 
-    const searchContainers = element.querySelectorAll('div.ease-out.transition-all.flex.flex-col.font-ui');
-    console.log('[Claude Parser] Found search containers:', searchContainers.length);
+    const searchContainers = element.querySelectorAll(
+      'div.ease-out.transition-all.flex.flex-col.font-ui'
+    );
 
     searchContainers.forEach((container) => {
       // Check if this is a web search widget
@@ -533,21 +629,19 @@ export class ClaudeParser extends BaseParser {
       // Extract query
       const queryElement = container.querySelector('.flex.gap-2.relative.font-base');
       const query = queryElement?.textContent?.trim() || '';
-      console.log('[Claude Parser] Search query:', query);
 
       if (!query) {
-        console.log('[Claude Parser] No query found, skipping');
         return;
       }
 
       // Extract result count
       const countElement = container.querySelector('p.text-text-500.font-small');
       const countText = countElement?.textContent?.trim() || '';
-      const countMatch = countText.match(/(\d+)/);
-      const resultCount = countMatch && countMatch[1] ? parseInt(countMatch[1], 10) : undefined;
+      const countMatch = /(\d+)/.exec(countText);
+      const resultCount = countMatch?.[1] ? parseInt(countMatch[1], 10) : undefined;
 
       // Extract individual results
-      const results: Array<{ title: string; url: string; favicon?: string; domain?: string }> = [];
+      const results: { title: string; url: string; favicon?: string; domain?: string }[] = [];
       const resultLinks = container.querySelectorAll('div.flex.flex-nowrap.p-2 a');
 
       resultLinks.forEach((link) => {
@@ -614,7 +708,7 @@ export class ClaudeParser extends BaseParser {
 
     // Claude shows time in HH:MM format (e.g., "18:40")
     // We'll create a date with today's date and the given time
-    const timeMatch = timeText.match(/(\d{1,2}):(\d{2})/);
+    const timeMatch = /(\d{1,2}):(\d{2})/.exec(timeText);
     if (!timeMatch) {
       return undefined;
     }

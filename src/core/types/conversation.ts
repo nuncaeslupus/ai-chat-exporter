@@ -46,25 +46,56 @@ export interface WebSearchResult {
   /** Number of results */
   resultCount?: number;
   /** Individual search results */
-  results?: Array<{
+  results?: {
     title: string;
     url: string;
     favicon?: string;
     domain?: string;
-  }>;
+  }[];
+}
+
+/**
+ * A media attachment carried by a message: uploaded or generated, of any kind.
+ *
+ * One array with a `kind` discriminator rather than parallel `videos` / `audio`
+ * fields, so a new kind is one union member instead of a fifth place every
+ * parser and exporter has to remember.
+ */
+export interface MediaItem {
+  /** What kind of media this is; drives how each exporter renders it */
+  kind: 'image' | 'video' | 'audio';
+  /** Source URL (usually provider-hosted and session-scoped) */
+  src: string;
+  /** Accessible label / description */
+  alt?: string;
+  /** MIME type when the DOM exposes one (e.g. 'video/mp4') */
+  mimeType?: string;
+  /** Pixel dimensions, images and video only */
+  width?: number;
+  height?: number;
+  /** Duration in seconds, video and audio only */
+  duration?: number;
 }
 
 /**
  * Message metadata with typed fields for platform-specific features
  */
 export interface MessageMetadata {
-  /** Images in the message */
-  images?: Array<{
+  /**
+   * Images in the message.
+   *
+   * Legacy alias for `media` entries with `kind: 'image'` — still written by the
+   * ChatGPT and Claude parsers and read everywhere `media` is. Prefer `media`
+   * for new code; both are merged into the same blocks downstream.
+   */
+  images?: {
     src: string;
     alt?: string;
     width?: number;
     height?: number;
-  }>;
+  }[];
+  /** Media attachments (images, generated video, generated audio) */
+  media?: MediaItem[];
   /** Artifacts/Canvases (Claude) */
   artifacts?: Artifact[];
   /** Web search results (Claude) */

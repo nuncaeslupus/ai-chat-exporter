@@ -49,6 +49,20 @@ describe('GeminiParser', () => {
         expect(document.querySelectorAll(selector).length, selector).toBeGreaterThan(0);
       }
     });
+
+    // The above can only ever prove "the selector matches THIS FIXTURE". It
+    // stayed green for six months while both the title and the model selector
+    // matched nothing on the real page, because the fixture still carried the
+    // markup Gemini had already dropped (docs/dev/parser-gotchas.md §12d).
+    // Pinning the retired markup as forbidden is the part a fixture CAN check:
+    // it makes re-adding dead markup to force a test green an explicit act.
+    it('does not carry markup Gemini has retired', () => {
+      const { document } = new JSDOM(html).window;
+
+      for (const retired of ['.conversation-title', '[data-test-id="bard-text"]']) {
+        expect(document.querySelectorAll(retired).length, retired).toBe(0);
+      }
+    });
   });
 
   describe('canParse', () => {
@@ -65,23 +79,58 @@ describe('GeminiParser', () => {
     });
   });
 
+  // The title and the model are the two selectors that went dead unnoticed
+  // (lo-3c90): the old guard only asked "does the selector match SOMETHING in
+  // the fixture", which a stale fixture answers yes to forever. These assert
+  // the returned VALUE and pin the negative controls -- the wrong sidebar row,
+  // the generic <title>, the bare mode label -- so a selector that drifts back
+  // to matching the wrong thing fails instead of quietly matching.
   describe('getTitle', () => {
-    it('reads the conversation title from the top bar', () => {
+    it('reads the title of the open conversation from the sidebar', () => {
+      // The sidebar holds three conversations; only the open one carries
+      // `aria-current="page"`. A selector that lost that scoping would return
+      // the first row instead.
       expect(parser.getTitle()).toBe('Paper airplane aerodynamics');
+      expect(parser.getTitle()).not.toBe('Kite string tension maths');
     });
 
-    it('falls back to a default title when no title element exists', () => {
+    it('does not settle for the generic document title', () => {
+      // <title> is "Gemini" on every conversation, so it can never stand in
+      // for the conversation name.
+      expect(parser.getTitle()).not.toBe('Gemini');
+    });
+
+    it('falls back to a default title rather than a neighbouring conversation', () => {
+      const doc = new JSDOM(html, { url: GEMINI_URL }).window.document;
+      doc.querySelector('[aria-current="page"]')?.removeAttribute('aria-current');
+
+      expect(new GeminiParser(doc).getTitle()).toBe('Gemini Conversation');
+    });
+
+    it('falls back to a default title when no sidebar exists', () => {
       expect(parserFor('<main></main>').getTitle()).toBe('Gemini Conversation');
     });
   });
 
   describe('getModel', () => {
-    it('reads the model label from the mode switcher', () => {
-      expect(parser.getModel()).toBe('Gemini');
+    // Gemini exposes no model slug. The composer's picker is a MODE picker
+    // whose label is sometimes a model family ("Flash") and sometimes an
+    // effort tier ("Extended"), so the bare label must never be reported as
+    // the model name.
+    it('reports the composer mode picker as a mode, not as a model name', () => {
+      expect(parser.getModel()).toBe('Gemini (Flash mode)');
+      expect(parser.getModel()).not.toBe('Flash');
     });
 
-    it('returns null when no model indicator exists', () => {
+    it('returns null when no mode picker exists', () => {
       expect(parserFor('<main></main>').getModel()).toBeNull();
+    });
+
+    it('returns null rather than an empty mode when the picker label is gone', () => {
+      const doc = new JSDOM(html, { url: GEMINI_URL }).window.document;
+      doc.querySelector('.picker-primary-text')?.remove();
+
+      expect(new GeminiParser(doc).getModel()).toBeNull();
     });
   });
 
@@ -115,7 +164,7 @@ describe('GeminiParser', () => {
         expect(pair.answer.role).toBe('assistant');
         expect(pair.answer.content.length).toBeGreaterThan(50);
       });
-      expect(pairs[0]?.answer.content).toContain("Bernoulli");
+      expect(pairs[0]?.answer.content).toContain('Bernoulli');
     });
 
     it('keeps the model thinking panel out of the answer', () => {
@@ -173,7 +222,9 @@ describe('GeminiParser', () => {
       expect(result.success).toBe(true);
       const pairs = result.conversation?.pairs ?? [];
       expect(pairs).toHaveLength(3);
-      pairs.forEach((pair) => expect(pair.question.content).toBe(''));
+      pairs.forEach((pair) => {
+        expect(pair.question.content).toBe('');
+      });
       expect(result.warnings).toEqual([
         'Turn 1: the question could not be read',
         'Turn 2: the question could not be read',
@@ -213,7 +264,9 @@ describe('GeminiParser', () => {
 
     it('returns success:false rather than an empty conversation when selectors match nothing', () => {
       const doc = new JSDOM(html, { url: GEMINI_URL }).window.document;
-      doc.querySelectorAll('.conversation-container').forEach((el) => el.remove());
+      doc.querySelectorAll('.conversation-container').forEach((el) => {
+        el.remove();
+      });
 
       const result = new GeminiParser(doc).parse();
 
@@ -313,6 +366,50 @@ describe('GeminiParser — Deep Research', () => {
     expect(pairs[0]?.question.content).toContain('rules-based European equity sleeve');
     expect(pairs[0]?.answer.content).toBe('');
     expect(result.warnings).toContain('Turn 1: the answer could not be read');
+  });
+});
+
+describe('GeminiParser — generated media (lo-6fe5)', () => {
+  // "Create video" / "Create music" render a player in the answer, outside the
+  // `.markdown` body the text extractor reads, so the clip is lost unless the
+  // parser files it under `metadata.media`.
+  const MEDIA_HTML = `
+    <chat-window>
+      <div class="conversation-container">
+        <user-query-content><p>Make a video and a song about a lighthouse</p></user-query-content>
+        <model-response>
+          <message-content><div class="markdown"><p>Here you go.</p></div></message-content>
+          <video src="https://gemini.example.test/clip.mp4" aria-label="Lighthouse timelapse"></video>
+          <audio aria-label="Lighthouse song">
+            <source src="https://gemini.example.test/track.m4a" type="audio/mp4">
+          </audio>
+        </model-response>
+      </div>
+    </chat-window>`;
+
+  it('files a generated video and audio clip under metadata.media', () => {
+    const media = parserFor(MEDIA_HTML).parse().conversation?.pairs[0]?.answer.metadata?.media;
+
+    expect(media).toEqual([
+      {
+        kind: 'video',
+        src: 'https://gemini.example.test/clip.mp4',
+        alt: 'Lighthouse timelapse',
+      },
+      {
+        kind: 'audio',
+        src: 'https://gemini.example.test/track.m4a',
+        alt: 'Lighthouse song',
+        mimeType: 'audio/mp4',
+      },
+    ]);
+  });
+
+  it('leaves metadata.media unset when the answer has no player', () => {
+    const stripped = MEDIA_HTML.replace(/<video[\s\S]*<\/audio>/, '');
+    const answer = parserFor(stripped).parse().conversation?.pairs[0]?.answer;
+
+    expect(answer?.metadata?.media).toBeUndefined();
   });
 });
 

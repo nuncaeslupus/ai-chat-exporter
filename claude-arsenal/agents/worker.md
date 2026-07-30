@@ -69,9 +69,10 @@ branch. Capture it first.
    until all tests from step 2 pass. Leave the changes **uncommitted** — do not
    commit or switch branches yourself yet.
 
-4. **Run the gates while the payload is still present:** the host lint gate if
-   one exists (`make lint`, `npm run lint`, …), then
-   `claude-arsenal/bin/gate_run.sh <task_id>`.
+4. **Run the gates:** the host lint gate if one exists (`make lint`,
+   `npm run lint`, …), then `claude-arsenal/bin/gate_run.sh <task_id>`. You do
+   not need the payload on disk — `gate_run.sh` reads it from `arsenal-queue`
+   itself when it is absent, so never write one into your tree to run a gate.
    - **Gate fails** (lint or `gate_run.sh` exit non-zero) → **open no PR.**
      Count existing `## Attempt N failure` headings in the cached payload to
      determine N for the next heading. Return outcome `open` to the orchestrator

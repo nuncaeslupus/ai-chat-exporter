@@ -61,7 +61,10 @@ async function exportAndRun(codeHtml: string) {
   }
   const html = await blobToText(result.blob);
 
-  const dom = new JSDOM(html, { runScripts: 'dangerously', url: 'https://example.com/export.html' });
+  const dom = new JSDOM(html, {
+    runScripts: 'dangerously',
+    url: 'https://example.com/export.html',
+  });
   // Let the DOMContentLoaded-triggered highlighter script run.
   await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
   return dom;
@@ -172,12 +175,17 @@ describe('HtmlExporter structural contract', () => {
   it('embeds highlight.js classes on code blocks, matching the language shared across formats', async () => {
     const { html } = await exportStructured(false);
 
-    expect(html).toContain('<pre><code class="language-js">function foo() { return 1; }</code></pre>');
+    expect(html).toContain(
+      '<pre><code class="language-js">function foo() { return 1; }</code></pre>'
+    );
 
     // The highlighter that runs client-side on open promotes 'hljs' onto the
     // same code element and tags recognized keywords -- exercise it for real
     // in a DOM rather than just checking the static markup.
-    const dom = new JSDOM(html, { runScripts: 'dangerously', url: 'https://example.com/export.html' });
+    const dom = new JSDOM(html, {
+      runScripts: 'dangerously',
+      url: 'https://example.com/export.html',
+    });
     await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
     const codeBlock = dom.window.document.querySelector('pre code');
     expect(codeBlock?.classList.contains('hljs')).toBe(true);
@@ -198,10 +206,14 @@ describe('HtmlExporter structural contract', () => {
       expect(el.getAttribute('class')).not.toContain('<span');
     }
 
-    const keywordText = Array.from(codeBlock!.querySelectorAll('.hljs-keyword')).map((el) => el.textContent);
+    const keywordText = Array.from(codeBlock!.querySelectorAll('.hljs-keyword')).map(
+      (el) => el.textContent
+    );
     expect(keywordText).toEqual(expect.arrayContaining(['function', 'return']));
 
-    const stringText = Array.from(codeBlock!.querySelectorAll('.hljs-string')).map((el) => el.textContent);
+    const stringText = Array.from(codeBlock!.querySelectorAll('.hljs-string')).map(
+      (el) => el.textContent
+    );
     expect(stringText).toEqual(['"hi"']);
   });
 
@@ -261,7 +273,9 @@ describe('HtmlExporter per-message timestamps', () => {
       includeTimestamps: true,
     });
     const html = await blobToText(result.blob!);
-    expect(html).toContain('2025-01-01 12:00:00');
+    expect(html).toContain('(12:00:00)');
+    // The day is announced once by a day separator, not repeated per message.
+    expect(html).not.toContain('2025-01-01 12:00:00');
   });
 
   it('omits the timestamp when includeTimestamps is off', async () => {
@@ -274,7 +288,7 @@ describe('HtmlExporter per-message timestamps', () => {
       includeTimestamps: false,
     });
     const html = await blobToText(result.blob!);
-    expect(html).not.toContain('2025-01-01 12:00:00');
+    expect(html).not.toContain('12:00:00');
   });
 
   it('emits no stray label or "undefined" when a message has no timestamp', async () => {
@@ -346,9 +360,11 @@ describe('exported HTML makes no third-party requests', () => {
   it('embeds no remote subresource of any kind', async () => {
     const html = await exportWithSearch();
     const dom = new JSDOM(html);
-    const remote = [...dom.window.document.querySelectorAll('img[src], script[src], link[href], iframe[src]')]
-      .map(el => el.getAttribute('src') ?? el.getAttribute('href') ?? '')
-      .filter(u => /^https?:\/\//i.test(u));
+    const remote = [
+      ...dom.window.document.querySelectorAll('img[src], script[src], link[href], iframe[src]'),
+    ]
+      .map((el) => el.getAttribute('src') ?? el.getAttribute('href') ?? '')
+      .filter((u) => /^https?:\/\//i.test(u));
     expect(remote).toEqual([]);
   });
 

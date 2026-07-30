@@ -18,7 +18,14 @@ const srcDir = resolve(rootDir, 'src');
  * Chunks are emitted into `assets/` because the manifest already exposes
  * `assets/*` as `web_accessible_resources`, and a content script can only
  * `import()` an extension file that is web-accessible.
+ *
+ * `content-main` (the page content script) and `deep-research-frame` (the
+ * lo-9001 reader that runs inside the sandboxed Deep Research iframe) both
+ * need this same loader indirection -- each gets its own one-line loader
+ * under `content/`, named after its manifest entry.
  */
+const LOADER_ENTRIES = ['content-main', 'deep-research-frame'] as const;
+
 function contentLoaderPlugin(): Plugin {
   let outDir = '';
   return {
@@ -29,10 +36,16 @@ function contentLoaderPlugin(): Plugin {
     closeBundle() {
       const contentDir = resolve(outDir, 'content');
       mkdirSync(contentDir, { recursive: true });
-      writeFileSync(
-        resolve(contentDir, 'content-script.js'),
-        'import(chrome.runtime.getURL("assets/content-main.js"));\n'
-      );
+      const loaderName: Record<(typeof LOADER_ENTRIES)[number], string> = {
+        'content-main': 'content-script.js',
+        'deep-research-frame': 'deep-research-frame.js',
+      };
+      for (const entry of LOADER_ENTRIES) {
+        writeFileSync(
+          resolve(contentDir, loaderName[entry]),
+          `import(chrome.runtime.getURL("assets/${entry}.js"));\n`
+        );
+      }
     },
   };
 }
@@ -46,10 +59,11 @@ export default mergeConfig(
       rollupOptions: {
         input: {
           'content-main': resolve(srcDir, 'extension/content/content-script.ts'),
+          'deep-research-frame': resolve(srcDir, 'extension/content/deep-research-frame.ts'),
         },
         output: {
           format: 'es',
-          entryFileNames: 'assets/content-main.js',
+          entryFileNames: 'assets/[name].js',
           chunkFileNames: 'assets/chunk-[name].js',
         },
         plugins: [

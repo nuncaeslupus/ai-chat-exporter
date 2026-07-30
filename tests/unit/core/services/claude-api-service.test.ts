@@ -133,10 +133,7 @@ describe('ClaudeApiService', () => {
 
   describe('enrichConversationWithArtifacts()', () => {
     it('attributes an artifact to its matching pair when DOM and API shapes agree', () => {
-      const conversation = makeConversation([
-        makePair(0, 'Q1', 'A1'),
-        makePair(1, 'Q2', 'A2'),
-      ]);
+      const conversation = makeConversation([makePair(0, 'Q1', 'A1'), makePair(1, 'Q2', 'A2')]);
 
       const apiData: ClaudeApiConversationResponse = {
         uuid: 'conv-1',
@@ -151,8 +148,10 @@ describe('ClaudeApiService', () => {
         ],
       };
 
-      const { conversation: enriched, warning } =
-        ClaudeApiService.enrichConversationWithArtifacts(conversation, apiData);
+      const { conversation: enriched, warning } = ClaudeApiService.enrichConversationWithArtifacts(
+        conversation,
+        apiData
+      );
 
       expect(enriched.pairs[0]?.answer.metadata?.artifacts ?? []).toHaveLength(0);
       expect(enriched.pairs[1]?.answer.metadata?.artifacts).toHaveLength(1);
@@ -164,10 +163,7 @@ describe('ClaudeApiService', () => {
       // DOM scraped 2 pairs, but the API reports 3 assistant messages
       // (e.g. a regenerated turn). There is no stable id shared between
       // the DOM scrape and the API response, so this must not guess.
-      const conversation = makeConversation([
-        makePair(0, 'Q1', 'A1'),
-        makePair(1, 'Q2', 'A2'),
-      ]);
+      const conversation = makeConversation([makePair(0, 'Q1', 'A1'), makePair(1, 'Q2', 'A2')]);
 
       const apiData: ClaudeApiConversationResponse = {
         uuid: 'conv-1',
@@ -179,9 +175,7 @@ describe('ClaudeApiService', () => {
           makeApiMessage('a1', 1, 'assistant', [artifactContent('Doc A', 'content A')]),
           makeApiMessage('u2', 2, 'human'),
           makeApiMessage('a2', 3, 'assistant'),
-          makeApiMessage('a2-regenerated', 4, 'assistant', [
-            artifactContent('Doc B', 'content B'),
-          ]),
+          makeApiMessage('a2-regenerated', 4, 'assistant', [artifactContent('Doc B', 'content B')]),
         ],
       };
 
@@ -232,10 +226,7 @@ describe('ClaudeApiService', () => {
         name: 'Test',
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',
-        chat_messages: [
-          makeApiMessage('u1', 0, 'human'),
-          makeApiMessage('a1', 1, 'assistant'),
-        ],
+        chat_messages: [makeApiMessage('u1', 0, 'human'), makeApiMessage('a1', 1, 'assistant')],
       };
 
       const result = ClaudeApiService.enrichConversationWithArtifacts(conversation, apiData);

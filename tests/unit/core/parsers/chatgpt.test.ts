@@ -7,7 +7,11 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
-import { CHATGPT_SELECTORS, isChatGPTUrl } from '../../../../src/core/parsers/chatgpt/selectors';
+import {
+  CHATGPT_SELECTORS,
+  EMBEDDED_FRAME_REPORT_ATTR,
+  isChatGPTUrl,
+} from '../../../../src/core/parsers/chatgpt/selectors';
 import { ChatGPTParser } from '../../../../src/core/parsers/chatgpt/parser';
 import { HtmlContentParser } from '../../../../src/core/services/html-content-parser';
 
@@ -139,7 +143,10 @@ describe('ChatGPT Parser', () => {
 
   // Load the real DOM fixture
   beforeEach(() => {
-    const fixturePath = join(__dirname, '../../../fixtures/dom-snapshots/chatgpt/real-capture.html');
+    const fixturePath = join(
+      __dirname,
+      '../../../fixtures/dom-snapshots/chatgpt/real-capture.html'
+    );
     const html = readFileSync(fixturePath, 'utf-8');
     dom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-conversation' });
     document = dom.window.document;
@@ -206,7 +213,9 @@ describe('ChatGPT Parser', () => {
     });
 
     it('finds content within assistant messages', () => {
-      const assistantContent = document.querySelector(CHATGPT_SELECTORS.custom.assistantMessageContent);
+      const assistantContent = document.querySelector(
+        CHATGPT_SELECTORS.custom.assistantMessageContent
+      );
       expect(assistantContent).not.toBeNull();
     });
   });
@@ -218,7 +227,10 @@ describe('ChatGPTParser implementation', () => {
   let document: Document;
 
   beforeEach(() => {
-    const fixturePath = join(__dirname, '../../../fixtures/dom-snapshots/chatgpt/real-capture.html');
+    const fixturePath = join(
+      __dirname,
+      '../../../fixtures/dom-snapshots/chatgpt/real-capture.html'
+    );
     const html = readFileSync(fixturePath, 'utf-8');
     dom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-conversation' });
     document = dom.window.document;
@@ -264,8 +276,19 @@ describe('ChatGPTParser implementation', () => {
     it('extracts message content correctly', () => {
       const result = parser.parse();
       const pair = result.conversation?.pairs[0];
-      expect(pair?.question.content.length).toBeGreaterThan(0);
-      expect(pair?.answer.content.length).toBeGreaterThan(0);
+      expect(pair?.question.content).toBe(
+        'Yes You can point the TESSERA command line Client At a verdant gateway AS long?'
+      );
+      const answer = pair?.answer.content ?? '';
+      // Anchors at the head, middle and tail of the fixture answer, so a
+      // truncated or garbled extraction fails instead of passing on length > 0.
+      expect(answer).toContain(
+        'As, the endpoint speaks the Same REQUEST shape the client Already Knows how to SEND. The gateway:'
+      );
+      expect(answer).toContain(
+        'bashadapter --endpoint https://example.org/guides/verdant-gateway --runtime HANDLER'
+      );
+      expect(answer).toMatch(/One KEEPS a Plain\?$/);
     });
 
     it('preserves HTML content when configured', () => {
@@ -323,7 +346,8 @@ describe('ChatGPTParser implementation', () => {
     });
 
     it('returns null when model not found', () => {
-      const noModelHtml = '<html><body><main><div data-message-author-role="assistant"></div></main></body></html>';
+      const noModelHtml =
+        '<html><body><main><div data-message-author-role="assistant"></div></main></body></html>';
       const noModelDom = new JSDOM(noModelHtml, { url: 'https://chatgpt.com' });
       const noModelParser = new ChatGPTParser(noModelDom.window.document);
       expect(noModelParser.getModel()).toBeNull();
@@ -504,7 +528,9 @@ describe('ChatGPTParser implementation', () => {
 
     it('returns success:false rather than an empty conversation when selectors match nothing', () => {
       // Simulate a redesign that drops the turn marker entirely.
-      document.querySelectorAll('[data-turn]').forEach((el) => el.removeAttribute('data-turn'));
+      document.querySelectorAll('[data-turn]').forEach((el) => {
+        el.removeAttribute('data-turn');
+      });
 
       const result = parser.parse();
 
@@ -527,7 +553,10 @@ describe('ChatGPT Parser - Code Artifacts', () => {
   let dom: JSDOM;
 
   beforeEach(() => {
-    const fixturePath = join(__dirname, '../../../fixtures/dom-snapshots/chatgpt/artifacts-code.html');
+    const fixturePath = join(
+      __dirname,
+      '../../../fixtures/dom-snapshots/chatgpt/artifacts-code.html'
+    );
     const html = readFileSync(fixturePath, 'utf-8');
     dom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-artifacts' });
     parser = new ChatGPTParser(dom.window.document);
@@ -572,7 +601,10 @@ describe('ChatGPT Parser - SVG Artifacts', () => {
   let dom: JSDOM;
 
   beforeEach(() => {
-    const fixturePath = join(__dirname, '../../../fixtures/dom-snapshots/chatgpt/artifacts-svg.html');
+    const fixturePath = join(
+      __dirname,
+      '../../../fixtures/dom-snapshots/chatgpt/artifacts-svg.html'
+    );
     const html = readFileSync(fixturePath, 'utf-8');
     dom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-svg' });
     parser = new ChatGPTParser(dom.window.document);
@@ -695,7 +727,10 @@ describe('ChatGPT Parser - Comprehensive Features', () => {
   let dom: JSDOM;
 
   beforeEach(() => {
-    const fixturePath = join(__dirname, '../../../fixtures/dom-snapshots/chatgpt/comprehensive.html');
+    const fixturePath = join(
+      __dirname,
+      '../../../fixtures/dom-snapshots/chatgpt/comprehensive.html'
+    );
     const html = readFileSync(fixturePath, 'utf-8');
     dom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-comprehensive' });
     parser = new ChatGPTParser(dom.window.document);
@@ -797,5 +832,134 @@ describe('ChatGPT Parser - section-based turns (2026-07 DOM)', () => {
     expect(codeBlocks).toHaveLength(2);
     expect((codeBlocks[0] as { code: string }).code).toContain('factory = "Fictional"');
     expect((codeBlocks[1] as { code: string }).code).toContain('"factory": "Fictional"');
+  });
+});
+
+// lo-f132: a Deep Research turn holds no message element at all -- the report
+// lives in a cross-origin sandboxed <iframe>. The turn's only text was the
+// screenreader label, which the raw-textContent fallback shipped as the answer.
+describe('ChatGPT Parser - Deep Research turn (cross-origin iframe)', () => {
+  let parser: ChatGPTParser;
+
+  const load = (): Document => {
+    const fixturePath = join(
+      __dirname,
+      '../../../fixtures/dom-snapshots/chatgpt/deep-research-2026-07.html'
+    );
+    const html = readFileSync(fixturePath, 'utf-8');
+    return new JSDOM(html, { url: 'https://chatgpt.com/c/test-deep-research' }).window.document;
+  };
+
+  beforeEach(() => {
+    parser = new ChatGPTParser(load());
+  });
+
+  it('never ships the screenreader label as the answer', () => {
+    const result = parser.parse();
+    for (const pair of result.conversation?.pairs ?? []) {
+      expect(pair.answer.content).not.toContain('ChatGPT said:');
+      expect(pair.question.content).not.toContain('You said:');
+    }
+  });
+
+  it('labels the Deep Research answer with a marker naming the widget', () => {
+    const result = parser.parse();
+    expect(result.conversation?.pairs[0]?.answer.content).toBe(
+      '[Deep Research: rendered in an embedded viewer ChatGPT does not expose to the page]'
+    );
+  });
+
+  it('leaves the ordinary turn in the same conversation untouched', () => {
+    const result = parser.parse();
+    expect(result.conversation?.pairs).toHaveLength(2);
+    expect(result.conversation?.pairs[1]?.question.content).toContain('summarise');
+    expect(result.conversation?.pairs[1]?.answer.content).toContain('tidal mill');
+  });
+
+  it('reads a Deep-Research-only conversation as a complete pair, not an empty one', () => {
+    // Same fixture with the ordinary follow-up removed: the whole conversation
+    // is then one question and one iframe-only answer.
+    const document = load();
+    document
+      .querySelectorAll('[data-testid="conversation-turn-3"], [data-testid="conversation-turn-4"]')
+      .forEach((turn) => {
+        turn.remove();
+      });
+
+    const result = new ChatGPTParser(document).parse();
+    expect(result.conversation?.pairs).toHaveLength(1);
+    expect(result.conversation?.pairs[0]?.answer.content).toContain('[Deep Research:');
+    expect(result.warnings).toBeUndefined();
+  });
+});
+
+// lo-9001: the page's content script relays the sandboxed frame's own
+// rendered text out via postMessage and stashes it on the iframe element as
+// EMBEDDED_FRAME_REPORT_ATTR. The parser must prefer that real report text
+// over the lo-f132 marker -- and must still degrade to the marker, never an
+// exception or fabricated content, when the relay produced nothing readable.
+describe('ChatGPT Parser - Deep Research turn (relayed report text)', () => {
+  const REPORT_TEXT =
+    'Tidal mills trapped the incoming tide behind a sluice and released it through ' +
+    'a waterwheel on the ebb, so grinding time slid with the tide rather than the ' +
+    'sun. They died out once steam power let millers work fixed hours anywhere.';
+  const MARKER =
+    '[Deep Research: rendered in an embedded viewer ChatGPT does not expose to the page]';
+
+  const load = (attrValue?: string): Document => {
+    const fixturePath = join(
+      __dirname,
+      '../../../fixtures/dom-snapshots/chatgpt/deep-research-2026-07.html'
+    );
+    const html = readFileSync(fixturePath, 'utf-8');
+    const document = new JSDOM(html, { url: 'https://chatgpt.com/c/test-deep-research' }).window
+      .document;
+    if (attrValue !== undefined) {
+      const frame = document.querySelector(CHATGPT_SELECTORS.custom.embeddedWidgetFrame);
+      frame?.setAttribute(EMBEDDED_FRAME_REPORT_ATTR, attrValue);
+    }
+    return document;
+  };
+
+  it('exports the relayed report text instead of the marker when the frame was read', () => {
+    const result = new ChatGPTParser(load(REPORT_TEXT)).parse();
+    expect(result.conversation?.pairs[0]?.answer.content).toBe(REPORT_TEXT);
+  });
+
+  it('falls back to the marker when the relayed text is empty or whitespace-only', () => {
+    const result = new ChatGPTParser(load('   \n  ')).parse();
+    expect(result.conversation?.pairs[0]?.answer.content).toBe(MARKER);
+  });
+
+  it('falls back to the marker when the frame was never read at all', () => {
+    const result = new ChatGPTParser(load()).parse();
+    expect(result.conversation?.pairs[0]?.answer.content).toBe(MARKER);
+  });
+});
+
+// The same raw-textContent fallback exists on the user side, where the
+// screenreader label reads "You said:". It is reached by a user turn with
+// neither a message element nor a text bubble -- no capture shows one, which
+// is exactly why the guard belongs on the fallback rather than on the widget.
+describe('ChatGPT Parser - screenreader labels on the user side', () => {
+  it('uses the image placeholder, not "You said:", for a bubble-less upload turn', () => {
+    const dom = new JSDOM(
+      `<main id="main">
+         <section data-turn="user" data-testid="conversation-turn-1">
+           <h4 class="sr-only select-none">You said:</h4>
+           <img src="https://files.example.test/photo.png" alt="a tide pond">
+         </section>
+         <section data-turn="assistant" data-testid="conversation-turn-2">
+           <h4 class="sr-only select-none">ChatGPT said:</h4>
+           <div data-message-author-role="assistant" data-message-id="a1">
+             <div class="markdown prose"><p>That is a tide pond at low water.</p></div>
+           </div>
+         </section>
+       </main>`,
+      { url: 'https://chatgpt.com/c/test-image-only' }
+    );
+
+    const result = new ChatGPTParser(dom.window.document).parse();
+    expect(result.conversation?.pairs[0]?.question.content).toBe('[Uploaded images: a tide pond]');
   });
 });

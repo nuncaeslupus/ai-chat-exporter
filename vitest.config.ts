@@ -7,6 +7,22 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./tests/setup/vitest.setup.ts'],
     include: ['tests/**/*.test.ts'],
+    // Vitest's 5s default is too tight for this suite, which renders real
+    // documents through jsPDF and drives whole popup DOMs in jsdom. The
+    // affected tests are not hanging -- they are being starved: measured 2.6s
+    // alone and 3-6.6s while another test run or build shares the CPU, which is
+    // routine here. That produced false failures across `pagination.test.ts`,
+    // `chatgpt.test.ts` and `popup-options.test.ts`, and because `release.sh`
+    // re-runs a task's gate, a flake refuses a release for work that is green.
+    //
+    // A global ceiling rather than more per-test overrides: PR #150 already
+    // added a 20s override for three pagination tests and the flakes simply
+    // moved elsewhere, so opting in test-by-test demonstrably does not scale.
+    // Capping `poolOptions.threads.maxThreads` would remove the contention
+    // instead of tolerating it, but it also slows the suite for everyone to fix
+    // a problem only concurrency creates. 15s still fails a genuinely hung test,
+    // 10s later than before.
+    testTimeout: 15_000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

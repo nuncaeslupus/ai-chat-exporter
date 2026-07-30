@@ -42,4 +42,14 @@ describe('StorageService export options round-trip', () => {
     const prefs = await StorageService.getUserPreferences();
     expect(prefs.includeTimestamps).toBe(true);
   });
+
+  it('round-trips the text-size step', async () => {
+    await StorageService.setUserPreferences({ fontScale: 'compact' });
+
+    expect((await StorageService.getUserPreferences()).fontScale).toBe('compact');
+  });
+
+  it('defaults the text-size step to normal when nothing has been saved yet', async () => {
+    expect((await StorageService.getUserPreferences()).fontScale).toBe('normal');
+  });
 });

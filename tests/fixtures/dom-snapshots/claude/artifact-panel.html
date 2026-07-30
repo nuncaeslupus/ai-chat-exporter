@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Tide table fixture conversation - Claude</title>
+</head>
+<!--
+  claude.ai markup as of 2026-07, rebuilt by hand: the DOM structure and class
+  names are real, every word of conversation text is invented. Captures of real
+  conversations are never committed (see tests/fixtures/dom-snapshots/claude/real-capture.html,
+  rebuilt the same way).
+
+  What this fixture exists to pin, all of which the pre-2026 fixture misses:
+    - scroll container is `overflow-y-auto`, not `overflow-y-scroll`
+    - user turns are marked by `data-user-message-bubble`, not `div.mb-1.mt-6.group`
+    - artifact blocks have no `div.pt-3.pb-3` wrapper
+    - artifact type labels read "Code · JSX" / "Document · MD" -- the format
+      token after the separator is the locale-independent type signal
+    - the open artifact's body lives in a side panel OUTSIDE every turn container
+-->
+<body>
+  <div class="h-full">
+    <div class="flex flex-1 w-full overflow-hidden">
+      <div class="h-full flex flex-col overflow-hidden">
+
+        <!-- Header -->
+        <header class="flex w-full bg-bg-100 sticky top-0 z-header" data-testid="page-header">
+          <div class="flex w-full items-center justify-between gap-4 p-3">
+            <div class="flex min-w-0 md:items-center font-base-bold flex-1 pr-[100px]">
+              <div class="flex min-w-0 shrink-1 items-center group -ml-1">
+                <div class="flex min-w-0 shrink items-center" data-testid="chat-title-split">
+                  <button type="button" data-cds="Button" data-size="sm" class="cds-reset px-md !shrink min-w-0 cursor-text" aria-label="Tide table fixture conversation, rename chat">
+                    <span class="inline-flex min-w-0 items-center gap-1">
+                      <span class="min-w-0 truncate font-base-bold">Tide table fixture conversation</span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="right-3 flex gap-2">
+              <button data-testid="model-selector-dropdown" type="button">
+                <div class="whitespace-nowrap">Opus 4.8</div>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <!-- Messages container -->
+        <div class="overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] pt-6 flex-1 print:!overflow-visible">
+          <div class="relative w-full min-h-full flex flex-col">
+            <div class="mx-auto flex w-full flex-1 flex-col max-w-3xl md:px-2">
+              <div class="flex-1 flex flex-col px-4 max-w-3xl mx-auto w-full pt-1">
+
+                <!-- User turn -->
+                <div role="article" tabindex="-1" aria-label="Message 1 of 2">
+                  <div data-test-render-count="2">
+                    <div class="contents">
+                      <div class="mb-1 mt-[var(--msg-gap,1.5rem)] group group/message-row">
+                        <h2 data-find-omitted="" class="sr-only select-none">You said: Draft me a tide table helper.</h2>
+                        <div class="flex flex-col items-end gap-1">
+                          <div data-user-message-bubble="true" class="group relative inline-flex gap-2 bg-bg-300 rounded-xl pl-2.5 break-words text-text-100 max-w-[75ch] flex-col max-w-[85%]" style="opacity: 1; transform: none;">
+                            <div class="flex flex-row gap-2 relative">
+                              <div class="flex-1">
+                                <div data-testid="user-message" class="font-large !font-user-message py-0.5 grid grid-cols-1 gap-2 relative">
+                                  <p class="whitespace-pre-wrap break-words">Draft me a tide table helper: one small interactive piece and one written explainer. This is invented placeholder text for a DOM fixture.</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          <div data-message-action-bar="" class="flex justify-start opacity-0 group-hover:opacity-100">
+                            <div class="text-text-300">
+                              <div role="toolbar" aria-label="Message actions" class="text-text-300 flex select-none items-stretch justify-between">
+                                <span class="text-text-500 text-xs flex items-center mr-2">12:50</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Assistant turn -->
+                <div role="article" tabindex="0" aria-label="Message 2 of 2">
+                  <div data-test-render-count="1">
+                    <div class="group group/message-row" style="height: auto; opacity: 1;">
+                      <div class="contents">
+                        <div data-is-streaming="false" class="group relative relative pb-[var(--msg-assistant-pb,0.75rem)]" style="opacity: 1;">
+                          <h2 data-find-omitted="" class="sr-only select-none">Claude responded: Both pieces are below.</h2>
+                          <div class="font-claude-response relative leading-[1.65rem]">
+                            <div>
+                              <div class="grid grid-rows-[auto_auto] min-w-0">
+                                <div class="row-start-1 col-start-1 min-w-0">
+                                  <div>
+                                    <div class="standard-markdown grid-cols-1 grid gap-3 print:block standard-markdown">
+                                      <p class="font-claude-response-body break-words whitespace-normal" dir="ltr">Both pieces are below. This is invented placeholder prose standing in for the assistant's summary paragraph.</p>
+                                      <p class="font-claude-response-body break-words whitespace-normal" dir="ltr">The <strong>helper</strong> is the interactive one; the <strong>explainer</strong> is the written version.</p>
+                                    </div>
+                                  </div>
+
+                                  <!-- Artifact blocks: no `div.pt-3.pb-3` wrapper any more -->
+                                  <div class="flex flex-col gap-2 py-2 pl-2">
+                                    <div class="group/artifact-block relative flex text-left font-ui rounded-lg overflow-hidden border-0.5 w-full px-4 border-border-300">
+                                      <button type="button" class="absolute inset-0 cursor-pointer rounded-[inherit]" aria-label="View Tide table helper"></button>
+                                      <div class="artifact-block-cell flex flex-1 align-start justify-between w-full">
+                                        <div class="flex flex-1 gap-2 min-w-0">
+                                          <div class="flex items-end w-[68px] relative shrink-0 pointer-events-none" aria-hidden="true"></div>
+                                          <div class="flex flex-col gap-1 py-4 min-w-0 flex-1">
+                                            <div class="leading-tight text-sm line-clamp-1">Tide table helper</div>
+                                            <div class="text-xs line-clamp-1 text-text-400 opacity-100 transition-opacity duration-200">Code<span class="opacity-50"> · </span>JSX&nbsp;</div>
+                                          </div>
+                                        </div>
+                                        <div class="relative z-[1] flex items-center pointer-events-none">
+                                          <button type="button" data-cds="Button" class="cds-reset px-md" aria-label="Download Tide table helper">
+                                            <span class="inline-flex min-w-0 items-center gap-1">Download</span>
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div class="group/artifact-block relative flex text-left font-ui rounded-lg overflow-hidden border-0.5 w-full px-4 border-border-300">
+                                      <button type="button" class="absolute inset-0 cursor-pointer rounded-[inherit]" aria-label="View Reading a tide table"></button>
+                                      <div class="artifact-block-cell flex flex-1 align-start justify-between w-full">
+                                        <div class="flex flex-1 gap-2 min-w-0">
+                                          <div class="flex items-end w-[68px] relative shrink-0 pointer-events-none" aria-hidden="true"></div>
+                                          <div class="flex flex-col gap-1 py-4 min-w-0 flex-1">
+                                            <div class="leading-tight text-sm line-clamp-1">Reading a tide table</div>
+                                            <div class="text-xs line-clamp-1 text-text-400 opacity-100 transition-opacity duration-200">Document<span class="opacity-50"> · </span>MD&nbsp;</div>
+                                          </div>
+                                        </div>
+                                        <div class="relative z-[1] flex items-center pointer-events-none">
+                                          <button type="button" data-cds="Button" class="cds-reset px-md" aria-label="Download Reading a tide table">
+                                            <span class="inline-flex min-w-0 items-center gap-1">Download</span>
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Artifact side panel: OUTSIDE every `div[data-test-render-count]` turn -->
+      <div class="h-full flex flex-col overflow-hidden bg-bg-100">
+        <div class="flex items-center gap-2 p-2">
+          <h2 class="text-sm font-normal text-text-200 truncate min-w-0" title="Reading a tide table">Reading a tide table<span class="text-text-400 opacity-50"> · </span><span class="text-text-400">MD</span></h2>
+          <div class="flex-1"></div>
+          <button type="button" data-cds="Button" class="cds-reset px-md" aria-label="Close panel">
+            <span class="inline-flex min-w-0 items-center gap-1">Copy</span>
+          </button>
+        </div>
+        <div class="flex-1 min-h-0 bg-bg-000 overflow-auto">
+          <div data-skill-file-viewer="true" class="flex h-full flex-col">
+            <div class="min-h-0 flex-1">
+              <div class="h-full">
+                <div class="relative h-full">
+                  <div class="absolute inset-0 overflow-auto">
+                    <div class="relative" data-prose-review-dockey="file:|::/mnt/user-data/outputs/reading_a_tide_table.md" data-prose-review-counts="0/0/0/0">
+                      <div tabindex="0" id="wiggle-file-content" class="outline-none mx-auto w-full max-w-3xl py-4 pl-6 pr-16">
+                        <div>
+                          <div class="standard-markdown grid-cols-1 grid gap-3 print:block font-claude-response">
+                            <h1 dir="ltr" class="text-text-100 mt-3 -mb-1 text-[1.375rem] font-bold" data-sourcepos="1:1-1:22;0-21">Reading a tide table</h1>
+                            <p class="font-claude-response-body break-words whitespace-normal" dir="ltr">Every column in a printed tide table is invented placeholder prose for this fixture, kept roughly the length a real paragraph would be.</p>
+                            <h2 dir="ltr" class="text-text-100 mt-3 -mb-1 text-[1.125rem] font-bold" data-sourcepos="5:1-5:14;60-73">Highs and lows</h2>
+                            <p class="font-claude-response-body break-words whitespace-normal" dir="ltr">A second invented paragraph, so the panel body has more than one block-level child to join.</p>
+                            <ul class="[&amp;_ul]:mt-1">
+                              <li>First invented bullet.</li>
+                              <li>Second invented bullet.</li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>

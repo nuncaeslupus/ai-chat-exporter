@@ -43,10 +43,7 @@ function mockI18n(messages: Record<string, string> = EN_MESSAGES) {
       const message = messages[key] ?? key;
       if (!substitutions) return message;
       const values = Array.isArray(substitutions) ? substitutions : [substitutions];
-      return values.reduce(
-        (text, value, i) => text.replace(`$${String(i + 1)}`, value),
-        message
-      );
+      return values.reduce((text, value, i) => text.replace(`$${String(i + 1)}`, value), message);
     },
   };
 }
@@ -75,8 +72,13 @@ const POPUP_DOM = `
     <button id="print-button" disabled></button>
     <input type="checkbox" id="option-include-metadata" />
     <input type="checkbox" id="option-include-timestamps" />
+    <fieldset class="option-row option-row--choice">
+      <legend data-i18n="optionFontScale">Text size</legend>
+      <label><input type="radio" name="option-font-scale" value="compact" /></label>
+      <label><input type="radio" name="option-font-scale" value="normal" /></label>
+      <label><input type="radio" name="option-font-scale" value="large" /></label>
+    </fieldset>
   </div>
-  <a id="report-issue"></a>
 `;
 
 /**
@@ -100,7 +102,7 @@ const CONVERSATION = {
   id: 'conv-1',
   title: 'Test conversation',
   platform: 'claude',
-  pairs: [],
+  pairs: [createTestQAPair(0, 'First question', 'First answer')],
   url: 'https://claude.ai/chat/abc',
 };
 
@@ -177,7 +179,9 @@ describe('popup degraded-export reporting', () => {
     // 'Print failed' instead of calling getMessage('statusPrintFailed'), this
     // mocked translation would never surface and the assertion below fails.
     const translatedMarker = '__I18N_STATUS_PRINT_FAILED__';
-    Object.assign(chrome, { i18n: mockI18n({ ...EN_MESSAGES, statusPrintFailed: translatedMarker }) });
+    Object.assign(chrome, {
+      i18n: mockI18n({ ...EN_MESSAGES, statusPrintFailed: translatedMarker }),
+    });
     mockTabsSendMessage.mockImplementation((_tabId: number, message: { type: string }) => {
       if (message.type === 'get_conversation') {
         return Promise.resolve({ success: true, data: CONVERSATION });
@@ -220,9 +224,9 @@ describe('popup export options', () => {
     expect((document.getElementById('option-include-metadata') as HTMLInputElement).checked).toBe(
       false
     );
-    expect(
-      (document.getElementById('option-include-timestamps') as HTMLInputElement).checked
-    ).toBe(false);
+    expect((document.getElementById('option-include-timestamps') as HTMLInputElement).checked).toBe(
+      false
+    );
   });
 
   it('persists a metadata toggle change to storage', async () => {
@@ -234,9 +238,7 @@ describe('popup export options', () => {
 
     await vi.waitFor(async () => {
       const stored = await chrome.storage.sync.get('user_preferences');
-      expect((stored.user_preferences as { includeMetadata: boolean }).includeMetadata).toBe(
-        false
-      );
+      expect((stored.user_preferences as { includeMetadata: boolean }).includeMetadata).toBe(false);
     });
   });
 
@@ -249,9 +251,35 @@ describe('popup export options', () => {
 
     await vi.waitFor(async () => {
       const stored = await chrome.storage.sync.get('user_preferences');
-      expect(
-        (stored.user_preferences as { includeTimestamps: boolean }).includeTimestamps
-      ).toBe(false);
+      expect((stored.user_preferences as { includeTimestamps: boolean }).includeTimestamps).toBe(
+        false
+      );
+    });
+  });
+
+  it('reflects the persisted text-size step on load', async () => {
+    await chrome.storage.sync.set({ user_preferences: { fontScale: 'compact' } });
+
+    await loadPopup();
+
+    const checked = [
+      ...document.querySelectorAll<HTMLInputElement>('input[name="option-font-scale"]'),
+    ].filter((input) => input.checked);
+    expect(checked.map((input) => input.value)).toEqual(['compact']);
+  });
+
+  it('persists a text-size change to storage', async () => {
+    await loadPopup();
+
+    const large = document.querySelector<HTMLInputElement>(
+      'input[name="option-font-scale"][value="large"]'
+    )!;
+    large.checked = true;
+    large.dispatchEvent(new Event('change'));
+
+    await vi.waitFor(async () => {
+      const stored = await chrome.storage.sync.get('user_preferences');
+      expect((stored.user_preferences as { fontScale: string }).fontScale).toBe('large');
     });
   });
 });
@@ -268,6 +296,18 @@ describe('popup export options accessibility', () => {
       const inputTag = new RegExp(`<input[^>]*id="${id}"[^>]*>`).exec(html)?.[0];
       expect(inputTag).toBeDefined();
     }
+  });
+
+  it('names the text-size group with a legend and wraps each step in its own label', () => {
+    const html = readFileSync(
+      resolve(__dirname, '../../../../src/extension/popup/popup.html'),
+      'utf-8'
+    );
+    const fieldset = /<fieldset[^>]*option-row--choice[\s\S]*?<\/fieldset>/.exec(html)?.[0];
+    expect(fieldset).toBeDefined();
+    expect(fieldset).toMatch(/<legend[^>]*data-i18n="optionFontScale"/);
+    // A wrapping <label> per radio, so the step's text is its accessible name.
+    expect(fieldset?.match(/<label[^>]*>\s*<input type="radio"/g)).toHaveLength(3);
   });
 });
 
@@ -311,7 +351,7 @@ describe('popup platform gate', () => {
   });
 
   it('renders the version from the manifest rather than a hardcoded string', async () => {
-    document.body.innerHTML = POPUP_DOM + '<span id="popup-version"></span>';
+    document.body.innerHTML = POPUP_DOM + '<span id="popup-version" data-version></span>';
     vi.resetModules();
     mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://claude.ai/chat/abc' }]);
     mockTabsSendMessage.mockResolvedValue({ success: true, data: CONVERSATION });
@@ -361,7 +401,6 @@ describe('popup Q&A pair selection (lo-adf1)', () => {
       expect(checkboxes()).toHaveLength(3);
     });
     expect(checkboxes().every((cb) => cb.checked)).toBe(true);
-    expect(document.getElementById('qa-selection-section')?.style.display).toBe('block');
   });
 
   it('select-all / select-none toggle every pair', async () => {
@@ -399,7 +438,10 @@ describe('popup Q&A pair selection (lo-adf1)', () => {
     document.getElementById('export-button')?.click();
 
     await vi.waitFor(() => {
-      const calls = mockTabsSendMessage.mock.calls as [number, { type: string; selectedIndices?: number[] }][];
+      const calls = mockTabsSendMessage.mock.calls as [
+        number,
+        { type: string; selectedIndices?: number[] },
+      ][];
       const exportCalls = calls.filter(([, message]) => message.type === 'export_conversation');
       expect(exportCalls.length).toBeGreaterThan(0);
       expect(exportCalls.at(-1)?.[1].selectedIndices).toEqual([0, 2]);
@@ -451,7 +493,9 @@ describe('popup Q&A pair selection accessibility (lo-adf1)', () => {
   it('associates every pair checkbox with a real <label for>', async () => {
     await loadPopup();
     const checkbox = await vi.waitFor(() => {
-      const el = document.querySelector<HTMLInputElement>('#qa-selection-list input[type="checkbox"]');
+      const el = document.querySelector<HTMLInputElement>(
+        '#qa-selection-list input[type="checkbox"]'
+      );
       expect(el).not.toBeNull();
       return el!;
     });

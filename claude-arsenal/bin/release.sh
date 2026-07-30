@@ -119,14 +119,47 @@ fi
 # gate a hard precondition for `done`. Run it now, BEFORE the cd into the
 # coordination worktree, so the worker's committed evidence files (referenced
 # repo-root-relative by the gate block) are still reachable in this tree.
-# Skipped when there is no payload (hence no gate); gate_run.sh itself exits 0
-# for a payload with no gate. `merged` is exempt — the gate already ran at `done`
-# and reconcile_merged.sh sets `merged` from a real merge.
-if [[ "${NEW_STATUS}" == "done" && -f "claude-arsenal/queue/${TASK_ID}.md" && -f "${GATE_RUN}" ]]; then
-    if ! bash "${GATE_RUN}" "${TASK_ID}"; then
-        echo "release.sh: refusing to mark ${TASK_ID} done — acceptance gate failed (gate_run.sh); fix the gate / commit the evidence, or release as open/in_progress" >&2
+# `merged` is exempt — the gate already ran at `done` and reconcile_merged.sh
+# sets `merged` from a real merge.
+#
+# (CA-16) This block is NOT conditional on the payload being on disk. It used to
+# be, and that silently disabled the whole guard for the caller that needs it
+# most: the orchestrator's tree sits on the default branch, where a payload
+# seeded during the session exists only on the coordination ref — so `done` was
+# recorded with no gate run at all (14 of 20 releases in one measured consumer
+# session). gate_run.sh resolves a payload from ${QUEUE_BRANCH} itself now, so
+# the precondition is obsolete. Every gate_run.sh outcome is handled explicitly
+# and none of them is silent.
+if [[ "${NEW_STATUS}" == "done" ]]; then
+    if [[ ! -f "${GATE_RUN}" ]]; then
+        echo "release.sh: refusing to mark ${TASK_ID} done — gate_run.sh is missing at '${GATE_RUN}'; the acceptance gate cannot be enforced from this tree" >&2
         exit 2
     fi
+    bash "${GATE_RUN}" "${TASK_ID}"
+    _gate_rc=$?
+    case "${_gate_rc}" in
+        0) ;;  # gate passed, or the payload declares no mechanical gate
+        2)
+            # No payload on disk NOR on the coordination ref: the task declares
+            # no gate, so there is nothing to enforce and refusing would only
+            # invent a requirement no gate exists to satisfy (create_task.py
+            # does not require a payload). Allowed — but never silently.
+            # Announce on stdout as well as stderr so a caller piping this
+            # output still sees that nothing was verified (the same reasoning
+            # as gate_run.sh's exit-3 banner).
+            _msg="release.sh: NO ACCEPTANCE GATE RUN for ${TASK_ID} — no payload found on disk or on '${QUEUE_BRANCH}', so the task declares no gate. Recording done UNVERIFIED (the PR guards above still applied)."
+            echo "${_msg}"
+            echo "${_msg}" >&2
+            ;;
+        3)
+            echo "release.sh: refusing to mark ${TASK_ID} done — the acceptance gate COULD NOT RUN (gate_run.sh exit 3: command not found or not executable). This is NOT a gate failure and NOT a pass — nothing was verified. Fix the gate's tooling (or retry with ARSENAL_GATE_INHERIT_ENV=1), or release as open/in_progress" >&2
+            exit 2
+            ;;
+        *)
+            echo "release.sh: refusing to mark ${TASK_ID} done — acceptance gate failed (gate_run.sh exit ${_gate_rc}); fix the gate / commit the evidence, or release as open/in_progress" >&2
+            exit 2
+            ;;
+    esac
 fi
 
 # Operate from the coordination worktree when ARSENAL_QUEUE_DIR is set so the

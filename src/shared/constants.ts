@@ -22,6 +22,7 @@ export const MESSAGE_TYPES = {
   EXPORT_CONVERSATION: 'export_conversation',
   PRINT_CONVERSATION: 'print_conversation',
   GET_CONVERSATION: 'get_conversation',
+  GET_DRIFT_SKELETON: 'get_drift_skeleton',
   UPDATE_PREFERENCES: 'update_preferences',
   SHOW_NOTIFICATION: 'show_notification',
 } as const;
@@ -33,6 +34,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   includeMetadata: true,
   includeTimestamps: true,
   includeCodeBlocks: true,
+  fontScale: 'normal',
   filenameTemplate: '{title}_{date}',
   defaultFormat: 'pdf' as const,
   autoSelectAll: true,

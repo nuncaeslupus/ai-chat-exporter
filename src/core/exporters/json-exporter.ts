@@ -8,19 +8,26 @@ import type {
   ExportResult,
   Conversation,
   QAPair,
+  MessageMetadata,
 } from '../types';
 import { BaseExporter } from './base-exporter';
 
 /**
  * JSON export structure
  */
-interface JsonExport {
+export interface JsonExport {
   title?: string;
   platform?: string;
   model?: string;
   url?: string;
   exportedAt: string;
   createdAt?: string;
+  /**
+   * Conversation date range as ISO bounds. The other formats render this as a
+   * localized header line; json keeps the raw instants so a consumer can format
+   * (or re-range) it itself. Absent when no message carries a timestamp.
+   */
+  dateRange?: { from: string; to: string };
   pairs: JsonPair[];
 }
 
@@ -35,7 +42,7 @@ interface JsonMessage {
   content: string;
   htmlContent?: string;
   timestamp?: string;
-  metadata?: any; // Include images, artifacts, web searches, etc.
+  metadata?: MessageMetadata; // Include images, artifacts, web searches, etc.
 }
 
 /**
@@ -87,6 +94,13 @@ export class JsonExporter extends BaseExporter {
       }
       if (conversation.createdAt) {
         exportData.createdAt = conversation.createdAt.toISOString();
+      }
+      const bounds = this.dateBounds(pairs);
+      if (bounds) {
+        exportData.dateRange = {
+          from: bounds.from.toISOString(),
+          to: bounds.to.toISOString(),
+        };
       }
     }
 

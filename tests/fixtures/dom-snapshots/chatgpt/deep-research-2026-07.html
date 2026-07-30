@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Tidal mills and grain</title></head>
+<!--
+  ChatGPT Deep Research DOM fixture, derived from a live capture of
+  chatgpt.com (tmp/examples/chatgpt-conversation-with-deep-research.html,
+  2026-07-29 — gitignored, 600 KB).
+
+  Method: keep the four `[data-turn]` sections, drop the sidebar, header,
+  composer and the per-turn action bars; trim the tailwind class soup to the
+  classes selectors actually key on; rewrite conversation / message ids.
+
+  Every piece of visible prose is INVENTED. Element names, nesting, the
+  `sr-only` labels and the Deep Research <iframe>'s title/src/sandbox
+  attributes are from the capture.
+
+  What makes this fixture worth having: turn 2 is a Deep Research answer, and
+  it carries NO `[data-message-author-role]`, NO `data-message-id` and NO
+  `.markdown.prose` — the whole report lives inside a cross-origin sandboxed
+  <iframe> the content script cannot read. All the turn exposes to the page is
+  the screenreader label "ChatGPT said:", which used to become the answer.
+-->
+<body>
+<main id="main">
+
+  <!-- Turn 1: the question that triggered Deep Research. The tool mention is
+       an inline pill inside the message body, so it reads as part of the text. -->
+  <section dir="auto" data-turn-id="turn-a1" data-testid="conversation-turn-1" data-turn="user">
+    <h4 class="sr-only select-none">You said:</h4>
+    <div class="text-base">
+      <div data-conversation-screenshot-content="">
+        <div data-message-author-role="user" data-message-id="turn-a1" dir="auto" class="min-h-8 text-message">
+          <div>
+            <div class="user-message-bubble-color">
+              <div class="whitespace-pre-wrap"><span data-inline-selection-pill="" data-id="plugin:connector_openai_deep_research" data-symbol="ecosystemMention" data-keyword="Deep research"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" aria-hidden="true"><use href="/cdn/assets/sprites-core-0000000.svg#000000" fill="currentColor"></use></svg><span class="truncate">Deep research</span></span> How did tidal mills grind grain without a river, and why did they die out?</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <span class="sr-only"><br></span>
+  </section>
+
+  <!-- Turn 2: the Deep Research answer. Timestamp header + iframe, nothing else. -->
+  <section dir="auto" data-turn-id="request-WEB:turn-a2-0" data-testid="conversation-turn-2" data-turn="assistant">
+    <h4 class="sr-only select-none">ChatGPT said:</h4>
+    <div class="text-base">
+      <div data-conversation-screenshot-content="" class="agent-turn">
+        <div>
+          <div class="mt-1 flex flex-wrap gap-2 empty:hidden"></div>
+          <div class="no-scrollbar relative">
+            <div class="relative max-w-full overflow-hidden h-full" style="height: 484px;">
+              <iframe title="internal://deep-research" src="https://connector-openai-deep-research.web-sandbox.oaiusercontent.com?app=chatgpt&amp;darkModeType=increased&amp;locale=en-US&amp;deviceType=desktop" sandbox="allow-scripts allow-same-origin allow-forms" allowfullscreen="" class="h-full w-full max-w-full"></iframe>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-conversation-screenshot-content=""><div></div></div>
+    </div>
+    <span class="sr-only"><br></span>
+  </section>
+
+  <!-- Turn 3: an ordinary follow-up question. -->
+  <section dir="auto" data-turn-id="turn-a3" data-testid="conversation-turn-3" data-turn="user">
+    <h4 class="sr-only select-none">You said:</h4>
+    <div class="text-base">
+      <div data-conversation-screenshot-content="">
+        <div data-message-author-role="user" data-message-id="turn-a3" dir="auto" class="min-h-8 text-message">
+          <div>
+            <div class="user-message-bubble-color">
+              <div class="whitespace-pre-wrap">Great! Now summarise that in two sentences.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <span class="sr-only"><br></span>
+  </section>
+
+  <!-- Turn 4: an ordinary answer, rendered in the page as markdown. -->
+  <section dir="auto" data-turn-id="turn-a4" data-testid="conversation-turn-4" data-turn="assistant">
+    <h4 class="sr-only select-none">ChatGPT said:</h4>
+    <div class="text-base">
+      <div data-conversation-screenshot-content="" class="agent-turn">
+        <div data-message-author-role="assistant" data-message-id="turn-a4" data-message-model-slug="gpt-5-5" dir="auto" class="min-h-8 text-message">
+          <div class="markdown prose dark:prose-invert w-full break-words">
+            <p>A tidal mill trapped the incoming tide in a pond and let it out through a wheel on the ebb, so the grinding day slid forward with the tide instead of the sun.</p>
+            <p>They faded once steam let a miller work fixed hours anywhere, and the ponds silted up faster than they were worth dredging.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <span class="sr-only"><br></span>
+  </section>
+
+</main>
+</body>
+</html>

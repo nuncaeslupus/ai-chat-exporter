@@ -9,7 +9,11 @@ import type {
   Conversation,
   QAPair,
   StructuredContentBlock,
+  StructuredConversation,
+  StructuredQAPair,
   InlineContent,
+  ListBlock,
+  TableBlock,
 } from '../types';
 import { BaseExporter } from './base-exporter';
 import { ConversationStructureService } from '../services';
@@ -48,10 +52,7 @@ export class TextExporter extends BaseExporter {
   /**
    * Generate plain text content
    */
-  private generateText(
-    conversation: any, // StructuredConversation
-    options: ExportOptions
-  ): string {
+  private generateText(conversation: StructuredConversation, options: ExportOptions): string {
     const lines: string[] = [];
 
     // Title
@@ -65,6 +66,10 @@ export class TextExporter extends BaseExporter {
       if (conversation.model) {
         lines.push(`Model: ${conversation.model}`);
       }
+      const dateRange = this.formatDateRange(conversation.pairs);
+      if (dateRange) {
+        lines.push(`${this.getMetadataLabel('dateRange')}: ${dateRange}`);
+      }
       if (conversation.createdAt) {
         lines.push(`Exported: ${this.formatTimestamp(conversation.createdAt)}`);
       }
@@ -76,10 +81,11 @@ export class TextExporter extends BaseExporter {
 
     // Q&A pairs
     const assistantName = this.getAssistantName(conversation.platform);
+    const daySeparator = this.daySeparator(options.includeTimestamps);
     for (let i = 0; i < conversation.pairs.length; i++) {
       const pair = conversation.pairs[i];
       if (pair) {
-        lines.push(...this.formatPair(pair, assistantName, options));
+        lines.push(...this.formatPair(pair, assistantName, options, daySeparator));
         if (i < conversation.pairs.length - 1) {
           lines.push('');
           lines.push('-'.repeat(40));
@@ -94,21 +100,38 @@ export class TextExporter extends BaseExporter {
   /**
    * Format a single Q&A pair
    */
-  private formatPair(pair: any, assistantName: string, options: ExportOptions): string[] {
+  private formatPair(
+    pair: StructuredQAPair,
+    assistantName: string,
+    options: ExportOptions,
+    daySeparator: (date?: Date) => string
+  ): string[] {
     const lines: string[] = [];
+    const pushDaySeparator = (date?: Date): void => {
+      const separator = daySeparator(date);
+      if (separator) {
+        lines.push(separator, '');
+      }
+    };
 
     // User message
-    lines.push(`User${this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps)}:`);
+    pushDaySeparator(pair.question.timestamp);
+    lines.push(
+      `User${this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps)}:`
+    );
     lines.push(...this.renderBlocks(pair.question.blocks));
     lines.push('');
 
     // Assistant message
-    lines.push(`${assistantName}${this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps)}:`);
+    pushDaySeparator(pair.answer.timestamp);
+    lines.push(
+      `${assistantName}${this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps)}:`
+    );
     lines.push(...this.renderBlocks(pair.answer.blocks));
 
     // Add artifacts if present
     if (pair.answer.metadata?.artifacts && Array.isArray(pair.answer.metadata.artifacts)) {
-      const artifactsWithContent = pair.answer.metadata.artifacts.filter((a: any) => a.content);
+      const artifactsWithContent = pair.answer.metadata.artifacts.filter((a) => a.content);
 
       if (artifactsWithContent.length > 0) {
         lines.push('');
@@ -154,15 +177,16 @@ export class TextExporter extends BaseExporter {
 
     for (const block of blocks) {
       switch (block.type) {
-        case 'paragraph':
+        case 'paragraph': {
           const text = this.inlineToText(block.content);
           if (text.trim()) {
             lines.push(text);
             lines.push('');
           }
           break;
+        }
 
-        case 'heading':
+        case 'heading': {
           const headingText = this.inlineToText(block.content);
           if (headingText.trim()) {
             lines.push('');
@@ -171,6 +195,7 @@ export class TextExporter extends BaseExporter {
             lines.push('');
           }
           break;
+        }
 
         case 'code':
           lines.push('');
@@ -186,7 +211,7 @@ export class TextExporter extends BaseExporter {
           lines.push('');
           break;
 
-        case 'blockquote':
+        case 'blockquote': {
           lines.push('');
           const quoteLines = this.renderBlocks(block.content);
           for (const line of quoteLines) {
@@ -198,6 +223,7 @@ export class TextExporter extends BaseExporter {
           }
           lines.push('');
           break;
+        }
 
         case 'hr':
           lines.push('');
@@ -205,9 +231,17 @@ export class TextExporter extends BaseExporter {
           lines.push('');
           break;
 
+        // Plain text can't show it; the URL is the only way back to the picture.
         case 'image':
           lines.push('');
-          lines.push(`[Image: ${block.alt || 'image'}]`);
+          lines.push(`[Image: ${block.alt || 'image'}] ${block.url}`);
+          lines.push('');
+          break;
+
+        // Plain text can't play it; the URL is the only way back to the clip.
+        case 'media':
+          lines.push('');
+          lines.push(`[${this.mediaLabel(block)}] ${block.url}`);
           lines.push('');
           break;
 
@@ -225,15 +259,13 @@ export class TextExporter extends BaseExporter {
   /**
    * Render a table to plain text
    */
-  private renderTable(block: any): string[] {
+  private renderTable(block: TableBlock): string[] {
     const lines: string[] = [];
     const allRows: string[][] = [];
 
     // Collect all cells from headers and body
     if (block.headers && block.headers.length > 0) {
-      allRows.push(
-        block.headers.map((cell: InlineContent[]) => this.inlineToText(cell).trim())
-      );
+      allRows.push(block.headers.map((cell: InlineContent[]) => this.inlineToText(cell).trim()));
     }
 
     if (block.rows && block.rows.length > 0) {
@@ -245,12 +277,12 @@ export class TextExporter extends BaseExporter {
     if (allRows.length === 0) return lines;
 
     // Calculate column widths
-    const numCols = Math.max(...allRows.map(row => row.length));
+    const numCols = Math.max(...allRows.map((row) => row.length));
     const colWidths: number[] = [];
 
     for (let col = 0; col < numCols; col++) {
       const maxWidth = Math.max(
-        ...allRows.map(row => (row[col] || '').length),
+        ...allRows.map((row) => (row[col] || '').length),
         3 // Minimum width
       );
       colWidths.push(maxWidth);
@@ -265,7 +297,7 @@ export class TextExporter extends BaseExporter {
 
       // Add separator after header row
       if (i === 0 && block.headers && block.headers.length > 0) {
-        const separators = colWidths.map(w => '-'.repeat(w));
+        const separators = colWidths.map((w) => '-'.repeat(w));
         lines.push(`| ${separators.join(' | ')} |`);
       }
     }
@@ -276,12 +308,11 @@ export class TextExporter extends BaseExporter {
   /**
    * Render a list to plain text lines
    */
-  private renderList(block: any, depth: number): string[] {
+  private renderList(block: ListBlock, depth: number): string[] {
     const lines: string[] = [];
     const indent = '  '.repeat(depth);
 
-    for (let i = 0; i < block.items.length; i++) {
-      const item = block.items[i];
+    for (const [i, item] of block.items.entries()) {
       const prefix = block.ordered ? `${i + 1}.` : '-';
       const text = this.inlineToText(item.content);
 
@@ -302,7 +333,7 @@ export class TextExporter extends BaseExporter {
    */
   private inlineToText(content: InlineContent[]): string {
     return content
-      .map(item =>
+      .map((item) =>
         item.type === 'link' && item.url && item.url !== item.text
           ? `${item.text} (${item.url})`
           : item.text
