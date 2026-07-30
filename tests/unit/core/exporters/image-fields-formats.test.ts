@@ -56,8 +56,7 @@ const conversation: Conversation = {
 const options: ExportOptions = {
   format: 'md',
   filename: 'test',
-  includeMetadata: false,
-  includeTimestamps: false,
+  showMetaInfo: false,
 };
 
 describe('image url and linkUrl reach an export format', () => {

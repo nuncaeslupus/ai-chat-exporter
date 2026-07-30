@@ -6,6 +6,32 @@ import { STORAGE_KEYS, DEFAULT_PREFERENCES } from './constants';
 import type { UserPreferences } from './messages';
 
 /**
+ * Preferences written before `includeMetadata` and `includeTimestamps` merged.
+ *
+ * Read-only shape: nothing writes these any more, but stored preferences sync
+ * across devices and outlive an update, so they keep arriving.
+ */
+interface LegacyMetaPreferences {
+  includeMetadata?: boolean;
+  includeTimestamps?: boolean;
+}
+
+/**
+ * Resolve the merged flag from whatever shape storage returns.
+ *
+ * The header block was the user-visible half, so `includeMetadata` decides. A
+ * stored `includeTimestamps` is discarded rather than OR-ed in: it controlled
+ * nothing that ever rendered — no parser wrote `Message.timestamp` when it was
+ * set — so honouring it would turn a preference the user never saw the effect of
+ * into one that now shows a header they had switched off.
+ */
+function migrateShowMetaInfo(stored: Partial<UserPreferences> & LegacyMetaPreferences): boolean {
+  if (typeof stored.showMetaInfo === 'boolean') return stored.showMetaInfo;
+  if (typeof stored.includeMetadata === 'boolean') return stored.includeMetadata;
+  return DEFAULT_PREFERENCES.showMetaInfo;
+}
+
+/**
  * Storage service for managing extension data
  */
 export class StorageService {
@@ -17,10 +43,11 @@ export class StorageService {
       const result: Record<string, unknown> = await chrome.storage.sync.get(
         STORAGE_KEYS.USER_PREFERENCES
       );
-      return (
-        (result[STORAGE_KEYS.USER_PREFERENCES] as UserPreferences | undefined) ||
-        DEFAULT_PREFERENCES
-      );
+      const stored = result[STORAGE_KEYS.USER_PREFERENCES] as
+        | (Partial<UserPreferences> & LegacyMetaPreferences)
+        | undefined;
+      if (!stored) return DEFAULT_PREFERENCES;
+      return { ...stored, showMetaInfo: migrateShowMetaInfo(stored) } as UserPreferences;
     } catch (error) {
       console.error('Failed to get user preferences:', error);
       return DEFAULT_PREFERENCES;

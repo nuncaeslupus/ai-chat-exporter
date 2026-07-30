@@ -9,6 +9,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { StorageService } from '../../../src/shared/storage';
+import { DEFAULT_PREFERENCES } from '../../../src/shared/constants';
 
 describe('StorageService export options round-trip', () => {
   beforeEach(() => {
@@ -27,20 +28,16 @@ describe('StorageService export options round-trip', () => {
   });
 
   it('round-trips export options', async () => {
-    await StorageService.setUserPreferences({
-      includeMetadata: false,
-      includeTimestamps: true,
-    });
+    await StorageService.setUserPreferences({ showMetaInfo: false });
+    expect((await StorageService.getUserPreferences()).showMetaInfo).toBe(false);
 
-    const prefs = await StorageService.getUserPreferences();
-
-    expect(prefs.includeMetadata).toBe(false);
-    expect(prefs.includeTimestamps).toBe(true);
+    await StorageService.setUserPreferences({ showMetaInfo: true });
+    expect((await StorageService.getUserPreferences()).showMetaInfo).toBe(true);
   });
 
-  it('defaults includeTimestamps to true when nothing has been saved yet', async () => {
+  it('defaults showMetaInfo to true when nothing has been saved yet', async () => {
     const prefs = await StorageService.getUserPreferences();
-    expect(prefs.includeTimestamps).toBe(true);
+    expect(prefs.showMetaInfo).toBe(true);
   });
 
   it('round-trips the text-size step', async () => {
@@ -51,5 +48,44 @@ describe('StorageService export options round-trip', () => {
 
   it('defaults the text-size step to normal when nothing has been saved yet', async () => {
     expect((await StorageService.getUserPreferences()).fontScale).toBe('normal');
+  });
+});
+
+describe('R-0: migrating to showMetaInfo', () => {
+  /** Seed storage with a preferences object written by an older build. */
+  function seed(stored: Record<string, unknown>): void {
+    Object.assign(chrome.storage.sync, {
+      get: (key: string) => Promise.resolve({ [key]: stored }),
+      set: () => Promise.resolve(),
+    });
+  }
+
+  it('carries a stored includeMetadata forward as showMetaInfo', async () => {
+    seed({ includeMetadata: false, includeTimestamps: true, fontScale: 'large' });
+    const prefs = await StorageService.getUserPreferences();
+
+    // The header block was the visible half, so it decides.
+    expect(prefs.showMetaInfo).toBe(false);
+    // Unrelated preferences survive the migration untouched.
+    expect(prefs.fontScale).toBe('large');
+  });
+
+  it('ignores a stored includeTimestamps, which never rendered anything', async () => {
+    // Honouring it would turn a preference the user never saw the effect of into
+    // one that now shows a header they had switched off.
+    seed({ includeMetadata: false, includeTimestamps: true });
+    expect((await StorageService.getUserPreferences()).showMetaInfo).toBe(false);
+  });
+
+  it('prefers an already-migrated showMetaInfo over the legacy fields', async () => {
+    seed({ showMetaInfo: false, includeMetadata: true });
+    expect((await StorageService.getUserPreferences()).showMetaInfo).toBe(false);
+  });
+
+  it('falls back to the default when neither is stored', async () => {
+    seed({ fontScale: 'compact' });
+    expect((await StorageService.getUserPreferences()).showMetaInfo).toBe(
+      DEFAULT_PREFERENCES.showMetaInfo
+    );
   });
 });

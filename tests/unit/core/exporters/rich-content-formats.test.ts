@@ -50,8 +50,7 @@ const conversation: Conversation = {
 const options: ExportOptions = {
   format: 'md',
   filename: 'test',
-  includeMetadata: false,
-  includeTimestamps: false,
+  showMetaInfo: false,
 };
 
 describe('rich content survives export in all six formats', () => {

@@ -46,8 +46,7 @@ function conversationOf(pairs: QAPair[]): Conversation {
 const options: ExportOptions = {
   format: 'txt',
   filename: 'test',
-  includeMetadata: true,
-  includeTimestamps: true,
+  showMetaInfo: true,
 };
 
 async function renderTxt(conversation: Conversation): Promise<string> {

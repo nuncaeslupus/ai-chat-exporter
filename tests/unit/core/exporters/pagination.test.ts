@@ -155,8 +155,7 @@ async function renderPdf(pairs: QAPair[]): Promise<Call[]> {
   const result = await new PdfExporter().export(buildConversation(pairs), pairs, {
     format: 'pdf',
     filename: 'test',
-    includeMetadata: false,
-    includeTimestamps: false,
+    showMetaInfo: false,
   });
   expect(result.success).toBe(true);
   return instances[0]!.calls;
@@ -303,8 +302,7 @@ describe('docx pagination policy', () => {
     const result = await new DocxExporter().export(buildConversation([pair]), [pair], {
       format: 'docx',
       filename: 'test',
-      includeMetadata: false,
-      includeTimestamps: false,
+      showMetaInfo: false,
     });
     return extractDocxEntry(result.blob!, 'word/document.xml');
   }
@@ -385,8 +383,7 @@ describe('html print pagination policy', () => {
     const result = await new HtmlExporter().export(buildConversation([pair]), [pair], {
       format: 'html',
       filename: 'test',
-      includeMetadata: false,
-      includeTimestamps: false,
+      showMetaInfo: false,
     });
     const html = await blobToText(result.blob!);
 

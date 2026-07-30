@@ -150,15 +150,13 @@ const singleDay = conversationOf([pair(0, 1), pair(1, 1)]);
 const headerOptions: ExportOptions = {
   format: 'md',
   filename: 'test',
-  includeMetadata: true,
-  includeTimestamps: false,
+  showMetaInfo: true,
 };
 
 const separatorOptions: ExportOptions = {
   format: 'md',
   filename: 'test',
-  includeMetadata: false,
-  includeTimestamps: true,
+  showMetaInfo: true,
 };
 
 function countOccurrences(haystack: string, needle: string): number {
@@ -349,7 +347,7 @@ describe('day separators mark each day change in every format', () => {
   });
 
   it('timestamps off: no separators at all', async () => {
-    const text = await renderText('md', twoDay, { ...separatorOptions, includeTimestamps: false });
+    const text = await renderText('md', twoDay, { ...separatorOptions, showMetaInfo: false });
     expect(text).not.toContain(SEP_1);
     expect(text).not.toContain(SEP_2);
   });

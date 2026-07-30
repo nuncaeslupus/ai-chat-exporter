@@ -70,7 +70,7 @@ export class TextExporter extends BaseExporter {
     lines.push('');
 
     // Metadata section
-    if (options.includeMetadata) {
+    if (options.showMetaInfo) {
       lines.push(`Platform: ${this.formatPlatformName(conversation.platform)}`);
       if (conversation.model) {
         lines.push(`Model: ${conversation.model}`);
@@ -90,7 +90,7 @@ export class TextExporter extends BaseExporter {
 
     // Q&A pairs
     const assistantName = this.getAssistantName(conversation.platform);
-    const daySeparator = this.daySeparator(options.includeTimestamps);
+    const daySeparator = this.daySeparator(options.showMetaInfo);
     for (let i = 0; i < conversation.pairs.length; i++) {
       const pair = conversation.pairs[i];
       if (pair) {
@@ -172,13 +172,13 @@ export class TextExporter extends BaseExporter {
     // User message — indented two spaces, the plain-text equivalent of the
     // pdf's turn fill: it is what marks who is asking.
     pushDaySeparator(pair.question.timestamp);
-    lines.push(...this.roleLabel('User', pair.question.timestamp, options.includeTimestamps));
+    lines.push(...this.roleLabel('User', pair.question.timestamp, options.showMetaInfo));
     lines.push(...this.renderBlocks(pair.question.blocks, '  '));
     lines.push('');
 
     // Assistant message
     pushDaySeparator(pair.answer.timestamp);
-    lines.push(...this.roleLabel(assistantName, pair.answer.timestamp, options.includeTimestamps));
+    lines.push(...this.roleLabel(assistantName, pair.answer.timestamp, options.showMetaInfo));
     lines.push(...this.renderBlocks(pair.answer.blocks));
 
     // Add artifacts if present

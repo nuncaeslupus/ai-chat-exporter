@@ -371,15 +371,9 @@ class PopupController {
 
     // Reflect the persisted metadata/timestamp export options in the toggles
     const prefs = await StorageService.getUserPreferences();
-    const metadataToggle = document.getElementById('option-include-metadata') as HTMLInputElement;
-    if (metadataToggle) {
-      metadataToggle.checked = prefs.includeMetadata;
-    }
-    const timestampsToggle = document.getElementById(
-      'option-include-timestamps'
-    ) as HTMLInputElement;
-    if (timestampsToggle) {
-      timestampsToggle.checked = prefs.includeTimestamps;
+    const metaInfoToggle = document.getElementById('option-show-meta-info') as HTMLInputElement;
+    if (metaInfoToggle) {
+      metaInfoToggle.checked = prefs.showMetaInfo;
     }
 
     // Preferences saved before the text-size setting existed carry no value;
@@ -537,12 +531,9 @@ class PopupController {
       void this.handleExport(this.selectedFormat);
     });
 
-    // Export option toggles
-    document.getElementById('option-include-metadata')?.addEventListener('change', (e) => {
-      void this.persistPreference({ includeMetadata: (e.target as HTMLInputElement).checked });
-    });
-    document.getElementById('option-include-timestamps')?.addEventListener('change', (e) => {
-      void this.persistPreference({ includeTimestamps: (e.target as HTMLInputElement).checked });
+    // Export option toggle — one row: a message time is meta-info too.
+    document.getElementById('option-show-meta-info')?.addEventListener('change', (e) => {
+      void this.persistPreference({ showMetaInfo: (e.target as HTMLInputElement).checked });
     });
     for (const step of this.fontScaleInputs()) {
       step.addEventListener('change', () => {

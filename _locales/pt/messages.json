@@ -7,7 +7,6 @@
     "message": "Exporte conversas de chatbot de IA para PDF, Markdown, DOCX e mais",
     "description": "Extension description"
   },
-
   "statusDetecting": {
     "message": "A detetar...",
     "description": "Status message while detecting chatbot"
@@ -56,7 +55,6 @@
     "message": "Sem título",
     "description": "Fallback conversation title when none is available"
   },
-
   "noChatbotDetectedTitle": {
     "message": "Aqui não há nenhuma conversa para exportar",
     "description": "Title for no chatbot detected message"
@@ -65,7 +63,6 @@
     "message": "Abra um chat numa destas páginas: abrirá num novo separador.",
     "description": "Message when no chatbot is detected"
   },
-
   "noConversationFoundTitle": {
     "message": "Não encontrámos nenhuma conversa aqui",
     "description": "Title shown when the page is a supported chatbot but its parser found no conversation"
@@ -74,7 +71,6 @@
     "message": "Esta página é suportada, mas não foi possível ler nenhuma mensagem.",
     "description": "Message shown when the page is a supported chatbot but its parser found no conversation"
   },
-
   "reloadRequiredTitle": {
     "message": "Recarregue a página para exportar esta conversa",
     "description": "Title for reload required message"
@@ -119,7 +115,6 @@
     "message": "Exportar de novo",
     "description": "Main button label after a degraded export"
   },
-
   "exportButton": {
     "message": "Exportar",
     "description": "Export button label"
@@ -128,7 +123,6 @@
     "message": "Imprimir",
     "description": "Print button label"
   },
-
   "formatPDF": {
     "message": "Documento PDF",
     "description": "PDF format option"
@@ -153,14 +147,9 @@
     "message": "Dados JSON",
     "description": "JSON format option"
   },
-
-  "optionIncludeMetadata": {
-    "message": "Cabeçalho com os dados do chat",
-    "description": "Label for the toggle controlling whether exports include the metadata block"
-  },
-  "optionIncludeTimestamps": {
-    "message": "Hora em cada mensagem",
-    "description": "Label for the toggle controlling whether exports include message timestamps"
+  "optionShowMetaInfo": {
+    "message": "Mostrar metadados",
+    "description": "Label for the toggle controlling whether exports include the metadata header block and per-message times"
   },
   "optionFontScale": {
     "message": "Tamanho do texto",
@@ -182,7 +171,6 @@
     "message": "Nome do ficheiro",
     "description": "Label of the file-name navigation row in the Options submenu"
   },
-
   "qaSelectionTitle": {
     "message": "Escolher pares",
     "description": "Title of the Content submenu, the pair chooser"
@@ -199,10 +187,12 @@
     "message": "Par de pergunta e resposta $1",
     "description": "Checkbox label used when a pair's question has no text. $1 = 1-based pair number",
     "placeholders": {
-      "index": { "content": "$1", "example": "1" }
+      "index": {
+        "content": "$1",
+        "example": "1"
+      }
     }
   },
-
   "metadataFieldPlatform": {
     "message": "Plataforma",
     "description": "Metadata field: Platform"
@@ -231,7 +221,6 @@
     "message": "Valor",
     "description": "Table header for metadata value column"
   },
-
   "roleUser": {
     "message": "Utilizador",
     "description": "User role label"
@@ -252,7 +241,6 @@
     "message": "Gemini",
     "description": "Gemini assistant name"
   },
-
   "platformChatGPT": {
     "message": "ChatGPT",
     "description": "ChatGPT platform name"
@@ -273,7 +261,6 @@
     "message": "Grok",
     "description": "Grok platform name"
   },
-
   "pageNumberFormat": {
     "message": "Página $1 de $2",
     "description": "Page number format for PDF exports. $1 = current page, $2 = total pages",
@@ -288,12 +275,10 @@
       }
     }
   },
-
   "exportedWithChatExporter": {
     "message": "Exportado com AI Chat Exporter",
     "description": "Footer message in HTML exports"
   },
-
   "footerPrivacy": {
     "message": "Privacidade",
     "description": "Privacy policy link in the Options submenu footer"
@@ -302,7 +287,6 @@
     "message": "GitHub",
     "description": "GitHub footer link"
   },
-
   "metaPairsSingular": {
     "message": "$1 par",
     "description": "Conversation meta line, one pair. $1 = pair count",
@@ -439,12 +423,20 @@
     "message": "$1 de $2 · $3 palavras",
     "description": "Pair chooser footer. $1 = selected pairs, $2 = total pairs, $3 = words in the selection",
     "placeholders": {
-      "count": { "content": "$1", "example": "2" },
-      "total": { "content": "$2", "example": "14" },
-      "words": { "content": "$3", "example": "4,120" }
+      "count": {
+        "content": "$1",
+        "example": "2"
+      },
+      "total": {
+        "content": "$2",
+        "example": "14"
+      },
+      "words": {
+        "content": "$3",
+        "example": "4,120"
+      }
     }
   },
-
   "filenameRestoreDefault": {
     "message": "Predefinido",
     "description": "Link in the file-name submenu header that restores the default piece list"
@@ -457,7 +449,10 @@
     "message": "+ $1",
     "description": "Chip that appends a piece to the file name. $1 = piece name",
     "placeholders": {
-      "piece": { "content": "$1", "example": "Title" }
+      "piece": {
+        "content": "$1",
+        "example": "Title"
+      }
     }
   },
   "filenameRemovePiece": {

@@ -63,8 +63,7 @@ describe('HtmlExporter', () => {
       const result = await exporter.export(conversation, selectedPairs, {
         format: 'html',
         filename: 'test',
-        includeMetadata: true,
-        includeTimestamps: false,
+        showMetaInfo: true,
       });
       const html = await blobToText(result.blob!);
 
@@ -94,8 +93,7 @@ describe('HtmlExporter', () => {
       const result = await exporter.export(conversation, selectedPairs, {
         format: 'html',
         filename: 'test',
-        includeMetadata: true,
-        includeTimestamps: false,
+        showMetaInfo: true,
       });
       const html = await blobToText(result.blob!);
 
@@ -117,8 +115,7 @@ describe('HtmlExporter', () => {
       const result = await exporter.export(conversation, selectedPairs, {
         format: 'html',
         filename: 'test',
-        includeMetadata: true,
-        includeTimestamps: false,
+        showMetaInfo: true,
       });
       const html = await blobToText(result.blob!);
 
@@ -132,8 +129,7 @@ describe('HtmlExporter', () => {
       const result = await exporter.export(conversation, selectedPairs, {
         format: 'html',
         filename: 'test',
-        includeMetadata: true,
-        includeTimestamps: false,
+        showMetaInfo: true,
       });
       const html = await blobToText(result.blob!);
 

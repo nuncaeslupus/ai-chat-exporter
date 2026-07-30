@@ -81,8 +81,7 @@ function optionsFor(format: 'pdf' | 'docx', fontScale?: FontScale): ExportOption
   return {
     format,
     filename: 'font-scale',
-    includeMetadata: true,
-    includeTimestamps: true,
+    showMetaInfo: true,
     // Omitted, not set to undefined: "no step" here means the same absent
     // property a preference saved before this setting existed produces.
     ...(fontScale === undefined ? {} : { fontScale }),

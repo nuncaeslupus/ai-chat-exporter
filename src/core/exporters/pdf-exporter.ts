@@ -181,7 +181,7 @@ export class PdfExporter extends BaseExporter {
     y += lineHeight * 2.5;
 
     // Metadata
-    if (options.includeMetadata) {
+    if (options.showMetaInfo) {
       doc.setFontSize(this.sizes.meta);
       doc.setFont(FONT_FAMILY.body.pdf, 'normal');
       doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
@@ -234,7 +234,7 @@ export class PdfExporter extends BaseExporter {
     // Get assistant name and color based on platform
     const assistantInfo = this.getAssistantInfo(conversation.platform);
 
-    const daySeparator = this.daySeparator(options.includeTimestamps);
+    const daySeparator = this.daySeparator(options.showMetaInfo);
     const pageCentre = pageWidth / 2;
     const renderDaySeparator = (date: Date | undefined, currentY: number): number => {
       const separator = daySeparator(date);
@@ -259,7 +259,7 @@ export class PdfExporter extends BaseExporter {
       // User message (blue)
       y = this.renderMessage(
         doc,
-        `${this.getRoleName('user')}${this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps)}`,
+        `${this.getRoleName('user')}${this.formatTimestampSuffix(pair.question.timestamp, options.showMetaInfo)}`,
         pair.question.blocks,
         y,
         margins,
@@ -277,7 +277,7 @@ export class PdfExporter extends BaseExporter {
       // Assistant message (platform-specific color and name)
       y = this.renderMessage(
         doc,
-        `${assistantInfo.name}${this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps)}`,
+        `${assistantInfo.name}${this.formatTimestampSuffix(pair.answer.timestamp, options.showMetaInfo)}`,
         pair.answer.blocks,
         y,
         margins,

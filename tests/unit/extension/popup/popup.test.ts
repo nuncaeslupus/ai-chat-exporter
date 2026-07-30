@@ -70,8 +70,7 @@ const POPUP_DOM = `
     <select id="format-select" disabled><option value="md">Markdown</option></select>
     <button id="export-button" disabled></button>
     <button id="print-button" disabled></button>
-    <input type="checkbox" id="option-include-metadata" />
-    <input type="checkbox" id="option-include-timestamps" />
+    <input type="checkbox" id="option-show-meta-info" />
     <fieldset class="option-row option-row--choice">
       <legend data-i18n="optionFontScale">Text size</legend>
       <label><input type="radio" name="option-font-scale" value="compact" /></label>
@@ -216,44 +215,26 @@ describe('popup export options', () => {
 
   it('reflects the persisted metadata/timestamp preferences in the toggles on load', async () => {
     await chrome.storage.sync.set({
-      user_preferences: { includeMetadata: false, includeTimestamps: false },
+      user_preferences: { showMetaInfo: false },
     });
 
     await loadPopup();
 
-    expect((document.getElementById('option-include-metadata') as HTMLInputElement).checked).toBe(
-      false
-    );
-    expect((document.getElementById('option-include-timestamps') as HTMLInputElement).checked).toBe(
+    expect((document.getElementById('option-show-meta-info') as HTMLInputElement).checked).toBe(
       false
     );
   });
 
-  it('persists a metadata toggle change to storage', async () => {
+  it('persists the meta-info toggle change to storage', async () => {
     await loadPopup();
 
-    const toggle = document.getElementById('option-include-metadata') as HTMLInputElement;
+    const toggle = document.getElementById('option-show-meta-info') as HTMLInputElement;
     toggle.checked = false;
     toggle.dispatchEvent(new Event('change'));
 
     await vi.waitFor(async () => {
       const stored = await chrome.storage.sync.get('user_preferences');
-      expect((stored.user_preferences as { includeMetadata: boolean }).includeMetadata).toBe(false);
-    });
-  });
-
-  it('persists a timestamps toggle change to storage', async () => {
-    await loadPopup();
-
-    const toggle = document.getElementById('option-include-timestamps') as HTMLInputElement;
-    toggle.checked = false;
-    toggle.dispatchEvent(new Event('change'));
-
-    await vi.waitFor(async () => {
-      const stored = await chrome.storage.sync.get('user_preferences');
-      expect((stored.user_preferences as { includeTimestamps: boolean }).includeTimestamps).toBe(
-        false
-      );
+      expect((stored.user_preferences as { showMetaInfo: boolean }).showMetaInfo).toBe(false);
     });
   });
 
@@ -285,12 +266,12 @@ describe('popup export options', () => {
 });
 
 describe('popup export options accessibility', () => {
-  it('associates the metadata and timestamps toggles with real labels', () => {
+  it('associates the meta-info toggle with a real label', () => {
     const html = readFileSync(
       resolve(__dirname, '../../../../src/extension/popup/popup.html'),
       'utf-8'
     );
-    for (const id of ['option-include-metadata', 'option-include-timestamps']) {
+    for (const id of ['option-show-meta-info']) {
       const labelTag = new RegExp(`<label[^>]*for="${id}"[^>]*>`).exec(html)?.[0];
       expect(labelTag).toBeDefined();
       const inputTag = new RegExp(`<input[^>]*id="${id}"[^>]*>`).exec(html)?.[0];

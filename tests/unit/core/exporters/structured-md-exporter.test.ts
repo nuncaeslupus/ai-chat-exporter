@@ -40,30 +40,32 @@ function buildConversation(pair: QAPair): Conversation {
 }
 
 describe('StructuredMarkdownExporter timestamps', () => {
-  it('renders a per-message timestamp when includeTimestamps is on', async () => {
+  it('renders a per-message timestamp when showMetaInfo is on', async () => {
     const pair = buildPair(true);
     const conversation = buildConversation(pair);
     const result = await new StructuredMarkdownExporter().export(conversation, [pair], {
       format: 'md',
       filename: 'test',
-      includeMetadata: false,
-      includeTimestamps: true,
+      showMetaInfo: true,
     });
     const text = await blobToText(result.blob!);
     // R-4: hours and minutes after a middot, not a parenthesised HH:MM:SS.
     expect(text).toContain('· 12:00');
-    // The day is announced once by a day separator, not repeated per message.
-    expect(text).not.toContain('2025-01-01 12:00:00');
+    // The date belongs to the header (which showMetaInfo also turns on) and to
+    // the day separator — never to a per-message stamp. Assert on the role label
+    // lines, since the document now legitimately carries a full export date too.
+    const roleLines = text.split('\n').filter((l) => /^\*\*\w+\*\*/.test(l));
+    expect(roleLines.length).toBeGreaterThan(0);
+    expect(roleLines.every((l) => !l.includes('2025-01-01'))).toBe(true);
   });
 
-  it('omits the timestamp when includeTimestamps is off', async () => {
+  it('omits the timestamp when showMetaInfo is off', async () => {
     const pair = buildPair(true);
     const conversation = buildConversation(pair);
     const result = await new StructuredMarkdownExporter().export(conversation, [pair], {
       format: 'md',
       filename: 'test',
-      includeMetadata: false,
-      includeTimestamps: false,
+      showMetaInfo: false,
     });
     const text = await blobToText(result.blob!);
     expect(text).not.toContain('12:00:00');
@@ -75,8 +77,7 @@ describe('StructuredMarkdownExporter timestamps', () => {
     const result = await new StructuredMarkdownExporter().export(conversation, [pair], {
       format: 'md',
       filename: 'test',
-      includeMetadata: false,
-      includeTimestamps: true,
+      showMetaInfo: true,
     });
     const text = await blobToText(result.blob!);
     expect(text).not.toContain('undefined');
@@ -107,13 +108,12 @@ describe('R-4: Markdown composition', () => {
       },
     }) as unknown as QAPair;
 
-  async function render(pair: QAPair, includeTimestamps = true): Promise<string> {
+  async function render(pair: QAPair, showMetaInfo = true): Promise<string> {
     const conversation = buildConversation(pair);
     const result = await new StructuredMarkdownExporter().export(conversation, [pair], {
       format: 'md',
       filename: 'test',
-      includeMetadata: true,
-      includeTimestamps,
+      showMetaInfo,
     });
     return blobToText(result.blob!);
   }
@@ -176,8 +176,7 @@ describe('R-4: the question quote is a closed block', () => {
     const result = await new StructuredMarkdownExporter().export(buildConversation(pair), [pair], {
       format: 'md',
       filename: 't',
-      includeMetadata: false,
-      includeTimestamps: false,
+      showMetaInfo: false,
     });
     const text = await blobToText(result.blob!);
 

@@ -74,10 +74,8 @@ export const DEFAULT_FILENAME_TEMPLATE = '{platform}_{title}_{datetime}';
  * Print options
  */
 export interface PrintOptions {
-  /** Whether to include metadata header */
-  includeMetadata: boolean;
-  /** Whether to include timestamps */
-  includeTimestamps: boolean;
+  /** Whether to include meta-information: header block and per-message times. */
+  showMetaInfo: boolean;
   /** Paper size */
   paperSize: 'a4' | 'letter' | 'legal';
   /** Orientation */
@@ -88,8 +86,7 @@ export interface PrintOptions {
  * Default print options
  */
 export const DEFAULT_PRINT_OPTIONS: PrintOptions = {
-  includeMetadata: true,
-  includeTimestamps: false,
+  showMetaInfo: true,
   paperSize: 'a4',
   orientation: 'portrait',
 };

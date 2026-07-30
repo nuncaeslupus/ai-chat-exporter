@@ -92,7 +92,7 @@ export class JsonExporter extends BaseExporter {
     pairs: QAPair[],
     options: ExportOptions
   ): string {
-    const meta = options.includeMetadata;
+    const meta = options.showMetaInfo;
     const bounds = meta ? this.dateBounds(pairs) : null;
 
     /**
@@ -174,7 +174,7 @@ export class JsonExporter extends BaseExporter {
       jsonPair.answer.metadata = pair.answer.metadata;
     }
 
-    if (options.includeTimestamps) {
+    if (options.showMetaInfo) {
       if (pair.question.timestamp) {
         jsonPair.question.timestamp = this.toIsoWithOffset(pair.question.timestamp);
       }

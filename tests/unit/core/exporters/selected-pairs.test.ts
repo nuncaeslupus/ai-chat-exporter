@@ -26,8 +26,7 @@ describe('every registered exporter honours selectedPairs', () => {
 
   const baseOptions = {
     filename: 'test',
-    includeMetadata: true,
-    includeTimestamps: false,
+    showMetaInfo: true,
   };
 
   for (const [format, factory] of exporterRegistry) {

@@ -62,8 +62,7 @@ const conversation: Conversation = {
 const options: ExportOptions = {
   format: 'md',
   filename: 'test',
-  includeMetadata: false,
-  includeTimestamps: false,
+  showMetaInfo: false,
 };
 
 function countOccurrences(haystack: string, needle: string): number {

@@ -181,8 +181,7 @@ const conversation: Conversation = {
 const options: ExportOptions = {
   format: 'md',
   filename: 'test',
-  includeMetadata: false,
-  includeTimestamps: false,
+  showMetaInfo: false,
 };
 
 /** Every artifact must contribute both its title and its body to the output. */
