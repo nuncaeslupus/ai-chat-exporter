@@ -334,7 +334,10 @@ describe('day separators mark each day change in every format', () => {
 
   it('the per-message stamp keeps the time and drops the date', async () => {
     const text = await renderText('md', twoDay, separatorOptions);
-    expect(text).toContain('(09:15:00)');
+    // R-4 renders md's per-message time as `· HH:MM` after the bold role label.
+    // The point of the assertion is unchanged: the time survives, the date does
+    // not — the day is announced once by a separator.
+    expect(text).toContain('· 09:15');
     expect(text).not.toContain('2025-01-01 09:15:00');
   });
 
