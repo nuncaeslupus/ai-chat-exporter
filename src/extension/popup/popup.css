@@ -1463,6 +1463,7 @@ section {
 .qa-selection-list,
 .options-list,
 .filename-body,
+.drift-report-preview,
 .drift-report-body {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
@@ -1473,8 +1474,14 @@ section {
 .qa-selection-list::-webkit-scrollbar,
 .options-list::-webkit-scrollbar,
 .filename-body::-webkit-scrollbar,
-.drift-report-body::-webkit-scrollbar {
+.drift-report-body::-webkit-scrollbar,
+.drift-report-preview::-webkit-scrollbar {
   width: 6px;
+  /* Only `.drift-report-preview` scrolls horizontally too (it's the <pre> of
+     long skeleton lines); `height` sets that scrollbar's thickness the way
+     `width` sets the vertical one. Harmless on the other six -- they have no
+     horizontal scrollbar for it to apply to. */
+  height: 6px;
 }
 
 .view-scroll::-webkit-scrollbar-track,
@@ -1482,7 +1489,8 @@ section {
 .qa-selection-list::-webkit-scrollbar-track,
 .options-list::-webkit-scrollbar-track,
 .filename-body::-webkit-scrollbar-track,
-.drift-report-body::-webkit-scrollbar-track {
+.drift-report-body::-webkit-scrollbar-track,
+.drift-report-preview::-webkit-scrollbar-track {
   background: transparent;
 }
 
@@ -1491,7 +1499,8 @@ section {
 .qa-selection-list::-webkit-scrollbar-thumb,
 .options-list::-webkit-scrollbar-thumb,
 .filename-body::-webkit-scrollbar-thumb,
-.drift-report-body::-webkit-scrollbar-thumb {
+.drift-report-body::-webkit-scrollbar-thumb,
+.drift-report-preview::-webkit-scrollbar-thumb {
   background: var(--color-border);
   border-radius: 3px;
 }
@@ -1501,7 +1510,8 @@ section {
 .qa-selection-list::-webkit-scrollbar-thumb:hover,
 .options-list::-webkit-scrollbar-thumb:hover,
 .filename-body::-webkit-scrollbar-thumb:hover,
-.drift-report-body::-webkit-scrollbar-thumb:hover {
+.drift-report-body::-webkit-scrollbar-thumb:hover,
+.drift-report-preview::-webkit-scrollbar-thumb:hover {
   background: var(--color-border-strong);
 }
 
