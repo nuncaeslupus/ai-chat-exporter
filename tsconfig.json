@@ -17,13 +17,12 @@
     "exactOptionalPropertyTypes": true,
     "noImplicitReturns": true,
     "noUncheckedIndexedAccess": true,
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@core/*": ["src/core/*"],
-      "@ui/*": ["src/ui/*"],
-      "@extension/*": ["src/extension/*"],
-      "@shared/*": ["src/shared/*"]
+      "@/*": ["./src/*"],
+      "@core/*": ["./src/core/*"],
+      "@ui/*": ["./src/ui/*"],
+      "@extension/*": ["./src/extension/*"],
+      "@shared/*": ["./src/shared/*"]
     },
     "types": ["chrome", "node"]
   },
