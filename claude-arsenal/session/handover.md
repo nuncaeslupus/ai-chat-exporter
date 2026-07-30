@@ -2,142 +2,118 @@
 
 <!-- Written at session end. A new session reading this file can resume without additional context. -->
 
-Written 2026-07-29, end of the selector-drift session (continues the overnight
-session of 2026-07-28/29).
+Written 2026-07-30, end of the **exporters redesign** session.
 
 ## State
 
-**Queue: 128 merged / 2 open / 0 in progress / 2 blocked.** `queue_doctor`
-clean (131 tasks, 0 findings). `main` is green: lint, `format:check`, typecheck,
-**1062 tests**, both builds OK.
+`main` is green on CI. Locally: lint, `format:check`, typecheck and
+`pnpm test:run` (**1170 tests**) all pass; both builds OK.
 
-**Both open tasks need the human.** There is no agent-dispatchable work left.
+⚠️ **`pnpm validate` exits 1 locally on a clean `main`** with every test passing.
+It is an unhandled `[vitest-worker]: Timeout calling "onTaskUpdate"` during the
+*coverage* run — `test:run` is clean, coverage is 86.56% against a 40% floor, and
+CI does not hit it. Seeded as **D-25 (`lo-6fbb`)**. Do not treat a red local
+`validate` as a real failure without reading the log first.
 
-## Shipped this session — 14 PRs, all merged
+## Shipped this session — 17 PRs, all merged
+
+The **exporters redesign is complete**: all six formats now share one type
+system, taken from `Formatos de Exportación.dc.html` (direction 1a).
 
 | PR | What |
 | --- | --- |
-| #141 | D-18: per-message timestamps are no longer fabricated; local time, not UTC |
-| #142 | popup stopped conflating "unsupported page" with "parse found nothing" |
-| #143 | SD-1: drift types, fingerprint, selector health, output sanity |
-| #144 | D-19: a zero-pair parse no longer paints a normal ready screen |
-| #145 | SD-2: leak-proof DOM skeleton builder |
-| #146 | SD-6: drift suppression store |
-| #147 | SD-3: `ParseResult.drift` — drift detection on the live parse path |
-| #148 | SD-4: report formatting (the one string that is previewed AND copied) |
-| #149 | SD-5: `GET_DRIFT_SKELETON` — content-script plumbing |
-| #150 | pagination test flake that had refused a legitimate release |
-| #151 | SD-8: report view + amber drift row + 7 locale keys |
-| #152 | SD-9: copy / copy-and-report / suppression behaviour + 3 locale keys |
-| #153 | ChatGPT Deep Research read out of its sandboxed cross-origin iframe |
-| #154 | D-20: stop sweeping every selector on every parse |
+| #155 | spec + Phase 0 plan |
+| #156 | Claude per-message `created_at` → `Message.timestamp` |
+| #158, #162, #165, #172, #179 | queue seeds (R-0…R-9, D-22/23/24/25) |
+| #160 | **R-1** shared type system — role label demoted from heading to label |
+| #163 | **R-4** Markdown — bold role label, quoted question, native images |
+| #164 | **R-7** JSON — schemaVersion 2, declared key order, offset timestamps |
+| #166 | **R-5** plain text — 72 columns, three underline levels, ASCII tables |
+| #168 | **R-6** HTML — turn fill moved to the question, brand rule, rule-only tables |
+| #170 | **R-8/R-9** five-token highlighting at export time; contrast gate |
+| #171 | prose artifacts render as prose in HTML (author-reported) |
+| #173 | **R-3** DOCX — real page size, Calibri/Consolas, page-number field |
+| #174 | **R-2** PDF page chrome — margins, R2 brand rule, footer |
+| #175 | code tokens retuned so greyscale printing works (0.0024 → 0.0243) |
+| #176 | **D-23** citation whitespace no longer leaks into prose |
+| #177 | **R-2b** Source Sans 3 + IBM Plex Mono embedded in the PDF |
+| #178 | **R-0** `includeMetadata` + `includeTimestamps` → one `showMetaInfo` |
 
-The **selector-drift safety net is complete**. Design:
-`docs/superpowers/specs/2026-07-29-selector-drift-safety-net-design.md`.
-Plans: `docs/superpowers/plans/2026-07-29-selector-drift-{detection-core,popup-surfaces}.md`.
+## Open tasks — all author feedback from 2026-07-30, none started
 
-## Verified, not assumed
+| ID | What | Notes |
+| --- | --- | --- |
+| `lo-cfc2` | **A-1** prose artifacts in pdf/docx; markdown *code* must stay code | has a real bug — see below |
+| `lo-a948` | **P-1** more horizontal padding in the popup | widening `--popup-width` past 420px is explicitly allowed |
+| `lo-737a` | **P-2** chevrons too close to the right edge | do with P-1; same rhythm |
+| `lo-4d34` | **P-3** integrated slim scrollbar | all scroll areas, not just the format menu |
+| `lo-f061` | **P-4** settings gear: theme + About | theme preference **does not exist yet** — dark mode is `prefers-color-scheme` only |
+| `lo-b02a` | **R-2b** remainder: PDF question turn fill, table rules, code-language tab | fill needs a measure pass; jsPDF has no z-order |
+| `lo-6fbb` | **D-25** `test:coverage` exits 1 with all tests passing | environment-sensitive; CI unaffected |
 
-- **The leak property test is not vacuous.** Mutation-tested twice in a
-  throwaway worktree: inverting the attribute safelist, and emitting raw text
-  nodes instead of `text(N)`. Both mutations fail the test. This is the basis
-  for telling users nothing but structure is shared — re-run that check if
-  `skeleton.ts` is ever refactored.
-- **The drift perf cost was measured, not estimated.** `chatgpt.test.ts` in
-  isolation: 168 ms/test pre-drift → 224 ms/test after #147 → 188 ms/test after
-  #154. The residual ~12% is the feature's intended cost (required-key check,
-  turn count, sanity rules on every parse).
+**A-1 is the one with a real bug in it.** Three exporters share the predicate
+`artifact.type === 'document' || artifact.language === 'markdown'`
+(`html-exporter.ts:275`, `structured-md-exporter.ts:160`, `docx-exporter.ts:515`).
+The second clause is wrong: a *code* artifact that happens to be markdown is
+source and must stay a code block; only `type === 'document'` is prose.
+Separately, **pdf never renders prose at all** and **docx's branch is a stub**
+that dumps raw markdown as one unstyled paragraph.
 
-## Needs the human
+## Answered already — do not re-do
 
-| Task | Needs |
-| --- | --- |
-| `lo-766f` (p7) port the harness fixes upstream | **only the marketplace repo URL** — patch is prepared |
-| `lo-7422` (p4) release v1.2.0 | **held by decision** until the exporters redesign lands |
-| `lo-4143` (blocked) | **retired**, absorbed into #151/#152. No action. |
-| `lo-fc5f` (blocked, p2) Google Drive | reframed as a backup tool; needs design |
+The author asked "about Options, I thought we just joined Header and Time as Meta
+info". **That landed in #178.** The Options submenu on `main` now has exactly
+three rows: `optionShowMetaInfo`, `optionFontScale`, `optionsFilenameRow`. If a
+build still shows two checkboxes, it is stale.
 
-**`lo-766f` is no longer urgent.** The silent-revert risk is closed: the fixed
-`gate_run.sh`, `release.sh` and the `worker.md` payload note are all byte-identical
-to the vendored assets in `.claude/skills/init/assets/`, so `/init` will not revert
-them. The two harness tests are not vendored at all, so there is nothing to revert
-there either. What remains is the upstream contribution, and the **only** missing
-input is the repo URL — not discoverable locally (`~/.claude/plugins/config.json`
-is `{"repositories": {}}`, the plugin cache is not a git repo and is stale to
-June 2). See the payload for the prepared patch set.
+## Two trades made deliberately — revisit only with the author
 
-**`lo-7422` is held by choice, not blocked technically.** All six deps are merged.
-Waiting avoids shipping a build the redesign supersedes, and avoids stacking a
-third store submission on two pending re-reviews (`scripting` from #116,
-`*.web-sandbox.oaiusercontent.com` from #153). `CHANGELOG.md` already carries the
-curated `[1.2.0] — unreleased` entry. **There are no git tags in this repo at
-all**, so tagging is part of that task.
+1. **#177 reduced PDF *integration* coverage.** Byte-searching a PDF stops
+   working once fonts are embedded (glyph ids, not literal text), and decoding
+   needs each font's bfchar table resolved through the page resource dict. The
+   integration suite now asserts the PDF is *searchable* (`/FontFile2` +
+   `/ToUnicode`); per-string content is covered by the mocked unit tests.
+2. **#173 kept Word's `Heading N`** instead of the design's custom
+   `ChatTitle`/`ChatBody` styles. Word's Navigation Pane, generated TOCs and
+   screen-reader semantics all key off the built-ins; the formatting is fully
+   declared instead, which fixes the stated "looks different on every machine"
+   problem without losing navigation.
 
-## Quota is now observable — the loop can stop itself
+## Corrections to the design doc, already applied in the spec
 
-It previously could not. The **global** `~/.claude/settings.json` statusLine wins
-over this project's, so `statusline_capture.sh` never ran and
-`claude-arsenal/session/rate_limits.json` was never written —
-`budget_check.sh` failed open on every single round all session.
+- The design's claim that the five code tokens stay distinguishable in greyscale
+  was **false** (`function` vs `number` differed by 0.0024 luminance). Retuned.
+- `CODE_TOKEN_COLOR.comment` as specified (`#8D9598`) failed WCAG AA on its own
+  specified code background (2.64:1). Darkened.
+- The design's `#6B7378` label ink on its own `#F6F7F6` turn fill measured
+  4.496:1 — under AA by 0.004. Darkened ~1%.
+- `lo-c03f` ("content script is 2.24 MB") was stale; the split landed in
+  `7dc276a`. Eager bundle is ~59 KB against a 300 KB build gate.
 
-Fixed with the owner's permission: `~/.claude/statusline-command.sh` now tees its
-stdin into the project's capture when one exists (backup:
-`~/.claude/statusline-command.sh.bak-20260729`). Verified end to end — the status
-line renders identically, the quota file is written, and `budget_check.sh` exits
-`0` under quota and `3` at 92% with the reset time. **Trust `budget_check.sh`
-again; it is no longer vacuous.**
+## Things that bit me, so they do not bite you
 
-## Verified in a browser this session
+- **`pnpm validate` ≠ the CI gate, historically.** It omitted `format:check`
+  (D-24, fixed) and now includes `build`. Check gates by **exit code**, not by
+  grepping output.
+- **pnpm pre-hooks bind to the exact script name.** `pretest` does *not* fire for
+  `test:run` or `test:coverage`. PDF font generation is now an explicit first
+  step of `validate`, plus `postinstall` and `prebuild`.
+- **A missing method on a jsPDF mock throws inside `export()`**, is swallowed
+  into an error result, and surfaces as unrelated assertion failures elsewhere.
+  Bit me twice: `getTextWidth`, then `addFileToVFS`/`addFont`.
+- **Single-file `pnpm test:run` passes while `typecheck` fails** — vitest
+  transpiles without typechecking.
+- **`src/core/exporters/pdf-fonts.generated.ts` is generated and gitignored.**
+  If an import of it looks unresolved, run `pnpm generate:pdf-fonts`.
+- **Every real defect this session came from rendering an actual export**, never
+  from the suite: a duplicated HTML outline level, a Markdown lazy-continuation
+  bug that would have pulled the assistant's label inside the user's question, an
+  over-long SVG line, and the author's own artifact report. Render and read
+  before believing green tests.
 
-The drift UI was checked by rendering the real built popup, not just unit tests:
+## Suggested first move
 
-- Amber row: no clipping, no horizontal overflow, contrast **12.1:1** dark /
-  **7.39:1** light (needs 4.5), border 7.47 / 3.42 (needs 3).
-- Report view: monospace, `white-space: pre`, long skeleton lines scroll **inside
-  the `<pre>`** while the popup body never scrolls horizontally; footer reachable.
-- **Found and fixed a real defect**: `.drift-report-secondary` ("Copy report") had
-  **no CSS rule at all** — an omission in the plan — so it rendered as a default
-  browser button, 19px tall beside the 34px primary. Now matches the popup's
-  text-button idiom and shares the primary's baseline.
-- Six drift contrast pairs added to `tests/unit/accessibility/contrast.test.ts`;
-  the surfaces had been passing only by inheriting the warning tokens, ungated.
-
-**Still needs a human on a live page:** whether #153's frame script actually
-attaches inside the real sandbox iframe, and whether that frame's text is fully
-rendered or virtualized. It degrades to `lo-f132`'s honest placeholder if not, so
-a failure is safe but **silent**.
-
-## A parallel session is live: the exporters redesign
-
-An **exporters-redesign session is in progress** and owns that work. It is
-correctly isolated in its own worktree, `.claude/worktrees/exporters-redesign-spec`
-(branch `worktree-exporters-redesign-spec`), and has committed:
-
-- `2bd6456` — `docs/superpowers/specs/2026-07-29-exporters-redesign-design.md`
-  (292 lines, direction 1a)
-- `docs/superpowers/plans/2026-07-29-exporters-redesign-phase-0.md`
-
-**Do not touch that worktree or seed queue tasks from that spec** — the session
-owns both. It briefly had the spec untracked in the *main* tree, which this
-session flagged as at-risk; it has since moved it into isolation, so the main
-tree is clean and the loop's precondition holds again.
-
-Its phase-0 plan overlaps this session's work in two places worth knowing:
-`lo-c03f` (lazy-load exporters) is a sequencing prerequisite it names, and its
-"timestamps vs. meta" decision builds directly on PR #141, which stopped
-per-message timestamps being fabricated.
-
-## Process lessons worth keeping
-
-- **`release.sh done` re-runs the gate in the orchestrator's MAIN tree**, not on
-  the PR branch. Any task that creates new test files therefore fails the gate
-  until its PR is merged ("No test files found"). Correct order: merge, then
-  record `done`. The guard is right to refuse; it just cannot tell
-  "unsatisfiable yet" from "failed".
-- **Payload gates must include `pnpm format:check`.** CI enforces it; two PRs
-  passed every local gate and failed CI on prettier alone.
-- **`cd` to the repo root before every arsenal script.** The Bash tool's working
-  directory persists between calls, and running `worker_postcheck.sh` from a
-  stale cwd inside a finished worker's worktree restores *that* worktree.
-- **A locale-only task cannot pass** `tests/unit/extension/locales.test.ts` — it
-  fails on any declared key nothing references. Keys land with their consumers.
+`lo-cfc2` (A-1) — the only open task with a genuine correctness bug, reported by
+the author directly, and the fix is one shared predicate plus two exporters. The
+four popup tasks are a coherent second batch; **P-1 and P-2 must be done
+together**, since both retune the same horizontal rhythm.
