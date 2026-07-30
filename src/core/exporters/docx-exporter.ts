@@ -36,8 +36,16 @@ import type {
   TableBlock,
 } from '../types';
 import { BaseExporter } from './base-exporter';
+import {
+  highlightCode,
+  loadHighlighter,
+  tokenLines,
+  type CodeToken,
+  type Highlighter,
+} from './code-highlight';
 import { ConversationStructureService } from '../services';
 import {
+  CODE_TOKEN_COLOR,
   COLOR,
   DOCX_FONT_SIZE_PT,
   DOC_HEADING_LEVEL,
@@ -90,6 +98,19 @@ export class DocxExporter extends BaseExporter {
   private sizes = scaleFontSizes(FONT_SIZE_PT);
   private docxSizes = scaleFontSizes(DOCX_FONT_SIZE_PT);
 
+  /** Loaded once per export; null degrades to uncoloured code (R-8). */
+  private highlighter: Highlighter | null = null;
+
+  /**
+   * The DOM document used to parse hljs output into tokens.
+   *
+   * Typed via `typeof globalThis.document`, not `Document`: the `docx` library
+   * exports its own `Document` class, which shadows the DOM type in this module.
+   */
+  private get domDocument(): typeof globalThis.document | undefined {
+    return typeof globalThis.document === 'undefined' ? undefined : globalThis.document;
+  }
+
   /**
    * Export selected Q&A pairs to DOCX
    */
@@ -101,6 +122,7 @@ export class DocxExporter extends BaseExporter {
     try {
       this.sizes = scaleFontSizes(FONT_SIZE_PT, options.fontScale);
       this.docxSizes = scaleFontSizes(DOCX_FONT_SIZE_PT, options.fontScale);
+      this.highlighter = await loadHighlighter();
 
       // Convert to structured format (only the selected pairs)
       const structured = ConversationStructureService.toStructured({
@@ -616,21 +638,33 @@ export class DocxExporter extends BaseExporter {
       );
     }
 
-    // Code block — one TextRun per line, with an explicit break before all
-    // but the first, since a literal '\n' inside a run is not a line break
-    // in OOXML and Word collapses it.
-    const lines = code.split('\n');
+    // Code block — one TextRun per highlighted token per line (R-8), with an
+    // explicit break before each line but the first, since a literal '\n'
+    // inside a run is not a line break in OOXML and Word collapses it.
+    //
+    // The colour goes on the run itself rather than a character style, so it
+    // survives in any Word without depending on the document's stylesheet.
+    const lines = tokenLines(highlightCode(code, language, this.highlighter, this.domDocument));
+    const runs: TextRun[] = [];
+    lines.forEach((tokens, lineIndex) => {
+      // An empty line still needs a run to carry its break.
+      const lineTokens: CodeToken[] = tokens.length > 0 ? tokens : [{ text: '', cls: null }];
+      lineTokens.forEach((token, tokenIndex) => {
+        runs.push(
+          new TextRun({
+            text: token.text,
+            font: FONT_FAMILY.code.docx,
+            size: ptToHalfPt(this.sizes.code),
+            ...(token.cls && { color: hexToDocxColor(CODE_TOKEN_COLOR[token.cls]) }),
+            break: lineIndex > 0 && tokenIndex === 0 ? 1 : 0,
+          })
+        );
+      });
+    });
+
     paragraphs.push(
       new Paragraph({
-        children: lines.map(
-          (line, i) =>
-            new TextRun({
-              text: line,
-              font: FONT_FAMILY.code.docx,
-              size: ptToHalfPt(this.sizes.code),
-              break: i > 0 ? 1 : 0,
-            })
-        ),
+        children: runs,
         spacing: { before: 50, after: 150 },
         keepLines: true, // a code block reads as one unit — do not fragment it
       })

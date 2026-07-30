@@ -148,9 +148,14 @@ describe('HtmlExporter structural contract', () => {
     expect(html).toContain('<head>');
     expect(html).toContain('<body>');
     expect(html).toContain('</html>');
-    // Standalone: styling and syntax highlighting are inlined, not fetched.
+    // Standalone: styling is inlined, not fetched.
     expect(html).toContain('<style>');
-    expect(html).toContain('<script>');
+    // R-8: highlighting happens at export time, so the file needs no script at
+    // all. It used to ship ~60 lines of regex highlighting that ran on
+    // DOMContentLoaded — code was uncoloured until JS ran, and not at all where
+    // scripts are blocked.
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('.tok-keyword');
   });
 
   it('escapes HTML-significant characters in plain user content', async () => {
@@ -172,49 +177,46 @@ describe('HtmlExporter structural contract', () => {
     expect(html).toContain('&lt;b&gt;Is 1 &lt; 2&lt;/b&gt; &amp; &quot;quoted&quot;?');
   });
 
-  it('embeds highlight.js classes on code blocks, matching the language shared across formats', async () => {
+  it('tags a code block with its language and bakes the token spans in', async () => {
     const { html } = await exportStructured(false);
 
-    expect(html).toContain(
-      '<pre><code class="language-js">function foo() { return 1; }</code></pre>'
-    );
+    // The language still travels on the code element, as every format shares it.
+    expect(html).toContain('<pre><code class="language-js">');
 
-    // The highlighter that runs client-side on open promotes 'hljs' onto the
-    // same code element and tags recognized keywords -- exercise it for real
-    // in a DOM rather than just checking the static markup.
-    const dom = new JSDOM(html, {
-      runScripts: 'dangerously',
-      url: 'https://example.com/export.html',
-    });
-    await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
+    // R-8: no script runs, so parse the static markup — the spans are already
+    // there. The code text must survive verbatim through the tokenizer.
+    const dom = new JSDOM(html, { url: 'https://example.com/export.html' });
     const codeBlock = dom.window.document.querySelector('pre code');
-    expect(codeBlock?.classList.contains('hljs')).toBe(true);
+    expect(codeBlock?.textContent).toBe('function foo() { return 1; }');
+    expect(codeBlock?.querySelectorAll('.tok-keyword').length).toBeGreaterThan(0);
   });
 
-  it('highlights a keyword and a quoted string in the same code block without corrupting markup', async () => {
-    // A code sample with BOTH a keyword and a quoted string: the keyword
-    // pass injects `<span class="hljs-keyword">...</span>` and a later
-    // "strings" pass must not re-match the quoted `"hljs-keyword"` class
-    // attribute value it just wrote.
+  it('highlights a keyword and a quoted string in the same block without corrupting markup', async () => {
+    // The original corruption this guards against: a chained-regex highlighter
+    // wrote `<span class="hljs-keyword">`, then its later "strings" pass
+    // re-matched the quoted class attribute it had just emitted. hljs tokenizes
+    // properly, but the guarantee is worth keeping asserted.
     const dom = await exportAndRun('function foo() { return "hi"; }');
     const codeBlock = dom.window.document.querySelector('pre code');
     expect(codeBlock).not.toBeNull();
 
-    // No <span> markup ever nested inside another element's class attribute
-    // value -- the reported corruption pattern.
+    // No span markup ever ends up inside another element's class attribute.
     for (const el of Array.from(codeBlock!.querySelectorAll('*'))) {
       expect(el.getAttribute('class')).not.toContain('<span');
     }
 
-    const keywordText = Array.from(codeBlock!.querySelectorAll('.hljs-keyword')).map(
+    const keywords = Array.from(codeBlock!.querySelectorAll('.tok-keyword')).map(
       (el) => el.textContent
     );
-    expect(keywordText).toEqual(expect.arrayContaining(['function', 'return']));
+    expect(keywords).toEqual(expect.arrayContaining(['function', 'return']));
 
-    const stringText = Array.from(codeBlock!.querySelectorAll('.hljs-string')).map(
+    const strings = Array.from(codeBlock!.querySelectorAll('.tok-string')).map(
       (el) => el.textContent
     );
-    expect(stringText).toEqual(['"hi"']);
+    expect(strings).toEqual(['"hi"']);
+
+    // And the code still reads exactly as written.
+    expect(codeBlock!.textContent).toBe('function foo() { return "hi"; }');
   });
 
   it('keeps message order, heading level, and code placement consistent', async () => {
@@ -225,7 +227,9 @@ describe('HtmlExporter structural contract', () => {
     expect(idx(conversation.url)).toBeLessThan(idx('plain question')); // metadata before body
     expect(idx('plain question')).toBeLessThan(idx('Section Heading')); // question before answer
     expect(idx('Section Heading')).toBeLessThan(idx('Some text')); // heading before paragraph
-    expect(idx('Some text')).toBeLessThan(idx('function foo() { return 1; }')); // paragraph before code
+    // R-8 splits the code across token spans, so the literal source string is
+    // no longer present verbatim in the markup; anchor on the <pre> instead.
+    expect(idx('Some text')).toBeLessThan(idx('<pre><code class="language-js">'));
     // A content heading of level 2 is shifted down two levels since the
     // document title already occupies <h1>.
     // Source h2 -> document level 3 (R-1: bodyHeadingLevel is source + 1, since

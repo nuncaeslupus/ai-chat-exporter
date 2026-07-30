@@ -20,9 +20,11 @@ import type {
   WebSearchResult,
 } from '../types';
 import { BaseExporter } from './base-exporter';
+import { highlightCode, loadHighlighter, type Highlighter } from './code-highlight';
 import { ConversationStructureService } from '../services';
 import { getMessage, getUILanguage } from '../../shared/i18n';
 import {
+  CODE_TOKEN_COLOR,
   COLOR,
   FONT_FAMILY,
   FONT_SIZE_PT,
@@ -48,6 +50,22 @@ export class HtmlExporter extends BaseExporter {
   private sizes = scaleFontSizes(FONT_SIZE_PT);
   private htmlSizes = scaleFontSizes(HTML_FONT_SIZE_PT);
 
+  /**
+   * Loaded once per export in `export()`, so hljs joins the lazily-loaded
+   * exporter chunk and the rest of the render stays synchronous. Null when it
+   * could not be loaded — code then renders uncoloured rather than not at all.
+   */
+  private highlighter: Highlighter | null = null;
+
+  /**
+   * The document used to parse hljs output into tokens. `globalThis.document`
+   * exists in the content script and under jsdom; guarded so a DOM-less runtime
+   * degrades to plain code instead of throwing.
+   */
+  private get document(): Document | undefined {
+    return typeof globalThis.document === 'undefined' ? undefined : globalThis.document;
+  }
+
   async export(
     conversation: Conversation,
     selectedPairs: QAPair[],
@@ -56,6 +74,7 @@ export class HtmlExporter extends BaseExporter {
     try {
       this.sizes = scaleFontSizes(FONT_SIZE_PT, options.fontScale);
       this.htmlSizes = scaleFontSizes(HTML_FONT_SIZE_PT, options.fontScale);
+      this.highlighter = await loadHighlighter();
 
       // Convert to structured format (only the selected pairs)
       const structured = ConversationStructureService.toStructured({
@@ -89,7 +108,7 @@ export class HtmlExporter extends BaseExporter {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${title}</title>
     ${this.generateCSS()}
-    ${this.generateSyntaxHighlightingScript()}
+    ${this.generateCodeTokenStyles()}
 </head>
 <body>
     <div class="container">
@@ -278,8 +297,7 @@ export class HtmlExporter extends BaseExporter {
 
           case 'code': {
             const language = this.escapeHtml(block.language);
-            const code = this.escapeHtml(block.code);
-            return `<pre><code class="language-${language}">${code}</code></pre>`;
+            return `<pre><code class="language-${language}">${this.renderCodeTokens(block.code, block.language)}</code></pre>`;
           }
 
           case 'list':
@@ -620,9 +638,16 @@ export class HtmlExporter extends BaseExporter {
         .message-content h5 { font-size: ${ptToPx(this.htmlSizes.headingByLevel[4])}px; }
         .message-content h6 { font-size: ${ptToPx(this.htmlSizes.headingByLevel[5])}px; }
 
+        /*
+         * A LIGHT code block (R-8). It was dark (#242A2C) with light text — a
+         * dark slab dropped into an otherwise light document, and inherited from
+         * the GitHub-Dark theme that shipped with the old client-side
+         * highlighter. The five token colours are dark by design, so on the dark
+         * block they measured 2.1-2.5:1 against it: worse than no highlighting.
+         */
         .message-content pre {
-            background: ${COLOR.textStrong};
-            color: ${COLOR.surfaceMuted};
+            background: ${COLOR.surfaceMuted};
+            color: ${COLOR.textBody};
             border-radius: 0.5rem;
             padding: 1rem;
             overflow-x: auto;
@@ -1196,89 +1221,40 @@ export class HtmlExporter extends BaseExporter {
     </style>`;
   }
 
-  private generateSyntaxHighlightingScript(): string {
-    // Inline highlight.js to avoid CDN references (required for Chrome Web Store)
-    // Using a minimal inline implementation for code highlighting
+  /**
+   * The five-token code palette (R-8).
+   *
+   * This replaced ~60 lines of hand-rolled regex highlighting that shipped as an
+   * inline <script> in every exported file. Three problems with that: it needed
+   * JavaScript to run before code was coloured, it carried a GitHub Dark theme
+   * unrelated to the document's own palette, and re-implementing a tokenizer in
+   * a regex is a losing game. Highlighting happens at export time now, so the
+   * markup is already coloured and the file is static.
+   */
+  /**
+   * Highlighted code as escaped markup with five token classes.
+   *
+   * Every token's text is escaped exactly as before — the classes are the only
+   * thing added, so a snippet containing `<script>` still displays as text.
+   */
+  private renderCodeTokens(code: string, language: string | undefined): string {
+    return highlightCode(code, language, this.highlighter, this.document)
+      .map((token) =>
+        token.cls
+          ? `<span class="tok-${token.cls}">${this.escapeHtml(token.text)}</span>`
+          : this.escapeHtml(token.text)
+      )
+      .join('');
+  }
+
+  private generateCodeTokenStyles(): string {
     return `
     <style>
-      /* GitHub Dark theme for code highlighting */
-      pre code.hljs {
-        display: block;
-        overflow-x: auto;
-        padding: 1em;
-        background: #0d1117;
-        color: #c9d1d9;
-      }
-      .hljs-comment { color: #8b949e; }
-      .hljs-keyword, .hljs-selector-tag, .hljs-subst { color: #ff7b72; }
-      .hljs-string, .hljs-doctag { color: #a5d6ff; }
-      .hljs-number, .hljs-literal { color: #79c0ff; }
-      .hljs-function, .hljs-title { color: #d2a8ff; }
-      .hljs-params { color: #c9d1d9; }
-      .hljs-built_in { color: #ffa657; }
-      .hljs-class .hljs-title { color: #f0883e; }
-      .hljs-attribute { color: #79c0ff; }
-      .hljs-variable, .hljs-template-variable { color: #c9d1d9; }
-      .hljs-type { color: #ffa657; }
-      .hljs-selector-class { color: #d2a8ff; }
-      .hljs-selector-id { color: #79c0ff; }
-      .hljs-quote { color: #8b949e; font-style: italic; }
-      .hljs-meta { color: #8b949e; }
-      .hljs-deletion { background: #ffeef0; }
-      .hljs-addition { background: #e6ffec; }
-      .hljs-emphasis { font-style: italic; }
-      .hljs-strong { font-weight: bold; }
-    </style>
-    <script>
-        // Minimal syntax highlighting implementation
-        document.addEventListener('DOMContentLoaded', () => {
-            // Simple highlighting for common patterns
-            document.querySelectorAll('pre code').forEach((block) => {
-                let html = block.textContent;
-                if (!html) return;
-
-                // Re-escape before re-injecting as innerHTML: textContent decoded
-                // any entities the exporter escaped (e.g. code samples containing
-                // "<script>" or "<img onerror=...>" as literal text), so without
-                // this the markup below would execute instead of display as text.
-                html = html
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;');
-
-                // Basic syntax patterns - covers most common cases.
-                // Single pass: a combined regex tokenizes the source left to
-                // right and each match is wrapped as it's found, so a later
-                // token class can never re-match markup an earlier one just
-                // emitted (the old chained .replace() calls had that bug --
-                // the "strings" pass re-matched the quoted class attribute
-                // the "keywords" pass had just written).
-                html = html.replace(
-                    /(\\/\\*[\\s\\S]*?\\*\\/)|(\\/{2,}.*)|("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*'|\`(?:[^\`\\\\]|\\\\.)*\`)|\\b(\\d+\\.?\\d*)\\b|\\b(function|const|let|var|if|else|for|while|return|class|import|export|from|async|await|try|catch|throw|new|this|typeof|instanceof)\\b/g,
-                    (match, blockComment, lineComment, str, number, keyword) => {
-                        // Capture groups are either the matched text or unset -- never an
-                        // empty string, since every alternative requires >=1 character --
-                        // so a plain truthy check picks the right token class.
-                        if (blockComment || lineComment) {
-                            return '<span class="hljs-comment">' + match + '</span>';
-                        }
-                        if (str) {
-                            return '<span class="hljs-string">' + match + '</span>';
-                        }
-                        if (number) {
-                            return '<span class="hljs-number">' + match + '</span>';
-                        }
-                        if (keyword) {
-                            return '<span class="hljs-keyword">' + match + '</span>';
-                        }
-                        return match;
-                    }
-                );
-
-                block.innerHTML = html;
-                block.classList.add('hljs');
-            });
-        });
-    </script>`;
+      .tok-keyword  { color: ${CODE_TOKEN_COLOR.keyword}; }
+      .tok-function { color: ${CODE_TOKEN_COLOR.function}; }
+      .tok-string   { color: ${CODE_TOKEN_COLOR.string}; }
+      .tok-number   { color: ${CODE_TOKEN_COLOR.number}; }
+      .tok-comment  { color: ${CODE_TOKEN_COLOR.comment}; font-style: italic; }
+    </style>`;
   }
 }
