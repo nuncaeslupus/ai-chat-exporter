@@ -20,16 +20,13 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.ts\"",
     "typecheck": "tsc --noEmit",
-    "validate": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test:coverage && pnpm build",
+    "validate": "pnpm generate:pdf-fonts && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test:coverage && pnpm build",
     "package:chrome": "cd dist/chrome && zip -r ../ai-chat-exporter-chrome.zip .",
     "package:firefox": "cd dist/firefox && zip -r ../ai-chat-exporter-firefox.zip .",
     "package:source": "zip -r dist/ai-chat-exporter-source.zip . -x 'node_modules/*' -x 'dist/*' -x '.git/*' -x '*.log' -x '.vscode/*' -x '.idea/*' -x '*.zip' -x 'tmp/*' -x 'coverage/*' -x '.nyc_output/*' -x '.claude/*' -x '.agents/*' -x 'claude-arsenal/*'",
     "package:all": "node build/package-all.cjs",
     "generate:pdf-fonts": "node scripts/generate-pdf-fonts.mjs",
     "prebuild": "pnpm generate:pdf-fonts",
-    "pretest": "pnpm generate:pdf-fonts",
-    "pretypecheck": "pnpm generate:pdf-fonts",
-    "prelint": "pnpm generate:pdf-fonts",
     "postinstall": "pnpm generate:pdf-fonts"
   },
   "keywords": [
