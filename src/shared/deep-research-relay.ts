@@ -21,31 +21,20 @@ export const DEEP_RESEARCH_FRAME_ORIGIN_RE =
 
 const DEEP_RESEARCH_MESSAGE_TYPE = 'ai-chat-exporter:deep-research-report';
 
-/**
- * `html` is sanitized markup (structure intact -- headings, lists, tables);
- * `text` is the flattened fallback used when the HTML path failed or came
- * back too large (see deep-research-frame.ts's `relay()`). Never both --
- * exactly one of the two carries the captured content.
- */
 export interface DeepResearchFrameMessage {
   type: typeof DEEP_RESEARCH_MESSAGE_TYPE;
-  html?: string;
-  text?: string;
+  text: string;
 }
 
-export function createDeepResearchFrameMessage(
-  content: { html: string } | { text: string }
-): DeepResearchFrameMessage {
-  return { type: DEEP_RESEARCH_MESSAGE_TYPE, ...content };
+export function createDeepResearchFrameMessage(text: string): DeepResearchFrameMessage {
+  return { type: DEEP_RESEARCH_MESSAGE_TYPE, text };
 }
 
 export function isDeepResearchFrameMessage(data: unknown): data is DeepResearchFrameMessage {
-  if (typeof data !== 'object' || data === null) {
-    return false;
-  }
-  const candidate = data as { type?: unknown; html?: unknown; text?: unknown };
-  if (candidate.type !== DEEP_RESEARCH_MESSAGE_TYPE) {
-    return false;
-  }
-  return typeof candidate.html === 'string' || typeof candidate.text === 'string';
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    (data as { type?: unknown }).type === DEEP_RESEARCH_MESSAGE_TYPE &&
+    typeof (data as { text?: unknown }).text === 'string'
+  );
 }
