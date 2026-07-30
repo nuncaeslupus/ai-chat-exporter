@@ -275,3 +275,128 @@ describe('every Claude artifact type survives export in all six formats', () => 
     expect(parsed.pairs[0]!.answer.metadata.artifacts).toEqual(ARTIFACTS);
   });
 });
+
+/**
+ * A-1: `language === 'markdown'` alone must never make an artifact prose.
+ *
+ * Only `type: 'document'` is prose (a deep-research report, a written
+ * document) and must be RENDERED -- its `##` heading marker and `-` list
+ * dash consumed by the renderer, with the underlying text reaching the
+ * reader as a real heading / list item. A `type: 'code'` artifact whose
+ * `language` happens to be `'markdown'` (e.g. "show me the raw markdown for
+ * this table") is source and must stay a code block -- its markers surviving
+ * literally in the output.
+ *
+ * txt and json are excluded on purpose (see claude-artifact-types-formats
+ * above): txt has no rendering at all, and json stays lossless.
+ */
+describe('markdown-language code artifact stays code, document artifact renders as prose', () => {
+  const markdownCodeArtifact: Artifact = {
+    type: 'code',
+    typeLabel: 'Code · Markdown',
+    language: 'markdown',
+    title: 'Raw markdown source',
+    content: '## Not a heading\n\n- Not a list item',
+  };
+
+  const proseDocumentArtifact: Artifact = {
+    type: 'document',
+    typeLabel: 'Document · MD',
+    language: 'markdown',
+    title: 'Rendered report',
+    content: '## Report heading\n\n- Report list item',
+  };
+
+  const distinctionPairs: QAPair[] = [
+    {
+      id: 'p2',
+      index: 0,
+      selected: true,
+      question: {
+        id: 'q2',
+        role: 'user',
+        content: 'Show me both kinds of markdown artifact.',
+        timestamp: new Date('2025-01-01T00:00:00Z'),
+      },
+      answer: {
+        id: 'a2',
+        role: 'assistant',
+        content: 'Here they are.',
+        timestamp: new Date('2025-01-01T00:00:01Z'),
+        metadata: { artifacts: [markdownCodeArtifact, proseDocumentArtifact] },
+      },
+    },
+  ] as unknown as QAPair[];
+
+  const distinctionConversation: Conversation = {
+    id: 'c2',
+    title: 'Markdown artifact distinction',
+    platform: 'claude',
+    url: 'https://claude.ai/chat/2',
+    createdAt: new Date('2025-01-01T00:00:00Z'),
+    pairs: distinctionPairs,
+  } as unknown as Conversation;
+
+  /** The code artifact's markdown source must survive literally, unparsed. */
+  function expectCodeArtifactStaysLiteral(rendered: string): void {
+    expect(rendered.includes('## Not a heading')).toBe(true);
+  }
+
+  /** The document artifact must be rendered: markers gone, text remains. */
+  function expectDocumentArtifactIsRendered(rendered: string): void {
+    const text = visibleText(rendered);
+    expect(rendered.includes('## Report heading')).toBe(false);
+    expect(text.includes('## Report heading')).toBe(false);
+    expect(text.includes('Report heading')).toBe(true);
+    expect(text.includes('Report list item')).toBe(true);
+  }
+
+  it('html: code stays code, document is rendered', async () => {
+    const result = await new HtmlExporter().export(distinctionConversation, distinctionPairs, {
+      ...options,
+      format: 'html',
+    });
+    const rendered = await blobToText(result.blob!);
+    expectCodeArtifactStaysLiteral(rendered);
+    expectDocumentArtifactIsRendered(rendered);
+  });
+
+  it('md: code stays code, document passes through as markdown', async () => {
+    const result = await new StructuredMarkdownExporter().export(
+      distinctionConversation,
+      distinctionPairs,
+      { ...options, format: 'md' }
+    );
+    const rendered = await blobToText(result.blob!);
+    expectCodeArtifactStaysLiteral(rendered);
+    // md IS the format the document artifact's markdown is written in, so its
+    // source passes through verbatim too -- that is correct for this format.
+    expect(rendered.includes('## Report heading')).toBe(true);
+  });
+
+  it('docx: code stays code, document is rendered', async () => {
+    const result = await new DocxExporter().export(distinctionConversation, distinctionPairs, {
+      ...options,
+      format: 'docx',
+    });
+    const rendered = await extractDocxEntry(result.blob!, 'word/document.xml');
+    expectCodeArtifactStaysLiteral(rendered);
+    expectDocumentArtifactIsRendered(rendered);
+  });
+
+  it('pdf: code stays code, document is rendered', async () => {
+    instances.length = 0;
+    const result = await new PdfExporter().export(distinctionConversation, distinctionPairs, {
+      ...options,
+      format: 'pdf',
+    });
+    expect(result.success).toBe(true);
+
+    const drawn = instances
+      .flatMap((doc) => doc.calls.filter((c) => c.method === 'text'))
+      .map((c) => String(c.args[0]))
+      .join('\n');
+    expectCodeArtifactStaysLiteral(drawn);
+    expectDocumentArtifactIsRendered(drawn);
+  });
+});
