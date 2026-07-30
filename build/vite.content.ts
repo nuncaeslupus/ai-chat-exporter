@@ -72,11 +72,19 @@ export default mergeConfig(
             // A dynamic import's relative specifier resolves against the *page*
             // origin once the loader has run, so rewrite every one of them to an
             // absolute chrome-extension:// URL.
-            renderDynamicImport() {
-              return {
-                left: 'import(chrome.runtime.getURL("assets/"+',
-                right: '.split("/").pop()))',
-              };
+            //
+            // Rolldown (Vite 8's bundler) has no `renderDynamicImport` hook --
+            // Rollup's version let a plugin wrap the import() call in emitted
+            // code; Rolldown's `resolveDynamicImport` only affects build-time
+            // resolution, and `renderBuiltUrl` only covers asset/public URLs,
+            // not chunk `import()` calls. So this rewrites the already-emitted
+            // text in `renderChunk` -- a textual post-pass, not a native hook.
+            renderChunk(code) {
+              return code.replace(
+                /\bimport\((["'])(\.\.?\/[^"']+)\1\)/g,
+                (_match, quote: string, specifier: string) =>
+                  `import(chrome.runtime.getURL("assets/"+${quote}${specifier}${quote}.split("/").pop()))`
+              );
             },
           },
           {

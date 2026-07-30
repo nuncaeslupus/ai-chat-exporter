@@ -64,13 +64,35 @@ function checkLazyUrls(target) {
   let checked = 0;
   for (const source of sources) {
     const code = readFileSync(source, 'utf-8');
+    // Quote-agnostic: Rolldown's minifier (Vite 8) re-quotes these string
+    // literals as backticks, while the untouched loader files and Rollup
+    // (Vite 6) use double quotes -- match any of " ' ` so the check can't
+    // silently under-count regardless of which bundler emitted the code.
     const targets = [
-      ...[...code.matchAll(/getURL\("(assets\/[^"]+)"\)/g)].map((m) => m[1]),
-      ...[...code.matchAll(/getURL\("assets\/"\+"\.\/([^"]+)"/g)].map((m) => `assets/${m[1]}`),
+      ...[...code.matchAll(/getURL\((["'`])(assets\/[^"'`]+)\1\)/g)].map((m) => m[2]),
+      ...[...code.matchAll(/getURL\((["'`])assets\/\1\+(["'`])\.\/([^"'`]+)\2/g)].map(
+        (m) => `assets/${m[3]}`
+      ),
     ];
     for (const resource of targets) {
       checked += 1;
       if (!existsSync(join(dir, resource))) missing.push(`${source} -> ${resource}`);
+    }
+
+    // The `getURL(...)` matches above only validate rewrites that *happened* --
+    // if the build's dynamic-import rewrite plugin/hook silently stops running
+    // (e.g. a bundler upgrade drops the hook it relied on), every chunk's
+    // dynamic import reverts to a raw relative specifier, which resolves
+    // against the *page* origin instead of the extension's and 404s at
+    // runtime. That regresses `targets` to near-zero, but zero broken URLs
+    // still means zero `missing`, so the loop above would pass silently. Catch
+    // it directly: any un-rewritten `import("./chunk-x.js")`-shaped dynamic
+    // import left in the output is itself the failure.
+    const unrewritten = [...code.matchAll(/\bimport\((["'`])\.\.?\/[^"'`]+\1\)/g)];
+    if (unrewritten.length > 0) {
+      missing.push(
+        `${source}: ${unrewritten.length} dynamic import(s) not rewritten to chrome.runtime.getURL(...)`
+      );
     }
   }
   return { checked, missing };
@@ -102,7 +124,9 @@ for (const target of TARGETS) {
       `(limit ${LIMIT_BYTES.toLocaleString()} B, ${files.length} file(s))`
   );
   for (const file of files) {
-    console.log(`     ${statSync(file).size.toString().padStart(9)} B  ${file.slice(ROOT.length + 1)}`);
+    console.log(
+      `     ${statSync(file).size.toString().padStart(9)} B  ${file.slice(ROOT.length + 1)}`
+    );
   }
 
   const { checked, missing } = checkLazyUrls(target);
