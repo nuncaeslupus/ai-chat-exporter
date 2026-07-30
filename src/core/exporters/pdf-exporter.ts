@@ -58,6 +58,12 @@ function splitLines(doc: jsPDF, text: string, width: number): string[] {
 const BLOCK_MIN_LINES = 3;
 
 /**
+ * Padding (mm) around the question's turn-fill rect (R-2b), so the fill reads
+ * as a card around the label + content rather than hugging the glyphs.
+ */
+const QUESTION_FILL_PADDING_MM = { top: 2, bottom: 2, side: 3 };
+
+/**
  * Exports conversations to PDF format
  */
 export class PdfExporter extends BaseExporter {
@@ -311,7 +317,9 @@ export class PdfExporter extends BaseExporter {
 
       y = renderDaySeparator(pair.question.timestamp, y);
 
-      // User message (blue)
+      // User message (blue). isQuestion=true: the design fills the
+      // QUESTION's box (R-6 moved the turn fill off the answer, onto the
+      // question, so the background says who is asking).
       y = this.renderMessage(
         doc,
         `${this.getRoleName('user')}${this.formatTimestampSuffix(pair.question.timestamp, options.showMetaInfo)}`,
@@ -321,7 +329,8 @@ export class PdfExporter extends BaseExporter {
         contentWidth,
         lineHeight,
         pageHeight,
-        hexToRgbTuple(COLOR.link)
+        hexToRgbTuple(COLOR.link),
+        true
       );
 
       // Add spacing between user and assistant
@@ -422,9 +431,92 @@ export class PdfExporter extends BaseExporter {
   }
 
   /**
-   * Render a single message (user or assistant)
+   * Render a single message (user or assistant).
+   *
+   * `isQuestion` fills the message's box with the design's turn fill (R-6
+   * moved it from the answer to the question — the background says who is
+   * asking). pdf's layout is hand-rolled top-to-bottom and jsPDF has no
+   * z-order, so a rect drawn after the label/body would cover them: the box
+   * height is needed BEFORE drawing anything. `measure()` runs
+   * `renderMessageBody` — the exact function that is about to draw for real —
+   * with its drawing calls stubbed, so the fill uses the same y math as the
+   * real render rather than a second, parallel height calculation.
    */
   private renderMessage(
+    doc: jsPDF,
+    role: string,
+    blocks: StructuredContentBlock[],
+    startY: number,
+    margins: { top: number; right: number; bottom: number; left: number },
+    contentWidth: number,
+    lineHeight: number,
+    pageHeight: number,
+    roleColor: [number, number, number],
+    isQuestion = false
+  ): number {
+    // Keep-with-next: the label plus the first lines of its message must fit,
+    // or the label strands at the foot of the page with its content overleaf.
+    // Decided once, for real — a dry-run measurement below reuses this same
+    // startY, so deciding it twice would risk a spurious second page break.
+    const y = this.ensureSpace(
+      doc,
+      startY,
+      lineHeight * (1.2 + Math.max(PAGINATION.keepWithNextLines, BLOCK_MIN_LINES)),
+      margins,
+      pageHeight
+    );
+
+    if (isQuestion) {
+      const measuredEndY = this.measure(doc, () =>
+        this.renderMessageBody(
+          doc,
+          role,
+          blocks,
+          y,
+          margins,
+          contentWidth,
+          lineHeight,
+          pageHeight,
+          roleColor
+        )
+      );
+
+      // A question long enough to page-break mid-render measures an endY
+      // behind its own startY (the dry run "restarted" at margins.top on the
+      // simulated next page) — fall back to filling down to this page's
+      // bottom rather than drawing a negative-height rect.
+      const bottomLimit = pageHeight - margins.bottom;
+      const fillBottom = measuredEndY < y ? bottomLimit : Math.min(measuredEndY, bottomLimit);
+
+      doc.setFillColor(...hexToRgbTuple(COLOR.surfaceTurn));
+      doc.rect(
+        margins.left - QUESTION_FILL_PADDING_MM.side,
+        y - QUESTION_FILL_PADDING_MM.top,
+        contentWidth + QUESTION_FILL_PADDING_MM.side * 2,
+        fillBottom - y + QUESTION_FILL_PADDING_MM.top + QUESTION_FILL_PADDING_MM.bottom,
+        'F'
+      );
+    }
+
+    return this.renderMessageBody(
+      doc,
+      role,
+      blocks,
+      y,
+      margins,
+      contentWidth,
+      lineHeight,
+      pageHeight,
+      roleColor
+    );
+  }
+
+  /**
+   * The label + rule + blocks that make up one message. Split out of
+   * `renderMessage` so it can be run twice: once as a dry-run measurement
+   * (drawing calls stubbed, see `measure()`), once for real.
+   */
+  private renderMessageBody(
     doc: jsPDF,
     role: string,
     blocks: StructuredContentBlock[],
@@ -436,18 +528,6 @@ export class PdfExporter extends BaseExporter {
     roleColor: [number, number, number]
   ): number {
     let y = startY;
-
-    // Keep-with-next: the label plus the first lines of its message must fit,
-    // or the label strands at the foot of the page with its content overleaf.
-    // Only the user label was covered before, by the pair-level check in
-    // renderContent — the assistant label had no check at all.
-    y = this.ensureSpace(
-      doc,
-      y,
-      lineHeight * (1.2 + Math.max(PAGINATION.keepWithNextLines, BLOCK_MIN_LINES)),
-      margins,
-      pageHeight
-    );
 
     // Role label — a label, not a heading (R-1), so its size comes from the
     // shared token table rather than pdf's body-heading ramp.
@@ -471,6 +551,47 @@ export class PdfExporter extends BaseExporter {
     y = this.renderBlocks(doc, blocks, y, margins, contentWidth, lineHeight, pageHeight);
 
     return y;
+  }
+
+  /**
+   * Run `fn` with the document's drawing primitives (anything that leaves
+   * visible ink or turns a page) replaced by no-ops, so a render function
+   * that returns the advanced `y` doubles as a dry-run height measurement.
+   * State-setting calls (setFont, setFontSize, ...) are left alone — they
+   * don't draw, and the real render right after needs correct wrap metrics.
+   *
+   * This is the mechanism the question turn-fill (R-2b) uses to size its
+   * rect before drawing it: no second, parallel measurement path, just the
+   * real renderer run once silently and once for real.
+   */
+  private measure(doc: jsPDF, fn: () => number): number {
+    const stub = (() => doc) as unknown as jsPDF['text'] &
+      jsPDF['line'] &
+      jsPDF['rect'] &
+      jsPDF['roundedRect'] &
+      jsPDF['addImage'] &
+      jsPDF['addPage'];
+    const original = {
+      text: doc.text.bind(doc),
+      line: doc.line.bind(doc),
+      rect: doc.rect.bind(doc),
+      roundedRect: doc.roundedRect.bind(doc),
+      addImage: doc.addImage.bind(doc),
+      addPage: doc.addPage.bind(doc),
+    };
+    Object.assign(doc, {
+      text: stub,
+      line: stub,
+      rect: stub,
+      roundedRect: stub,
+      addImage: stub,
+      addPage: stub,
+    });
+    try {
+      return fn();
+    } finally {
+      Object.assign(doc, original);
+    }
   }
 
   /**
@@ -940,6 +1061,26 @@ export class PdfExporter extends BaseExporter {
   }
 
   /**
+   * Draw a horizontal rule at `y`, spanning `contentWidth` from `margins.left`.
+   * The single place a rule is actually drawn — `renderHorizontalRule` (a
+   * block-level `hr`, with its own spacing) and `renderTable`'s row/header
+   * rules (flush against a measured row height, with none) both call this
+   * rather than each re-issuing the same three jsPDF calls.
+   */
+  private drawRule(
+    doc: jsPDF,
+    y: number,
+    margins: { left: number },
+    contentWidth: number,
+    color: string,
+    widthMm: number
+  ): void {
+    doc.setDrawColor(...hexToRgbTuple(color));
+    doc.setLineWidth(widthMm);
+    doc.line(margins.left, y, margins.left + contentWidth, y);
+  }
+
+  /**
    * Render a horizontal rule
    */
   private renderHorizontalRule(
@@ -959,9 +1100,7 @@ export class PdfExporter extends BaseExporter {
       y = margins.top;
     }
 
-    doc.setDrawColor(...hexToRgbTuple(COLOR.border));
-    doc.setLineWidth(0.3);
-    doc.line(margins.left, y, margins.left + contentWidth, y);
+    this.drawRule(doc, y, margins, contentWidth, COLOR.border, 0.3);
 
     y += lineHeight * 0.5;
 
@@ -1065,6 +1204,38 @@ export class PdfExporter extends BaseExporter {
   }
 
   /**
+   * A column is numeric when every non-empty body cell in it is a bare
+   * number (design: "numeric columns right-aligned"). A column with no data
+   * cells at all is not numeric by definition — nothing to align.
+   *
+   * ponytail: "tabular figures" (equal-width digits, so a right-aligned
+   * column of numbers lines up) is assumed to be the default digit style of
+   * the embedded body font rather than requested through a jsPDF font
+   * feature — jsPDF draws whatever glyphs the embedded TrueType provides and
+   * exposes no OpenType feature toggle, and Source Sans 3, like most
+   * UI/body-text sans faces, ships tabular (not proportional) figures by
+   * default.
+   */
+  private detectNumericColumns(table: TableBlock, numCols: number): boolean[] {
+    const isNumeric = new Array<boolean>(numCols).fill(true);
+    const sawData = new Array<boolean>(numCols).fill(false);
+
+    for (const row of table.rows) {
+      if (!row) continue;
+      for (let i = 0; i < numCols; i++) {
+        const cell = row[i];
+        if (!cell) continue;
+        const text = this.inlineToPlainText(cell).trim();
+        if (!text) continue;
+        sawData[i] = true;
+        if (!/^-?[\d,]+(\.\d+)?%?$/.test(text)) isNumeric[i] = false;
+      }
+    }
+
+    return isNumeric.map((v, i) => v && Boolean(sawData[i]));
+  }
+
+  /**
    * Render a table
    */
   private renderTable(
@@ -1084,6 +1255,7 @@ export class PdfExporter extends BaseExporter {
     const colWidth = contentWidth / numCols;
     const cellPadding = 2;
     const minRowHeight = lineHeight * 1.5;
+    const numericCols = this.detectNumericColumns(table, numCols);
 
     // Helper function to calculate row height based on content
     const calculateRowHeight = (cells: InlineContent[][]): number => {
@@ -1097,6 +1269,25 @@ export class PdfExporter extends BaseExporter {
       return Math.max(minRowHeight, maxLines * lineHeight + cellPadding);
     };
 
+    // Draw one row's cell text, right-aligned in numeric columns.
+    const drawCells = (cells: InlineContent[][], rowY: number): void => {
+      cells.forEach((cell, i) => {
+        if (!cell) return;
+        const cellText = this.inlineToPlainText(cell);
+        const textY = rowY + cellPadding + lineHeight / 2;
+        if (numericCols[i]) {
+          doc.text(cellText, margins.left + (i + 1) * colWidth - cellPadding, textY, {
+            maxWidth: colWidth - cellPadding * 2,
+            align: 'right',
+          });
+        } else {
+          doc.text(cellText, margins.left + i * colWidth + cellPadding, textY, {
+            maxWidth: colWidth - cellPadding * 2,
+          });
+        }
+      });
+    };
+
     // Render headers
     if (table.headers && table.headers.length > 0) {
       const headerHeight = calculateRowHeight(table.headers);
@@ -1107,38 +1298,21 @@ export class PdfExporter extends BaseExporter {
       const firstRowHeight = firstRow ? calculateRowHeight(firstRow) : 0;
       y = this.ensureSpace(doc, y, headerHeight + firstRowHeight, margins, pageHeight);
 
-      // Draw header background
-      doc.setFillColor(...hexToRgbTuple(COLOR.surfaceSubtle));
-      doc.rect(margins.left, y, contentWidth, headerHeight, 'F');
-
-      // Draw header borders
-      doc.setDrawColor(...hexToRgbTuple(COLOR.border));
-      doc.setLineWidth(0.1);
-      for (let i = 0; i <= numCols; i++) {
-        const x = margins.left + i * colWidth;
-        doc.line(x, y, x, y + headerHeight);
-      }
-      doc.line(margins.left, y, margins.left + contentWidth, y);
-      doc.line(margins.left, y + headerHeight, margins.left + contentWidth, y + headerHeight);
-
-      // Draw header text
+      // Horizontal rules only (R-6): a full grid and an alternating row fill
+      // both competed with the design's other surfaces, so a pdf table now
+      // matches html/R-6 — one rule per row and nothing else.
       doc.setFont(this.fonts.body, 'bold');
       doc.setFontSize(this.pdfSizes.small);
       doc.setTextColor(...hexToRgbTuple(COLOR.textBody));
-
-      table.headers.forEach((header, i) => {
-        const cellText = this.inlineToPlainText(header);
-        const x = margins.left + i * colWidth + cellPadding;
-        const textY = y + cellPadding + lineHeight / 2;
-        doc.text(cellText, x, textY, { maxWidth: colWidth - cellPadding * 2 });
-      });
+      drawCells(table.headers, y);
 
       y += headerHeight;
+      this.drawRule(doc, y, margins, contentWidth, COLOR.textMuted, 0.4);
     }
 
     // Render rows
     doc.setFont(this.fonts.body, 'normal');
-    table.rows.forEach((row, rowIdx) => {
+    table.rows.forEach((row) => {
       if (!row) return;
 
       const rowHeight = calculateRowHeight(row);
@@ -1149,30 +1323,9 @@ export class PdfExporter extends BaseExporter {
         y = margins.top;
       }
 
-      // Alternate row background
-      if (rowIdx % 2 === 1) {
-        doc.setFillColor(...hexToRgbTuple(COLOR.surfaceSubtle));
-        doc.rect(margins.left, y, contentWidth, rowHeight, 'F');
-      }
-
-      // Draw row borders
-      doc.setDrawColor(...hexToRgbTuple(COLOR.border));
-      for (let i = 0; i <= numCols; i++) {
-        const x = margins.left + i * colWidth;
-        doc.line(x, y, x, y + rowHeight);
-      }
-      doc.line(margins.left, y + rowHeight, margins.left + contentWidth, y + rowHeight);
-
-      // Draw cell text
-      row.forEach((cell, colIdx) => {
-        if (!cell) return;
-        const cellText = this.inlineToPlainText(cell);
-        const x = margins.left + colIdx * colWidth + cellPadding;
-        const textY = y + cellPadding + lineHeight / 2;
-        doc.text(cellText, x, textY, { maxWidth: colWidth - cellPadding * 2 });
-      });
-
+      drawCells(row, y);
       y += rowHeight;
+      this.drawRule(doc, y, margins, contentWidth, COLOR.border, 0.2);
     });
 
     y += lineHeight * 0.5; // Spacing after table
@@ -1229,20 +1382,13 @@ export class PdfExporter extends BaseExporter {
     // Add some spacing before code block
     y += lineHeight * 0.3;
 
-    // Language label
-    if (language) {
-      doc.setFontSize(this.sizes.codeLabel);
-      doc.setFont(this.fonts.body, 'bold');
-      doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
-      doc.text(sanitizeTextForPDF(language.toUpperCase()), margins.left, y);
-      y += lineHeight * 0.8;
-    }
-
-    // Split code into lines
+    // Split code into lines and measure the wrapped body BEFORE drawing
+    // anything: the language tab has to stay attached to its code block
+    // across a page break (R-2b), so both are sized together, not the tab
+    // alone.
     const codeLines = code.split('\n');
     const codeContentWidth = contentWidth - 8; // Padding inside code block
 
-    // Calculate total height needed for code block
     let totalCodeHeight = 0;
     const wrappedLines: string[] = [];
 
@@ -1256,10 +1402,30 @@ export class PdfExporter extends BaseExporter {
       totalCodeHeight += wrapped.length * lineHeight * 0.9;
     }
 
-    // Check if we need a new page
-    if (y + totalCodeHeight + 6 > pageHeight - margins.bottom) {
+    // R-2b: the language renders in a tab ABOVE the block, not inline —
+    // a small chip that reads as UI chrome rather than a line of body text.
+    const tabLabel = language ? sanitizeTextForPDF(language.toUpperCase()) : '';
+    const tabHeight = tabLabel ? lineHeight * 0.9 : 0;
+
+    // Check if we need a new page (tab + code block together)
+    if (y + tabHeight + totalCodeHeight + 6 > pageHeight - margins.bottom) {
       doc.addPage();
       y = margins.top;
+    }
+
+    if (tabLabel) {
+      const tabPaddingX = 2;
+      doc.setFontSize(this.sizes.codeLabel);
+      doc.setFont(this.fonts.body, 'bold');
+      const tabWidth = doc.getTextWidth(tabLabel) + tabPaddingX * 2;
+
+      doc.setFillColor(...hexToRgbTuple(COLOR.surfaceMuted));
+      doc.roundedRect(margins.left, y, tabWidth, tabHeight, 1, 1, 'F');
+
+      doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
+      doc.text(tabLabel, margins.left + tabPaddingX, y + tabHeight - 2);
+
+      y += tabHeight;
     }
 
     // Draw background rectangle
@@ -1270,6 +1436,8 @@ export class PdfExporter extends BaseExporter {
 
     // Render code lines
     y += 3;
+    doc.setFont(this.fonts.code, 'normal');
+    doc.setFontSize(this.sizes.code);
     doc.setTextColor(...hexToRgbTuple(COLOR.textStrong)); // Dark text for code
 
     for (const line of wrappedLines) {
