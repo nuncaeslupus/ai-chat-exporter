@@ -247,6 +247,15 @@ function makePopupPairs(popupColor: Resolve): Pair[] {
       bg: popupColor('body {', 'background'),
       threshold: 4.5,
     },
+    // P-8: the ChatGPT platform mark (.platform-icon), recoloured from the
+    // default-black SVG fill to the project's own brand token so it survives
+    // the dark popup surface. Decorative, not text — 3:1 bar.
+    {
+      label: 'ChatGPT platform icon',
+      fg: COLOR.brand.chatgpt,
+      bg: popupColor('body {', 'background'),
+      threshold: 3,
+    },
     {
       label: 'setting-row label',
       fg: popupColor('.setting-row-label {', 'color'),
