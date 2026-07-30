@@ -275,10 +275,51 @@ export const DOC_HEADING_LEVEL = {
   max: 6,
 } as const;
 
-/** Source heading level (1-6) -> document heading level, clamped to 6. */
-export function bodyHeadingLevel(sourceLevel: number): number {
+/**
+ * Source heading level -> document heading level, built once per conversation
+ * by `buildHeadingLevelMap` (D-32).
+ *
+ * A plain `sourceLevel + 1` offset only starts body headings at `##` when the
+ * source's shallowest heading is genuinely `h1`. A platform (e.g. ChatGPT)
+ * that emits `h3` for its shallowest section heading would then squeeze the
+ * whole document into `####`-and-deeper, leaving `##`/`###` unused -- exactly
+ * the reported "titles don't look like titles" symptom. Normalising instead
+ * ranks the *distinct* source levels actually present and assigns them
+ * consecutive document levels, so the shallowest present level always lands
+ * on `##`.
+ */
+export type HeadingLevelMap = ReadonlyMap<number, number>;
+
+/**
+ * Rank the distinct heading levels present in a conversation's body content
+ * and assign each one a consecutive document level starting at
+ * `DOC_HEADING_LEVEL.title + 1` (= 2), closing any gaps: a source using h2
+ * and h4 (skipping h3) maps to document levels 2 and 3, not 2 and 4 -- an
+ * empty gap is exactly what produces the weak, squeezed-to-`####` rendering
+ * this normalises away. Clamped to `DOC_HEADING_LEVEL.max`.
+ *
+ * Compute this once per conversation (not per message/pair): different
+ * answers may use different source levels, and normalising per message would
+ * give two answers in one document different heading scales.
+ */
+export function buildHeadingLevelMap(sourceLevels: Iterable<number>): HeadingLevelMap {
+  const distinct = [...new Set(sourceLevels)].sort((a, b) => a - b);
+  const map = new Map<number, number>();
+  distinct.forEach((level, rank) => {
+    map.set(level, Math.min(DOC_HEADING_LEVEL.title + 1 + rank, DOC_HEADING_LEVEL.max));
+  });
+  return map;
+}
+
+/**
+ * Source heading level -> document heading level, via the conversation's
+ * normalised `levelMap` (see `buildHeadingLevelMap`). A level absent from the
+ * map -- defensive only, e.g. artifact content deeper than anything the map
+ * was built from -- falls back to the plain +1 offset, clamped.
+ */
+export function bodyHeadingLevel(sourceLevel: number, levelMap: HeadingLevelMap): number {
   const source = Math.max(sourceLevel, 1);
-  return Math.min(source + DOC_HEADING_LEVEL.title, DOC_HEADING_LEVEL.max);
+  return levelMap.get(source) ?? Math.min(source + DOC_HEADING_LEVEL.title, DOC_HEADING_LEVEL.max);
 }
 
 // ---------------------------------------------------------------------------

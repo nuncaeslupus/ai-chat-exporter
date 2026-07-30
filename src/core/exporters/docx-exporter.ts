@@ -60,11 +60,13 @@ import {
   SPACING,
   bodyHeadingLevel,
   brandColorFor,
+  buildHeadingLevelMap,
   scaleFontSizes,
   hexToDocxColor,
   mmToTwips,
   ptToHalfPt,
 } from './style-tokens';
+import type { HeadingLevelMap } from './style-tokens';
 
 /** Document heading level 1-6 -> docx HeadingLevel, index 0 = level 1. */
 const DOCX_HEADING_BY_LEVEL: (typeof HeadingLevel)[keyof typeof HeadingLevel][] = [
@@ -260,8 +262,13 @@ export class DocxExporter extends BaseExporter {
     // on-light variant — the same token html's role label uses.
     const assistantColor = brandColorFor(COLOR.brandTextOnLight, conversation.platform);
     const daySeparator = this.daySeparator(options.showMetaInfo);
+    const levelMap = buildHeadingLevelMap(
+      ConversationStructureService.collectHeadingLevels(conversation)
+    );
     for (const pair of conversation.pairs) {
-      sections.push(...this.formatPair(pair, options, assistantName, assistantColor, daySeparator));
+      sections.push(
+        ...this.formatPair(pair, options, assistantName, assistantColor, daySeparator, levelMap)
+      );
     }
 
     return new Document({
@@ -445,7 +452,8 @@ export class DocxExporter extends BaseExporter {
     options: ExportOptions,
     assistantName: string,
     assistantColor: string,
-    daySeparator: (date?: Date) => string
+    daySeparator: (date?: Date) => string,
+    levelMap: HeadingLevelMap
   ): (Paragraph | Table)[] {
     const paragraphs: (Paragraph | Table)[] = [];
     const pushDaySeparator = (date?: Date): void => {
@@ -466,7 +474,7 @@ export class DocxExporter extends BaseExporter {
     );
 
     // User content
-    paragraphs.push(...this.renderBlocks(pair.question.blocks));
+    paragraphs.push(...this.renderBlocks(pair.question.blocks, levelMap));
 
     // Assistant heading
     pushDaySeparator(pair.answer.timestamp);
@@ -479,7 +487,7 @@ export class DocxExporter extends BaseExporter {
     );
 
     // Assistant content
-    paragraphs.push(...this.renderBlocks(pair.answer.blocks));
+    paragraphs.push(...this.renderBlocks(pair.answer.blocks, levelMap));
 
     // Add artifacts if present
     if (pair.answer.metadata?.artifacts && Array.isArray(pair.answer.metadata.artifacts)) {
@@ -531,7 +539,7 @@ export class DocxExporter extends BaseExporter {
           // uses; code artifacts (including one whose language happens to be
           // 'markdown') stay monospace below.
           const proseBlocks = isProseArtifact(artifact)
-            ? this.renderProseArtifact(artifact.content ?? '')
+            ? this.renderProseArtifact(artifact.content ?? '', levelMap)
             : null;
           if (proseBlocks) {
             paragraphs.push(...proseBlocks);
@@ -602,17 +610,23 @@ export class DocxExporter extends BaseExporter {
    * be loaded or there is no content, so the caller falls back to a code
    * block — the same fallback html-exporter uses for prose artifacts.
    */
-  private renderProseArtifact(content: string): (Paragraph | Table)[] | null {
+  private renderProseArtifact(
+    content: string,
+    levelMap: HeadingLevelMap
+  ): (Paragraph | Table)[] | null {
     if (!this.markdown || !content) return null;
     const html = this.markdown(content);
     if (html === null) return null;
-    return this.renderBlocks(HtmlContentParser.parse(html));
+    return this.renderBlocks(HtmlContentParser.parse(html), levelMap);
   }
 
   /**
    * Render structured content blocks to DOCX elements
    */
-  private renderBlocks(blocks: StructuredContentBlock[]): (Paragraph | Table)[] {
+  private renderBlocks(
+    blocks: StructuredContentBlock[],
+    levelMap: HeadingLevelMap
+  ): (Paragraph | Table)[] {
     const elements: (Paragraph | Table)[] = [];
 
     for (const block of blocks) {
@@ -622,7 +636,7 @@ export class DocxExporter extends BaseExporter {
           break;
 
         case 'heading':
-          elements.push(...this.renderHeading(block));
+          elements.push(...this.renderHeading(block, levelMap));
           break;
 
         case 'code':
@@ -634,7 +648,7 @@ export class DocxExporter extends BaseExporter {
           break;
 
         case 'blockquote':
-          elements.push(...this.renderBlockquote(block.content));
+          elements.push(...this.renderBlockquote(block.content, levelMap));
           break;
 
         case 'hr':
@@ -702,14 +716,17 @@ export class DocxExporter extends BaseExporter {
   /**
    * Render a heading
    */
-  private renderHeading(block: { level: number; content: InlineContent[] }): Paragraph[] {
+  private renderHeading(
+    block: { level: number; content: InlineContent[] },
+    levelMap: HeadingLevelMap
+  ): Paragraph[] {
     const textRuns = this.renderInline(block.content);
 
     if (textRuns.length === 0) {
       return [];
     }
 
-    const heading = docxHeading(bodyHeadingLevel(block.level));
+    const heading = docxHeading(bodyHeadingLevel(block.level, levelMap));
 
     return [
       new Paragraph({
@@ -813,7 +830,10 @@ export class DocxExporter extends BaseExporter {
   /**
    * Render a blockquote
    */
-  private renderBlockquote(content: StructuredContentBlock[]): (Paragraph | Table)[] {
+  private renderBlockquote(
+    content: StructuredContentBlock[],
+    levelMap: HeadingLevelMap
+  ): (Paragraph | Table)[] {
     const elements: (Paragraph | Table)[] = [];
 
     // Process each block in the blockquote
@@ -843,7 +863,7 @@ export class DocxExporter extends BaseExporter {
         }
       } else {
         // For other block types, render normally (without special blockquote styling)
-        elements.push(...this.renderBlocks([block]));
+        elements.push(...this.renderBlocks([block], levelMap));
       }
     }
 

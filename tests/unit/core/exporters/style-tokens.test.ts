@@ -13,6 +13,7 @@ import {
   FONT_SCALE_FACTOR,
   FONT_SIZE_PT,
   bodyHeadingLevel,
+  buildHeadingLevelMap,
   hexToDocxColor,
   hexToRgbTuple,
   mmToPx,
@@ -41,9 +42,29 @@ describe('R-1: the redesigned type system', () => {
   it('demotes the role label out of the heading outline, so body headings start at 2', () => {
     expect(DOC_HEADING_LEVEL.title).toBe(1);
     expect('roleLabel' in DOC_HEADING_LEVEL).toBe(false);
-    expect(bodyHeadingLevel(1)).toBe(2);
-    expect(bodyHeadingLevel(3)).toBe(4);
-    expect(bodyHeadingLevel(6)).toBe(6); // clamped at the max
+    // D-32: bodyHeadingLevel maps through a per-conversation levelMap rather
+    // than a flat +1 offset. A source using every level 1-6 consecutively (no
+    // gaps to close) ranks 1:1 with the old offset, so this map reproduces the
+    // same numbers while exercising the new signature.
+    const levelMap = buildHeadingLevelMap([1, 2, 3, 4, 5, 6]);
+    expect(bodyHeadingLevel(1, levelMap)).toBe(2);
+    expect(bodyHeadingLevel(3, levelMap)).toBe(4);
+    expect(bodyHeadingLevel(6, levelMap)).toBe(6); // clamped at the max
+  });
+
+  it('D-32: buildHeadingLevelMap ranks distinct levels and closes gaps', () => {
+    // Shallowest source heading present always lands on document level 2,
+    // regardless of its raw source number.
+    expect(buildHeadingLevelMap([3]).get(3)).toBe(2);
+    // A gap (h2 + h4, skipping h3) is closed: consecutive document levels,
+    // not a hole at level 3.
+    const gapped = buildHeadingLevelMap([2, 4]);
+    expect(gapped.get(2)).toBe(2);
+    expect(gapped.get(4)).toBe(3);
+    // Six distinct levels still clamp at DOC_HEADING_LEVEL.max (6).
+    const deep = buildHeadingLevelMap([1, 2, 3, 4, 5, 6]);
+    expect(deep.get(5)).toBe(6);
+    expect(deep.get(6)).toBe(6);
   });
 
   it('uses the neutral grey ink, not the blue-tinged Tailwind scale', () => {

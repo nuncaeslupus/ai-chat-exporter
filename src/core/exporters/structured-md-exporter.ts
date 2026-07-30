@@ -19,7 +19,8 @@ import { BaseExporter } from './base-exporter';
 import { isProseArtifact } from './artifact-content';
 import { ConversationStructureService } from '../services';
 import { getMessage } from '../../shared/i18n';
-import { DOC_HEADING_LEVEL, bodyHeadingLevel } from './style-tokens';
+import { DOC_HEADING_LEVEL, bodyHeadingLevel, buildHeadingLevelMap } from './style-tokens';
+import type { HeadingLevelMap } from './style-tokens';
 
 export class StructuredMarkdownExporter extends BaseExporter {
   readonly format: ExportFormat = 'md';
@@ -51,6 +52,9 @@ export class StructuredMarkdownExporter extends BaseExporter {
 
   private generateMarkdown(conversation: StructuredConversation, options: ExportOptions): string {
     const lines: string[] = [];
+    const levelMap = buildHeadingLevelMap(
+      ConversationStructureService.collectHeadingLevels(conversation)
+    );
 
     // Title
     lines.push(`${'#'.repeat(DOC_HEADING_LEVEL.title)} ${conversation.title}`);
@@ -112,7 +116,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
       pushDaySeparator(pair.question.timestamp);
       lines.push(roleLabel(this.getRoleName('user'), pair.question.timestamp));
       lines.push('');
-      lines.push(...this.quote(this.renderBlocks(pair.question.blocks)));
+      lines.push(...this.quote(this.renderBlocks(pair.question.blocks, levelMap)));
 
       // Assistant answer
       pushDaySeparator(pair.answer.timestamp);
@@ -120,7 +124,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
         roleLabel(this.getRoleName('assistant', conversation.platform), pair.answer.timestamp)
       );
       lines.push('');
-      lines.push(...this.renderBlocks(pair.answer.blocks));
+      lines.push(...this.renderBlocks(pair.answer.blocks, levelMap));
 
       // Add artifacts if present
       if (pair.answer.metadata?.artifacts && Array.isArray(pair.answer.metadata.artifacts)) {
@@ -220,7 +224,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
     return [...lines.slice(0, end).map((line) => (line ? `> ${line}` : '>')), ''];
   }
 
-  private renderBlocks(blocks: StructuredContentBlock[]): string[] {
+  private renderBlocks(blocks: StructuredContentBlock[], levelMap: HeadingLevelMap): string[] {
     const lines: string[] = [];
 
     for (const block of blocks) {
@@ -235,7 +239,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
         }
 
         case 'heading': {
-          const hashes = '#'.repeat(bodyHeadingLevel(block.level)); // # is the title; body headings start at ##
+          const hashes = '#'.repeat(bodyHeadingLevel(block.level, levelMap)); // # is the title; body headings start at ##
           const headingText = this.renderInline(block.content).trim();
           if (headingText) {
             lines.push(`${hashes} ${headingText}`);
@@ -257,7 +261,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
           break;
 
         case 'blockquote': {
-          const quoteLines = this.renderBlocks(block.content);
+          const quoteLines = this.renderBlocks(block.content, levelMap);
           lines.push(...quoteLines.map((line) => (line ? `> ${line}` : '>')));
           lines.push('');
           break;
