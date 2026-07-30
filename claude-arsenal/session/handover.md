@@ -59,6 +59,28 @@ source and must stay a code block; only `type === 'document'` is prose.
 Separately, **pdf never renders prose at all** and **docx's branch is a stub**
 that dumps raw markdown as one unstyled paragraph.
 
+## Ledger is stale for two finished tasks — do not redo them
+
+`lo-3cae` (**D-23**, citation whitespace) and `lo-611c` (**R-0**, `showMetaInfo`)
+still read `open` on `arsenal-queue`, but both are **merged**: #176 and #178
+respectively. I could not correct them — `claim.sh` returned `lost` twice in a
+row, so another session was actively pushing to the coordination branch, and the
+protocol says obey a `lost` rather than work around it.
+
+If `/continue` offers either, close it instead of doing it:
+
+```bash
+ARSENAL_QUEUE_DIR="$(claude-arsenal/bin/queue_branch.sh)" \
+  claude-arsenal/bin/claim.sh lo-3cae <session-id>
+ARSENAL_QUEUE_DIR="$(claude-arsenal/bin/queue_branch.sh)" \
+  claude-arsenal/bin/release.sh lo-3cae done \
+  --pr https://github.com/nuncaeslupus/ai-chat-exporter/pull/176
+```
+
+Same for `lo-611c` with PR #178. Verify first — the whitespace fix is in
+`html-content-parser.ts` (`inlineText`/`pushText`) and the merged flag is
+`showMetaInfo` throughout.
+
 ## Answered already — do not re-do
 
 The author asked "about Options, I thought we just joined Header and Time as Meta
