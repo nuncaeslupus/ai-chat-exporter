@@ -122,6 +122,15 @@
      from this one token so they can never drift apart again. */
   --chevron-inset: 18px;
 
+  /* How far a row's own label text sits from its list's `--pad-x` edge, once
+     something (a checkbox, a nav row's gutter) already occupies that edge.
+     P-7 ("main-view rows sit inside the border, submenu content doesn't"):
+     the submenu content column (checkbox/gutter width 17px + row gap 11px)
+     was two separate `calc(17px + 11px)` call sites with the main-view rows
+     reading from neither — hence the drift. One token now, read by both, so
+     they can't drift apart again. */
+  --content-column: 28px;
+
   /*
    * Vertical spacing scale (P-5: "put some order in the popup spacing...
    * redistribute spaces better"). Mirrors `--pad-x`'s role on the horizontal
@@ -604,7 +613,12 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 2px;
+  /* Left inset reads from `--content-column` (P-7: "text too close to the
+     left border") so the label lands on the same column as submenu content,
+     26px further in than the bare 2px it had before. The right side is
+     untouched — `.setting-row-chevron`'s margin math already assumes 2px of
+     padding here and still gets it. */
+  padding: 0 2px 0 var(--content-column);
   border: none;
   border-radius: var(--radius-row);
   background: none;
@@ -964,14 +978,24 @@ section {
   height: 28px;
   display: flex;
   align-items: center;
-  /* P-6: "the back arrow more to the left... it looks weird being more to the
-     right than the text below." The header's own `padding-left: var(--pad-x)`
-     already puts this button's box flush with the content column; centering
-     the glyph inside a 28px tap target then re-indented it, so the ink read
-     as sitting to the right of the row content beneath it. Left-aligning the
-     glyph instead makes the header — chip and chevron alike — the outermost
-     element, matching every submenu that has one. */
-  justify-content: flex-start;
+  /*
+   * P-6 centred the glyph, then found it sat right of the row content below
+   * it and set `justify-content: flex-start` instead — which fixed that but
+   * left the 7px glyph jammed against the box's left edge with 21px of dead
+   * space on the other side ("not centred in their box", P-7).
+   *
+   * Both complaints are real and don't have to conflict: `center` puts the
+   * glyph in the middle of the 28px box, then the margins below shift the
+   * whole box left by exactly that same offset — (28px box - 7px glyph) / 2
+   * — so the *centred* glyph lands back on the content column instead of
+   * center landing 10.5px right of it. `margin-right` gives back what
+   * `margin-left` takes so the box's total footprint is unchanged and the
+   * title next to it does not move. The hit target stays the full 28x28px;
+   * only its position shifts.
+   */
+  justify-content: center;
+  margin-left: calc((7px - 28px) / 2);
+  margin-right: calc((28px - 7px) / 2);
   border: none;
   border-radius: var(--radius-chip);
   background: var(--color-surface-key);
@@ -1252,14 +1276,14 @@ section {
 
 /*
  * Same left edge as the checkbox row's label and the nav row's stack:
- * checkbox width (17px) + row gap (11px) = 28px in from the list's own
- * `--pad-x` inset. `legend` ships its own inline padding, which put this
- * flush left instead — strip it and indent explicitly so the label sets the
- * alignment, not a UA default.
+ * checkbox width (17px) + row gap (11px) = `--content-column`, in from the
+ * list's own `--pad-x` inset. `legend` ships its own inline padding, which
+ * put this flush left instead — strip it and indent explicitly so the label
+ * sets the alignment, not a UA default.
  */
 .option-row--choice > .option-row-label {
   padding: 0;
-  margin-left: calc(17px + 11px);
+  margin-left: var(--content-column);
 }
 
 .option-choices {
@@ -1270,19 +1294,22 @@ section {
    * labels wrapped 2+1 in the longest locales, which read as unbalanced and
    * fed item 4's "two separate options" impression. `flex-wrap` let each
    * pill size to its own text and then wrap when the row ran out of room;
-   * giving every pill an equal `flex: 1` share instead (below) means the row
-   * always sums to exactly the container width, so it can never wrap
-   * regardless of locale or font metrics — a lightweight segmented control
-   * rather than three independently-sized labels. Chosen over widening the
-   * row past the 28px indent (only buys 28px back, not enough on its own)
-   * or shortening the translated labels (a wording change, not a layout
-   * one). Text size is untouched — the type scale still governs it.
+   * giving every pill an equal `flex: 1` share (P-6) meant the row always
+   * summed to exactly the container width, so it could never wrap — but a
+   * short label (e.g. "Claro") then floated centred in a wide equal-share
+   * column, 36px from its neighbour's label, reading as scattered rather
+   * than a segmented control (P-7). `.option-choice` below now sizes to its
+   * own content instead: `flex-wrap` stays unset (`nowrap`, its default) so
+   * wrapping is still structurally impossible, and each pill's own
+   * `min-width: 0` + its child's ellipsis guard is what keeps a worst-case
+   * locale from forcing the row wider than the container, not an equal
+   * share of it.
    */
   gap: 14px;
   /* Tight — reads as the legend's own control, not a second row. Same left
      edge as the legend above it (checkbox width + row gap; see there). */
   margin-top: var(--space-tight);
-  margin-left: calc(17px + 11px);
+  margin-left: var(--content-column);
 }
 
 .option-choice {
@@ -1292,10 +1319,12 @@ section {
   font-size: var(--text-sm);
   color: var(--color-text-body);
   cursor: pointer;
-  /* Equal share of the row (see `.option-choices` above); `min-width: 0` lets
-     it shrink below its label's intrinsic width instead of forcing the row
-     wider than the container. */
-  flex: 1;
+  /* Sized to its own label (see `.option-choices` above) instead of an equal
+     share of the row, so the three pills sit close together rather than each
+     floating centred in a too-wide column. `min-width: 0` lets it shrink
+     below its label's intrinsic width in the rare locale where all three
+     together overrun the container, instead of forcing the row wider. */
+  flex: 0 1 auto;
   min-width: 0;
 }
 
