@@ -67,8 +67,9 @@ describe('TextExporter', () => {
       const text = await blobToText(result.blob!);
       expect(text).not.toContain('##'); // No markdown headings
       expect(text).not.toContain('**'); // No bold
-      expect(text).toContain('User:');
-      expect(text).toContain('ChatGPT:'); // Platform-specific assistant name
+      expect(text).toContain('USER');
+      // R-5: the role label is uppercase and underlined, not `Name:`.
+      expect(text).toContain('CHATGPT'); // Platform-specific assistant name
     });
 
     it('separates messages with separators', async () => {
@@ -127,7 +128,7 @@ describe('TextExporter', () => {
         includeTimestamps: true,
       });
       const text = await blobToText(result.blob!);
-      expect(text).toContain('(12:00:00)');
+      expect(text).toContain('· 12:00');
       // The day is announced once by a day separator, not repeated per message.
       expect(text).not.toContain('2025-01-01 12:00:00');
     });
@@ -242,5 +243,142 @@ describe('TextExporter', () => {
       });
       expect(valid).toBe(false);
     });
+  });
+});
+
+describe('R-5: the 72-column plain-text layout', () => {
+  const richPair = (): QAPair =>
+    ({
+      id: 'p0',
+      index: 0,
+      selected: true,
+      question: {
+        id: 'q0',
+        role: 'user',
+        content: 'question',
+        htmlContent:
+          '<p>I am setting up a systematic investment research programme and want to validate the walk-forward design before widening the asset universe.</p>',
+        timestamp: new Date('2025-01-01T12:04:37Z'),
+      },
+      answer: {
+        id: 'a0',
+        role: 'assistant',
+        content: 'answer',
+        htmlContent:
+          '<h1>Walk-forward design</h1>' +
+          '<p>With nine years of daily history the split that best balances bias and variance is five anchored folds, with the test window fixed at twelve months.</p>' +
+          '<pre><code class="language-python">folds = anchored_walk_forward(prices, n_folds=5, test_months=12, embargo_months=6)</code></pre>' +
+          '<table><thead><tr><th>Fold</th><th>Train</th></tr></thead><tbody><tr><td>1</td><td>2017-2019</td></tr></tbody></table>',
+        timestamp: new Date('2025-01-01T12:05:02Z'),
+      },
+    }) as unknown as QAPair;
+
+  async function render(includeTimestamps = true): Promise<string> {
+    const pair = richPair();
+    const conversation = {
+      id: 'c1',
+      title: 'Systematic investment research programme',
+      platform: 'chatgpt',
+      model: 'gpt-4o',
+      url: 'https://chatgpt.com/c/test',
+      createdAt: new Date('2025-01-01T15:12:00Z'),
+      pairs: [pair],
+    } as unknown as Conversation;
+    const result = await new TextExporter().export(conversation, [pair], {
+      format: 'txt',
+      filename: 'test',
+      includeMetadata: true,
+      includeTimestamps,
+    } as never);
+    return blobToText(result.blob!);
+  }
+
+  /**
+   * Prose is wrapped at 72. Four things are deliberately exempt, because
+   * wrapping them would damage them rather than tidy them:
+   *
+   *  - fenced code — wrapping a code line changes the code
+   *  - table rows  — wrapping breaks the ASCII box
+   *  - bare URLs   — a wrapped URL cannot be copied
+   *  - raw markup  — artifact bodies (e.g. an SVG) are emitted verbatim, are
+   *                  not fenced, and are outside R-5's scope
+   *
+   * The markup exemption is stated explicitly rather than left to the URL rule
+   * to catch by coincidence, which is what happened first: the one over-long
+   * line in a real fixture export is an `<svg xmlns="http://...">` tag that the
+   * URL filter happened to skip.
+   */
+  function proseLines(text: string): string[] {
+    const out: string[] = [];
+    let inCode = false;
+    for (const line of text.split('\n')) {
+      if (line.startsWith('```')) {
+        inCode = !inCode;
+        continue;
+      }
+      if (inCode) continue;
+      if (/^[+|]/.test(line)) continue;
+      if (/https?:\/\//.test(line)) continue;
+      if (/^\s*<\/?[a-zA-Z]/.test(line)) continue;
+      out.push(line);
+    }
+    return out;
+  }
+
+  it('wraps every prose line at 72 columns', async () => {
+    const text = await render();
+    const tooLong = proseLines(text).filter((l) => l.length > 72);
+    expect(tooLong).toEqual([]);
+  });
+
+  it('never splits a word to make the wrap', async () => {
+    const text = await render();
+    // "systematic" appears in the question; it must survive intact.
+    expect(text).toContain('systematic');
+    expect(text).not.toMatch(/syste-?\n/);
+  });
+
+  it('renders the role label uppercase with the time, underlined to its width', async () => {
+    const text = await render();
+    const match = /^(USER · 12:04)\n(-+)$/m.exec(text);
+    expect(match).not.toBeNull();
+    expect(match![2]!.length).toBe(match![1]!.length);
+  });
+
+  it('indents the question by two spaces and leaves the answer flush', async () => {
+    const text = await render();
+    expect(text).toMatch(/^ {2}I am setting up a systematic/m);
+    expect(text).toMatch(/^With nine years of daily history/m);
+  });
+
+  it('spans the separator rule across all 72 columns', async () => {
+    const text = await render();
+    expect(text).toContain('-'.repeat(72));
+    // The old rule was exactly 40 wide. Check whole LINES, not substrings: a
+    // 72-dash run trivially contains a 40-dash window.
+    const dashRules = text.split('\n').filter((l) => /^-+$/.test(l));
+    expect(dashRules.length).toBeGreaterThan(0);
+    expect(dashRules.every((l) => l.length === 72 || l.length <= 20)).toBe(true);
+  });
+
+  it('fences code with its language and does not indent it', async () => {
+    const text = await render();
+    expect(text).toContain('```python');
+    expect(text).toMatch(/^folds = anchored_walk_forward\(/m);
+    expect(text).not.toContain('[python]');
+  });
+
+  it('boxes a table with = under the header row', async () => {
+    const text = await render();
+    expect(text).toMatch(/^\+[-+]+\+$/m);
+    expect(text).toMatch(/^\+[=+]+\+$/m);
+    expect(text).toMatch(/^\| Fold \|/m);
+  });
+
+  it('underlines a body heading with ~ at its exact width', async () => {
+    const text = await render();
+    const match = /^(Walk-forward design)\n(~+)$/m.exec(text);
+    expect(match).not.toBeNull();
+    expect(match![2]!.length).toBe(match![1]!.length);
   });
 });
