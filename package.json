@@ -28,7 +28,9 @@
     "generate:pdf-fonts": "node scripts/generate-pdf-fonts.mjs",
     "prebuild": "pnpm generate:pdf-fonts",
     "pretest": "pnpm generate:pdf-fonts",
-    "pretypecheck": "pnpm generate:pdf-fonts"
+    "pretypecheck": "pnpm generate:pdf-fonts",
+    "prelint": "pnpm generate:pdf-fonts",
+    "postinstall": "pnpm generate:pdf-fonts"
   },
   "keywords": [
     "browser-extension",
