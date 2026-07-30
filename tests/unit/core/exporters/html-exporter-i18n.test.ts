@@ -122,7 +122,7 @@ describe('HtmlExporter', () => {
       });
       const html = await blobToText(result.blob!);
 
-      expect(html).toContain('<h2 class="message-role">ChatGPT</h2>');
+      expect(html).toContain('<p class="message-role">ChatGPT</p>');
       expect(html).not.toContain('Assistent');
     });
 

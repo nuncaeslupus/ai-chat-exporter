@@ -146,6 +146,11 @@ describe('heading levels are consistent across formats (C-2)', () => {
     expect(text).toContain('<h1 class="title">Test Conversation</h1>');
     expect(text).toContain('<h2>Alpha</h2>');
     expect(text).toContain('<h4>Gamma</h4>');
+
+    // R-1: the role label is not a heading. It was a hardcoded <h2>, which now
+    // that body h1 lands at level 2 would duplicate that level in the outline.
+    expect(text).not.toMatch(/<h[1-6] class="message-role">/);
+    expect(text).toContain('<p class="message-role">');
   });
 
   it('md: title #, role label is not a heading, source h1 -> ##, source h3 -> ####', async () => {
