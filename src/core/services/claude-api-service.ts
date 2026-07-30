@@ -319,11 +319,17 @@ export class ClaudeApiService {
     const pairCount = conversation.pairs.length;
 
     if (assistantMessages.length !== pairCount || humanMessages.length !== pairCount) {
+      // Always state the actual measured counts for both sides (never just
+      // the one the brief's original wording assumed was the culprit) so the
+      // message can never claim two equal counts while reporting a mismatch.
+      const plural = (n: number, noun: string): string =>
+        `${String(n)} ${noun}${n === 1 ? '' : 's'}`;
       const warning =
         `Artifact contents and message times were left out of this export: the page shows ${String(pairCount)} ` +
-        `replies but Claude reports ${String(assistantMessages.length)}, so they could not be ` +
-        'matched to the right reply (this happens when a turn was edited, regenerated ' +
-        'or deleted). Reload the conversation and export again.';
+        `Q&A pairs, but Claude reports ${plural(humanMessages.length, 'human message')} and ` +
+        `${plural(assistantMessages.length, 'assistant message')}, so they could not be matched to the right ` +
+        'turn (this happens when a turn was edited, regenerated or deleted). Reload the conversation and ' +
+        'export again.';
       console.warn(`[Claude API Service] ${warning}`);
       return { warning };
     }

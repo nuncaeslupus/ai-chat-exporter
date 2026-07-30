@@ -284,6 +284,10 @@ describe('ClaudeApiService', () => {
 
       expect(warning).toBeDefined();
       expect(enriched.pairs[0]?.question.timestamp).toBeUndefined();
+      // Only the human count actually diverges here (1 human vs. 2 assistant vs.
+      // 2 pairs) — the message must report that, not claim both sides are equal.
+      expect(warning).toContain('1 human message');
+      expect(warning).toContain('2 assistant messages');
     });
 
     it('ignores an unparseable created_at instead of stamping an Invalid Date', () => {
