@@ -3,7 +3,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { Conversation, QAPair } from '../../../../src/core/types';
+import type {
+  Conversation,
+  DOCXExportOptions,
+  ExportOptions,
+  QAPair,
+} from '../../../../src/core/types';
 import { DocxExporter } from '../../../../src/core/exporters/docx-exporter';
 import { COLOR, hexToDocxColor } from '../../../../src/core/exporters/style-tokens';
 import { docxRunText, extractDocxEntry } from '../../../utils/docx-helpers';
@@ -149,7 +154,8 @@ describe('DocxExporter', () => {
       // R-8 splits code into one run per token, so join the runs before asserting
       // on what the reader sees.
       expect(docxRunText(xml)).toContain('function foo() { return 1; }');
-      expect(xml).toContain('Courier New');
+      // R-3: Consolas, which ships with every Office install.
+      expect(xml).toContain('Consolas');
     });
 
     it('keeps metadata, message order, heading, and code in document order', async () => {
@@ -330,5 +336,102 @@ describe('DocxExporter', () => {
       ];
       expect(new Set(hexes).size).toBe(hexes.length);
     });
+  });
+});
+
+describe('R-3: DOCX renders the same in anyone Word', () => {
+  function pairWithCode(): QAPair {
+    return {
+      id: 'p0',
+      index: 0,
+      selected: true,
+      question: { id: 'q0', role: 'user', content: 'asked' },
+      answer: {
+        id: 'a0',
+        role: 'assistant',
+        content: 'answered',
+        htmlContent:
+          '<h1>Design</h1><p>answered</p><pre><code class="language-python">x = 1</code></pre>',
+      },
+    } as unknown as QAPair;
+  }
+
+  async function renderXml(
+    docxOptions?: Partial<DOCXExportOptions>,
+    entry = 'word/document.xml'
+  ): Promise<string> {
+    const pair = pairWithCode();
+    const conversation = {
+      id: 'c1',
+      title: 'Systematic research',
+      platform: 'chatgpt',
+      url: 'https://chatgpt.com/c/test',
+      createdAt: new Date('2026-07-30T12:00:00Z'),
+      pairs: [pair],
+    } as unknown as Conversation;
+    const result = await new DocxExporter().export(conversation, [pair], {
+      format: 'docx',
+      filename: 'test',
+      includeMetadata: true,
+      includeTimestamps: false,
+      ...(docxOptions && { docxOptions: { useHeadings: true, ...docxOptions } }),
+    } as unknown as ExportOptions);
+    return extractDocxEntry(result.blob!, entry);
+  }
+
+  // Word page sizes in twips: 1in = 1440 twips.
+  const A4 = { w: 11906, h: 16838 };
+  const LETTER = { w: 12240, h: 15840 };
+  const LEGAL = { w: 12240, h: 20160 };
+
+  it('declares A4 by default instead of taking the library default', async () => {
+    const xml = await renderXml();
+    expect(xml).toMatch(new RegExp(`w:w="${String(A4.w)}"`));
+    expect(xml).toMatch(new RegExp(`w:h="${String(A4.h)}"`));
+  });
+
+  it('honours letter', async () => {
+    const xml = await renderXml({ pageSize: 'letter' });
+    expect(xml).toMatch(new RegExp(`w:w="${String(LETTER.w)}"`));
+    expect(xml).toMatch(new RegExp(`w:h="${String(LETTER.h)}"`));
+  });
+
+  it('honours legal, the third size the option admits', async () => {
+    const xml = await renderXml({ pageSize: 'legal' });
+    expect(xml).toMatch(new RegExp(`w:w="${String(LEGAL.w)}"`));
+    expect(xml).toMatch(new RegExp(`w:h="${String(LEGAL.h)}"`));
+  });
+
+  it('sets the same margins the PDF uses, in twips', async () => {
+    const xml = await renderXml();
+    // 20mm top, 18mm sides, 16mm bottom.
+    expect(xml).toContain('w:top="1134"');
+    expect(xml).toContain('w:bottom="907"');
+  });
+
+  it('uses Calibri and Consolas, which exist in every Office install', async () => {
+    // The body font is a document default, so it lives in styles.xml; the code
+    // font is set per run and appears in document.xml.
+    const styles = await renderXml(undefined, 'word/styles.xml');
+    const body = await renderXml();
+    expect(styles).toContain('Calibri');
+    expect(body).toContain('Consolas');
+    expect(body).not.toContain('Courier New');
+    expect(styles).not.toContain('Arial');
+  });
+
+  it('emits the page number as a real Word field, not literal text', async () => {
+    const footer = await renderXml(undefined, 'word/footer1.xml');
+    // A field, so it renumbers when the document reflows.
+    expect(footer).toContain('PAGE');
+    expect(footer).toMatch(/<w:fldChar w:fldCharType="begin"\/>/);
+  });
+
+  it('declares heading formatting rather than inheriting the reader Word theme', async () => {
+    const styles = await renderXml(undefined, 'word/styles.xml');
+    // Size, font and colour all stated, so the document cannot change shape
+    // between two machines with different Normal styles.
+    expect(styles).toContain('Calibri');
+    expect(styles).toMatch(/w:styleId="Heading1"/);
   });
 });
