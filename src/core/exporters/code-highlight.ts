@@ -271,11 +271,13 @@ export async function loadMarkdownRenderer(
   renderCode: (code: string, language: string | undefined) => string
 ): Promise<((md: string) => string | null) | null> {
   try {
-    const [{ marked }, { sanitizeHtml }] = await Promise.all([
+    const [{ marked }, { sanitizeHtml }, { requireDoubleTildeStrikethrough }] = await Promise.all([
       import('marked'),
       import('../utils/sanitize-html'),
+      import('../utils/markdown-options'),
     ]);
     marked.setOptions({ gfm: true, breaks: false });
+    requireDoubleTildeStrikethrough(marked);
 
     // A code fence inside a prose artifact goes through the same five-token
     // renderer as any other code block. Without this, one document would show
