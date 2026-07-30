@@ -13,15 +13,23 @@
  * on the shell is what makes that nested document reachable via
  * `contentDocument` despite being cross-document from this script's own.
  *
- * Relays the rendered text out to the parent page over `postMessage`; the
- * parent's content script (content-script.ts) matches the message back to the
- * right <iframe> element by `event.source` and stashes the text there for the
- * ChatGPT parser to read. If this script never runs, never finds any text, or
- * the message never arrives, the parser's fallback (naming the widget,
+ * Relays sanitized HTML out to the parent page over `postMessage` -- HTML,
+ * not flattened text, is what lets the report keep its headings, lists and
+ * tables through the same structure-parsing path an ordinary ChatGPT message
+ * already goes through (D-31). Falls back to today's flattened-text relay
+ * when the HTML path comes back empty or over its sanity bound, and to
+ * nothing at all if even that fails -- never a partial report presented as
+ * complete.
+ *
+ * The parent's content script (content-script.ts) matches the message back to
+ * the right <iframe> element by `event.source` and stashes it there for the
+ * ChatGPT parser to read. If this script never runs, never finds any content,
+ * or the message never arrives, the parser's fallback (naming the widget,
  * lo-f132) is what ships -- never an exception, never fabricated content.
  */
 
 import { createDeepResearchFrameMessage } from '../../shared/deep-research-relay';
+import { sanitizeHtml } from '../../core/utils/sanitize-html';
 
 /**
  * How long to wait after the last DOM mutation before treating the report as
@@ -47,6 +55,20 @@ const MAX_OBSERVE_MS = 30_000;
  * blob into every exporter.
  */
 const MAX_PLAUSIBLE_LENGTH = 200_000;
+
+/**
+ * Same idea as `MAX_PLAUSIBLE_LENGTH`, sized for sanitized HTML rather than
+ * flattened text. Markup is bulkier than the text it wraps -- opening/closing
+ * tags plus whatever attributes survive sanitizing (id, class, table cell
+ * structure) -- typically 2-3x the flattened length for a rich document
+ * (headings, lists, a handful of tables). Tripling the text bound keeps the
+ * same order-of-magnitude safety margin over the "tens of KB" a real report
+ * actually is, while staying well under the multi-megabyte pathological
+ * captures the original bound existed to reject -- and `extractHtml` strips
+ * `<script>`/`<style>` from a clone *before* ever building the HTML string,
+ * so the specific 13.3 MB case above shouldn't even reach this check anymore.
+ */
+const MAX_PLAUSIBLE_HTML_LENGTH = 600_000;
 
 /**
  * Finds the nested frame the report renders into. `#root` is what the widget
@@ -99,8 +121,50 @@ function extractText(doc: Document): string {
   return (clone.textContent ?? '').trim();
 }
 
+/**
+ * Sanitized HTML of the target document's body -- structure intact (headings,
+ * lists, tables), unlike `extractText`'s flattened string.
+ *
+ * Removes `<script>`/`<style>` from a *clone* first, before ever building the
+ * `innerHTML` string: the nested body's raw `textContent` measured ~13.3 MB on
+ * a live page, almost entirely inlined `<script>` bodies, and serializing that
+ * just to strip it a moment later would be wasted work (and a 13 MB string
+ * allocation) on every relay tick.
+ *
+ * `sanitizeHtml` (reused, not reinvented) still runs afterwards for the rest
+ * of its cleanup -- iframe/object/embed removal, `on*` attributes,
+ * `javascript:` URLs -- since this HTML is headed for live DOM on the parent
+ * page.
+ */
+function extractHtml(doc: Document): string {
+  const body = doc.body;
+  if (!body) {
+    return '';
+  }
+  const clone = body.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll('script, style').forEach((el) => el.remove());
+  return sanitizeHtml(clone.innerHTML).trim();
+}
+
 function relay(): void {
-  const text = extractText(targetDocument());
+  const doc = targetDocument();
+
+  const html = extractHtml(doc);
+  if (html) {
+    if (html.length <= MAX_PLAUSIBLE_HTML_LENGTH) {
+      window.parent.postMessage(createDeepResearchFrameMessage({ html }), '*');
+      return;
+    }
+    console.warn(
+      `[ai-chat-exporter] deep-research-frame: captured ${html.length} chars of HTML, ` +
+        `over the ${MAX_PLAUSIBLE_HTML_LENGTH} sanity bound -- falling back to plain text`
+    );
+  }
+
+  // Fall back to the flattened-text relay -- still real captured content,
+  // just without structure -- rather than relaying nothing just because the
+  // HTML path came back empty or over its sanity bound.
+  const text = extractText(doc);
   if (!text) {
     return;
   }
@@ -113,7 +177,7 @@ function relay(): void {
     );
     return;
   }
-  window.parent.postMessage(createDeepResearchFrameMessage(text), '*');
+  window.parent.postMessage(createDeepResearchFrameMessage({ text }), '*');
 }
 
 function watch(): void {
