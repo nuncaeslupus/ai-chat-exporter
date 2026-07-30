@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createTestQAPair, createTestConversation } from '../../../utils/exporter-helpers';
 import { EMBEDDED_FRAME_REPORT_ATTR } from '../../../../src/core/parsers/chatgpt/selectors';
+import { WARNING_KEYS } from '../../../../src/shared/constants';
 
 const mockParse = vi.fn();
 const mockExport = vi.fn();
@@ -133,6 +134,69 @@ describe('content-script degraded-export reporting (lo-872a)', () => {
     expect(sendResponse).toHaveBeenCalledWith({
       success: true,
       warning: expect.stringContaining('Artifact contents') as string,
+    });
+  });
+
+  it('reports the ids-missing warning key (not prose) when IDs cannot be read from the page (D-26)', async () => {
+    const pairs = [createTestQAPair(0, 'Q', 'A')];
+    const conversation = { ...createTestConversation(pairs), platform: 'claude' as const };
+    mockParse.mockReturnValue({ success: true, conversation });
+    mockExport.mockResolvedValue({ success: true, blob: new Blob(['# hi']) });
+    mockExtractIds.mockReturnValue(null);
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'export_conversation', format: 'md' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+    expect(mockFetchApiData).not.toHaveBeenCalled();
+    expect(sendResponse).toHaveBeenCalledWith({
+      success: true,
+      warning: WARNING_KEYS.IDS_MISSING,
+    });
+  });
+
+  it('reports the fetch-failed warning key (not prose) when the Claude API returns nothing (D-26)', async () => {
+    const pairs = [createTestQAPair(0, 'Q', 'A')];
+    const conversation = { ...createTestConversation(pairs), platform: 'claude' as const };
+    mockParse.mockReturnValue({ success: true, conversation });
+    mockExport.mockResolvedValue({ success: true, blob: new Blob(['# hi']) });
+    mockExtractIds.mockReturnValue({ organizationId: 'org-1', conversationId: 'conv-1' });
+    mockFetchApiData.mockResolvedValue(null);
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'export_conversation', format: 'md' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+    expect(sendResponse).toHaveBeenCalledWith({
+      success: true,
+      warning: WARNING_KEYS.FETCH_FAILED,
+    });
+  });
+
+  it('reports the fetch-failed warning key when enrichment throws', async () => {
+    const pairs = [createTestQAPair(0, 'Q', 'A')];
+    const conversation = { ...createTestConversation(pairs), platform: 'claude' as const };
+    mockParse.mockReturnValue({ success: true, conversation });
+    mockExport.mockResolvedValue({ success: true, blob: new Blob(['# hi']) });
+    mockExtractIds.mockReturnValue({ organizationId: 'org-1', conversationId: 'conv-1' });
+    mockFetchApiData.mockRejectedValue(new Error('network down'));
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'export_conversation', format: 'md' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+    expect(sendResponse).toHaveBeenCalledWith({
+      success: true,
+      warning: WARNING_KEYS.FETCH_FAILED,
     });
   });
 

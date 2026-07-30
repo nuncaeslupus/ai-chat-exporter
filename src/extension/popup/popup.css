@@ -1595,15 +1595,12 @@ section {
   color: var(--color-warning-text);
 }
 
-/* Two lines, then the tooltip: a long reason must not grow the box. */
+/* Renders in full — `.view-scroll` (the fixed-height body's only scrolling
+   child) handles it if a long reason ever runs past the box. */
 .warning-card-detail {
   font-size: var(--text-sm);
   line-height: 1.45;
   color: var(--color-warning-text-soft);
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
 }
 
 .warning-card-retry {

@@ -7,6 +7,7 @@ import { detectParser } from '../../core/parsers';
 import { getExporter } from '../../core/exporters';
 import { FilenameService } from '../../core/services/filename-service';
 import { ClaudeApiService, type EnrichmentResult } from '../../core/services/claude-api-service';
+import { WARNING_KEYS } from '../../shared/constants';
 import { SelectionService } from '../../core/services/selection-service';
 import { StorageService } from '../../shared/storage';
 import type { Conversation, ExportFormat } from '../../core/types';
@@ -216,29 +217,31 @@ class ContentScript {
    * Enrich Claude conversation with artifact content from API.
    *
    * Every path that skips enrichment returns a `warning`: the export still
-   * succeeds, but it is missing artifact contents and the user has to be told
-   * — a console log alone leaves them with a silently degraded file.
+   * succeeds, but it is missing artifact contents (and Claude's real
+   * per-message timestamps) and the user has to be told — a console log alone
+   * leaves them with a silently degraded file. `warning` is a locale key, not
+   * prose — the popup resolves it with `getMessage()` and decides whether
+   * Retry can help from the key itself (see `RETRYABLE_WARNING_KEYS`).
    */
   private async enrichClaudeConversation(conversation: Conversation): Promise<EnrichmentResult> {
-    const degraded =
-      'Artifact contents were left out of this export because Claude’s conversation data ' +
-      'could not be read. Make sure you are signed in to claude.ai, reload the page and try again.';
-
     try {
       console.log('[AI Chat Exporter] Enriching Claude conversation with API data...');
 
       const ids = ClaudeApiService.extractIdsFromPage(conversation.url, document);
 
       if (!ids) {
+        // The page itself is missing what enrichment needs (e.g. no
+        // organization id) — retrying the same export won't change that.
         console.log('[AI Chat Exporter] Could not extract IDs for API enrichment');
-        return { conversation, warning: degraded };
+        return { conversation, warning: WARNING_KEYS.IDS_MISSING };
       }
 
       const apiData = await ClaudeApiService.fetchConversationData(ids);
 
       if (!apiData) {
+        // The API call itself failed — plausibly a one-off network issue.
         console.log('[AI Chat Exporter] API data not available');
-        return { conversation, warning: degraded };
+        return { conversation, warning: WARNING_KEYS.FETCH_FAILED };
       }
 
       const enriched = ClaudeApiService.enrichConversation(conversation, apiData);
@@ -248,7 +251,7 @@ class ContentScript {
     } catch (error) {
       console.warn('[AI Chat Exporter] Failed to enrich Claude conversation:', error);
       // Export the un-enriched conversation, but say so.
-      return { conversation, warning: degraded };
+      return { conversation, warning: WARNING_KEYS.FETCH_FAILED };
     }
   }
 
