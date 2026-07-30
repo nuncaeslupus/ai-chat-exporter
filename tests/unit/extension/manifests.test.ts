@@ -6,8 +6,8 @@ interface Manifest {
   name?: string;
   permissions?: string[];
   host_permissions?: string[];
-  content_scripts?: { matches: string[] }[];
-  web_accessible_resources?: { matches: string[] }[];
+  content_scripts?: { matches: string[]; js?: string[] }[];
+  web_accessible_resources?: { resources?: string[]; matches: string[] }[];
 }
 
 const rootDir = resolve(__dirname, '../../..');
@@ -67,5 +67,54 @@ describe('firefox manifest localized name', () => {
   it('the built manifest uses the localized name after merging with base', () => {
     const merged = { ...base, ...firefox };
     expect(merged.name).toBe('__MSG_extensionName__');
+  });
+});
+
+// D-28. Every content script is a one-line loader that `import()`s its real
+// module out of `assets/` (see build/vite.content.ts). Chrome refuses that
+// import unless `assets/*` is web-accessible **to the origin the loader is
+// running on** -- so a host listed under `content_scripts` but missing from
+// `web_accessible_resources[].matches` gets a script that loads and then dies
+// with "Failed to fetch dynamically imported module".
+//
+// That is exactly how ChatGPT Deep Research broke: the sandboxed iframe host
+// `https://*.web-sandbox.oaiusercontent.com/*` was added to `content_scripts`
+// for the frame reader but never to `web_accessible_resources`, so the reader
+// never ran and every export silently fell back to the placeholder. The build
+// still succeeded and every other test still passed.
+//
+// The old assertions here only checked `content_scripts[0]` and only for
+// Gemini/Bard, so neither the second entry nor this coupling was covered.
+describe('web_accessible_resources covers every content-script host', () => {
+  const perBrowser: [string, Manifest][] = [
+    ['chrome', chrome],
+    ['firefox', firefox],
+  ];
+
+  it.each(perBrowser)('%s exposes assets/* to all content-script hosts', (_name, browser) => {
+    const [, scriptHosts] = must(
+      'base content_scripts matches (all entries)',
+      base.content_scripts?.flatMap((entry) => entry.matches)
+    );
+    const assetEntry = browser.web_accessible_resources?.find((entry) =>
+      entry.resources?.includes('assets/*')
+    );
+    if (assetEntry === undefined) {
+      throw new Error('no web_accessible_resources entry exposes assets/*');
+    }
+
+    expect(scriptHosts.length).toBeGreaterThan(1);
+    for (const host of scriptHosts) {
+      expect(assetEntry.matches).toContain(host);
+    }
+  });
+
+  // Named explicitly so a future manifest edit that drops it fails on the
+  // reason rather than on an opaque set difference.
+  it.each(perBrowser)('%s keeps the Deep Research sandbox host', (_name, browser) => {
+    const assetEntry = browser.web_accessible_resources?.find((entry) =>
+      entry.resources?.includes('assets/*')
+    );
+    expect(assetEntry?.matches).toContain('https://*.web-sandbox.oaiusercontent.com/*');
   });
 });
