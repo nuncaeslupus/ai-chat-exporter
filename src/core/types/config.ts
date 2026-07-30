@@ -2,10 +2,6 @@
  * Configuration types for user preferences
  */
 
-import type { ExportFormat } from './exporter';
-import { DEFAULT_PDF_OPTIONS, DEFAULT_DOCX_OPTIONS } from './exporter';
-import type { PDFExportOptions, DOCXExportOptions } from './exporter';
-
 /**
  * Filename template variables
  */
@@ -20,45 +16,59 @@ export interface FilenameVariables {
   time: string;
   /** Full datetime in YYYY-MM-DD_HH-MM format */
   datetime: string;
+  /** Number of question/answer pairs, when the caller knows the conversation */
+  pairCount?: string;
   /** Model name if available */
   model?: string;
 }
+
+/**
+ * A piece of the filename the user composes in the popup.
+ *
+ * An ordered array, not a template string: the popup edits the pieces
+ * directly, so storing a string would mean parsing it back on every open.
+ * `text` belongs to `literal` alone — the free-text chip.
+ */
+export type FilenamePieceType =
+  | 'platform'
+  | 'model'
+  | 'title'
+  | 'date'
+  | 'time'
+  | 'pairCount'
+  | 'literal';
+
+export interface FilenamePiece {
+  type: FilenamePieceType;
+  /** Only meaningful for `literal`. */
+  text?: string;
+}
+
+/**
+ * The filename-shaping half of the user preferences, so the renderer can be
+ * handed preferences without `src/core` having to know about the extension's
+ * message types.
+ *
+ * `filenamePieces` is deliberately optional: absent means "never touched the
+ * builder", and that case must keep rendering the legacy template string
+ * byte for byte.
+ */
+export interface FilenamePreferences {
+  filenameTemplate: string;
+  filenamePieces?: FilenamePiece[] | undefined;
+}
+
+/**
+ * The piece list the builder starts from and `Default` restores. Renders to
+ * `{title}_{date}` — the same name the legacy default template produces.
+ */
+export const DEFAULT_FILENAME_PIECES: FilenamePiece[] = [{ type: 'title' }, { type: 'date' }];
 
 /**
  * Default filename template
  * Example: "{platform}_{title}_{datetime}" -> "ChatGPT_My-Conversation_2025-01-01_14-30"
  */
 export const DEFAULT_FILENAME_TEMPLATE = '{platform}_{title}_{datetime}';
-
-/**
- * User preferences stored in extension storage
- */
-export interface UserPreferences {
-  /** Default export format */
-  defaultFormat: ExportFormat;
-  /** Default filename template */
-  filenameTemplate: string;
-  /** Whether to remember selections between sessions */
-  rememberSelections: boolean;
-  /** PDF default options */
-  pdfDefaults: PDFExportOptions;
-  /** DOCX default options */
-  docxDefaults: DOCXExportOptions;
-  /** Show confirmation before export */
-  showConfirmation: boolean;
-}
-
-/**
- * Default user preferences
- */
-export const DEFAULT_PREFERENCES: UserPreferences = {
-  defaultFormat: 'md',
-  filenameTemplate: DEFAULT_FILENAME_TEMPLATE,
-  rememberSelections: false,
-  pdfDefaults: DEFAULT_PDF_OPTIONS,
-  docxDefaults: DEFAULT_DOCX_OPTIONS,
-  showConfirmation: true,
-};
 
 /**
  * Print options

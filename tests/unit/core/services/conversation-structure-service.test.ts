@@ -127,4 +127,15 @@ describe('ConversationStructureService', () => {
     const markerBlock = blocks.find((b) => isMarkerParagraph(b, '[Image: My Image]'));
     expect(markerBlock).toBeDefined();
   });
+
+  // D-18: a message with no real timestamp used to fall back to `new Date()`,
+  // silently reintroducing the same fabricated-time bug the parser fix removes.
+  it('does not fabricate a timestamp for a message that has none', () => {
+    const conversation = buildConversation({});
+    delete (conversation.pairs[0]!.question as { timestamp?: Date }).timestamp;
+
+    const structured = ConversationStructureService.toStructured(conversation);
+
+    expect(structured.pairs[0]!.question.timestamp).toBeUndefined();
+  });
 });

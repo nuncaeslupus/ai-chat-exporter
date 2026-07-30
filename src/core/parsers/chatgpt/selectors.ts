@@ -86,8 +86,20 @@ export const CHATGPT_SELECTORS = {
     generatedImageTitle: '.message-role, [class*="font-medium"]',
     // Deep-research summary button ("Research completed in 6m · 18 sources ·")
     deepResearchButton: 'button[class*="text-token-text-tertiary"]',
+    // Widget rendered in a cross-origin sandboxed frame instead of in the page
+    // (Deep Research is `internal://deep-research`). The title names the widget.
+    embeddedWidgetFrame: 'iframe[title^="internal://"]',
   },
 } satisfies SelectorSet;
+
+/**
+ * Attribute the page's content script stashes a Deep Research iframe's own
+ * relayed report text on, once the sandboxed frame's copy of the content
+ * script posts it out over `postMessage` (lo-9001). Absent -> the frame could
+ * not be read for any reason, and the parser falls back to naming the widget
+ * instead of guessing at its content.
+ */
+export const EMBEDDED_FRAME_REPORT_ATTR = 'data-ai-chat-exporter-report-text';
 
 /**
  * ChatGPT URL patterns for detection

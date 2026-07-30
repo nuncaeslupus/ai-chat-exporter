@@ -6,10 +6,23 @@
 import type {
   ClaudeApiConversationResponse,
   ClaudeApiRequest,
+  ClaudeApiChatMessage,
   Artifact,
   Conversation,
+  QAPair,
 } from '../types';
 import { isArtifactContent } from '../types';
+import type { MessageResponse } from '../../shared/messages';
+
+/** The slice of Claude's `__NEXT_DATA__` blob this service reads. */
+interface NextData {
+  props?: {
+    pageProps?: {
+      organizationId?: string;
+      selectedOrganization?: { uuid?: string };
+    };
+  };
+}
 
 /**
  * Outcome of an enrichment attempt.
@@ -57,27 +70,20 @@ export class ClaudeApiService {
    */
   private static findOrganizationId(document: Document): string | null {
     // Try multiple approaches to find the organization ID
-    console.log('[Claude API Service] Starting organization ID extraction...');
 
     // 1. Check for next.js data
     const nextData = document.getElementById('__NEXT_DATA__');
-    console.log('[Claude API Service] __NEXT_DATA__ element exists:', !!nextData);
     if (nextData?.textContent) {
       try {
-        const data = JSON.parse(nextData.textContent);
-        console.log('[Claude API Service] __NEXT_DATA__ parsed successfully');
-        console.log('[Claude API Service] __NEXT_DATA__ keys:', Object.keys(data));
+        const data = JSON.parse(nextData.textContent) as NextData;
 
         // Navigate through potential paths where org ID might be
         if (data?.props?.pageProps?.organizationId) {
-          console.log('[Claude API Service] Found org ID in __NEXT_DATA__.props.pageProps.organizationId');
           return data.props.pageProps.organizationId;
         }
         if (data?.props?.pageProps?.selectedOrganization?.uuid) {
-          console.log('[Claude API Service] Found org ID in __NEXT_DATA__.props.pageProps.selectedOrganization.uuid');
           return data.props.pageProps.selectedOrganization.uuid;
         }
-        console.log('[Claude API Service] __NEXT_DATA__ props.pageProps:', data?.props?.pageProps ? Object.keys(data.props.pageProps) : 'undefined');
       } catch (error) {
         console.warn('[Claude API Service] Failed to parse __NEXT_DATA__:', error);
       }
@@ -86,9 +92,7 @@ export class ClaudeApiService {
     // 2. Check for org ID in localStorage (Claude might store it there)
     try {
       const storedOrgId = localStorage.getItem('lastOrganizationId');
-      console.log('[Claude API Service] localStorage lastOrganizationId:', storedOrgId ? 'found' : 'not found');
       if (storedOrgId) {
-        console.log('[Claude API Service] Found org ID in localStorage');
         return storedOrgId;
       }
     } catch (error) {
@@ -98,7 +102,6 @@ export class ClaudeApiService {
     // 3. Check URL parameters (some Claude URLs include org ID)
     const urlParams = new URLSearchParams(window.location.search);
     const orgIdParam = urlParams.get('orgId') || urlParams.get('organizationId');
-    console.log('[Claude API Service] URL parameters check:', orgIdParam ? 'found' : 'not found');
     if (orgIdParam) {
       return orgIdParam;
     }
@@ -114,13 +117,11 @@ export class ClaudeApiService {
 
     // 5. Check for org ID in image/file URLs (Claude uses /api/{orgId}/files/... pattern)
     const images = document.querySelectorAll('img[src^="/api/"]');
-    console.log('[Claude API Service] Found images with /api/ URLs:', images.length);
     for (const img of images) {
       const src = img.getAttribute('src');
       if (src) {
-        const apiMatch = src.match(/^\/api\/([a-f0-9-]{36})\//);
-        if (apiMatch && apiMatch[1]) {
-          console.log('[Claude API Service] Found org ID in image URL:', src);
+        const apiMatch = /^\/api\/([a-f0-9-]{36})\//.exec(src);
+        if (apiMatch?.[1]) {
           return apiMatch[1];
         }
       }
@@ -131,19 +132,16 @@ export class ClaudeApiService {
     // serializes the entire document, so it only runs once every cheap
     // source above has failed.
     const htmlContent = document.documentElement.innerHTML;
-    console.log('[Claude API Service] Searching HTML content (length:', htmlContent.length, 'chars)');
 
     const patterns = [
       /"organizationID":"([a-f0-9-]{36})"/i,
       /"organizationUUID":"([a-f0-9-]{36})"/i,
-      /"organization_id":"([a-f0-9-]{36})"/i
+      /"organization_id":"([a-f0-9-]{36})"/i,
     ];
 
-    for (const [index, pattern] of patterns.entries()) {
+    for (const pattern of patterns) {
       const match = htmlContent.match(pattern);
-      console.log(`[Claude API Service] Pattern ${index + 1} match:`, match ? match[1] : 'no match');
-      if (match && match[1]) {
-        console.log('[Claude API Service] Found organization ID in page content');
+      if (match?.[1]) {
         return match[1];
       }
     }
@@ -155,16 +153,13 @@ export class ClaudeApiService {
   /**
    * Extract conversation ID and organization ID from Claude page
    */
-  static extractIdsFromPage(
-    url: string,
-    document: Document
-  ): ClaudeApiRequest | null {
+  static extractIdsFromPage(url: string, document: Document): ClaudeApiRequest | null {
     try {
       const urlObj = new URL(url);
 
       // Example URL: https://claude.ai/chat/00000000-0000-4000-8000-000000000000
-      const pathMatch = urlObj.pathname.match(/\/chat\/([a-f0-9-]+)/);
-      if (!pathMatch || !pathMatch[1]) {
+      const pathMatch = /\/chat\/([a-f0-9-]+)/.exec(urlObj.pathname);
+      if (!pathMatch?.[1]) {
         console.warn('[Claude API Service] Could not extract conversation ID from URL:', url);
         return null;
       }
@@ -193,7 +188,10 @@ export class ClaudeApiService {
     request: ClaudeApiRequest
   ): Promise<ClaudeApiConversationResponse | null> {
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await chrome.runtime.sendMessage<
+        unknown,
+        MessageResponse<ClaudeApiConversationResponse>
+      >({
         type: 'fetch_claude_api_data',
         data: request,
       });
@@ -203,8 +201,7 @@ export class ClaudeApiService {
         return null;
       }
 
-      console.log('[Claude API Service] API response received, messages:', response.data.chat_messages?.length);
-      return response.data as ClaudeApiConversationResponse;
+      return response.data;
     } catch (error) {
       console.error('[Claude API Service] Error fetching conversation data:', error);
       return null;
@@ -217,7 +214,6 @@ export class ClaudeApiService {
    */
   static extractArtifacts(apiData: ClaudeApiConversationResponse): Map<string, Artifact[]> {
     const artifactsByMessageUuid = new Map<string, Artifact[]>();
-    console.log('[Claude API Service] extractArtifacts: Processing', apiData.chat_messages.length, 'messages');
 
     for (const message of apiData.chat_messages) {
       // Only process assistant messages
@@ -226,14 +222,11 @@ export class ClaudeApiService {
       }
 
       const artifacts: Artifact[] = [];
-      console.log(`[Claude API Service] Message ${message.index}: ${message.content?.length || 0} content blocks`);
 
       // Look for artifact tool use in content
       for (const content of message.content || []) {
-        console.log(`[Claude API Service] Content block type:`, content.type, 'name:', (content as any).name);
         if (isArtifactContent(content)) {
           const input = content.input;
-          console.log(`[Claude API Service] Found artifact:`, input.title, 'type:', input.type, 'contentLength:', input.content?.length || 0);
 
           // Map Claude API artifact type to our artifact type
           let type = 'unknown';
@@ -278,12 +271,10 @@ export class ClaudeApiService {
       }
 
       if (artifacts.length > 0) {
-        console.log(`[Claude API Service] Message ${message.uuid}: Found ${artifacts.length} artifacts`);
         artifactsByMessageUuid.set(message.uuid, artifacts);
       }
     }
 
-    console.log('[Claude API Service] Total messages with artifacts:', artifactsByMessageUuid.size);
     return artifactsByMessageUuid;
   }
 
@@ -303,14 +294,73 @@ export class ClaudeApiService {
   }
 
   /**
-   * Enrich conversation with artifact content from API.
+   * Pair up each Q&A pair with the API messages that produced it.
+   *
+   * The DOM exposes no id related to the API's uuid, so the match is
+   * *positional*: the Nth pair is the Nth human message and the Nth assistant
+   * message. That assumption breaks when the two disagree in shape (an edited,
+   * regenerated or deleted turn), so both counts are validated up front and a
+   * mismatch bails out with a user-facing warning rather than guessing.
+   */
+  private static matchPairsToApiMessages(
+    conversation: Conversation,
+    apiData: ClaudeApiConversationResponse
+  ):
+    | {
+        matched: {
+          pair: QAPair;
+          human: ClaudeApiChatMessage | undefined;
+          assistant: ClaudeApiChatMessage | undefined;
+        }[];
+      }
+    | { warning: string } {
+    const humanMessages = apiData.chat_messages.filter((m) => m.sender === 'human');
+    const assistantMessages = apiData.chat_messages.filter((m) => m.sender === 'assistant');
+    const pairCount = conversation.pairs.length;
+
+    if (assistantMessages.length !== pairCount || humanMessages.length !== pairCount) {
+      // Always state the actual measured counts for both sides (never just
+      // the one the brief's original wording assumed was the culprit) so the
+      // message can never claim two equal counts while reporting a mismatch.
+      const plural = (n: number, noun: string): string =>
+        `${String(n)} ${noun}${n === 1 ? '' : 's'}`;
+      const warning =
+        `Artifact contents and message times were left out of this export: the page shows ${String(pairCount)} ` +
+        `Q&A pairs, but Claude reports ${plural(humanMessages.length, 'human message')} and ` +
+        `${plural(assistantMessages.length, 'assistant message')}, so they could not be matched to the right ` +
+        'turn (this happens when a turn was edited, regenerated or deleted). Reload the conversation and ' +
+        'export again.';
+      console.warn(`[Claude API Service] ${warning}`);
+      return { warning };
+    }
+
+    return {
+      matched: conversation.pairs.map((pair, index) => ({
+        pair,
+        human: humanMessages[index],
+        assistant: assistantMessages[index],
+      })),
+    };
+  }
+
+  /** An API `created_at` as a Date, or undefined when it is absent or unparseable. */
+  private static parseApiTime(iso?: string): Date | undefined {
+    if (!iso) return undefined;
+    const date = new Date(iso);
+    return Number.isNaN(date.getTime()) ? undefined : date;
+  }
+
+  /**
+   * Enrich conversation with artifact content and per-message timestamps
+   * from the API.
    *
    * The DOM scrape and the API response are independently sourced and share
    * no common identifier: the API exposes a stable `uuid` per message, but
    * the DOM-scraped `Message.id` is generated locally by the parser and has
    * no relationship to it. So a Q&A pair can only be matched to its API
    * message *positionally* — by assuming the Nth DOM pair corresponds to the
-   * Nth assistant message in the API response.
+   * Nth human message and Nth assistant message in the API response (see
+   * `matchPairsToApiMessages`).
    *
    * That assumption breaks when the two disagree in shape (an edited or
    * regenerated turn, a deleted message, ...). Rather than guess, this bails
@@ -323,69 +373,38 @@ export class ClaudeApiService {
    * title-matching, which silently collides when two artifacts share a
    * title.
    */
-  static enrichConversationWithArtifacts(
+  static enrichConversation(
     conversation: Conversation,
     apiData: ClaudeApiConversationResponse
   ): EnrichmentResult {
     const artifactsByMessageUuid = this.extractArtifacts(apiData);
+    const match = this.matchPairsToApiMessages(conversation, apiData);
 
-    if (artifactsByMessageUuid.size === 0) {
-      console.log('[Claude API Service] No artifacts found in API response');
-      return { conversation };
+    if ('warning' in match) {
+      return { conversation, warning: match.warning };
     }
 
-    console.log(
-      `[Claude API Service] Found artifacts in ${artifactsByMessageUuid.size} messages`
-    );
-
-    const assistantMessages = apiData.chat_messages.filter(
-      (message) => message.sender === 'assistant'
-    );
-
-    if (assistantMessages.length !== conversation.pairs.length) {
-      const warning =
-        `Artifact contents were left out of this export: the page shows ${String(conversation.pairs.length)} ` +
-        `replies but Claude reports ${String(assistantMessages.length)}, so artifacts could not be ` +
-        'matched to the right reply (this happens when a turn was edited, regenerated ' +
-        'or deleted). Reload the conversation and export again.';
-      console.warn(`[Claude API Service] ${warning}`);
-      return { conversation, warning };
-    }
-
-    // Enrich conversation pairs with artifact content, matching each pair to
-    // its API message by ordinal position (validated above) and its
-    // artifacts by the message's own stable uuid.
-    const enrichedPairs = conversation.pairs.map((pair, pairIndex) => {
-      const assistantMessage = assistantMessages[pairIndex];
-      const apiArtifacts = assistantMessage
-        ? artifactsByMessageUuid.get(assistantMessage.uuid)
-        : undefined;
-
-      if (!apiArtifacts) {
-        return pair;
-      }
-
-      console.log(
-        `[Claude API Service] Pair ${pairIndex}: Replacing artifacts with ${apiArtifacts.length} from API message ${assistantMessage?.uuid}`
-      );
+    const enrichedPairs = match.matched.map(({ pair, human, assistant }) => {
+      const apiArtifacts = assistant ? artifactsByMessageUuid.get(assistant.uuid) : undefined;
+      const questionTime = this.parseApiTime(human?.created_at);
+      const answerTime = this.parseApiTime(assistant?.created_at);
 
       return {
         ...pair,
+        question: {
+          ...pair.question,
+          ...(questionTime && { timestamp: questionTime }),
+        },
         answer: {
           ...pair.answer,
-          metadata: {
-            ...pair.answer.metadata,
-            artifacts: apiArtifacts,
-          },
+          ...(answerTime && { timestamp: answerTime }),
+          ...(apiArtifacts && {
+            metadata: { ...pair.answer.metadata, artifacts: apiArtifacts },
+          }),
         },
       };
     });
 
-    return {
-      conversation: {
-        ...conversation,
-        pairs: enrichedPairs,
-      },
-    };
+    return { conversation: { ...conversation, pairs: enrichedPairs } };
   }
 }

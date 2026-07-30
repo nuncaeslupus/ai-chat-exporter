@@ -6,19 +6,32 @@
 import { detectParser } from '../../core/parsers';
 import { getExporter } from '../../core/exporters';
 import { FilenameService } from '../../core/services/filename-service';
-import {
-  ClaudeApiService,
-  type EnrichmentResult,
-} from '../../core/services/claude-api-service';
+import { ClaudeApiService, type EnrichmentResult } from '../../core/services/claude-api-service';
 import { SelectionService } from '../../core/services/selection-service';
 import { StorageService } from '../../shared/storage';
 import type { Conversation, ExportFormat } from '../../core/types';
 import { sanitizeHtml } from '../../core/utils/sanitize-html';
+import { buildSkeleton, type DriftReport } from '../../core/drift';
 import {
   isExportConversationMessage,
   isPrintConversationMessage,
   isGetConversationMessage,
+  isGetDriftSkeletonMessage,
 } from '../../shared/messages';
+import {
+  DEEP_RESEARCH_FRAME_ORIGIN_RE,
+  isDeepResearchFrameMessage,
+} from '../../shared/deep-research-relay';
+import {
+  CHATGPT_SELECTORS,
+  EMBEDDED_FRAME_REPORT_ATTR,
+} from '../../core/parsers/chatgpt/selectors';
+
+/** How often to check whether the print document has finished loading. */
+const PRINT_POLL_INTERVAL_MS = 100;
+
+/** Give up waiting for the print document and print anyway after this long. */
+const PRINT_LOAD_TIMEOUT_MS = 10_000;
 
 /**
  * Apply the popup's per-pair selection (by `pair.index`, the only identifier
@@ -43,6 +56,8 @@ function applySelection(conversation: Conversation, selectedIndices?: number[]):
  */
 class ContentScript {
   private conversation: Conversation | null = null;
+  /** Drift from the most recent parse. Content-free; see `src/core/drift`. */
+  private drift: DriftReport | undefined;
   private initialized = false;
 
   async initialize(): Promise<void> {
@@ -76,19 +91,20 @@ class ContentScript {
     }
 
     if (!this.initialized) {
-      console.log(
-        `[AI Chat Exporter] Detected platform: ${parser.platformInfo.name}`,
-      );
+      console.log(`[AI Chat Exporter] Detected platform: ${parser.platformInfo.name}`);
     }
 
     const parseResult = parser.parse();
+    this.drift = parseResult.drift;
     if (!parseResult.success || !parseResult.conversation) {
       console.error('[AI Chat Exporter] Failed to parse conversation:', parseResult.error);
       return null;
     }
 
     console.log('[AI Chat Exporter] Successfully initialized');
-    console.log(`[AI Chat Exporter] Found ${parseResult.conversation.pairs.length} conversation pairs`);
+    console.log(
+      `[AI Chat Exporter] Found ${parseResult.conversation.pairs.length} conversation pairs`
+    );
     this.initialized = true;
     return parseResult.conversation;
   }
@@ -97,13 +113,15 @@ class ContentScript {
    * Notify background script about page readiness state
    */
   private notifyPageReadyState(ready: boolean): void {
-    chrome.runtime.sendMessage({
-      type: 'page_ready_state',
-      ready: ready,
-    }).catch((error) => {
-      // Ignore errors if background script is not available
-      console.log('[AI Chat Exporter] Could not notify background script:', error);
-    });
+    chrome.runtime
+      .sendMessage({
+        type: 'page_ready_state',
+        ready: ready,
+      })
+      .catch((error) => {
+        // Ignore errors if background script is not available
+        console.log('[AI Chat Exporter] Could not notify background script:', error);
+      });
   }
 
   /**
@@ -113,7 +131,10 @@ class ContentScript {
    * degraded (see `enrichClaudeConversation`), or `undefined` when it is
    * complete. Failures throw.
    */
-  async handleExport(format: ExportFormat, selectedIndices?: number[]): Promise<string | undefined> {
+  async handleExport(
+    format: ExportFormat,
+    selectedIndices?: number[]
+  ): Promise<string | undefined> {
     // Re-parse conversation to get latest content (ChatGPT is dynamic SPA).
     // Operate on a local snapshot, not `this.conversation` — a concurrent
     // export/print call must never see or clobber this call's data (lo-08b0).
@@ -126,7 +147,9 @@ class ContentScript {
 
     conversation = applySelection(conversation, selectedIndices);
 
-    console.log(`[AI Chat Exporter] Attempting to export ${conversation.pairs.length} pairs to ${format}`);
+    console.log(
+      `[AI Chat Exporter] Attempting to export ${conversation.pairs.length} pairs to ${format}`
+    );
     let warning: string | undefined;
 
     try {
@@ -145,16 +168,6 @@ class ContentScript {
       // Only the pairs the user left selected in the popup go into the export.
       const pairsToExport = SelectionService.getSelectedPairs(conversation.pairs);
 
-      // Debug: Check if artifacts have content before export
-      console.log('[AI Chat Exporter] Pairs to export:', pairsToExport.length);
-      pairsToExport.forEach((pair, i) => {
-        const artifacts = pair.answer.metadata?.artifacts || [];
-        console.log(`[AI Chat Exporter] Pair ${i}: ${artifacts.length} artifacts`);
-        artifacts.forEach((a, j) => {
-          console.log(`[AI Chat Exporter] Pair ${i}, Artifact ${j}: "${a.title}", hasContent:`, !!a.content, 'length:', a.content?.length || 0);
-        });
-      });
-
       // Get exporter for format
       const exporter = await getExporter(format);
       if (!exporter) {
@@ -165,25 +178,25 @@ class ContentScript {
       const prefs = await StorageService.getUserPreferences();
 
       // Export conversation (use all pairs)
-      const result = await exporter.export(
-        conversation,
-        pairsToExport,
-        {
-          format,
-          filename: '',
-          includeMetadata: prefs.includeMetadata,
-          includeTimestamps: prefs.includeTimestamps,
-        }
-      );
+      const result = await exporter.export(conversation, pairsToExport, {
+        format,
+        filename: '',
+        includeMetadata: prefs.includeMetadata,
+        includeTimestamps: prefs.includeTimestamps,
+        fontScale: prefs.fontScale,
+      });
 
       if (!result.success || !result.blob) {
         throw new Error(result.error || 'Export failed');
       }
 
-      // Generate filename
-      const variables = FilenameService.getVariablesFromConversation(conversation);
-      const baseFilename = FilenameService.generateFilename(prefs.filenameTemplate, variables);
-      const filename = FilenameService.addExtension(baseFilename, exporter.extension);
+      // Generate filename — the same call the popup's preview makes, so the
+      // name it showed is the name that lands on disk.
+      const filename = FilenameService.buildFilename(
+        prefs,
+        FilenameService.getVariablesFromConversation(conversation),
+        exporter.extension
+      );
 
       // Download file
       this.downloadFile(result.blob, filename);
@@ -228,7 +241,7 @@ class ContentScript {
         return { conversation, warning: degraded };
       }
 
-      const enriched = ClaudeApiService.enrichConversationWithArtifacts(conversation, apiData);
+      const enriched = ClaudeApiService.enrichConversation(conversation, apiData);
       console.log('[AI Chat Exporter] Claude conversation enriched successfully');
 
       return enriched;
@@ -275,7 +288,9 @@ class ContentScript {
 
     conversation = applySelection(conversation, selectedIndices);
 
-    console.log(`[AI Chat Exporter] Attempting to print ${conversation.pairs.length} pairs as ${format}`);
+    console.log(
+      `[AI Chat Exporter] Attempting to print ${conversation.pairs.length} pairs as ${format}`
+    );
     let warning: string | undefined;
 
     try {
@@ -306,16 +321,13 @@ class ContentScript {
       const prefs = await StorageService.getUserPreferences();
 
       // Export conversation
-      const result = await exporter.export(
-        finalConversation,
-        pairsToExport,
-        {
-          format,
-          filename: '',
-          includeMetadata: prefs.includeMetadata,
-          includeTimestamps: prefs.includeTimestamps,
-        }
-      );
+      const result = await exporter.export(finalConversation, pairsToExport, {
+        format,
+        filename: '',
+        includeMetadata: prefs.includeMetadata,
+        includeTimestamps: prefs.includeTimestamps,
+        fontScale: prefs.fontScale,
+      });
 
       if (!result.success || !result.blob) {
         throw new Error(result.error || 'Print generation failed');
@@ -346,40 +358,57 @@ class ContentScript {
   }
 
   private printBlob(printWindow: Window, blob: Blob, format: ExportFormat): void {
-    // For HTML and PDF, we can print directly
+    // HTML and PDF are already printable documents; text formats (MD, TXT,
+    // JSON) get wrapped in a minimal one first.
     if (format === 'html' || format === 'pdf') {
-      const url = URL.createObjectURL(blob);
-      printWindow.addEventListener('load', () => {
-        setTimeout(() => {
-          printWindow.print();
-          // Clean up the URL after printing
-          printWindow.addEventListener('afterprint', () => {
-            URL.revokeObjectURL(url);
-          });
-        }, 500);
-      });
-      printWindow.location.href = url;
+      this.navigateAndPrint(printWindow, blob);
     } else {
-      // For text formats (MD, TXT, JSON), wrap in simple HTML for printing
       const reader = new FileReader();
       reader.onload = () => {
-        const content = reader.result as string;
-        const printHtml = this.wrapInPrintHtml(content, format);
-        const printBlob = new Blob([printHtml], { type: 'text/html' });
-        const printUrl = URL.createObjectURL(printBlob);
-
-        printWindow.addEventListener('load', () => {
-          setTimeout(() => {
-            printWindow.print();
-            printWindow.addEventListener('afterprint', () => {
-              URL.revokeObjectURL(printUrl);
-            });
-          }, 500);
-        });
-        printWindow.location.href = printUrl;
+        const printHtml = this.wrapInPrintHtml(reader.result as string, format);
+        this.navigateAndPrint(printWindow, new Blob([printHtml], { type: 'text/html' }));
       };
       reader.readAsText(blob);
     }
+  }
+
+  /**
+   * Point the pre-opened window at `blob` and raise the print dialog once the
+   * document is actually on screen.
+   *
+   * Polls instead of listening for `load`: navigating a window replaces its
+   * inner Window object, so a listener registered on `printWindow` *before*
+   * `location.href` is assigned is thrown away with the old Window and never
+   * fires. (Verified in Chrome: the blob document loads and `readyState`
+   * reaches 'complete', but the listener does not run — which is why the
+   * print dialog never appeared.) Reading `printWindow.document` through the
+   * WindowProxy on each tick always resolves to the current document.
+   */
+  private navigateAndPrint(printWindow: Window, blob: Blob): void {
+    const url = URL.createObjectURL(blob);
+    printWindow.location.href = url;
+
+    const deadline = Date.now() + PRINT_LOAD_TIMEOUT_MS;
+    const poll = setInterval(() => {
+      let loaded = false;
+      try {
+        loaded =
+          printWindow.location.href === url && printWindow.document.readyState === 'complete';
+      } catch {
+        // A cross-origin document would make these reads throw; fall through
+        // to the deadline rather than throwing on every tick forever.
+      }
+      // ponytail: print on timeout too — a slow document still beats no
+      // dialog, which is what the old fixed 500ms delay effectively assumed.
+      if (!loaded && Date.now() < deadline) {
+        return;
+      }
+      clearInterval(poll);
+      if (!printWindow.closed) {
+        printWindow.print();
+      }
+      URL.revokeObjectURL(url);
+    }, PRINT_POLL_INTERVAL_MS);
   }
 
   private wrapInPrintHtml(content: string, format: ExportFormat): string {
@@ -657,7 +686,45 @@ ${sanitizeHtml(htmlContent)}
   getConversation(): Conversation | null {
     return this.conversation;
   }
+
+  getDrift(): DriftReport | undefined {
+    return this.drift;
+  }
 }
+
+/**
+ * Handle a `postMessage` from a Deep Research / connector-widget sandboxed
+ * iframe (see `deep-research-frame.ts`, which runs inside that frame).
+ *
+ * Validates the sender's origin against the sandbox host pattern before
+ * trusting anything in `event.data` -- any script on the page (or a
+ * malicious/compromised subdomain) can post an arbitrary `message` event, and
+ * without this check that content would land in the export as if it were the
+ * real report. Matches the message to the right `<iframe>` element by
+ * `event.source === frame.contentWindow`, which works even though the frame
+ * is cross-origin -- `contentWindow` is exposed regardless of origin -- and
+ * needs no shared identifier (turn id, frame id) between the two scripts.
+ */
+function handleDeepResearchFrameMessage(event: MessageEvent): void {
+  if (!DEEP_RESEARCH_FRAME_ORIGIN_RE.test(event.origin)) {
+    return;
+  }
+  if (!isDeepResearchFrameMessage(event.data)) {
+    return;
+  }
+
+  const frames = document.querySelectorAll<HTMLIFrameElement>(
+    CHATGPT_SELECTORS.custom.embeddedWidgetFrame
+  );
+  for (const frame of frames) {
+    if (frame.contentWindow === event.source) {
+      frame.setAttribute(EMBEDDED_FRAME_REPORT_ATTR, event.data.text);
+      return;
+    }
+  }
+}
+
+window.addEventListener('message', handleDeepResearchFrameMessage);
 
 // Initialize content script
 const contentScript = new ContentScript();
@@ -665,23 +732,41 @@ const contentScript = new ContentScript();
 // Wait for DOM to be ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
-    contentScript.initialize();
+    void contentScript.initialize();
   });
 } else {
-  contentScript.initialize();
+  void contentScript.initialize();
 }
 
 // Set up message listener for communication with popup
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  (async () => {
+  void (async () => {
     try {
       if (isGetConversationMessage(message)) {
         // Re-parse conversation to get latest content
         await contentScript.initialize();
         const conversation = contentScript.getConversation();
+        const drift = contentScript.getDrift();
         sendResponse({
           success: true,
           data: conversation,
+          ...(drift && { drift }),
+        });
+      } else if (isGetDriftSkeletonMessage(message)) {
+        // Built here and only here: the popup has no access to the page DOM,
+        // and building it lazily means a user who never opens the report view
+        // never has one in memory.
+        const parser = detectParser();
+        const container = parser
+          ? document.querySelector(parser.selectors.conversationContainer)
+          : null;
+        // Falling back to <body> is deliberate: when canParse() is false, the
+        // container selector is exactly what we know least about.
+        const root = container ?? document.body;
+        sendResponse({
+          success: true,
+          skeleton: buildSkeleton(root),
+          origin: window.location.origin,
         });
       } else if (isExportConversationMessage(message)) {
         const warning = await contentScript.handleExport(message.format, message.selectedIndices);
@@ -698,7 +783,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       } else {
         sendResponse({
           success: false,
-          error: `Unknown message type: ${message.type}`,
+          error: `Unknown message type: ${String((message as { type?: unknown }).type)}`,
         });
       }
     } catch (error) {

@@ -1,0 +1,5 @@
+<!-- Candidate A, recoloured for the dark popup header (docs/design/popup-redesign.md §1). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 34 34" fill="none">
+  <rect x="1.5" y="1.5" width="31" height="31" rx="9" fill="#7FD9BE"/>
+  <path d="M17 9v11m0 0 4.5-4.5M17 20l-4.5-4.5M10 24.5h14" stroke="#06342A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

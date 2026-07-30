@@ -24,15 +24,6 @@ export class HtmlContentParser {
    * Parse HTML string into structured content blocks
    */
   static parse(html: string): StructuredContentBlock[] {
-    // DEBUG: Check what HTML is being received for parsing
-    console.log('🔍 HtmlContentParser.parse called with:', {
-      htmlLength: html.length,
-      htmlPreview: html.substring(0, 300),
-      hasTables: html.includes('<table'),
-      hasCode: html.includes('<code'),
-      hasNewlines: html.includes('\n')
-    });
-
     const parser = new DOMParser();
 
     // Wrap content in a div to prevent root-level text/inline elements
@@ -47,10 +38,25 @@ export class HtmlContentParser {
     }
 
     // Check if the wrapper contains only inline content (no block elements)
-    const hasBlockElements = Array.from(wrapper.children).some(child => {
+    const hasBlockElements = Array.from(wrapper.children).some((child) => {
       const tag = child.tagName.toLowerCase();
-      return ['p', 'div', 'pre', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-              'ul', 'ol', 'blockquote', 'table', 'hr', 'img'].includes(tag);
+      return [
+        'p',
+        'div',
+        'pre',
+        'h1',
+        'h2',
+        'h3',
+        'h4',
+        'h5',
+        'h6',
+        'ul',
+        'ol',
+        'blockquote',
+        'table',
+        'hr',
+        'img',
+      ].includes(tag);
     });
 
     // If it contains only inline content, treat the whole thing as a single paragraph
@@ -152,7 +158,9 @@ export class HtmlContentParser {
           // If so, recursively parse its children rather than treating as inline
           // 'img' belongs here: parseInlineContent has no image case, so an image
           // left to the inline path is read as textContent ('') and silently dropped.
-          const hasNestedBlocks = el.querySelector('table, pre, h1, h2, h3, h4, h5, h6, ul, ol, blockquote, hr, img');
+          const hasNestedBlocks = el.querySelector(
+            'table, pre, h1, h2, h3, h4, h5, h6, ul, ol, blockquote, hr, img'
+          );
           if (hasNestedBlocks) {
             // Recursively parse children as blocks
             const nestedBlocks = this.parseElement(el);
@@ -192,8 +200,8 @@ export class HtmlContentParser {
     let language = 'code';
     const codeEl = pre.querySelector('code');
     if (codeEl) {
-      const classMatch = codeEl.className.match(/language-(\w+)/);
-      if (classMatch && classMatch[1]) {
+      const classMatch = /language-(\w+)/.exec(codeEl.className);
+      if (classMatch?.[1]) {
         language = classMatch[1];
       }
     }
@@ -358,14 +366,6 @@ export class HtmlContentParser {
   ): InlineContent[] {
     const result: InlineContent[] = [];
 
-    // DEBUG: Check inline content parsing
-    console.log('🔍 parseInlineContent:', {
-      tagName: element.tagName,
-      childNodeCount: element.childNodes.length,
-      textContent: element.textContent?.substring(0, 100),
-      hasCodeChildren: Array.from(element.children).some(c => c.tagName === 'CODE')
-    });
-
     for (const child of Array.from(element.childNodes)) {
       // Skip excluded elements
       if (child.nodeType === Node.ELEMENT_NODE && excludeElements.includes(child as Element)) {
@@ -389,6 +389,20 @@ export class HtmlContentParser {
 
       const el = child as Element;
       const tagName = el.tagName.toLowerCase();
+
+      // lo-320b: the math marker BaseParser.cleanupElement leaves behind. Its
+      // text is already the delimited LaTeX source, so this only adds the type
+      // and the display mode. Checked before the tag switch because the marker
+      // is a plain <span>, which the switch would otherwise flatten to text.
+      const mathDisplay = el.getAttribute('data-math-display');
+      if (mathDisplay) {
+        result.push({
+          type: 'math',
+          text: el.textContent || '',
+          display: mathDisplay === 'block' ? 'block' : 'inline',
+        });
+        continue;
+      }
 
       switch (tagName) {
         case 'strong':
@@ -443,6 +457,14 @@ export class HtmlContentParser {
           break;
         }
         default: {
+          // A math marker is often wrapped — KaTeX puts display math inside
+          // `.katex-display`, Gemini wraps inline math in its own `.math-inline`
+          // span. Flattening the wrapper to textContent would keep the delimited
+          // source but lose the math type, so recurse to reach the marker.
+          if (el.querySelector('[data-math-display]')) {
+            result.push(...this.parseInlineContent(el));
+            break;
+          }
           // For other elements, just extract text
           const text = el.textContent || '';
           if (text) {

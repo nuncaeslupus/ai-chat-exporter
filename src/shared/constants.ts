@@ -2,6 +2,8 @@
  * Shared constants for the AI Chat Exporter extension
  */
 
+import type { UserPreferences } from './messages';
+
 export const EXTENSION_NAME = 'AI Chat Exporter';
 
 /**
@@ -20,6 +22,7 @@ export const MESSAGE_TYPES = {
   EXPORT_CONVERSATION: 'export_conversation',
   PRINT_CONVERSATION: 'print_conversation',
   GET_CONVERSATION: 'get_conversation',
+  GET_DRIFT_SKELETON: 'get_drift_skeleton',
   UPDATE_PREFERENCES: 'update_preferences',
   SHOW_NOTIFICATION: 'show_notification',
 } as const;
@@ -27,10 +30,11 @@ export const MESSAGE_TYPES = {
 /**
  * Default user preferences
  */
-export const DEFAULT_PREFERENCES = {
+export const DEFAULT_PREFERENCES: UserPreferences = {
   includeMetadata: true,
   includeTimestamps: true,
   includeCodeBlocks: true,
+  fontScale: 'normal',
   filenameTemplate: '{title}_{date}',
   defaultFormat: 'pdf' as const,
   autoSelectAll: true,

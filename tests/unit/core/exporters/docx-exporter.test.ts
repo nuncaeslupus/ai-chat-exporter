@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Conversation, QAPair } from '../../../../src/core/types';
 import { DocxExporter } from '../../../../src/core/exporters/docx-exporter';
+import { COLOR, hexToDocxColor } from '../../../../src/core/exporters/style-tokens';
 import { extractDocxEntry } from '../../../utils/docx-helpers';
 
 /**
@@ -170,6 +171,55 @@ describe('DocxExporter', () => {
     });
   });
 
+  describe('export() table headers', () => {
+    function buildTablePair(): QAPair {
+      return {
+        id: 'pair-0',
+        index: 0,
+        selected: true,
+        question: {
+          id: 'q-0',
+          role: 'user',
+          content: 'plain question',
+          timestamp: new Date('2025-01-01T12:00:00Z'),
+        },
+        answer: {
+          id: 'a-0',
+          role: 'assistant',
+          content: 'Name Age Alice 30',
+          htmlContent:
+            '<table><thead><tr><th>Name</th><th>Age</th></tr></thead><tbody><tr><td>Alice</td><td>30</td></tr></tbody></table>',
+          timestamp: new Date('2025-01-01T12:00:00Z'),
+        },
+      } as unknown as QAPair;
+    }
+
+    it('renders header row runs bold and body row runs not bold', async () => {
+      const pair = buildTablePair();
+      const conversation = buildStructuredConversation(pair);
+
+      const result = await new DocxExporter().export(conversation, [pair], {
+        format: 'docx',
+        filename: 'test',
+        includeMetadata: false,
+        includeTimestamps: false,
+      });
+      const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
+
+      // Table rows are plain <w:tr> (no attributes); split them out so the
+      // bold check is scoped to the header row vs. the body row.
+      const rows = xml
+        .split('<w:tr>')
+        .slice(1)
+        .map((r) => r.split('</w:tr>')[0]!);
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toContain('Name');
+      expect(rows[0]).toContain('<w:b/>');
+      expect(rows[1]).toContain('Alice');
+      expect(rows[1]).not.toContain('<w:b/>');
+    });
+  });
+
   describe('per-message timestamps', () => {
     it('renders a per-message timestamp when includeTimestamps is on', async () => {
       const pair = buildStructuredPair();
@@ -182,7 +232,9 @@ describe('DocxExporter', () => {
         includeTimestamps: true,
       });
       const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
-      expect(xml).toContain('2025-01-01 12:00:00');
+      expect(xml).toContain('(12:00:00)');
+      // The day is announced once by a day separator, not repeated per message.
+      expect(xml).not.toContain('2025-01-01 12:00:00');
     });
 
     it('omits the timestamp when includeTimestamps is off', async () => {
@@ -196,7 +248,7 @@ describe('DocxExporter', () => {
         includeTimestamps: false,
       });
       const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
-      expect(xml).not.toContain('2025-01-01 12:00:00');
+      expect(xml).not.toContain('12:00:00');
     });
 
     it('emits no stray label or "undefined" when a message has no timestamp', async () => {
@@ -226,6 +278,51 @@ describe('DocxExporter', () => {
       const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
       expect(xml).not.toContain('undefined');
       expect(xml).not.toMatch(/\(\s*\)/);
+    });
+  });
+
+  describe('export() platform brand colour', () => {
+    async function roleHeadingXml(platform: string): Promise<string> {
+      const pair = buildStructuredPair();
+      // `platform` is deliberately widened to string: one case exercises an
+      // id outside the Platform union (the clean-fallback path).
+      const conversation = {
+        ...buildStructuredConversation(pair),
+        platform,
+      } as unknown as Conversation;
+      const result = await new DocxExporter().export(conversation, [pair], {
+        format: 'docx',
+        filename: 'test',
+        includeMetadata: false,
+        includeTimestamps: false,
+      });
+      return extractDocxEntry(result.blob!, 'word/document.xml');
+    }
+
+    it.each([
+      ['chatgpt', COLOR.brandTextOnLight.chatgpt],
+      ['claude', COLOR.brandTextOnLight.claude],
+      ['gemini', COLOR.brandTextOnLight.gemini],
+    ])('colours the %s assistant role label with its brand colour', async (platform, hex) => {
+      const xml = await roleHeadingXml(platform);
+      expect(xml).toContain(`<w:color w:val="${hexToDocxColor(hex)}"/>`);
+    });
+
+    it('falls back to the neutral default for an unknown platform', async () => {
+      const xml = await roleHeadingXml('some-new-bot');
+      expect(xml).toContain(`<w:color w:val="${hexToDocxColor(COLOR.brandTextOnLight.default)}"/>`);
+      // no empty / undefined colour attribute anywhere
+      expect(xml).not.toMatch(/<w:color w:val="(?:|undefined)"\s*\/>/);
+    });
+
+    it('gives each platform a distinct role-label colour', async () => {
+      const hexes = [
+        COLOR.brandTextOnLight.chatgpt,
+        COLOR.brandTextOnLight.claude,
+        COLOR.brandTextOnLight.gemini,
+        COLOR.brandTextOnLight.default,
+      ];
+      expect(new Set(hexes).size).toBe(hexes.length);
     });
   });
 });

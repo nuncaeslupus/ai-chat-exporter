@@ -9,10 +9,18 @@ import type {
   ParseResult,
   PlatformInfo,
   Message,
+  MediaItem,
   QAPair,
   Conversation,
 } from '../types';
 import { DEFAULT_PARSER_CONFIG } from '../types';
+import {
+  checkOutputSanity,
+  checkSelectorHealth,
+  hasFailingRequiredSelector,
+  fingerprint,
+  type DriftReport,
+} from '../drift';
 
 /**
  * Abstract base class for platform-specific parsers
@@ -74,6 +82,10 @@ export abstract class BaseParser implements IParser {
       if (warnings) {
         result.warnings = warnings;
       }
+      const drift = this.detectDrift(pairs);
+      if (drift) {
+        result.drift = drift;
+      }
       return result;
     } catch (error) {
       return {
@@ -130,11 +142,16 @@ export abstract class BaseParser implements IParser {
     htmlContent?: string,
     id?: string
   ): Message {
+    // D-18: no platform exposes a real per-message time in the DOM (see
+    // claude-arsenal/queue/lo-4ab2.md for the capture evidence), so `timestamp`
+    // is left unset rather than stamped with the capture moment -- a fabricated
+    // "message time" is worse than none, since a reader can't tell it's invented.
+    // Message.timestamp is optional for exactly this reason; a parser that does
+    // find a real time (e.g. ClaudeParser.extractTimestamp) sets it itself.
     const message: Message = {
       id: id ?? this.generateId(),
       role,
       content,
-      timestamp: new Date(),
     };
     if (htmlContent) {
       message.htmlContent = htmlContent;
@@ -145,18 +162,7 @@ export abstract class BaseParser implements IParser {
   /**
    * Create a Q&A pair from user and assistant messages
    */
-  protected createQAPair(
-    index: number,
-    question: Message,
-    answer: Message,
-    id?: string
-  ): QAPair {
-    console.log(`[BaseParser] Creating QAPair ${index}:`);
-    console.log(`[BaseParser] Answer content preview (first 500 chars):`, answer.content.substring(0, 500));
-    console.log(`[BaseParser] Answer content includes [Web Search:`, answer.content.includes('[Web Search:'));
-    console.log(`[BaseParser] Answer content includes [Imagen:`, answer.content.includes('[Imagen:'));
-    console.log(`[BaseParser] Answer metadata:`, answer.metadata);
-
+  protected createQAPair(index: number, question: Message, answer: Message, id?: string): QAPair {
     return {
       id: id ?? this.generateId(),
       index,
@@ -181,20 +187,46 @@ export abstract class BaseParser implements IParser {
 
     const content = clone.textContent?.trim() ?? '';
 
-    // DEBUG: Check what HTML is being captured
-    console.log('🔍 Parser extractContent:', {
-      preserveHtml,
-      contentLength: content.length,
-      htmlLength: clone.innerHTML.length,
-      htmlPreview: clone.innerHTML.substring(0, 200),
-      hasCodeTags: clone.innerHTML.includes('<code'),
-      hasTableTags: clone.innerHTML.includes('<table')
-    });
-
     if (preserveHtml) {
       return { content, htmlContent: clone.innerHTML };
     }
     return { content };
+  }
+
+  /**
+   * Extract playable media (`<video>` / `<audio>`) from a message element.
+   *
+   * The generated-media widgets ("Create video", "Create music") render a
+   * player next to the text body, not inside it, so `extractContent` never sees
+   * them -- without this the clip is dropped from every export.
+   */
+  protected extractMedia(element: Element): MediaItem[] {
+    const media: MediaItem[] = [];
+
+    element.querySelectorAll('video, audio').forEach((player) => {
+      // A player either carries `src` itself or delegates to <source> children.
+      const source = player.querySelector('source');
+      const src = player.getAttribute('src') ?? source?.getAttribute('src');
+      if (!src) {
+        return;
+      }
+
+      const item: MediaItem = {
+        kind: player.tagName.toLowerCase() === 'video' ? 'video' : 'audio',
+        src,
+      };
+      const alt = (player.getAttribute('aria-label') ?? player.getAttribute('title') ?? '').trim();
+      if (alt) {
+        item.alt = alt;
+      }
+      const mimeType = source?.getAttribute('type');
+      if (mimeType) {
+        item.mimeType = mimeType;
+      }
+      media.push(item);
+    });
+
+    return media;
   }
 
   /**
@@ -216,7 +248,9 @@ export abstract class BaseParser implements IParser {
     const chrome = element.querySelectorAll(
       'button, [role="button"], .sr-only, [class*="sr-only"], [class*="visually-hidden"], [style*="position: absolute"][style*="width: 1px"]'
     );
-    chrome.forEach(el => el.remove());
+    chrome.forEach((el) => {
+      el.remove();
+    });
 
     // Collapse rendered math (KaTeX/MathJax) to a single representation before the
     // generic aria-hidden strip below runs. KaTeX emits up to three copies of the
@@ -227,7 +261,7 @@ export abstract class BaseParser implements IParser {
     // chosen text representation handles both platforms with one rule, so the
     // generic aria-hidden strip no longer needs a math carve-out (see below).
     const mathUnits = element.querySelectorAll('.katex, mjx-container');
-    mathUnits.forEach(mathEl => {
+    mathUnits.forEach((mathEl) => {
       // Skip units nested inside another math unit already being collapsed.
       if (mathEl.parentElement?.closest('.katex, mjx-container')) {
         return;
@@ -241,20 +275,35 @@ export abstract class BaseParser implements IParser {
         html?.textContent?.trim() ||
         mathEl.textContent?.trim() ||
         '';
-      mathEl.replaceWith(mathEl.ownerDocument.createTextNode(text));
+
+      // lo-320b: collapsing to one copy is only half the job — a bare LaTeX
+      // string dropped inline reads as prose in every export. Delimit it and
+      // tag it so HtmlContentParser can type it as math. The attribute is
+      // `data-math-display`, NOT `data-math`: Gemini already ships
+      // `data-math="<label>"` on its own math wrapper.
+      const display =
+        mathEl.closest('.katex-display') || mathEl.getAttribute('display') === 'true'
+          ? 'block'
+          : 'inline';
+      const marker = mathEl.ownerDocument.createElement('span');
+      marker.setAttribute('data-math-display', display);
+      marker.textContent = display === 'block' ? `$$${text}$$` : `$${text}$`;
+      mathEl.replaceWith(marker);
     });
 
     // Remove any remaining elements with aria-hidden="true" (decorative icons, etc).
     // Math's aria-hidden glyphs were already collapsed away above, so no carve-out
     // is needed here.
     const ariaHidden = element.querySelectorAll('[aria-hidden="true"]');
-    ariaHidden.forEach(el => el.remove());
+    ariaHidden.forEach((el) => {
+      el.remove();
+    });
 
     // Remove common ChatGPT UI artifacts
     const uiElements = element.querySelectorAll(
       '[class*="copy-code"], [class*="copy-btn"], svg, .avatar, [class*="icon"]'
     );
-    uiElements.forEach(el => {
+    uiElements.forEach((el) => {
       // Only remove if it's not inside a code block
       if (!el.closest('pre') && !el.closest('code')) {
         el.remove();
@@ -262,7 +311,125 @@ export abstract class BaseParser implements IParser {
     });
 
     // Clean up empty elements
-    element.querySelectorAll('div:empty, span:empty').forEach(el => el.remove());
+    element.querySelectorAll('div:empty, span:empty').forEach((el) => {
+      el.remove();
+    });
+  }
+
+  /**
+   * Selector keys whose zero-match means this parser is broken, as opposed to
+   * a widget simply not being on the page. The five mandatory `SelectorSet`
+   * keys are always required; a parser adds its own `custom.*` keys by
+   * overriding this.
+   */
+  protected get requiredSelectorKeys(): readonly string[] {
+    return [
+      'conversationContainer',
+      'messageElement',
+      'userMessage',
+      'assistantMessage',
+      'messageContent',
+    ];
+  }
+
+  /** Platform UI labels that must never appear as answer content. */
+  protected get chromeStrings(): readonly string[] {
+    return [];
+  }
+
+  /**
+   * `textContent.length` of the turn element each pair's answer came from,
+   * index-aligned with `pairs`. -1 means unknown, which suppresses the
+   * `content-shortfall` rule for that pair — so the rule stays off until a
+   * parser opts in by overriding this.
+   */
+  protected turnTextLengthsFor(pairs: QAPair[]): number[] {
+    return pairs.map(() => -1);
+  }
+
+  /**
+   * Assemble a drift report, or `undefined` when nothing is wrong.
+   *
+   * Best-effort by contract: a throw anywhere in here degrades to "no drift"
+   * and the export proceeds. The safety net must never break an export.
+   */
+  protected detectDrift(pairs: QAPair[]): DriftReport | undefined {
+    try {
+      return this.detectDriftUnsafe(pairs);
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** The real work; `detectDrift` is the guard around it. */
+  protected detectDriftUnsafe(pairs: QAPair[]): DriftReport | undefined {
+    const sanityFindings = checkOutputSanity({
+      pairs,
+      turnCount: this.countTurnContainers(),
+      turnTextLengths: this.turnTextLengthsFor(pairs),
+      chromeStrings: this.chromeStrings,
+    });
+
+    // Happy path: only the required selectors decide whether there is drift
+    // at all. The full sweep over every declared (incl. optional) selector is
+    // only worth paying for once we know a report will actually be built.
+    const requiredSelectorFailed = hasFailingRequiredSelector(
+      this.document,
+      this.selectors,
+      this.requiredSelectorKeys
+    );
+    if (!requiredSelectorFailed && sanityFindings.length === 0) {
+      return undefined;
+    }
+
+    const selectorFindings = checkSelectorHealth(
+      this.document,
+      this.selectors,
+      this.requiredSelectorKeys
+    );
+    const failingSelectors = selectorFindings.filter((f) => f.required && f.matched <= 0);
+
+    return {
+      fingerprint: fingerprint({
+        platform: this.platformInfo.id,
+        extensionVersion: this.extensionVersion(),
+        selectorKeys: failingSelectors.map((f) => f.key),
+        ruleIds: sanityFindings.map((f) => f.rule),
+      }),
+      platform: this.platformInfo.id,
+      extensionVersion: this.extensionVersion(),
+      buildTarget: this.buildTarget(),
+      detectedAt: new Date().toISOString().slice(0, 10),
+      selectorFindings,
+      sanityFindings,
+    };
+  }
+
+  /** How many turn containers the DOM holds, however many pairs came out. */
+  protected countTurnContainers(): number {
+    try {
+      return this.document.querySelectorAll(this.selectors.messageElement).length;
+    } catch {
+      return 0;
+    }
+  }
+
+  private extensionVersion(): string {
+    try {
+      return chrome?.runtime?.getManifest?.().version ?? 'unknown';
+    } catch {
+      return 'unknown';
+    }
+  }
+
+  /**
+   * The build target, derived from the UA but never storing it — a user agent
+   * string is needlessly identifying for a report whose only job is to name a
+   * broken selector.
+   */
+  private buildTarget(): 'chrome' | 'firefox' {
+    const ua = this.document.defaultView?.navigator?.userAgent ?? '';
+    return /firefox/i.test(ua) ? 'firefox' : 'chrome';
   }
 
   /**

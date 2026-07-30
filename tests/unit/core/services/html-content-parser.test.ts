@@ -67,7 +67,8 @@ describe('HtmlContentParser', () => {
       // a test-environment quirk (real browsers implement `:scope` correctly per spec),
       // not a bug in the parser, so a mixed ul/ol nesting sidesteps it while still
       // exercising the same exclude-nested-list code path.
-      const html = '<ul><li>Parent<ol><li>Child A</li><li>Child B</li></ol></li><li>Sibling</li></ul>';
+      const html =
+        '<ul><li>Parent<ol><li>Child A</li><li>Child B</li></ol></li><li>Sibling</li></ul>';
       const blocks = HtmlContentParser.parse(html) as ListBlock[];
       const list = blocks[0];
       expect(list?.items).toHaveLength(2);
@@ -250,7 +251,8 @@ describe('HtmlContentParser', () => {
     it('does not treat inline <code> inside a <pre> as inline code', () => {
       // Inline-code handling explicitly skips <code> elements nested under <pre>
       // so a code block's contents are never double-processed as inline code.
-      const html = '<pre><code class="language-js">const a = 1;</code></pre><p><code>inline</code></p>';
+      const html =
+        '<pre><code class="language-js">const a = 1;</code></pre><p><code>inline</code></p>';
       const blocks = HtmlContentParser.parse(html);
       expect(blocks).toHaveLength(2);
       expect(blocks[0]?.type).toBe('code');
@@ -289,7 +291,8 @@ describe('HtmlContentParser', () => {
     });
 
     it('recurses through deeply nested divs to find block content', () => {
-      const html = '<div><div><div><table><tbody><tr><td>deep</td></tr></tbody></table></div></div></div>';
+      const html =
+        '<div><div><div><table><tbody><tr><td>deep</td></tr></tbody></table></div></div></div>';
       const blocks = HtmlContentParser.parse(html) as TableBlock[];
       expect(blocks).toHaveLength(1);
       expect(blocks[0]?.type).toBe('table');
@@ -318,7 +321,8 @@ describe('HtmlContentParser', () => {
     });
 
     it('parses an image with dimensions', () => {
-      const html = '<img src="https://example.com/x.png" alt="alt text" width="100" height="50"><hr>';
+      const html =
+        '<img src="https://example.com/x.png" alt="alt text" width="100" height="50"><hr>';
       const blocks = HtmlContentParser.parse(html);
       expect(blocks[0]).toMatchObject({
         type: 'image',
@@ -366,10 +370,16 @@ describe('HtmlContentParser', () => {
     // silently discarded. The anchor's href is preserved on the image node as
     // `linkUrl` since ImageBlock already declares it optional (no exporter changes).
     it('preserves an image wrapped in an anchor, carrying the link URL', () => {
-      const html = '<p><a href="https://example.com"><img src="https://example.com/x.png" alt="a"></a></p>';
+      const html =
+        '<p><a href="https://example.com"><img src="https://example.com/x.png" alt="a"></a></p>';
       const blocks = HtmlContentParser.parse(html);
       expect(blocks).toEqual([
-        { type: 'image', url: 'https://example.com/x.png', alt: 'a', linkUrl: 'https://example.com/' },
+        {
+          type: 'image',
+          url: 'https://example.com/x.png',
+          alt: 'a',
+          linkUrl: 'https://example.com/',
+        },
       ]);
     });
 

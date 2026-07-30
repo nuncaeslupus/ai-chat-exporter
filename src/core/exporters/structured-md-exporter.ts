@@ -10,11 +10,15 @@ import type {
   Conversation,
   QAPair,
   StructuredContentBlock,
+  StructuredConversation,
   InlineContent,
+  ListBlock,
+  TableBlock,
 } from '../types';
 import { BaseExporter } from './base-exporter';
 import { ConversationStructureService } from '../services';
 import { getMessage } from '../../shared/i18n';
+import { DOC_HEADING_LEVEL, bodyHeadingLevel } from './style-tokens';
 
 export class StructuredMarkdownExporter extends BaseExporter {
   readonly format: ExportFormat = 'md';
@@ -44,22 +48,33 @@ export class StructuredMarkdownExporter extends BaseExporter {
     }
   }
 
-  private generateMarkdown(conversation: any, options: ExportOptions): string {
+  private generateMarkdown(conversation: StructuredConversation, options: ExportOptions): string {
     const lines: string[] = [];
+    const roleHashes = '#'.repeat(DOC_HEADING_LEVEL.roleLabel);
 
     // Title
-    lines.push(`# ${conversation.title}`);
+    lines.push(`${'#'.repeat(DOC_HEADING_LEVEL.title)} ${conversation.title}`);
     lines.push('');
 
     // Metadata as a table
     if (options.includeMetadata) {
-      lines.push(`| **${getMessage('metadataTableHeaderField')}** | **${getMessage('metadataTableHeaderValue')}** |`);
+      lines.push(
+        `| **${getMessage('metadataTableHeaderField')}** | **${getMessage('metadataTableHeaderValue')}** |`
+      );
       lines.push('|---|---|');
-      lines.push(`| ${this.getMetadataLabel('platform')} | ${this.formatPlatformName(conversation.platform)} |`);
+      lines.push(
+        `| ${this.getMetadataLabel('platform')} | ${this.formatPlatformName(conversation.platform)} |`
+      );
       if (conversation.model) {
         lines.push(`| ${this.getMetadataLabel('model')} | ${conversation.model} |`);
       }
-      lines.push(`| ${this.getMetadataLabel('exported')} | ${this.formatTimestamp(conversation.createdAt)} |`);
+      const dateRange = this.formatDateRange(conversation.pairs);
+      if (dateRange) {
+        lines.push(`| ${this.getMetadataLabel('dateRange')} | ${dateRange} |`);
+      }
+      lines.push(
+        `| ${this.getMetadataLabel('exported')} | ${this.formatTimestamp(conversation.createdAt)} |`
+      );
       lines.push(`| ${this.getMetadataLabel('url')} | ${conversation.url} |`);
       lines.push('');
     }
@@ -69,22 +84,34 @@ export class StructuredMarkdownExporter extends BaseExporter {
     lines.push('');
 
     // Q&A pairs
-    for (let i = 0; i < conversation.pairs.length; i++) {
-      const pair = conversation.pairs[i];
+    const daySeparator = this.daySeparator(options.includeTimestamps);
+    const pushDaySeparator = (date?: Date): void => {
+      const separator = daySeparator(date);
+      if (separator) {
+        lines.push(`**${separator}**`, '');
+      }
+    };
 
+    for (const [i, pair] of conversation.pairs.entries()) {
       // User question
-      lines.push(`### 👤 ${this.getRoleName('user')}${this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps)}`);
+      pushDaySeparator(pair.question.timestamp);
+      lines.push(
+        `${roleHashes} 👤 ${this.getRoleName('user')}${this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps)}`
+      );
       lines.push('');
       lines.push(...this.renderBlocks(pair.question.blocks));
 
       // Assistant answer
-      lines.push(`### 🤖 ${this.getRoleName('assistant', conversation.platform)}${this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps)}`);
+      pushDaySeparator(pair.answer.timestamp);
+      lines.push(
+        `${roleHashes} 🤖 ${this.getRoleName('assistant', conversation.platform)}${this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps)}`
+      );
       lines.push('');
       lines.push(...this.renderBlocks(pair.answer.blocks));
 
       // Add artifacts if present
       if (pair.answer.metadata?.artifacts && Array.isArray(pair.answer.metadata.artifacts)) {
-        const artifactsWithContent = pair.answer.metadata.artifacts.filter((a: any) => a.content);
+        const artifactsWithContent = pair.answer.metadata.artifacts.filter((a) => a.content);
 
         if (artifactsWithContent.length > 0) {
           lines.push('');
@@ -105,7 +132,9 @@ export class StructuredMarkdownExporter extends BaseExporter {
             if (artifact.type === 'image' && artifact.language === 'svg' && artifact.content) {
               // SVG artifacts: embed as data URL image
               const svgDataUrl = `data:image/svg+xml;base64,${btoa(artifact.content)}`;
-              lines.push(`<img src="${svgDataUrl}" alt="${artifact.title}" style="max-width: 100%; height: auto;">`);
+              lines.push(
+                `<img src="${svgDataUrl}" alt="${artifact.title}" style="max-width: 100%; height: auto;">`
+              );
               lines.push('');
 
               // Also include the SVG code in a collapsible section
@@ -142,7 +171,9 @@ export class StructuredMarkdownExporter extends BaseExporter {
           lines.push(`### Sources — ${search.query || 'References'}`);
           lines.push('');
           for (const result of search.results) {
-            lines.push(`- [${result.title}](${result.url})${result.domain ? ` — *${result.domain}*` : ''}`);
+            lines.push(
+              `- [${result.title}](${result.url})${result.domain ? ` — *${result.domain}*` : ''}`
+            );
           }
           lines.push('');
         }
@@ -166,22 +197,24 @@ export class StructuredMarkdownExporter extends BaseExporter {
 
     for (const block of blocks) {
       switch (block.type) {
-        case 'paragraph':
+        case 'paragraph': {
           const paraText = this.renderInline(block.content).trim();
           if (paraText) {
             lines.push(paraText);
             lines.push('');
           }
           break;
+        }
 
-        case 'heading':
-          const hashes = '#'.repeat(Math.min(block.level + 3, 6)); // +3 because title is h1, User/Assistant are h3
+        case 'heading': {
+          const hashes = '#'.repeat(bodyHeadingLevel(block.level)); // # is the title, ## the role label
           const headingText = this.renderInline(block.content).trim();
           if (headingText) {
             lines.push(`${hashes} ${headingText}`);
             lines.push('');
           }
           break;
+        }
 
         case 'code':
           lines.push(`\`\`\`${block.language}`);
@@ -195,18 +228,19 @@ export class StructuredMarkdownExporter extends BaseExporter {
           lines.push('');
           break;
 
-        case 'blockquote':
+        case 'blockquote': {
           const quoteLines = this.renderBlocks(block.content);
-          lines.push(...quoteLines.map(line => (line ? `> ${line}` : '>')));
+          lines.push(...quoteLines.map((line) => (line ? `> ${line}` : '>')));
           lines.push('');
           break;
+        }
 
         case 'hr':
           lines.push('---');
           lines.push('');
           break;
 
-        case 'image':
+        case 'image': {
           const alt = block.alt || 'image';
 
           // Match Claude's webchat thumbnail size (typically ~200px)
@@ -230,8 +264,17 @@ export class StructuredMarkdownExporter extends BaseExporter {
             lines.push(`<img src="${block.url}" alt="${alt}"${widthAttr}${heightAttr}>`);
           } else {
             // No dimensions - constrain with CSS to match webchat
-            lines.push(`<img src="${block.url}" alt="${alt}" style="max-width: 200px; height: auto;">`);
+            lines.push(
+              `<img src="${block.url}" alt="${alt}" style="max-width: 200px; height: auto;">`
+            );
           }
+          lines.push('');
+          break;
+        }
+
+        // No markdown syntax plays video or audio, so link it with a label.
+        case 'media':
+          lines.push(`[${this.mediaLabel(block)}](${block.url})`);
           lines.push('');
           break;
 
@@ -248,13 +291,13 @@ export class StructuredMarkdownExporter extends BaseExporter {
   /**
    * Render a table to markdown
    */
-  private renderTable(block: any): string[] {
+  private renderTable(block: TableBlock): string[] {
     const lines: string[] = [];
 
     // Render headers if present
     if (block.headers && block.headers.length > 0) {
-      const headerCells = block.headers.map((cell: InlineContent[]) =>
-        this.renderInline(cell).trim() || ' '
+      const headerCells = block.headers.map(
+        (cell: InlineContent[]) => this.renderInline(cell).trim() || ' '
       );
       lines.push(`| ${headerCells.join(' | ')} |`);
 
@@ -266,9 +309,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
     // Render body rows
     if (block.rows && block.rows.length > 0) {
       for (const row of block.rows) {
-        const rowCells = row.map((cell: InlineContent[]) =>
-          this.renderInline(cell).trim() || ' '
-        );
+        const rowCells = row.map((cell: InlineContent[]) => this.renderInline(cell).trim() || ' ');
         lines.push(`| ${rowCells.join(' | ')} |`);
       }
     }
@@ -279,11 +320,11 @@ export class StructuredMarkdownExporter extends BaseExporter {
   /**
    * Render a list to markdown
    */
-  private renderList(block: any, depth: number): string[] {
+  private renderList(block: ListBlock, depth: number): string[] {
     const lines: string[] = [];
     const indent = '  '.repeat(depth);
 
-    block.items.forEach((item: any, index: number) => {
+    block.items.forEach((item, index) => {
       const prefix = block.ordered ? `${index + 1}.` : '-';
       const content = this.renderInline(item.content).trim();
 
@@ -305,7 +346,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
    */
   private renderInline(content: InlineContent[]): string {
     return content
-      .map(item => {
+      .map((item) => {
         switch (item.type) {
           case 'text':
             return item.text;
@@ -324,6 +365,14 @@ export class StructuredMarkdownExporter extends BaseExporter {
 
           case 'strikethrough':
             return `~~${item.text}~~`;
+
+          // lo-320b: `item.text` already carries the `$…$` / `$$…$$` delimiters
+          // every markdown math renderer expects, so markdown needs no wrapping
+          // of its own. Explicit rather than left to `default:` because this is
+          // the format where the delimiters are native syntax — a future
+          // "cleanup" of the default branch must not silently strip them.
+          case 'math':
+            return item.text;
 
           default:
             return item.text;

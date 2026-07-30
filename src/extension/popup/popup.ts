@@ -9,28 +9,65 @@ import {
   type PrintConversationMessage,
   type MessageResponse,
 } from '../../shared/messages';
+import { sendTabMessage } from '../../shared/tab-messaging';
 import type { Conversation, QAPair } from '../../core/types/conversation';
-import type { ExportFormat } from '../../core/types/exporter';
-import { getMessage, getMessageWithValues, formatNumber, getPlatformName } from '../../shared/i18n';
+import { EXPORT_FORMATS, type ExportFormat, type FontScale } from '../../core/types/exporter';
+import {
+  getMessage,
+  getMessageWithValues,
+  formatNumber,
+  getPlatformName,
+  getUILanguage,
+} from '../../shared/i18n';
 import { parserRegistry } from '../../core/parsers';
+import {
+  DEFAULT_FILENAME_PIECES,
+  type FilenamePiece,
+  type FilenamePieceType,
+} from '../../core/types/config';
 import { StorageService } from '../../shared/storage';
+import { DEFAULT_PREFERENCES, MESSAGE_TYPES } from '../../shared/constants';
 import { SelectionService } from '../../core/services/selection-service';
+import { FilenameService } from '../../core/services/filename-service';
+import { formatDriftReport } from '../../core/drift/format-report';
+import { isDriftSuppressed, suppressDrift } from '../../core/drift/suppression';
+import type { DriftReport } from '../../core/drift/types';
 
 /**
- * Platform information for display
+ * The popup's five views. Only one is visible at a time and they all render
+ * inside the same fixed-height body box, so switching never resizes the popup.
  */
-interface PlatformInfo {
-  name: string;
-  urls: string[];
+const VIEWS = ['main', 'content', 'options', 'filename', 'report'] as const;
+type PopupView = (typeof VIEWS)[number];
+
+function isPopupView(value: string): value is PopupView {
+  return (VIEWS as readonly string[]).includes(value);
 }
 
+/** What the body box is currently showing. Mirrored to `data-ui-state`. */
+type UiState =
+  | 'detecting'
+  | 'ready'
+  | 'noSelection'
+  | 'warning'
+  | 'unsupported'
+  | 'noConversation'
+  | 'reload'
+  | 'error';
+
 /**
- * Get URL patterns for a platform
+ * Domains a platform is served from, canonical one first. The single list:
+ * it gates which pages count as supported *and* supplies the home URL of the
+ * unsupported screen's platform links.
+ *
+ * ponytail: a platform registered without an entry here still gets a link row
+ * (it comes from `parserRegistry`), just an inert one. Move the domains into
+ * `platformInfo` if that ever bites.
  */
 function getUrlsForPlatform(platform: string): string[] {
   switch (platform) {
     case 'chatgpt':
-      return ['chat.openai.com', 'chatgpt.com'];
+      return ['chatgpt.com', 'chat.openai.com'];
     case 'claude':
       return ['claude.ai'];
     case 'gemini':
@@ -41,64 +78,273 @@ function getUrlsForPlatform(platform: string): string[] {
 }
 
 /**
+ * Marks, not wordmarks: at 13–16px the Gemini logotype is illegible, so the
+ * spark is the only readable Gemini asset here.
+ */
+const PLATFORM_ICONS: Record<string, string> = {
+  chatgpt: '../assets/icons/chatgpt-logo.svg',
+  claude: '../assets/icons/claude-logo.svg',
+  gemini: '../assets/icons/gemini-spark.svg',
+};
+
+/**
  * Render the version from the manifest, the single source of truth. Hardcoding
  * it here previously left the popup advertising v1.0.0 while shipping 1.1.1.
+ * It shows twice — header badge and Options footer — so every `data-version`
+ * slot is filled rather than one hardcoded id per place it appears.
  */
 function renderVersion(): void {
-  const el = document.getElementById('popup-version');
-  if (!el) return;
-  el.textContent = `v${chrome.runtime.getManifest().version}`;
+  const slots = document.querySelectorAll('[data-version]');
+  if (slots.length === 0) return;
+  const text = `v${chrome.runtime.getManifest().version}`;
+  slots.forEach((el) => {
+    el.textContent = text;
+  });
 }
 
 /**
- * Populate the supported platforms list dynamically
+ * Build the unsupported screen's platform links straight off `parserRegistry`.
+ *
+ * One list, one source: a second hardcoded list is what kept Gemini out of the
+ * popup long after its parser shipped. Registering a parser is all it takes to
+ * appear here.
  */
-function populateSupportedPlatforms(): void {
-  const platformsList = document.getElementById('supported-platforms-list');
-  if (!platformsList) return;
+function renderPlatformLinks(): void {
+  const container = document.getElementById('platform-links');
+  if (!container) return;
 
-  const platforms: PlatformInfo[] = [];
+  container.replaceChildren(
+    ...[...parserRegistry.keys()].map((platform) => {
+      const name = getPlatformName(platform);
+      const link = document.createElement('a');
+      link.className = 'platform-link';
+      const home = getUrlsForPlatform(platform)[0];
+      if (home !== undefined) {
+        const url = `https://${home}`;
+        link.href = url;
+        link.title = getMessageWithValues('platformLinkOpen', name);
+        // Extension popups close on blur, so a new tab is the whole point —
+        // but the popup must never navigate itself to the chat page.
+        link.addEventListener('click', (event) => {
+          event.preventDefault();
+          void chrome.tabs.create({ url });
+        });
+      }
 
-  // Get all registered platforms
-  for (const [platform] of parserRegistry) {
-    platforms.push({
-      name: getPlatformName(platform),
-      urls: getUrlsForPlatform(platform),
-    });
-  }
+      const icon = PLATFORM_ICONS[platform];
+      if (icon !== undefined) {
+        const img = document.createElement('img');
+        img.className = 'platform-link-icon';
+        img.src = icon;
+        img.alt = '';
+        link.appendChild(img);
+      }
 
-  // Generate HTML for platform list
-  const platformsHtml = platforms
-    .map(p => `<br>• ${p.name} (${p.urls.join(', ')})`)
-    .join('');
+      const label = document.createElement('span');
+      label.className = 'platform-link-name';
+      label.textContent = name;
+      link.appendChild(label);
 
-  platformsList.innerHTML = platformsHtml;
+      link.insertAdjacentHTML(
+        'beforeend',
+        `<svg class="platform-link-external" width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          <path d="M4 1.5h6.5V8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M10.5 1.5 4.5 7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          <path d="M8 10.5H1.5V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>`
+      );
+      return link;
+    })
+  );
 }
 
 /**
- * Replace all elements with data-i18n attribute with their translated text
+ * Replace all elements with data-i18n attribute with their translated text.
+ *
+ * `data-i18n-label` is the icon-only variant: those buttons have no text node
+ * to translate, so the string becomes their accessible name and tooltip.
  */
 function localizeHtmlPage(): void {
-  const elements = document.querySelectorAll('[data-i18n]');
-  elements.forEach(element => {
+  document.querySelectorAll('[data-i18n]').forEach((element) => {
     const key = element.getAttribute('data-i18n');
     if (key) {
-      const message = getMessage(key);
-      element.textContent = message;
+      element.textContent = getMessage(key);
     }
   });
+
+  document.querySelectorAll('[data-i18n-label]').forEach((element) => {
+    const key = element.getAttribute('data-i18n-label');
+    if (key) {
+      const message = getMessage(key);
+      element.setAttribute('aria-label', message);
+      element.setAttribute('title', message);
+    }
+  });
+}
+
+/** Short, menu-ready name of each export format (`Export Markdown`). */
+const FORMAT_NAME_KEYS: Record<ExportFormat, string> = {
+  md: 'formatNameMD',
+  pdf: 'formatNamePDF',
+  html: 'formatNameHTML',
+  docx: 'formatNameDOCX',
+  txt: 'formatNameTXT',
+  json: 'formatNameJSON',
+};
+
+function getFormatName(format: ExportFormat): string {
+  return getMessage(FORMAT_NAME_KEYS[format]);
+}
+
+function isExportFormat(value: string): value is ExportFormat {
+  return (EXPORT_FORMATS as readonly string[]).includes(value);
+}
+
+/**
+ * The span of days the conversation itself covers, e.g. `26–29 jul`.
+ *
+ * Read off the message timestamps, never off today's date: a chat exported
+ * weeks later must still show when it happened. Returns `null` when no
+ * message carries a usable timestamp — the meta line then drops the segment
+ * rather than inventing one. Timestamps arrive over `chrome.tabs.sendMessage`,
+ * which JSON-serialises `Date` to a string, so both shapes are accepted.
+ */
+function conversationDateRange(conversation: Conversation): string | null {
+  const times = conversation.pairs
+    .flatMap((pair) => [pair.question.timestamp, pair.answer.timestamp])
+    .map((value) => (value === undefined ? NaN : new Date(value).getTime()))
+    .filter((time) => !isNaN(time));
+
+  if (times.length === 0) return null;
+
+  const formatter = new Intl.DateTimeFormat(getUILanguage(), { day: 'numeric', month: 'short' });
+  return formatter.formatRange(new Date(Math.min(...times)), new Date(Math.max(...times)));
+}
+
+/**
+ * Roughly what fits in the row's two clamped lines. Past it the row grows a
+ * `more` link. Measuring the real overflow needs layout the popup does not
+ * have at render time, and the spec puts the cut at ≈120 characters anyway.
+ */
+const CLAMP_CHARS = 120;
+
+/**
+ * Where "Copy & report" sends the user. The report is already on their
+ * clipboard by then — they paste it wherever they prefer, so this is a
+ * convenience, not a submission endpoint. The extension posts nothing.
+ */
+const ISSUE_TRACKER_URL = 'https://github.com/nuncaeslupus/ai-chat-exporter/issues/new';
+
+/**
+ * ponytail: whitespace split. Undercounts CJK, which has no spaces — fine for
+ * a footer estimate, swap in Intl.Segmenter if that ever matters.
+ */
+function countWords(text: string): number {
+  const trimmed = text.trim();
+  return trimmed === '' ? 0 : trimmed.split(/\s+/).length;
+}
+
+/**
+ * The day a pair happened on, or `null` when neither of its messages carries a
+ * usable timestamp. Timestamps cross `chrome.tabs.sendMessage`, which
+ * JSON-serialises `Date` to a string, so both shapes are accepted.
+ */
+function pairDate(pair: QAPair): Date | null {
+  for (const value of [pair.question.timestamp, pair.answer.timestamp]) {
+    if (value === undefined) continue;
+    const date = new Date(value);
+    if (!isNaN(date.getTime())) return date;
+  }
+  return null;
+}
+
+/** Small builder so the row markup below stays readable. */
+function el(tag: string, className: string, text?: string): HTMLElement {
+  const node = document.createElement(tag);
+  node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+/**
+ * Every filename piece, in the order its add-chip is offered. A piece already
+ * in the name drops out of the row; free text never does, since a name can
+ * carry several literals.
+ */
+const PIECE_TYPES: FilenamePieceType[] = [
+  'platform',
+  'model',
+  'time',
+  'literal',
+  'title',
+  'date',
+  'pairCount',
+];
+
+const PIECE_LABEL_KEYS: Record<FilenamePieceType, string> = {
+  platform: 'filenamePiecePlatform',
+  model: 'filenamePieceModel',
+  title: 'filenamePieceTitle',
+  date: 'filenamePieceDate',
+  time: 'filenamePieceTime',
+  pairCount: 'filenamePiecePairCount',
+  literal: 'filenamePieceLiteral',
+};
+
+/** Own copy: the default list is a shared constant and must never be edited. */
+function clonePieces(pieces: FilenamePiece[]): FilenamePiece[] {
+  return pieces.map((piece) => ({ ...piece }));
+}
+
+/** Two hairlines with the date between them, e.g. `29 July`. */
+function daySeparatorRow(label: string): HTMLElement {
+  const item = el('li', 'pair-day-separator');
+  item.append(
+    el('span', 'pair-day-rule'),
+    el('span', 'pair-day-label', label),
+    el('span', 'pair-day-rule')
+  );
+  return item;
 }
 
 class PopupController {
   private selectedFormat: ExportFormat = 'md';
   private pairs: QAPair[] = [];
+  /** Kept for the filename preview, which needs title / model / created date. */
+  private conversation: Conversation | null = null;
+  /** Rows showing their full question text (`more` / `less`). */
+  private expandedPairIds = new Set<string>();
+  private view: PopupView = 'main';
+  private formatMenuOpen = false;
+  private uiState: UiState = 'detecting';
+  private routerBound = false;
+  private pageReady = false;
+  /**
+   * Exactly what storage holds, `undefined` included: an install that never
+   * opened this screen keeps rendering the legacy template string, so its
+   * downloads keep the name they had before the builder existed.
+   */
+  private filenamePieces: FilenamePiece[] | undefined;
+  /** Index the current drag started from; `dataTransfer` is not needed. */
+  private draggedPieceIndex: number | null = null;
+  /** The tab `checkCurrentPage()` last talked to; `requestSkeleton()` asks it again. */
+  private currentTabId: number | undefined;
+  private drift: DriftReport | undefined;
+  /** The exact bytes shown in the preview and written to the clipboard. */
+  private reportText: string | null = null;
+  private pageOrigin = '';
 
   async initialize(): Promise<void> {
     // Localize all static text in the HTML
     localizeHtmlPage();
 
-    // Populate supported platforms list dynamically
-    populateSupportedPlatforms();
+    // Start on the main view, in the detecting state
+    this.setView('main');
+    this.setFormatMenuOpen(false);
+    this.setUiState('detecting');
+
+    // Platform links for the unsupported screen, straight off the registry
+    renderPlatformLinks();
 
     // Show the shipped version
     renderVersion();
@@ -118,14 +364,9 @@ class PopupController {
     const lastFormat = localStorage.getItem('lastExportFormat') as ExportFormat;
     if (lastFormat) {
       this.selectedFormat = lastFormat;
-      const formatSelect = document.getElementById('format-select') as HTMLSelectElement;
-      if (formatSelect) {
-        formatSelect.value = lastFormat;
-      }
     }
 
-    // Always update icon and print button state to match current format
-    this.updateFormatIcon(this.selectedFormat);
+    // Always update the button label and print state to match current format
     this.handleFormatChange(this.selectedFormat);
 
     // Reflect the persisted metadata/timestamp export options in the toggles
@@ -134,23 +375,145 @@ class PopupController {
     if (metadataToggle) {
       metadataToggle.checked = prefs.includeMetadata;
     }
-    const timestampsToggle = document.getElementById('option-include-timestamps') as HTMLInputElement;
+    const timestampsToggle = document.getElementById(
+      'option-include-timestamps'
+    ) as HTMLInputElement;
     if (timestampsToggle) {
       timestampsToggle.checked = prefs.includeTimestamps;
+    }
+
+    // Preferences saved before the text-size setting existed carry no value;
+    // they are `normal`, which is what they have been exporting at all along.
+    for (const step of this.fontScaleInputs()) {
+      step.checked = step.value === (prefs.fontScale ?? 'normal');
+    }
+
+    this.filenamePieces = prefs.filenamePieces ? clonePieces(prefs.filenamePieces) : undefined;
+    this.renderFilenameBuilder();
+
+    await this.updateOptionsDot();
+  }
+
+  /** The fixed-height box every view and state renders into. */
+  private bodyBox(): HTMLElement | null {
+    return document.getElementById('popup-body');
+  }
+
+  /**
+   * Show one view and hide the rest. Navigation is delegated, so a view added
+   * later only needs a `data-nav="<view>"` trigger — no router change.
+   */
+  private setView(view: PopupView): void {
+    this.view = view;
+    for (const name of VIEWS) {
+      const container = document.getElementById(`view-${name}`);
+      if (container) container.hidden = name !== view;
+    }
+    this.bodyBox()?.setAttribute('data-view', view);
+  }
+
+  private setFormatMenuOpen(open: boolean): void {
+    this.formatMenuOpen = open;
+    this.bodyBox()?.setAttribute('data-format-menu-open', String(open));
+    if (open) this.revealSelectedFormatRow();
+  }
+
+  /**
+   * The menu scrolls; the format already in use has to be the one you see when
+   * it opens, not a row you have to hunt for. jsdom ships no `scrollIntoView`,
+   * hence the guard.
+   */
+  private revealSelectedFormatRow(): void {
+    const row = this.formatRow(this.selectedFormat);
+    if (row && typeof row.scrollIntoView === 'function') {
+      row.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  private formatRow(format: ExportFormat): HTMLElement | null {
+    return document.querySelector<HTMLElement>(`[data-format-menu] [data-format="${format}"]`);
+  }
+
+  /** Mark the chosen row. `aria-checked` is both the a11y state and the cue CSS paints. */
+  private syncFormatRows(): void {
+    document.querySelectorAll<HTMLElement>('[data-format-menu] [data-format]').forEach((row) => {
+      row.setAttribute('aria-checked', String(row.dataset.format === this.selectedFormat));
+    });
+  }
+
+  /**
+   * The single switch every state hangs off. CSS keys the whole box on it, so
+   * a state can never half-paint over another. Mirrored onto `<body>` too
+   * because the header sits outside the box and the unsupported screen dims it.
+   */
+  private setUiState(state: UiState): void {
+    this.uiState = state;
+    this.bodyBox()?.setAttribute('data-ui-state', state);
+    document.body.setAttribute('data-ui-state', state);
+    // `Export again` vs `Export <format>` depends on the state.
+    this.updateExportLabel(this.selectedFormat);
+  }
+
+  private handleRouterClick(event: MouseEvent): void {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) return;
+
+    const nav = target.closest('[data-nav]')?.getAttribute('data-nav');
+    if (nav && isPopupView(nav)) {
+      this.setView(nav);
+      return;
+    }
+
+    if (target.closest('[data-format-menu-toggle]')) {
+      this.setFormatMenuOpen(!this.formatMenuOpen);
+      return;
+    }
+
+    // A format row: choose it and close. The menu is the only place
+    // `data-format` appears, so the closest match is unambiguous.
+    const format = target.closest<HTMLElement>('[data-format]')?.dataset.format;
+    if (format !== undefined && isExportFormat(format)) {
+      this.handleFormatChange(format);
+      this.setFormatMenuOpen(false);
+      return;
+    }
+
+    // A click anywhere else closes the format menu.
+    if (this.formatMenuOpen && !target.closest('[data-format-menu]')) {
+      this.setFormatMenuOpen(false);
+    }
+  }
+
+  /** Esc closes the format menu first, then backs out of any submenu. */
+  private handleRouterKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Escape') return;
+    if (this.formatMenuOpen) {
+      this.setFormatMenuOpen(false);
+      return;
+    }
+    if (this.view !== 'main') {
+      this.setView('main');
     }
   }
 
   private setupEventListeners(): void {
-    // Format selection
-    document.getElementById('format-select')?.addEventListener('change', (e) => {
-      const format = (e.target as HTMLSelectElement).value as ExportFormat;
-      this.handleFormatChange(format);
-      this.updateFormatIcon(format);
-    });
+    // View router (delegated so later views need no wiring here). These sit on
+    // the document — Esc must work with nothing focused — so they outlive a
+    // re-render of the popup markup: bind them once, or a second initialize
+    // would double-handle every click.
+    if (!this.routerBound) {
+      this.routerBound = true;
+      document.addEventListener('click', (e) => {
+        this.handleRouterClick(e);
+      });
+      document.addEventListener('keydown', (e) => {
+        this.handleRouterKeydown(e);
+      });
+    }
 
     // Export button
     document.getElementById('export-button')?.addEventListener('click', () => {
-      this.handleExport(this.selectedFormat);
+      void this.handleExport(this.selectedFormat);
     });
 
     // Q&A pair select-all / select-none toggle
@@ -160,33 +523,77 @@ class PopupController {
 
     // Print button
     document.getElementById('print-button')?.addEventListener('click', () => {
-      this.handlePrint();
+      void this.handlePrint();
+    });
+
+    // Reload state: do the reload instead of only explaining how to.
+    document.getElementById('reload-button')?.addEventListener('click', () => {
+      void chrome.tabs.reload();
+      window.close();
+    });
+
+    // Warning card: run the same export again.
+    document.getElementById('warning-retry-button')?.addEventListener('click', () => {
+      void this.handleExport(this.selectedFormat);
     });
 
     // Export option toggles
     document.getElementById('option-include-metadata')?.addEventListener('change', (e) => {
-      StorageService.setUserPreferences({
-        includeMetadata: (e.target as HTMLInputElement).checked,
-      });
+      void this.persistPreference({ includeMetadata: (e.target as HTMLInputElement).checked });
     });
     document.getElementById('option-include-timestamps')?.addEventListener('change', (e) => {
-      StorageService.setUserPreferences({
-        includeTimestamps: (e.target as HTMLInputElement).checked,
+      void this.persistPreference({ includeTimestamps: (e.target as HTMLInputElement).checked });
+    });
+    for (const step of this.fontScaleInputs()) {
+      step.addEventListener('change', () => {
+        void this.persistPreference({ fontScale: step.value as FontScale });
       });
+    }
+
+    // File name: back to the piece list the extension ships with.
+    document.getElementById('filename-restore-default')?.addEventListener('click', () => {
+      this.applyPieces(clonePieces(DEFAULT_FILENAME_PIECES));
     });
 
-    // Footer links
-    document.getElementById('report-issue')?.addEventListener('click', (e) => {
-      e.preventDefault();
-      chrome.tabs.create({
-        url: 'https://github.com/nuncaeslupus/ai-chat-exporter/issues',
-      });
+    document.getElementById('drift-row')?.addEventListener('click', () => {
+      void this.openReportView();
     });
+
+    document.getElementById('drift-report-copy')?.addEventListener('click', () => {
+      void this.copyReport();
+    });
+
+    document.getElementById('drift-report-copy-and-report')?.addEventListener('click', () => {
+      void (async () => {
+        await this.copyReport();
+        // The popup closes when the tab opens. Acceptable: this is the final
+        // step, and the payload is already on the clipboard.
+        await chrome.tabs.create({ url: ISSUE_TRACKER_URL });
+      })();
+    });
+  }
+
+  /** The three text-size steps. Empty until the Options view is in the DOM. */
+  private fontScaleInputs(): HTMLInputElement[] {
+    return [...document.querySelectorAll<HTMLInputElement>('input[name="option-font-scale"]')];
+  }
+
+  /** Every preference write goes through here so the Options dot stays honest. */
+  private async persistPreference(
+    patch: Parameters<typeof StorageService.setUserPreferences>[0]
+  ): Promise<void> {
+    await StorageService.setUserPreferences(patch);
+    await this.updateOptionsDot();
+    await this.updateFilenamePreview();
   }
 
   private handleFormatChange(format: ExportFormat): void {
     this.selectedFormat = format;
     localStorage.setItem('lastExportFormat', format);
+    this.updateExportLabel(format);
+    this.syncFormatRows();
+    // The preview carries the extension, so it moves with the format.
+    void this.updateFilenamePreview();
 
     // Disable print button for formats that can't be printed nicely
     const printButton = document.getElementById('print-button') as HTMLButtonElement;
@@ -194,15 +601,13 @@ class PopupController {
       // Only allow print for HTML, PDF, TXT, MD, and JSON
       const printableFormats: ExportFormat[] = ['html', 'pdf', 'txt', 'md', 'json'];
       const canPrint = printableFormats.includes(format);
+      const formatName = getFormatName(format);
       printButton.disabled = !canPrint;
-      printButton.title = canPrint ? `Print ${format.toUpperCase()}` : `Print not available for ${format.toUpperCase()}`;
-    }
-  }
-
-  private updateFormatIcon(format: ExportFormat): void {
-    const formatIcon = document.getElementById('format-icon') as HTMLImageElement;
-    if (formatIcon) {
-      formatIcon.src = `../assets/icons/${format}-icon.svg`;
+      printButton.title = getMessageWithValues(
+        canPrint ? 'printButtonFormat' : 'printUnavailableFormat',
+        formatName
+      );
+      printButton.setAttribute('aria-label', printButton.title);
     }
   }
 
@@ -210,9 +615,11 @@ class PopupController {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id) {
+        this.setUiState('error');
         this.updateStatus('error', getMessage('statusNoActiveTab'));
         return;
       }
+      this.currentTabId = tab.id;
 
       // Derived from the parser registry so a newly registered platform is
       // supported here automatically — a second hardcoded list silently gated
@@ -220,31 +627,64 @@ class PopupController {
       const supportedDomains = [...parserRegistry.keys()].flatMap(getUrlsForPlatform);
 
       const url = tab.url ? new URL(tab.url) : null;
+      if (url) this.pageOrigin = url.origin;
       if (!url || !supportedDomains.some((domain) => url.hostname.includes(domain))) {
+        this.setUiState('unsupported');
         this.updateStatus('inactive', getMessage('statusNotSupported'));
-        this.showNotSupportedMessage();
         return;
       }
 
-      // Try to get conversation from content script
+      // Try to get conversation from content script. `sendTabMessage` injects
+      // one and retries when the tab has none, so the reload screen below is
+      // the fallback for when even that fails, not the first answer.
       const message = createMessage<GetConversationMessage>('get_conversation', {});
-      const response = await chrome.tabs.sendMessage(tab.id, message);
+      const result = await sendTabMessage<MessageResponse<Conversation> | undefined>(
+        tab.id,
+        message
+      );
 
-      if (response?.success && response.data) {
+      if (!result.ok) {
+        if (result.reason === 'failed') {
+          console.error('Failed to check current page:', result.error);
+          this.setUiState('error');
+          this.updateStatus('error', getMessage('statusPageCheckFailed'), result.error);
+          return;
+        }
+        // Expected every time the extension is installed, updated or reloaded
+        // with a chat tab already open — not an error, just a page that has to
+        // come back before it can be read.
+        console.debug('No content script in this tab:', result.error);
+        this.setUiState('reload');
+        this.updateStatus('warning', getMessage('statusReloadNeeded'));
+        return;
+      }
+
+      const response = result.response;
+      // A zero-pair parse is a truthy conversation (`success: true`, `data`
+      // non-null) but has nothing to export -- treat it the same as the
+      // content script returning no conversation at all (D-19), rather than
+      // painting the normal ready screen over an empty export.
+      if (response?.success && response.data && response.data.pairs.length > 0) {
+        this.setUiState('ready');
         this.updateConversationInfo(response.data);
         this.updateStatus('active', getMessage('statusReady'));
         this.enableButtons();
-        this.showMainContent();
+        this.drift = response.drift;
+        void this.renderDriftRow();
       } else {
-        // Content script loaded but no conversation found
+        // The URL is supported and the content script answered, but the parser
+        // found nothing on the page -- a parse bug, not an unsupported page,
+        // so it gets its own state rather than the "open one of these pages"
+        // screen (lo-72f5).
+        this.setUiState('noConversation');
         this.updateStatus('warning', getMessage('statusNoConversation'));
-        this.showNotSupportedMessage();
       }
     } catch (error) {
+      // Only the tab lookup and URL parsing reach here now — messaging failures
+      // come back as a result above. Nothing a page reload would fix.
       console.error('Failed to check current page:', error);
-      // Content script not responding - likely needs page reload
-      this.updateStatus('warning', getMessage('statusReloadNeeded'));
-      this.showReloadMessage();
+      this.setUiState('error');
+      this.updateStatus('error', getMessage('statusPageCheckFailed'));
     }
   }
 
@@ -274,17 +714,10 @@ class PopupController {
     const meta = document.getElementById('conversation-meta');
 
     if (platformIcon) {
-      // Set platform icon based on platform
-      const icons: Record<string, string> = {
-        chatgpt: '../assets/icons/chatgpt-logo.svg',
-        claude: '../assets/icons/claude-logo.svg',
-        gemini: '../assets/icons/gemini-logo.svg',
-      };
-      const defaultIcon = '../assets/icons/chatgpt-logo.svg';
-      const iconPath = icons[conversation.platform] ?? defaultIcon;
-      platformIcon.src = iconPath;
+      platformIcon.src =
+        PLATFORM_ICONS[conversation.platform] ?? '../assets/icons/chatgpt-logo.svg';
       platformIcon.style.display = 'block';
-      platformIcon.alt = `${conversation.platform} logo`;
+      platformIcon.alt = '';
     }
 
     if (title) {
@@ -294,58 +727,272 @@ class PopupController {
     }
 
     if (meta) {
-      const stats = this.calculateConversationStats(conversation);
-      meta.innerHTML = this.formatConversationStats(stats);
+      meta.textContent = this.formatConversationMeta(conversation);
     }
 
     // Own copy: toggling a checkbox must not mutate the conversation object
     // shared with the rest of the popup.
+    this.conversation = conversation;
     this.pairs = conversation.pairs.map((pair) => ({ ...pair }));
     this.renderSelectionList();
+    void this.updateFilenamePreview();
   }
 
   /**
-   * Render the per-pair checkbox list plus the select-all/select-none toggle
-   * and the "N of M selected" summary.
+   * The name the export would really be saved as — `buildFilename` is the one
+   * function the content script's download path calls too, so neither slot can
+   * ever advertise a name the file does not get.
+   *
+   * Pieces come from memory rather than storage so the footer tracks a chip
+   * being typed into, which is not written until it loses focus.
+   *
+   * ponytail: the extension is the format id because every exporter's
+   * `extension` matches its format today. Read it off the exporter registry
+   * if that ever stops being true.
    */
-  private renderSelectionList(): void {
-    const section = document.getElementById('qa-selection-section');
-    const list = document.getElementById('qa-selection-list');
-    if (!section || !list) return;
+  private async updateFilenamePreview(): Promise<void> {
+    const slots = document.querySelectorAll<HTMLElement>('[data-filename-preview]');
+    if (slots.length === 0 || !this.conversation) return;
 
-    if (this.pairs.length === 0) {
-      section.style.display = 'none';
-      return;
-    }
-    section.style.display = 'block';
+    const prefs = await StorageService.getUserPreferences();
+    const name = FilenameService.buildFilename(
+      { ...prefs, filenamePieces: this.filenamePieces },
+      FilenameService.getVariablesFromConversation(this.conversation),
+      this.selectedFormat
+    );
+    slots.forEach((slot) => {
+      slot.textContent = name;
+      slot.title = name;
+    });
+  }
 
-    list.innerHTML = '';
-    this.pairs.forEach((pair) => {
-      const item = document.createElement('li');
-      item.className = 'qa-selection-item';
+  /** The pieces on screen: what is stored, or the default list until it is. */
+  private currentPieces(): FilenamePiece[] {
+    return this.filenamePieces ?? DEFAULT_FILENAME_PIECES;
+  }
 
-      const checkboxId = `qa-pair-${pair.id}`;
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.id = checkboxId;
-      checkbox.checked = pair.selected;
-      checkbox.addEventListener('change', () => {
-        this.pairs = SelectionService.toggleSelection(this.pairs, pair.id);
-        this.renderSelectionList();
-      });
+  /**
+   * Adopt a new piece list: repaint, refresh both previews, persist.
+   * Every edit below funnels through here so none of them can forget one.
+   */
+  private applyPieces(pieces: FilenamePiece[]): void {
+    this.filenamePieces = pieces;
+    this.renderFilenameBuilder();
+    void this.persistPreference({ filenamePieces: pieces });
+  }
 
-      const label = document.createElement('label');
-      label.htmlFor = checkboxId;
-      const preview = pair.question.content.trim();
-      label.textContent = preview || getMessageWithValues('qaSelectionPairFallbackLabel', pair.index + 1);
-      label.title = label.textContent;
+  /** Chips for the composed name, then add-chips for what is left over. */
+  private renderFilenameBuilder(): void {
+    const field = document.getElementById('filename-pieces');
+    const addRow = document.getElementById('filename-add-chips');
+    if (!field || !addRow) return;
 
-      item.appendChild(checkbox);
-      item.appendChild(label);
-      list.appendChild(item);
+    const pieces = this.currentPieces();
+    const nodes: HTMLElement[] = [];
+    pieces.forEach((piece, index) => {
+      // The literal `_` the renderer really puts between two pieces.
+      if (index > 0) nodes.push(el('span', 'filename-separator', '_'));
+      nodes.push(this.pieceChip(piece, index));
+    });
+    nodes.push(el('span', 'filename-caret'));
+    field.replaceChildren(...nodes);
+
+    const used = new Set(pieces.map((piece) => piece.type));
+    addRow.replaceChildren(
+      ...PIECE_TYPES.filter((type) => type === 'literal' || !used.has(type)).map((type) =>
+        this.addChip(type)
+      )
+    );
+  }
+
+  /** One piece: its label (or its text field), a remove button, draggable. */
+  private pieceChip(piece: FilenamePiece, index: number): HTMLElement {
+    const chip = el('span', 'filename-chip');
+    chip.draggable = true;
+    chip.dataset.pieceType = piece.type;
+    chip.dataset.pieceIndex = String(index);
+    chip.addEventListener('dragstart', () => {
+      this.draggedPieceIndex = index;
+    });
+    // Without a default-prevented dragover a browser refuses the drop.
+    chip.addEventListener('dragover', (event) => {
+      event.preventDefault();
+    });
+    chip.addEventListener('drop', (event) => {
+      event.preventDefault();
+      this.movePiece(this.draggedPieceIndex, index);
     });
 
+    if (piece.type === 'literal') {
+      chip.appendChild(this.literalInput(piece));
+    } else {
+      chip.appendChild(el('span', 'filename-chip-label', getMessage(PIECE_LABEL_KEYS[piece.type])));
+    }
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'filename-chip-remove';
+    const removeLabel = getMessage('filenameRemovePiece');
+    remove.setAttribute('aria-label', removeLabel);
+    remove.title = removeLabel;
+    remove.insertAdjacentHTML(
+      'beforeend',
+      `<svg width="8" height="8" viewBox="0 0 8 8" fill="none" aria-hidden="true">
+        <path d="M1 1l6 6M7 1L1 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>`
+    );
+    remove.addEventListener('click', () => {
+      this.applyPieces(this.currentPieces().filter((_, at) => at !== index));
+    });
+    chip.appendChild(remove);
+
+    return chip;
+  }
+
+  /**
+   * Free text edits in place. Keystrokes only move the previews — repainting
+   * the field would drop the caret, and a write per character would burn
+   * through chrome.storage.sync's quota. The write lands on `change`.
+   */
+  private literalInput(piece: FilenamePiece): HTMLInputElement {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'filename-chip-input';
+    const label = getMessage('filenamePieceLiteral');
+    input.setAttribute('aria-label', label);
+    input.placeholder = label;
+    input.value = piece.text ?? '';
+    const fit = (): void => {
+      input.size = Math.max(4, input.value.length);
+    };
+    fit();
+    input.addEventListener('input', () => {
+      piece.text = input.value;
+      fit();
+      void this.updateFilenamePreview();
+    });
+    input.addEventListener('change', () => {
+      void this.persistPreference({ filenamePieces: this.currentPieces() });
+    });
+    // Selecting text inside the chip must not start a chip drag.
+    input.addEventListener('dragstart', (event) => {
+      event.stopPropagation();
+    });
+    return input;
+  }
+
+  private addChip(type: FilenamePieceType): HTMLElement {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'filename-add-chip';
+    chip.dataset.addPiece = type;
+    chip.textContent = getMessageWithValues('filenameAddPiece', getMessage(PIECE_LABEL_KEYS[type]));
+    chip.addEventListener('click', () => {
+      const piece: FilenamePiece = type === 'literal' ? { type, text: '' } : { type };
+      this.applyPieces([...this.currentPieces(), piece]);
+    });
+    return chip;
+  }
+
+  /** Drop `from` at `to`, the whole of what dragging a chip does. */
+  private movePiece(from: number | null, to: number): void {
+    this.draggedPieceIndex = null;
+    if (from === null || from === to) return;
+
+    const pieces = clonePieces(this.currentPieces());
+    const [moved] = pieces.splice(from, 1);
+    if (!moved) return;
+    pieces.splice(to, 0, moved);
+    this.applyPieces(pieces);
+  }
+
+  /**
+   * Render the pair rows, the day separators between them, and the footer.
+   *
+   * A separator marks a *change* of date, so it can never open the list: the
+   * previous day starts unset and only the second dated pair onwards can
+   * differ from it.
+   */
+  private renderSelectionList(): void {
+    const list = document.getElementById('qa-selection-list');
+    if (!list) return;
+
+    const dayFormat = new Intl.DateTimeFormat(getUILanguage(), {
+      day: 'numeric',
+      month: 'long',
+    });
+    const rows: HTMLElement[] = [];
+    let previousDay: string | null = null;
+
+    this.pairs.forEach((pair) => {
+      const date = pairDate(pair);
+      if (date !== null) {
+        const day = date.toDateString();
+        if (previousDay !== null && day !== previousDay) {
+          rows.push(daySeparatorRow(dayFormat.format(date)));
+        }
+        previousDay = day;
+      }
+      rows.push(this.pairRow(pair));
+    });
+
+    list.replaceChildren(...rows);
     this.updateSelectionSummary();
+  }
+
+  /** One chooser row: checkbox, pair number, clamped question, `more` link. */
+  private pairRow(pair: QAPair): HTMLElement {
+    const item = el('li', 'pair-row');
+    const expanded = this.expandedPairIds.has(pair.id);
+    item.dataset.expanded = String(expanded);
+    item.dataset.selected = String(pair.selected);
+
+    const checkboxId = `qa-pair-${pair.id}`;
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = checkboxId;
+    checkbox.checked = pair.selected;
+    checkbox.addEventListener('change', () => {
+      this.pairs = SelectionService.toggleSelection(this.pairs, pair.id);
+      this.renderSelectionList();
+    });
+
+    const question = pair.question.content.trim();
+    const text = question || getMessageWithValues('qaSelectionPairFallbackLabel', pair.index + 1);
+    const label = document.createElement('label');
+    label.className = 'pair-row-text';
+    label.htmlFor = checkboxId;
+    label.textContent = text;
+    label.title = text;
+
+    const body = el('div', 'pair-row-body');
+    body.appendChild(label);
+
+    if (text.length > CLAMP_CHARS) {
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'pair-row-toggle';
+      toggle.textContent = getMessage(expanded ? 'pairChooserLess' : 'pairChooserMore');
+      toggle.setAttribute('aria-expanded', String(expanded));
+      toggle.addEventListener('click', () => {
+        // Reveals text and nothing else — the selection must not move with it.
+        if (expanded) this.expandedPairIds.delete(pair.id);
+        else this.expandedPairIds.add(pair.id);
+        this.renderSelectionList();
+      });
+      body.appendChild(toggle);
+    }
+
+    item.append(checkbox, el('span', 'pair-row-number', formatNumber(pair.index + 1)), body);
+    return item;
+  }
+
+  /** Words in the pairs still selected — the footer's second number. */
+  private selectedWordCount(): number {
+    return SelectionService.getSelectedPairs(this.pairs).reduce(
+      (total, pair) => total + countWords(pair.question.content) + countWords(pair.answer.content),
+      0
+    );
   }
 
   private updateSelectionSummary(): void {
@@ -353,10 +1000,13 @@ class PopupController {
     const toggleAllButton = document.getElementById('qa-selection-toggle-all');
 
     if (countEl) {
+      // `2 of 14 · 4,120 words` — every number through the active locale, so
+      // the thousands separator is never hardcoded.
       countEl.textContent = getMessageWithValues(
-        'qaSelectionCount',
-        SelectionService.getSelectionCount(this.pairs),
-        this.pairs.length
+        'pairChooserSummary',
+        formatNumber(SelectionService.getSelectionCount(this.pairs)),
+        formatNumber(this.pairs.length),
+        formatNumber(this.selectedWordCount())
       );
     }
     if (toggleAllButton) {
@@ -365,6 +1015,18 @@ class PopupController {
         ? getMessage('qaSelectionDeselectAll')
         : getMessage('qaSelectionSelectAll');
     }
+
+    this.updateContentRow();
+
+    // Only the ready/no-selection pair swaps here; a warning or error state
+    // must not be cleared by a checkbox.
+    if (this.uiState === 'ready' || this.uiState === 'noSelection') {
+      const nothingSelected =
+        this.pairs.length > 0 && SelectionService.getSelectionCount(this.pairs) === 0;
+      this.setUiState(nothingSelected ? 'noSelection' : 'ready');
+    }
+
+    this.syncExportEnabled();
   }
 
   private handleToggleAllPairs(): void {
@@ -379,98 +1041,95 @@ class PopupController {
     return SelectionService.getSelectedPairs(this.pairs).map((pair) => pair.index);
   }
 
-  private calculateConversationStats(conversation: Conversation) {
-    const pairCount = conversation.pairs.length;
-    let wordCount = 0;
-    let hasCode = false;
-    let hasImages = false;
-
-    // Count words and check for code/images
-    conversation.pairs.forEach(pair => {
-      // Count words in question
-      wordCount += this.countWords(pair.question.content);
-
-      // Count words in answer
-      wordCount += this.countWords(pair.answer.content);
-
-      // Check for code snippets in both content and htmlContent
-      if (!hasCode) {
-        hasCode = this.hasCodeContent(pair.question.content) ||
-                  this.hasCodeContent(pair.answer.content) ||
-                  this.hasCodeContent(pair.question.htmlContent || '') ||
-                  this.hasCodeContent(pair.answer.htmlContent || '');
-      }
-
-      // Check for images in both content and htmlContent
-      if (!hasImages) {
-        hasImages = this.hasImageContent(pair.question.content) ||
-                    this.hasImageContent(pair.answer.content) ||
-                    this.hasImageContent(pair.question.htmlContent || '') ||
-                    this.hasImageContent(pair.answer.htmlContent || '');
-      }
-    });
-
-    return { pairCount, wordCount, hasCode, hasImages };
+  /**
+   * `Gemini · 14 pairs · 26–29 jul`. The word count deliberately isn't here —
+   * it belongs to the pair-chooser footer, where a selection can change it.
+   */
+  private formatConversationMeta(conversation: Conversation): string {
+    const count = conversation.pairs.length;
+    const segments = [
+      getPlatformName(conversation.platform),
+      getMessageWithValues(
+        count === 1 ? 'metaPairsSingular' : 'metaPairsPlural',
+        formatNumber(count)
+      ),
+      conversationDateRange(conversation),
+    ];
+    return segments.filter((segment) => segment !== null && segment !== '').join(' · ');
   }
 
-  private countWords(text: string): number {
-    // Remove code blocks to avoid counting code as words
-    const textWithoutCode = text.replace(/```[\s\S]*?```/g, '')
-                                .replace(/`[^`]+`/g, '');
-    // Split by whitespace and filter empty strings
-    return textWithoutCode.split(/\s+/).filter(word => word.length > 0).length;
-  }
+  /**
+   * `Whole conversation`, or `3 of 14 pairs` once something is deselected. With
+   * nothing left selected the row is the warning itself: it says so and offers
+   * the way out, since the export button beside it has just gone dead.
+   */
+  private updateContentRow(): void {
+    const label = document.querySelector('.setting-row[data-nav="content"] .setting-row-label');
+    const value = document.getElementById('content-row-value');
+    if (!value) return;
 
-  private hasCodeContent(text: string): boolean {
-    // Check for markdown code blocks, inline code, or HTML code tags
-    return /```[\s\S]*?```/.test(text) ||
-           /`[^`]+`/.test(text) ||
-           /<code[\s>]/.test(text) ||
-           /<pre[\s>]/.test(text);
-  }
+    const selected = SelectionService.getSelectionCount(this.pairs);
+    const total = this.pairs.length;
 
-  private hasImageContent(text: string): boolean {
-    // Check for markdown images or HTML img tags
-    return /!\[.*?\]\(.*?\)/.test(text) || /<img[\s>]/.test(text);
-  }
-
-  private formatConversationStats(stats: { pairCount: number; wordCount: number; hasCode: boolean; hasImages: boolean }): string {
-    const items: string[] = [];
-
-    // Q&A pairs: x
-    const pairLabel = stats.pairCount === 1 ? getMessage('qaPairSingular') : getMessage('qaPairPlural');
-    items.push(`${pairLabel.charAt(0).toUpperCase() + pairLabel.slice(1)}: ${formatNumber(stats.pairCount)}`);
-
-    // Words: y
-    const wordLabel = getMessage('wordCount');
-    items.push(`${wordLabel.charAt(0).toUpperCase() + wordLabel.slice(1)}: ${formatNumber(stats.wordCount)}`);
-
-    // Badges as inline tags
-    const tags: string[] = [];
-    if (stats.hasCode) {
-      tags.push(getMessage('badgeCode'));
-    }
-    if (stats.hasImages) {
-      tags.push(getMessage('badgeImages'));
+    if (total > 0 && selected === 0) {
+      if (label) label.textContent = getMessage('rowContentNoSelection');
+      value.textContent = getMessage('rowContentChoosePairs');
+      return;
     }
 
-    // Join with semicolons, add tags at the end if present
-    let result = items.join('; ');
-    if (tags.length > 0) {
-      result += '; ' + tags.join(' ');
-    }
+    if (label) label.textContent = getMessage('rowContent');
+    value.textContent =
+      total > 0 && selected < total
+        ? getMessageWithValues('rowContentPartial', formatNumber(selected), formatNumber(total))
+        : getMessage('rowContentAll');
+  }
 
-    return result;
+  /**
+   * Export is possible on a ready page that still has something selected.
+   * A conversation with no pairs at all is not a deselection — it exports.
+   */
+  private syncExportEnabled(): void {
+    const button = document.getElementById('export-button') as HTMLButtonElement | null;
+    if (!button) return;
+
+    const nothingSelected =
+      this.pairs.length > 0 && SelectionService.getSelectionCount(this.pairs) === 0;
+    button.disabled = !this.pageReady || nothingSelected;
+  }
+
+  /** Green dot on the Options row: some preference is off its default. */
+  private async updateOptionsDot(): Promise<void> {
+    const dot = document.getElementById('options-changed-dot');
+    if (!dot) return;
+
+    const prefs = await StorageService.getUserPreferences();
+    const scalarsAtDefault = (
+      Object.keys(DEFAULT_PREFERENCES) as (keyof typeof DEFAULT_PREFERENCES)[]
+    ).every((key) => prefs[key] === DEFAULT_PREFERENCES[key]);
+    // The piece list is not in DEFAULT_PREFERENCES (absent means "untouched",
+    // which is what keeps the legacy name), so it is compared by value here.
+    const nameAtDefault =
+      prefs.filenamePieces === undefined ||
+      JSON.stringify(prefs.filenamePieces) === JSON.stringify(DEFAULT_FILENAME_PIECES);
+    dot.hidden = scalarsAtDefault && nameAtDefault;
+  }
+
+  private updateExportLabel(format: ExportFormat): void {
+    const label = document.getElementById('export-button-label');
+    if (label) {
+      // After a degraded export the same button is the retry-in-full.
+      label.textContent =
+        this.uiState === 'warning'
+          ? getMessage('exportButtonAgain')
+          : getMessageWithValues('exportButtonFormat', getFormatName(format));
+    }
   }
 
   private enableButtons(): void {
-    const exportButton = document.getElementById('export-button') as HTMLButtonElement;
-    const printButton = document.getElementById('print-button') as HTMLButtonElement;
-    const formatSelect = document.getElementById('format-select') as HTMLSelectElement;
-
-    if (exportButton) exportButton.disabled = false;
-    if (printButton) printButton.disabled = false;
-    if (formatSelect) formatSelect.disabled = false;
+    this.pageReady = true;
+    this.syncExportEnabled();
+    // Print stays governed by the format gate, not by page readiness.
+    this.handleFormatChange(this.selectedFormat);
   }
 
   private async handleExport(format: ExportFormat): Promise<void> {
@@ -492,13 +1151,17 @@ class PopupController {
       if (response.warning) {
         // Degraded export (e.g. artifact contents missing) — keep the popup
         // open so the user actually sees it. Full reason is in the tooltip.
-        this.updateStatus('warning', getMessage('statusArtifactsMissing'), response.warning);
+        this.showWarning(response.warning);
         return;
       }
       window.close(); // Close popup after triggering export
     } catch (error) {
       console.error('Export failed:', error);
-      this.updateStatus('error', error instanceof Error ? error.message : getMessage('statusExportFailed'));
+      this.setUiState('error');
+      this.updateStatus(
+        'error',
+        error instanceof Error ? error.message : getMessage('statusExportFailed')
+      );
     }
   }
 
@@ -516,66 +1179,95 @@ class PopupController {
 
       const response: MessageResponse | undefined = await chrome.tabs.sendMessage(tab.id, message);
       if (response?.warning) {
-        this.updateStatus('warning', getMessage('statusArtifactsMissing'), response.warning);
+        this.showWarning(response.warning);
         return;
       }
       window.close(); // Close popup after triggering print
     } catch (error) {
       console.error('Print failed:', error);
+      this.setUiState('error');
       this.updateStatus('error', getMessage('statusPrintFailed'));
     }
   }
 
-  private showNotSupportedMessage(): void {
-    const notSupportedSection = document.getElementById('not-supported-section');
-    const mainContent = document.getElementById('main-content');
+  /**
+   * Degraded export: the amber card carries the reason, the header badge the
+   * short label. Both keep the full text in their `title` — the card's detail
+   * line is two rows tall and a long reason is clipped there.
+   */
+  private showWarning(reason: string): void {
+    this.setUiState('warning');
+    this.updateStatus('warning', getMessage('statusArtifactsMissing'), reason);
 
-    if (notSupportedSection) {
-      notSupportedSection.style.display = 'block';
-    }
-    if (mainContent) {
-      mainContent.style.display = 'none';
-    }
-  }
-
-  private showMainContent(): void {
-    const notSupportedSection = document.getElementById('not-supported-section');
-    const mainContent = document.getElementById('main-content');
-
-    if (notSupportedSection) {
-      notSupportedSection.style.display = 'none';
-    }
-    if (mainContent) {
-      mainContent.style.display = 'block';
+    const detail = document.getElementById('warning-card-detail');
+    if (detail) {
+      detail.textContent = reason;
+      detail.title = reason;
     }
   }
 
-  private showReloadMessage(): void {
-    const notSupportedSection = document.getElementById('not-supported-section');
-    const mainContent = document.getElementById('main-content');
+  /**
+   * Show the amber row only for a fingerprint the user has not already dealt
+   * with. Suppression is per fingerprint, and the fingerprint embeds the
+   * extension version — so shipping a fix brings the prompt back by itself.
+   */
+  private async renderDriftRow(): Promise<void> {
+    const row = document.getElementById('drift-row');
+    if (!row) return;
+    const drift = this.drift;
+    row.hidden = !drift || (await isDriftSuppressed(drift.fingerprint));
+  }
 
-    if (mainContent) {
-      mainContent.style.display = 'none';
-    }
+  /**
+   * Build the report when the view opens, never before: a user who never opens
+   * it never has a skeleton built for them.
+   */
+  private async openReportView(): Promise<void> {
+    const preview = document.getElementById('drift-report-preview');
+    const status = document.getElementById('drift-report-status');
+    const drift = this.drift;
+    if (!preview || !drift) return;
 
-    if (notSupportedSection) {
-      notSupportedSection.style.display = 'block';
-      // Replace the message with reload instructions
-      notSupportedSection.innerHTML = `
-        <div class="not-supported-message">
-          <svg class="not-supported-icon" width="48" height="48" viewBox="0 0 24 24" fill="none">
-            <path d="M21 10C21 10 18.995 7.26822 17.3662 5.63824C15.7373 4.00827 13.4864 3 11 3C6.02944 3 2 7.02944 2 12C2 16.9706 6.02944 21 11 21C15.1031 21 18.5649 18.2543 19.6482 14.5M21 10V4M21 10H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <h3 class="not-supported-title">${getMessage('reloadRequiredTitle')}</h3>
-          <p class="not-supported-text">
-            ${getMessage('reloadRequiredMessage')}
-            <br><br>
-            <strong>${getMessage('howToReload')}</strong>
-            <br>• ${getMessage('reloadInstructionKeyboard')}
-            <br>• ${getMessage('reloadInstructionButton')}
-          </p>
-        </div>
-      `;
+    this.setStatusText(status, getMessage('driftReportLoading'));
+    const skeleton = await this.requestSkeleton();
+    this.reportText = formatDriftReport(drift, skeleton.text, skeleton.origin || this.pageOrigin);
+    preview.textContent = this.reportText;
+    this.setStatusText(status, '');
+  }
+
+  /** Ask the content script for the page skeleton. A failure is not fatal. */
+  private async requestSkeleton(): Promise<{ text: string | null; origin: string }> {
+    const tabId = this.currentTabId;
+    if (tabId === undefined) return { text: null, origin: '' };
+    const result = await sendTabMessage<{ success: boolean; skeleton?: string; origin?: string }>(
+      tabId,
+      { type: MESSAGE_TYPES.GET_DRIFT_SKELETON }
+    );
+    if (!result.ok || !result.response.success) return { text: null, origin: '' };
+    return { text: result.response.skeleton ?? null, origin: result.response.origin ?? '' };
+  }
+
+  private setStatusText(element: HTMLElement | null, text: string): void {
+    if (element) element.textContent = text;
+  }
+
+  /**
+   * Copy the report. The popup stays open — `navigator.clipboard.writeText`
+   * runs here, so there is no reason to close it, and the confirmation lands
+   * inline where the user is looking.
+   */
+  private async copyReport(): Promise<boolean> {
+    const status = document.getElementById('drift-report-status');
+    if (!this.reportText) return false;
+    try {
+      await navigator.clipboard.writeText(this.reportText);
+      this.setStatusText(status, getMessage('driftReportCopied'));
+      if (this.drift) await suppressDrift(this.drift.fingerprint);
+      return true;
+    } catch {
+      // The <pre> is selectable, so failing to copy is recoverable by hand.
+      this.setStatusText(status, getMessage('driftReportCopyFailed'));
+      return false;
     }
   }
 }
@@ -583,5 +1275,5 @@ class PopupController {
 // Initialize popup
 const popup = new PopupController();
 document.addEventListener('DOMContentLoaded', () => {
-  popup.initialize();
+  void popup.initialize();
 });

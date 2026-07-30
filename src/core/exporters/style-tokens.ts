@@ -16,13 +16,17 @@
  * `FONT_SIZE_PT` / `COLOR` / `SPACING` hold values that are deliberately shared
  * across two or more formats (the divergences called out in lo-82e7). The
  * `PDF_*` / `DOCX_*` / `HTML_*` constants hold values that stay format-specific
- * on purpose (e.g. heading-level sizing, which C-2 owns) — they are centralised
- * here too so no bare literal remains, but are not forced to numerically match.
+ * on purpose (e.g. per-format heading sizing) — they are centralised here too
+ * so no bare literal remains, but are not forced to numerically match. The
+ * heading *levels* they are indexed by, however, are canonical: see
+ * `DOC_HEADING_LEVEL` / `bodyHeadingLevel` below.
  *
- * A later global scale factor (compact/normal/large, see C-4) can multiply
- * every entry of `FONT_SIZE_PT` (and the per-format size tables) uniformly
- * since they are plain numbers in one unit — no rewrite needed.
+ * The global scale factor (compact/normal/large, C-4) multiplies every entry
+ * of `FONT_SIZE_PT` and of the per-format size tables uniformly — see
+ * `scaleFontSizes` below.
  */
+
+import type { FontScale } from '../types';
 
 // ---------------------------------------------------------------------------
 // Unit conversion helpers
@@ -139,6 +143,23 @@ export const COLOR = {
   },
 } as const;
 
+/**
+ * Look a platform id up in a brand palette, falling back to its neutral
+ * `default` — so an unknown platform still yields a real colour and no format
+ * ever emits an empty/undefined colour attribute.
+ *
+ * Pick the palette by surface: `COLOR.brand` is the accent (pdf's role label on
+ * white, html's border-left rule); `COLOR.brandTextOnLight` is the darkened
+ * variant for label TEXT on a light background (html's small-caps role label,
+ * docx's role heading).
+ */
+export function brandColorFor(
+  palette: typeof COLOR.brand | typeof COLOR.brandTextOnLight,
+  platform: string
+): string {
+  return palette[platform as keyof typeof palette] ?? palette.default;
+}
+
 // ---------------------------------------------------------------------------
 // Size scale — canonical, deliberately shared across the formats that use it
 // (see lo-82e7 payload's ranked divergence list: body text, code blocks,
@@ -153,17 +174,49 @@ export const FONT_SIZE_PT = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Per-format sizes kept intentionally format-specific (not part of this
-// task's reconciliation — centralised so no bare literal remains, but not
-// forced to numerically match across formats). Heading-level sizing in
-// particular is C-2's job.
+// Canonical document outline (C-2)
 // ---------------------------------------------------------------------------
 
+/**
+ * Every exported document spends its top heading levels on chrome: level 1 is
+ * the conversation title, level 2 is the role label (User / assistant name).
+ * Body headings therefore start at level 3, which is what `bodyHeadingLevel`
+ * derives — the offset is not arbitrary, it is `DOC_HEADING_LEVEL.roleLabel`.
+ *
+ * txt and json have no heading-level surface: json passes the source markup
+ * through losslessly, txt collapses every heading to an underlined line.
+ */
+export const DOC_HEADING_LEVEL = {
+  title: 1,
+  roleLabel: 2,
+  max: 6,
+} as const;
+
+/** Source heading level (1-6) -> document heading level, clamped to 6. */
+export function bodyHeadingLevel(sourceLevel: number): number {
+  const source = Math.max(sourceLevel, 1);
+  return Math.min(source + DOC_HEADING_LEVEL.roleLabel, DOC_HEADING_LEVEL.max);
+}
+
+// ---------------------------------------------------------------------------
+// Per-format sizes kept intentionally format-specific (not part of this
+// task's reconciliation — centralised so no bare literal remains, but not
+// forced to numerically match across formats).
+// ---------------------------------------------------------------------------
+
+/**
+ * pdf has no structural heading levels — font size is its only level surface,
+ * so this table is indexed by DOCUMENT level (index 0 = level 1 = title,
+ * index 1 = level 2 = role label) and must stay monotonic. Body headings read
+ * off levels 3-6, which is why they can no longer outrank the role label the
+ * way the old source-level-indexed table let them.
+ */
+const PDF_HEADING_SCALE_PT = [20, 15, 14, 13, 12, 11] as const;
+
 export const PDF_FONT_SIZE_PT = {
-  title: 20,
-  roleLabel: 12,
-  /** Heading levels 1-6, index 0 = level 1. Unchanged from the previous max(16-level,11) formula. */
-  headingByLevel: [15, 14, 13, 12, 11, 11],
+  headingByLevel: PDF_HEADING_SCALE_PT,
+  title: PDF_HEADING_SCALE_PT[0], // DOC_HEADING_LEVEL.title
+  roleLabel: PDF_HEADING_SCALE_PT[1], // DOC_HEADING_LEVEL.roleLabel
   sectionLabel: 11, // "Artifacts:" / "Web Search Results:"
   artifactTitle: 10,
   small: 9, // page numbers, table header/body text, search-result title
@@ -172,15 +225,85 @@ export const PDF_FONT_SIZE_PT = {
 export const DOCX_FONT_SIZE_PT = {
   title: 16,
   artifactTitle: 13,
+  /**
+   * Document heading levels 1-6, index 0 = level 1. docx renders headings
+   * through Word's built-in `Heading N` styles, whose sizes live in Word's
+   * default stylesheet rather than here — which would leave them *fixed* while
+   * the C-4 font scale moved the body text, inverting the hierarchy at
+   * `large`. So the ramp is declared (Word's own default sizes, unchanged at
+   * `normal`) and written into the document's default heading styles, where
+   * the scale reaches it like every other size.
+   */
+  headingByLevel: [16, 13, 12, 11, 11, 11],
 } as const;
 
 export const HTML_FONT_SIZE_PT = {
   title: 24,
-  /** Heading levels 1-6, index 0 = level 1. Unchanged. */
+  /** Document heading levels 1-6, index 0 = level 1 — maps 1:1 onto `.message-content hN`. */
   headingByLevel: [22.5, 18, 15, 13.5, 12, 10.5],
   roleLabel: 10.5,
   timestamp: 9.75,
 } as const;
+
+// ---------------------------------------------------------------------------
+// Global type scale (C-4)
+// ---------------------------------------------------------------------------
+
+/**
+ * The three steps, as multipliers over the tables above.
+ *
+ * Three steps, deliberately — not a size input. The user-facing point is
+ * "fewer pages", so the useful control is a coarse one, and a coarse one can
+ * be applied to the *whole* ramp at once without a designer in the loop.
+ *
+ * `compact` / `large` are far enough apart (0.8 / 1.25, a factor of ~1.6) that
+ * the page count of a real conversation actually moves; anything tighter is a
+ * setting the user cannot see the effect of.
+ */
+export const FONT_SCALE_FACTOR = {
+  compact: 0.8,
+  normal: 1,
+  large: 1.25,
+} as const satisfies Record<FontScale, number>;
+
+/**
+ * Factor for a step, defaulting to `normal` — preferences stored before this
+ * setting existed carry no `fontScale`, and they must keep exporting exactly
+ * as they did.
+ */
+export function fontScaleFactor(scale?: FontScale): number {
+  return FONT_SCALE_FACTOR[scale ?? 'normal'];
+}
+
+/**
+ * Same table, every size multiplied. The heading ramps keep their tuple shape
+ * so a fixed-length lookup stays a `number`, not a `number | undefined`.
+ */
+type ScaledRamp<A> = { -readonly [I in keyof A]: number };
+type Scaled<T> = {
+  [K in keyof T]: T[K] extends readonly number[] ? ScaledRamp<T[K]> : number;
+};
+
+/**
+ * Multiply a pt size table by a step's factor.
+ *
+ * One pass over the table is enough because every entry is a plain number in
+ * one unit — which is why headings, code, metadata and body cannot drift apart
+ * under the scale: there is no per-entry decision to get wrong.
+ */
+export function scaleFontSizes<T extends Record<string, number | readonly number[]>>(
+  table: T,
+  scale?: FontScale
+): Scaled<T> {
+  const factor = fontScaleFactor(scale);
+  const round = (pt: number): number => Math.round(pt * factor * 100) / 100;
+  return Object.fromEntries(
+    Object.entries(table).map(([key, value]) => [
+      key,
+      typeof value === 'number' ? round(value) : value.map(round),
+    ])
+  ) as Scaled<T>;
+}
 
 // ---------------------------------------------------------------------------
 // Spacing scale
@@ -191,4 +314,31 @@ export const SPACING = {
   listIndentStepMm: 5,
   /** Blockquote left indent, in mm (0.5in, docx's original value — unchanged). */
   blockquoteIndentMm: 12.7,
+} as const;
+
+// ---------------------------------------------------------------------------
+// Pagination policy (C-5)
+// ---------------------------------------------------------------------------
+
+/**
+ * Typographic pagination policy, in LINES, for the three formats that have
+ * pages. Each expresses it in its own idiom:
+ *   - pdf:  measured against the remaining page height before drawing, since
+ *           its layout is hand-rolled (there is no property to set)
+ *   - docx: `keepNext` / `keepLines` on paragraphs, `cantSplit` on table rows
+ *   - html: `orphans` / `widows` / `break-*: avoid` inside `@media print`
+ *
+ * md, txt and json have no pagination — the concept is meaningless there and
+ * they deliberately do not import this.
+ */
+export const PAGINATION = {
+  /** Fewest lines of a straddling paragraph that may be left at a page foot. */
+  orphans: 2,
+  /** Fewest lines of a straddling paragraph that may be carried to the next page. */
+  widows: 2,
+  /**
+   * Lines of following content a heading or role label must keep with it, so a
+   * label never strands alone at the foot of a page with its message overleaf.
+   */
+  keepWithNextLines: 2,
 } as const;

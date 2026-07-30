@@ -8,6 +8,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createTestQAPair, createTestConversation } from '../../../utils/exporter-helpers';
+import { EMBEDDED_FRAME_REPORT_ATTR } from '../../../../src/core/parsers/chatgpt/selectors';
 
 const mockParse = vi.fn();
 const mockExport = vi.fn();
@@ -26,7 +27,7 @@ vi.mock('../../../../src/core/services/claude-api-service', () => ({
   ClaudeApiService: {
     extractIdsFromPage: (...args: unknown[]) => mockExtractIds(...args) as unknown,
     fetchConversationData: (...args: unknown[]) => mockFetchApiData(...args) as unknown,
-    enrichConversationWithArtifacts: (...args: unknown[]) => mockEnrich(...args) as unknown,
+    enrichConversation: (...args: unknown[]) => mockEnrich(...args) as unknown,
   },
 }));
 
@@ -232,7 +233,11 @@ describe('content-script print failure reporting (lo-f854)', () => {
   it('opens the print window synchronously and fills it once content is ready', async () => {
     const pairs = [createTestQAPair(0, 'Q', 'A')];
     mockParse.mockReturnValue({ success: true, conversation: createTestConversation(pairs) });
-    mockExport.mockResolvedValue({ success: true, blob: new Blob(['# hi']), mimeType: 'text/markdown' });
+    mockExport.mockResolvedValue({
+      success: true,
+      blob: new Blob(['# hi']),
+      mimeType: 'text/markdown',
+    });
 
     const listener = await loadMessageListener();
     const sendResponse = vi.fn();
@@ -245,6 +250,116 @@ describe('content-script print failure reporting (lo-f854)', () => {
     expect(openSpy).toHaveBeenCalledWith('', '_blank');
     expect(printWindowStub.location.href).toBe('blob:mock');
     expect(printWindowStub.close).not.toHaveBeenCalled();
+  });
+});
+
+describe('content-script raises the print dialog (lo-ad6c)', () => {
+  /**
+   * Models the real browser: navigating a window replaces its inner Window
+   * object, so a `load` listener registered on the pre-opened print window is
+   * discarded by the navigation and never fires. Verified in Chrome — the
+   * blob document loads and `readyState` reaches 'complete', but a listener
+   * attached before `location.href = url` does not run. So `addEventListener`
+   * here records the call and deliberately never invokes it; anything that
+   * depends on it to call `print()` leaves the user staring at a page with no
+   * print dialog.
+   */
+  let readyState: DocumentReadyState;
+  let printWindowStub: {
+    document: { write: ReturnType<typeof vi.fn>; readonly readyState: DocumentReadyState };
+    addEventListener: ReturnType<typeof vi.fn>;
+    location: { href: string };
+    closed: boolean;
+    close: ReturnType<typeof vi.fn>;
+    print: ReturnType<typeof vi.fn>;
+  };
+  const spyOnWindowOpen = () => vi.spyOn(window, 'open');
+  let openSpy: ReturnType<typeof spyOnWindowOpen>;
+
+  beforeEach(() => {
+    mockParse.mockReset();
+    mockExport.mockReset();
+    URL.createObjectURL = vi.fn(() => 'blob:mock');
+    URL.revokeObjectURL = vi.fn();
+
+    readyState = 'loading';
+    let href = '';
+    printWindowStub = {
+      document: {
+        write: vi.fn(),
+        get readyState() {
+          return readyState;
+        },
+      },
+      addEventListener: vi.fn(),
+      get location() {
+        return {
+          get href() {
+            return href;
+          },
+          set href(value: string) {
+            href = value;
+            // The navigation completes a tick later, as in a real browser.
+            setTimeout(() => {
+              readyState = 'complete';
+            }, 10);
+          },
+        };
+      },
+      closed: false,
+      close: vi.fn(),
+      print: vi.fn(),
+    };
+    openSpy = spyOnWindowOpen().mockReturnValue(printWindowStub as unknown as Window);
+  });
+
+  afterEach(() => {
+    openSpy.mockRestore();
+  });
+
+  it('calls print() on the print window once the document has finished loading', async () => {
+    const pairs = [createTestQAPair(0, 'Q', 'A')];
+    mockParse.mockReturnValue({ success: true, conversation: createTestConversation(pairs) });
+    mockExport.mockResolvedValue({
+      success: true,
+      blob: new Blob(['<html><body>hi</body></html>']),
+      mimeType: 'text/html',
+    });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'print_conversation', format: 'html' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(printWindowStub.print).toHaveBeenCalled();
+    });
+    // Printed the navigated document, not the "Preparing…" placeholder.
+    expect(printWindowStub.location.href).toBe('blob:mock');
+    expect(readyState).toBe('complete');
+    expect(printWindowStub.close).not.toHaveBeenCalled();
+  });
+
+  it('does not print while the document is still loading', async () => {
+    const pairs = [createTestQAPair(0, 'Q', 'A')];
+    mockParse.mockReturnValue({ success: true, conversation: createTestConversation(pairs) });
+    mockExport.mockResolvedValue({
+      success: true,
+      blob: new Blob(['<html><body>hi</body></html>']),
+      mimeType: 'text/html',
+    });
+    // Navigation never completes: readyState stays 'loading'.
+    Object.defineProperty(printWindowStub.document, 'readyState', {
+      get: () => 'loading' as DocumentReadyState,
+    });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'print_conversation', format: 'html' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+    expect(printWindowStub.print).not.toHaveBeenCalled();
   });
 });
 
@@ -419,11 +534,7 @@ describe('content-script Q&A pair selection (lo-adf1)', () => {
 
     const listener = await loadMessageListener();
     const sendResponse = vi.fn();
-    listener(
-      { type: 'export_conversation', format: 'md', selectedIndices: [] },
-      {},
-      sendResponse
-    );
+    listener({ type: 'export_conversation', format: 'md', selectedIndices: [] }, {}, sendResponse);
 
     await vi.waitFor(() => {
       expect(sendResponse).toHaveBeenCalled();
@@ -431,5 +542,83 @@ describe('content-script Q&A pair selection (lo-adf1)', () => {
 
     const exportedPairs = mockExport.mock.calls[0]?.[1] as typeof pairs;
     expect(exportedPairs).toEqual([]);
+  });
+});
+
+// lo-9001: the sandboxed Deep Research frame's own content script relays its
+// rendered text out via `postMessage`; the page's content script must match
+// it to the right <iframe> element by `event.source` and stash it there, but
+// only when the message actually came from the sandbox host and has the
+// expected shape -- anything else must be ignored, never trusted as report
+// content.
+describe('content-script Deep Research frame relay (lo-9001)', () => {
+  const SANDBOX_ORIGIN = 'https://connector-openai-deep-research.web-sandbox.oaiusercontent.com';
+
+  beforeEach(() => {
+    mockParse.mockReset();
+    mockParse.mockReturnValue({ success: true, conversation: createTestConversation([]) });
+    document.body.innerHTML = '';
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('stashes the relayed report text on the matching iframe only', async () => {
+    await loadMessageListener();
+
+    document.body.innerHTML =
+      '<iframe title="internal://deep-research"></iframe>' +
+      '<iframe title="internal://deep-research"></iframe>';
+    const frames = document.querySelectorAll<HTMLIFrameElement>('iframe');
+    const targetFrame = frames[1];
+    if (!targetFrame) throw new Error('fixture iframe missing');
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        origin: SANDBOX_ORIGIN,
+        data: { type: 'ai-chat-exporter:deep-research-report', text: 'The real report text.' },
+        source: targetFrame.contentWindow,
+      })
+    );
+
+    expect(targetFrame.getAttribute(EMBEDDED_FRAME_REPORT_ATTR)).toBe('The real report text.');
+    expect(frames[0]?.getAttribute(EMBEDDED_FRAME_REPORT_ATTR)).toBeNull();
+  });
+
+  it('ignores a message whose origin is not the sandbox host', async () => {
+    await loadMessageListener();
+
+    document.body.innerHTML = '<iframe title="internal://deep-research"></iframe>';
+    const frame = document.querySelector<HTMLIFrameElement>('iframe');
+    if (!frame) throw new Error('fixture iframe missing');
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        origin: 'https://evil.example.com',
+        data: { type: 'ai-chat-exporter:deep-research-report', text: 'Fabricated report text.' },
+        source: frame.contentWindow,
+      })
+    );
+
+    expect(frame.getAttribute(EMBEDDED_FRAME_REPORT_ATTR)).toBeNull();
+  });
+
+  it('ignores a message with the wrong shape from the right origin', async () => {
+    await loadMessageListener();
+
+    document.body.innerHTML = '<iframe title="internal://deep-research"></iframe>';
+    const frame = document.querySelector<HTMLIFrameElement>('iframe');
+    if (!frame) throw new Error('fixture iframe missing');
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        origin: SANDBOX_ORIGIN,
+        data: { some: 'unrelated payload' },
+        source: frame.contentWindow,
+      })
+    );
+
+    expect(frame.getAttribute(EMBEDDED_FRAME_REPORT_ATTR)).toBeNull();
   });
 });

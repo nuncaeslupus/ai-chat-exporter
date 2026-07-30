@@ -16,7 +16,7 @@ describe('ClaudeParser', () => {
       'utf-8'
     );
     dom = new JSDOM(html, { url: 'https://claude.ai/chat/abc123' });
-    document = dom.window.document as unknown as Document;
+    document = dom.window.document;
     parser = new ClaudeParser(document);
   });
 
@@ -32,7 +32,7 @@ describe('ClaudeParser', () => {
         'utf-8'
       );
       dom = new JSDOM(html, { url: 'https://www.claude.ai/chat/abc123' });
-      document = dom.window.document as unknown as Document;
+      document = dom.window.document;
       parser = new ClaudeParser(document);
 
       expect(parser.canParse()).toBe(true);
@@ -44,7 +44,7 @@ describe('ClaudeParser', () => {
         'utf-8'
       );
       dom = new JSDOM(html, { url: 'https://chatgpt.com' });
-      document = dom.window.document as unknown as Document;
+      document = dom.window.document;
       parser = new ClaudeParser(document);
 
       expect(parser.canParse()).toBe(false);
@@ -52,7 +52,7 @@ describe('ClaudeParser', () => {
 
     it('returns false when conversation container not found', () => {
       const emptyDom = new JSDOM('<div></div>', { url: 'https://claude.ai/chat/abc123' });
-      const emptyDocument = emptyDom.window.document as unknown as Document;
+      const emptyDocument = emptyDom.window.document;
       const emptyParser = new ClaudeParser(emptyDocument);
 
       expect(emptyParser.canParse()).toBe(false);
@@ -100,7 +100,9 @@ describe('ClaudeParser', () => {
     });
 
     it('handles model without "Claude" prefix', () => {
-      const modelEl = document.querySelector('[data-testid="model-selector-dropdown"] div.whitespace-nowrap');
+      const modelEl = document.querySelector(
+        '[data-testid="model-selector-dropdown"] div.whitespace-nowrap'
+      );
       if (modelEl) modelEl.textContent = 'Opus 4';
 
       const model = parser.getModel();
@@ -149,7 +151,7 @@ describe('ClaudeParser', () => {
       const pairs = result.conversation!.pairs;
 
       expect(pairs.length).toBeGreaterThan(0);
-      pairs.forEach(pair => {
+      pairs.forEach((pair) => {
         expect(pair.question.role).toBe('user');
         expect(pair.question.content).toBeTruthy();
       });
@@ -160,7 +162,7 @@ describe('ClaudeParser', () => {
       const pairs = result.conversation!.pairs;
 
       expect(pairs.length).toBeGreaterThan(0);
-      pairs.forEach(pair => {
+      pairs.forEach((pair) => {
         expect(pair.answer.role).toBe('assistant');
         expect(pair.answer.content).toBeTruthy();
       });
@@ -272,7 +274,9 @@ describe('ClaudeParser', () => {
     });
 
     it('handles empty conversation', () => {
-      const container = document.querySelector('div.overflow-y-scroll.overflow-x-hidden.pt-6.flex-1');
+      const container = document.querySelector(
+        'div.overflow-y-scroll.overflow-x-hidden.pt-6.flex-1'
+      );
       if (container) {
         container.innerHTML = '';
       }
@@ -300,17 +304,17 @@ describe('ClaudeParser', () => {
 
       const result = parser.parse();
 
-      // CURRENT (BAD) BEHAVIOR -- reported, not fixed, here:
-      // extractUserMessages filters `div.mb-1.mt-6.group` down to only the
-      // groups containing `[data-testid="user-message"]`; renaming that
-      // attribute drops every user message with no fallback, so the zip in
-      // extractQAPairs has nothing to pair the assistant side with. parse()
-      // reports success:true with an empty conversation and only the
-      // generic "no pairs" warning -- not a signal that names the actual
-      // cause (the role attribute going missing).
+      // FIXED BEHAVIOR (lo-d0f0): extractQAPairs now recognizes a user turn
+      // structurally, via `custom.userTurnWrapper` (`div.mb-1.mt-6.group`),
+      // which the attribute rename does not touch -- so the turn keeps its
+      // slot instead of being dropped from an array with no fallback. The
+      // renamed attribute only breaks the text-content lookup inside
+      // extractUserMessage; the uploaded-image fallback there does not
+      // depend on it, so the question still comes through as an
+      // images-only message rather than the whole pair vanishing.
       expect(result.success).toBe(true);
-      expect(result.conversation?.pairs).toEqual([]);
-      expect(result.warnings).toContain('No Q&A pairs found in the conversation');
+      expect(result.conversation?.pairs).toHaveLength(1);
+      expect(result.conversation?.pairs[0]?.question.content).toContain('Uploaded images');
     });
 
     it('does not mis-pair turns when a wrapper div is removed', () => {
@@ -319,16 +323,17 @@ describe('ClaudeParser', () => {
       // rather than committing a second fixture.
       const container = document.querySelector(
         'div.flex-1.flex.flex-col.px-4.max-w-3xl.mx-auto.w-full.pt-1'
-      ) as Element;
-      const userBlock = document.querySelector('div[data-test-render-count="2"]') as Element;
-      const assistantBlock = document.querySelector('div[data-test-render-count="1"]') as Element;
+      )!;
+      const userBlock = document.querySelector('div[data-test-render-count="2"]')!;
+      const assistantBlock = document.querySelector('div[data-test-render-count="1"]')!;
       userBlock.querySelector('p.whitespace-pre-wrap')!.textContent = 'Turn1 question';
       assistantBlock.querySelector('p.font-claude-response-body')!.textContent = 'Turn1 answer';
       for (const n of [2, 3]) {
         const clonedUser = userBlock.cloneNode(true) as Element;
         const clonedAssistant = assistantBlock.cloneNode(true) as Element;
         clonedUser.querySelector('p.whitespace-pre-wrap')!.textContent = `Turn${n} question`;
-        clonedAssistant.querySelector('p.font-claude-response-body')!.textContent = `Turn${n} answer`;
+        clonedAssistant.querySelector('p.font-claude-response-body')!.textContent =
+          `Turn${n} answer`;
         container.appendChild(clonedUser);
         container.appendChild(clonedAssistant);
       }
@@ -339,27 +344,36 @@ describe('ClaudeParser', () => {
       // Gut turn 2's user content entirely (image thumbnail + text), as a
       // redesign that collapsed its wrapper divs plausibly would -- leave
       // turns 1 and 3 untouched.
-      const turn2UserBlock = document.querySelectorAll('div[data-test-render-count="2"]')[1] as Element;
-      turn2UserBlock.querySelectorAll('div.relative.group\\/thumbnail').forEach((el) => el.remove());
+      const turn2UserBlock = document.querySelectorAll('div[data-test-render-count="2"]')[1]!;
+      turn2UserBlock.querySelectorAll('div.relative.group\\/thumbnail').forEach((el) => {
+        el.remove();
+      });
       turn2UserBlock.querySelector('div[data-testid="user-message"]')!.remove();
 
       const result = new ClaudeParser(document).parse();
       const pairs = result.conversation?.pairs ?? [];
 
-      // CURRENT (BAD) BEHAVIOR -- reported, not fixed, here: like the
-      // ChatGPT parser, extractQAPairs zips userMessages[i] with
-      // assistantMessages[i] by array index. The gutted turn's user message
-      // is dropped from the array instead of leaving a gap, so turn 3's
-      // question silently ends up paired with turn 2's answer, with no
-      // warning (collectWarnings only fires when pairs.length === 0).
+      // FIXED BEHAVIOR (lo-d0f0): extractQAPairs now walks the render-count
+      // turn wrappers in document order and pairs each recognized user turn
+      // with the assistant turn that follows it, instead of zipping two
+      // independently-filtered arrays by index. Turn 2's user wrapper is
+      // still recognized structurally -- its `div.mb-1.mt-6.group`
+      // sub-wrapper survives even though its content was gutted -- so it
+      // keeps its own slot: turn 3's question is never reattached to turn
+      // 2's answer.
       expect(result.success).toBe(true);
-      expect(pairs).toHaveLength(2);
-      expect(pairs[1]?.question.content).toBe('Turn3 question');
+      expect(pairs).toHaveLength(3);
+      expect(pairs[1]?.question.content).toBe('');
       expect(pairs[1]?.answer.content).toContain('Turn2 answer');
+      expect(pairs[2]?.question.content).toBe('Turn3 question');
+      expect(pairs[2]?.answer.content).toContain('Turn3 answer');
+      expect(result.warnings).toContain('Turn 2: the question could not be read');
     });
 
     it('returns success:false rather than an empty conversation when selectors match nothing', () => {
-      const container = document.querySelector('div.overflow-y-scroll.overflow-x-hidden.pt-6.flex-1');
+      const container = document.querySelector(
+        'div.overflow-y-scroll.overflow-x-hidden.pt-6.flex-1'
+      );
       container!.innerHTML = '';
 
       const result = parser.parse();
@@ -411,6 +425,104 @@ describe('ClaudeParser', () => {
     });
   });
 
+  // lo-2478: the fixture above is pre-2026 markup. These run against a
+  // hand-rebuilt snapshot of claude.ai's CURRENT markup, where four selectors
+  // the parser depends on had silently gone dead. Each `it` here is a
+  // liveness guard for one of them: if claude.ai moves it again, exactly one
+  // of these fails and names what broke, instead of exports quietly going
+  // empty.
+  describe('current claude.ai markup (2026)', () => {
+    let liveDocument: Document;
+    let liveParser: ClaudeParser;
+
+    beforeEach(() => {
+      const html = readFileSync(
+        join(__dirname, '../../../fixtures/dom-snapshots/claude/artifact-panel.html'),
+        'utf-8'
+      );
+      liveDocument = new JSDOM(html, { url: 'https://claude.ai/chat/abc123' }).window.document;
+      liveParser = new ClaudeParser(liveDocument);
+    });
+
+    it('recognizes the conversation container (overflow-y-auto, not -scroll)', () => {
+      expect(liveParser.canParse()).toBe(true);
+    });
+
+    it('pairs the turn via data-user-message-bubble (div.mb-1.mt-6.group is gone)', () => {
+      const pairs = liveParser.parse().conversation?.pairs ?? [];
+
+      expect(pairs).toHaveLength(1);
+      expect(pairs[0]?.question.content).toContain('Draft me a tide table helper');
+      expect(pairs[0]?.answer.content).toContain('Both pieces are below');
+    });
+
+    it('finds artifact blocks that no longer sit inside div.pt-3.pb-3', () => {
+      const artifacts = liveParser.parse().conversation?.pairs[0]?.answer.metadata?.artifacts ?? [];
+
+      expect(artifacts.map((a) => a.title)).toEqual(['Tide table helper', 'Reading a tide table']);
+    });
+
+    it('types artifacts from the format token, not the translated label', () => {
+      const artifacts = liveParser.parse().conversation?.pairs[0]?.answer.metadata?.artifacts ?? [];
+
+      expect(artifacts[0]).toMatchObject({ type: 'react', language: 'react' });
+      expect(artifacts[1]).toMatchObject({ type: 'document', language: 'markdown' });
+    });
+
+    it('types a Spanish-UI label the same way an English one is typed', () => {
+      // "Documento · MD" -- only the kind is translated; the format token is
+      // not, which is the whole point of reading it instead of the label.
+      liveDocument
+        .querySelectorAll('div.text-xs.line-clamp-1.text-text-400')
+        .forEach((el) => (el.innerHTML = 'Documento<span class="opacity-50"> · </span>MD&nbsp;'));
+
+      const artifacts = new ClaudeParser(liveDocument).parse().conversation?.pairs[0]?.answer
+        .metadata?.artifacts;
+
+      expect(artifacts?.every((a) => a.type === 'document')).toBe(true);
+    });
+
+    it('reads the open artifact body out of the side panel', () => {
+      const artifacts = liveParser.parse().conversation?.pairs[0]?.answer.metadata?.artifacts ?? [];
+
+      // The panel renders outside every turn container, so it is only reached
+      // by a document-level lookup -- the failure shape that silently dropped
+      // Gemini's Deep Research report (PR #55).
+      const doc = artifacts.find((a) => a.title === 'Reading a tide table');
+      expect(doc?.content).toContain('Reading a tide table');
+      expect(doc?.content).toContain('Highs and lows');
+      expect(doc?.content).toContain('more than one block-level child');
+      // ...and keeps the blocks apart rather than running them together.
+      expect(doc?.content).toContain('\n\n');
+    });
+
+    it('leaves the un-opened artifact content-less rather than mis-attaching the panel', () => {
+      const artifacts = liveParser.parse().conversation?.pairs[0]?.answer.metadata?.artifacts ?? [];
+
+      expect(artifacts.find((a) => a.title === 'Tide table helper')?.content).toBeUndefined();
+    });
+
+    it('drops the panel body when the viewer is a cross-origin preview iframe', () => {
+      // A code artifact previews inside a sandboxed iframe whose source the
+      // content script cannot read; the artifact must still survive as a
+      // reference, not vanish.
+      liveDocument.querySelector('[data-skill-file-viewer] div.standard-markdown')?.remove();
+
+      const artifacts = new ClaudeParser(liveDocument).parse().conversation?.pairs[0]?.answer
+        .metadata?.artifacts;
+
+      expect(artifacts).toHaveLength(2);
+      expect(artifacts?.every((a) => a.content === undefined)).toBe(true);
+    });
+
+    it('names every artifact in the answer text so no format can drop it', () => {
+      const answer = liveParser.parse().conversation?.pairs[0]?.answer.content ?? '';
+
+      expect(answer).toContain('[Code · JSX: Tide table helper]');
+      expect(answer).toContain('[Document · MD: Reading a tide table]');
+    });
+  });
+
   describe('getButtonInjectionPoint', () => {
     it('returns a valid HTML element', () => {
       const point = parser.getButtonInjectionPoint();
@@ -425,7 +537,7 @@ describe('ClaudeParser', () => {
 
       expect(point).not.toBeNull();
       const header = document.querySelector('header[data-testid="page-header"]');
-      expect(header?.contains(point!)).toBe(true);
+      expect(header?.contains(point)).toBe(true);
     });
   });
 });

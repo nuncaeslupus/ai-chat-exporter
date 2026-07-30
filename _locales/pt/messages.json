@@ -32,6 +32,10 @@
     "message": "Sem separador ativo",
     "description": "Status message when no active browser tab is found"
   },
+  "statusPageCheckFailed": {
+    "message": "Falha na verificação",
+    "description": "Status message when reading the current page failed for a reason a reload would not fix"
+  },
   "statusArtifactsMissing": {
     "message": "Artefactos em falta",
     "description": "Status message when export or print completes but some content was left out"
@@ -54,43 +58,60 @@
   },
 
   "noChatbotDetectedTitle": {
-    "message": "Nenhum Chatbot Detetado",
+    "message": "Aqui não há nenhuma conversa para exportar",
     "description": "Title for no chatbot detected message"
   },
   "noChatbotDetectedMessage": {
-    "message": "Esta página não parece ter uma conversa de chatbot suportada.",
+    "message": "Abra um chat numa destas páginas: abrirá num novo separador.",
     "description": "Message when no chatbot is detected"
   },
-  "supportedPlatforms": {
-    "message": "Plataformas suportadas:",
-    "description": "Label for supported platforms list"
+
+  "noConversationFoundTitle": {
+    "message": "Não encontrámos nenhuma conversa aqui",
+    "description": "Title shown when the page is a supported chatbot but its parser found no conversation"
+  },
+  "noConversationFoundMessage": {
+    "message": "Esta página é suportada, mas não foi possível ler nenhuma mensagem.",
+    "description": "Message shown when the page is a supported chatbot but its parser found no conversation"
   },
 
   "reloadRequiredTitle": {
-    "message": "Recarregamento da Página Necessário",
+    "message": "Recarregue a página para exportar esta conversa",
     "description": "Title for reload required message"
   },
   "reloadRequiredMessage": {
-    "message": "Por favor, recarregue esta página para ativar a extensão AI Chat Exporter.",
+    "message": "A extensão foi atualizada depois de este separador ser aberto.",
     "description": "Message when page reload is required"
   },
-  "howToReload": {
-    "message": "Como recarregar:",
-    "description": "Label for reload instructions"
+  "reloadPageButton": {
+    "message": "Recarregar a página",
+    "description": "Label of the button that reloads the tab from the reload state"
   },
-  "reloadInstructionKeyboard": {
-    "message": "Prima Ctrl+R (Windows/Linux) ou ⌘+R (Mac)",
-    "description": "Keyboard shortcut instruction for reloading"
+  "platformLinkOpen": {
+    "message": "Abrir $1 num novo separador",
+    "description": "Tooltip of a platform link on the unsupported page state"
   },
-  "reloadInstructionButton": {
-    "message": "Ou clique no botão de recarregar no seu navegador",
-    "description": "Button instruction for reloading"
+  "rowContentNoSelection": {
+    "message": "Nenhum par selecionado",
+    "description": "Content row label when no Q&A pair is selected"
+  },
+  "rowContentChoosePairs": {
+    "message": "Escolher pares",
+    "description": "Content row action when no Q&A pair is selected"
+  },
+  "exportWarningTitle": {
+    "message": "Guardado, mas incompleto",
+    "description": "Title of the card shown after an export that came back degraded"
+  },
+  "exportWarningRetry": {
+    "message": "Tentar novamente",
+    "description": "Link that runs the degraded export again"
+  },
+  "exportButtonAgain": {
+    "message": "Exportar de novo",
+    "description": "Main button label after a degraded export"
   },
 
-  "actionsTitle": {
-    "message": "Ações",
-    "description": "Title for actions section"
-  },
   "exportButton": {
     "message": "Exportar",
     "description": "Export button label"
@@ -126,33 +147,45 @@
   },
 
   "optionIncludeMetadata": {
-    "message": "Incluir metadados",
+    "message": "Cabeçalho com os dados do chat",
     "description": "Label for the toggle controlling whether exports include the metadata block"
   },
   "optionIncludeTimestamps": {
-    "message": "Incluir marcas de tempo",
+    "message": "Hora em cada mensagem",
     "description": "Label for the toggle controlling whether exports include message timestamps"
+  },
+  "optionFontScale": {
+    "message": "Tamanho do texto",
+    "description": "Rótulo do controlo de tamanho de texto de três níveis na vista de opções"
+  },
+  "optionFontScaleCompact": {
+    "message": "Compacto",
+    "description": "O menor dos três tamanhos de texto: a exportação ocupa menos páginas"
+  },
+  "optionFontScaleNormal": {
+    "message": "Normal",
+    "description": "Tamanho de texto predefinido dos três"
+  },
+  "optionFontScaleLarge": {
+    "message": "Grande",
+    "description": "O maior dos três tamanhos de texto: mais legível, mais páginas"
+  },
+  "optionsFilenameRow": {
+    "message": "Nome do ficheiro",
+    "description": "Label of the file-name navigation row in the Options submenu"
   },
 
   "qaSelectionTitle": {
-    "message": "Selecione os pares de pergunta e resposta a exportar",
-    "description": "Heading above the per-pair checkbox list in the popup"
+    "message": "Escolher pares",
+    "description": "Title of the Content submenu, the pair chooser"
   },
   "qaSelectionSelectAll": {
-    "message": "Selecionar tudo",
+    "message": "Todos",
     "description": "Label for the toggle button when not every Q&A pair is selected"
   },
   "qaSelectionDeselectAll": {
-    "message": "Desmarcar tudo",
+    "message": "Nenhum",
     "description": "Label for the toggle button when every Q&A pair is selected"
-  },
-  "qaSelectionCount": {
-    "message": "$1 de $2 selecionados",
-    "description": "Selection summary below the pair list. $1 = selected count, $2 = total pairs",
-    "placeholders": {
-      "count": { "content": "$1", "example": "2" },
-      "total": { "content": "$2", "example": "5" }
-    }
   },
   "qaSelectionPairFallbackLabel": {
     "message": "Par de pergunta e resposta $1",
@@ -160,27 +193,6 @@
     "placeholders": {
       "index": { "content": "$1", "example": "1" }
     }
-  },
-
-  "qaPairSingular": {
-    "message": "par P&R",
-    "description": "Singular form of Q&A pair"
-  },
-  "qaPairPlural": {
-    "message": "pares P&R",
-    "description": "Plural form of Q&A pairs"
-  },
-  "wordCount": {
-    "message": "palavras",
-    "description": "Word count label"
-  },
-  "badgeCode": {
-    "message": "Código",
-    "description": "Badge for code content"
-  },
-  "badgeImages": {
-    "message": "Imagens",
-    "description": "Badge for image content"
   },
 
   "metadataFieldPlatform": {
@@ -198,6 +210,10 @@
   "metadataFieldURL": {
     "message": "URL",
     "description": "Metadata field: URL"
+  },
+  "metadataFieldDateRange": {
+    "message": "Intervalo de datas",
+    "description": "Metadata field: Date range"
   },
   "metadataTableHeaderField": {
     "message": "Campo",
@@ -250,33 +266,6 @@
     "description": "Grok platform name"
   },
 
-  "contentTagCode": {
-    "message": "Código",
-    "description": "Etiqueta para blocos de código"
-  },
-  "contentTagImage": {
-    "message": "Imagem",
-    "description": "Etiqueta para imagem única"
-  },
-  "contentTagImages": {
-    "message": "$1 Imagens",
-    "description": "Etiqueta para múltiplas imagens. $1 = número de imagens",
-    "placeholders": {
-      "count": {
-        "content": "$1",
-        "example": "3"
-      }
-    }
-  },
-  "contentTagCanvas": {
-    "message": "Tela",
-    "description": "Etiqueta para conteúdo de tela/documento"
-  },
-  "contentTagDeepResearch": {
-    "message": "Pesquisa Profunda",
-    "description": "Etiqueta para respostas de pesquisa profunda"
-  },
-
   "pageNumberFormat": {
     "message": "Página $1 de $2",
     "description": "Page number format for PDF exports. $1 = current page, $2 = total pages",
@@ -297,23 +286,242 @@
     "description": "Footer message in HTML exports"
   },
 
-  "imageAltText": {
-    "message": "Imagem: $1",
-    "description": "Alt text for images in exports. $1 = image description",
-    "placeholders": {
-      "description": {
-        "content": "$1",
-        "example": "screenshot"
-      }
-    }
+  "footerPrivacy": {
+    "message": "Privacidade",
+    "description": "Privacy policy link in the Options submenu footer"
   },
-
   "footerGitHub": {
     "message": "GitHub",
     "description": "GitHub footer link"
   },
-  "footerReportIssue": {
-    "message": "Reportar Problema",
-    "description": "Report issue footer link"
+
+  "metaPairsSingular": {
+    "message": "$1 par",
+    "description": "Conversation meta line, one pair. $1 = pair count",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "metaPairsPlural": {
+    "message": "$1 pares",
+    "description": "Conversation meta line, pair count. $1 = pair count",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "14"
+      }
+    }
+  },
+  "rowContent": {
+    "message": "Conteúdo",
+    "description": "Label of the Content navigation row in the popup"
+  },
+  "rowContentAll": {
+    "message": "Conversa inteira",
+    "description": "Content row value when every pair is selected"
+  },
+  "rowContentPartial": {
+    "message": "$1 de $2 pares",
+    "description": "Content row value with a partial selection. $1 = selected, $2 = total",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      },
+      "total": {
+        "content": "$2",
+        "example": "14"
+      }
+    }
+  },
+  "rowOptions": {
+    "message": "Opções",
+    "description": "Label of the Options navigation row in the popup"
+  },
+  "rowOptionsChanged": {
+    "message": "Há definições alteradas",
+    "description": "Tooltip of the dot marking non-default settings"
+  },
+  "exportButtonFormat": {
+    "message": "Exportar $1",
+    "description": "Main export button label. $1 = format name",
+    "placeholders": {
+      "format": {
+        "content": "$1",
+        "example": "Markdown"
+      }
+    }
+  },
+  "changeFormatButton": {
+    "message": "Alterar formato",
+    "description": "Accessible name of the format-menu chevron"
+  },
+  "printButtonFormat": {
+    "message": "Imprimir $1",
+    "description": "Print button tooltip. $1 = format name",
+    "placeholders": {
+      "format": {
+        "content": "$1",
+        "example": "Markdown"
+      }
+    }
+  },
+  "printUnavailableFormat": {
+    "message": "A impressão não está disponível para $1",
+    "description": "Print button tooltip when the format cannot be printed. $1 = format name",
+    "placeholders": {
+      "format": {
+        "content": "$1",
+        "example": "Word"
+      }
+    }
+  },
+  "privacyNotice": {
+    "message": "É gerado no teu navegador. Nada é enviado para nenhum servidor.",
+    "description": "Privacy line under the action bar"
+  },
+  "formatMenuLabel": {
+    "message": "Formato",
+    "description": "Heading of the export-format menu"
+  },
+  "formatNameMD": {
+    "message": "Markdown",
+    "description": "Short name of the Markdown format"
+  },
+  "formatNamePDF": {
+    "message": "PDF",
+    "description": "Short name of the PDF format"
+  },
+  "formatNameHTML": {
+    "message": "HTML",
+    "description": "Short name of the HTML format"
+  },
+  "formatNameDOCX": {
+    "message": "Word",
+    "description": "Short name of the Word format"
+  },
+  "formatNameTXT": {
+    "message": "Texto simples",
+    "description": "Short name of the plain-text format"
+  },
+  "formatNameJSON": {
+    "message": "JSON",
+    "description": "Short name of the JSON format"
+  },
+  "submenuBack": {
+    "message": "Voltar",
+    "description": "Accessible name of the back button in every popup submenu"
+  },
+  "submenuDone": {
+    "message": "Concluído",
+    "description": "Button that closes a popup submenu and returns to the main view"
+  },
+  "pairChooserMore": {
+    "message": "mais",
+    "description": "Link that expands a clamped question in the pair chooser"
+  },
+  "pairChooserLess": {
+    "message": "menos",
+    "description": "Link that collapses an expanded question in the pair chooser"
+  },
+  "pairChooserSummary": {
+    "message": "$1 de $2 · $3 palavras",
+    "description": "Pair chooser footer. $1 = selected pairs, $2 = total pairs, $3 = words in the selection",
+    "placeholders": {
+      "count": { "content": "$1", "example": "2" },
+      "total": { "content": "$2", "example": "14" },
+      "words": { "content": "$3", "example": "4,120" }
+    }
+  },
+
+  "filenameRestoreDefault": {
+    "message": "Predefinido",
+    "description": "Link in the file-name submenu header that restores the default piece list"
+  },
+  "filenameDragHint": {
+    "message": "Arrasta as peças para as reordenares.",
+    "description": "Help line under the file-name pieces field"
+  },
+  "filenameAddPiece": {
+    "message": "+ $1",
+    "description": "Chip that appends a piece to the file name. $1 = piece name",
+    "placeholders": {
+      "piece": { "content": "$1", "example": "Title" }
+    }
+  },
+  "filenameRemovePiece": {
+    "message": "Remover peça",
+    "description": "Accessible name of the button that removes a piece from the file name"
+  },
+  "filenamePiecePlatform": {
+    "message": "Plataforma",
+    "description": "File-name piece: the chatbot name"
+  },
+  "filenamePieceModel": {
+    "message": "Modelo",
+    "description": "File-name piece: the model name"
+  },
+  "filenamePieceTitle": {
+    "message": "Título",
+    "description": "File-name piece: the conversation title"
+  },
+  "filenamePieceDate": {
+    "message": "Data",
+    "description": "File-name piece: the conversation date"
+  },
+  "filenamePieceTime": {
+    "message": "Hora",
+    "description": "File-name piece: the conversation time"
+  },
+  "filenamePiecePairCount": {
+    "message": "N.º de pares",
+    "description": "File-name piece: how many question/answer pairs the conversation has"
+  },
+  "filenamePieceLiteral": {
+    "message": "Texto livre",
+    "description": "File-name piece: text the user types"
+  },
+  "driftRowTitle": {
+    "message": "Esta página pode ter mudado",
+    "description": "Title of the amber row shown on the main view when selector drift is detected"
+  },
+  "driftRowDetail": {
+    "message": "A sua exportação pode estar incompleta.",
+    "description": "Detail line under the drift row title"
+  },
+  "driftRowAction": {
+    "message": "Ver o que aconteceu",
+    "description": "Call-to-action text in the drift row; opens the drift report view"
+  },
+  "driftReportTitle": {
+    "message": "Relatório de estrutura da página",
+    "description": "Title of the drift report submenu"
+  },
+  "driftReportIntro": {
+    "message": "Este é o relatório completo. Não contém nenhuma parte da sua conversa — cada trecho de texto é substituído pelo número de caracteres que tinha. Nada é enviado a lugar nenhum, a menos que escolha partilhá-lo.",
+    "description": "Privacy guarantee text shown above the drift report preview"
+  },
+  "driftReportCopy": {
+    "message": "Copiar relatório",
+    "description": "Button that copies the drift report text to the clipboard"
+  },
+  "driftReportCopyAndReport": {
+    "message": "Copiar e reportar",
+    "description": "Button that copies the drift report and opens a place to report it"
+  },
+  "driftReportCopied": {
+    "message": "Copiado",
+    "description": "Inline confirmation shown after a successful drift report copy"
+  },
+  "driftReportCopyFailed": {
+    "message": "Não foi possível copiar — selecione o texto acima",
+    "description": "Shown when writing the drift report to the clipboard fails"
+  },
+  "driftReportLoading": {
+    "message": "A ler a estrutura da página…",
+    "description": "Shown while the content script builds the drift report skeleton"
   }
 }

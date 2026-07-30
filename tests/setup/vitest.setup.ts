@@ -1,5 +1,11 @@
 import { vi, beforeEach } from 'vitest';
 
+// D-18: exporters render timestamps in the reader's local time zone (fixed
+// from a UTC-only bug). Pin the test-runner's zone so those assertions are
+// deterministic across machines/CI instead of depending on whoever runs them;
+// production has no such pin and genuinely uses the reader's own zone.
+process.env.TZ = 'UTC';
+
 // Mock browser APIs not available in jsdom
 const mockStorage = {
   local: {
@@ -31,8 +37,9 @@ Object.defineProperty(globalThis, 'chrome', {
   value: {
     storage: mockStorage,
     runtime: mockRuntime,
-  } as unknown as typeof chrome,
+  },
   writable: true,
+  configurable: true, // lets vi.stubGlobal('chrome', ...) redefine it per-test
 });
 
 // Mock window.location for URL pattern tests

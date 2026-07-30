@@ -42,15 +42,16 @@ function makeApiMessage(
   uuid: string,
   index: number,
   sender: 'human' | 'assistant',
-  content: ClaudeApiChatMessage['content'] = []
+  content: ClaudeApiChatMessage['content'] = [],
+  createdAt = '2026-01-01T00:00:00Z'
 ): ClaudeApiChatMessage {
   return {
     uuid,
     text: '',
     sender,
     index,
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z',
+    created_at: createdAt,
+    updated_at: createdAt,
     content,
   };
 }
@@ -131,12 +132,9 @@ describe('ClaudeApiService', () => {
     });
   });
 
-  describe('enrichConversationWithArtifacts()', () => {
+  describe('enrichConversation()', () => {
     it('attributes an artifact to its matching pair when DOM and API shapes agree', () => {
-      const conversation = makeConversation([
-        makePair(0, 'Q1', 'A1'),
-        makePair(1, 'Q2', 'A2'),
-      ]);
+      const conversation = makeConversation([makePair(0, 'Q1', 'A1'), makePair(1, 'Q2', 'A2')]);
 
       const apiData: ClaudeApiConversationResponse = {
         uuid: 'conv-1',
@@ -151,8 +149,10 @@ describe('ClaudeApiService', () => {
         ],
       };
 
-      const { conversation: enriched, warning } =
-        ClaudeApiService.enrichConversationWithArtifacts(conversation, apiData);
+      const { conversation: enriched, warning } = ClaudeApiService.enrichConversation(
+        conversation,
+        apiData
+      );
 
       expect(enriched.pairs[0]?.answer.metadata?.artifacts ?? []).toHaveLength(0);
       expect(enriched.pairs[1]?.answer.metadata?.artifacts).toHaveLength(1);
@@ -164,10 +164,7 @@ describe('ClaudeApiService', () => {
       // DOM scraped 2 pairs, but the API reports 3 assistant messages
       // (e.g. a regenerated turn). There is no stable id shared between
       // the DOM scrape and the API response, so this must not guess.
-      const conversation = makeConversation([
-        makePair(0, 'Q1', 'A1'),
-        makePair(1, 'Q2', 'A2'),
-      ]);
+      const conversation = makeConversation([makePair(0, 'Q1', 'A1'), makePair(1, 'Q2', 'A2')]);
 
       const apiData: ClaudeApiConversationResponse = {
         uuid: 'conv-1',
@@ -179,13 +176,11 @@ describe('ClaudeApiService', () => {
           makeApiMessage('a1', 1, 'assistant', [artifactContent('Doc A', 'content A')]),
           makeApiMessage('u2', 2, 'human'),
           makeApiMessage('a2', 3, 'assistant'),
-          makeApiMessage('a2-regenerated', 4, 'assistant', [
-            artifactContent('Doc B', 'content B'),
-          ]),
+          makeApiMessage('a2-regenerated', 4, 'assistant', [artifactContent('Doc B', 'content B')]),
         ],
       };
 
-      const result = ClaudeApiService.enrichConversationWithArtifacts(conversation, apiData);
+      const result = ClaudeApiService.enrichConversation(conversation, apiData);
 
       // Enrichment must be skipped entirely rather than mis-pairing —
       // a wrong-but-confident attribution is worse than a visible failure.
@@ -194,7 +189,7 @@ describe('ClaudeApiService', () => {
 
       // ...and the skip must be reported back to the caller so the user can be
       // told, rather than only reaching a console.warn nobody reads (lo-872a).
-      expect(result.warning).toEqual(expect.stringContaining('artifact'));
+      expect(result.warning).toEqual(expect.stringContaining('Artifact'));
     });
 
     it('correctly attributes two artifacts that share the same title in one message', () => {
@@ -214,17 +209,14 @@ describe('ClaudeApiService', () => {
         ],
       };
 
-      const { conversation: enriched } = ClaudeApiService.enrichConversationWithArtifacts(
-        conversation,
-        apiData
-      );
+      const { conversation: enriched } = ClaudeApiService.enrichConversation(conversation, apiData);
       const artifacts = enriched.pairs[0]?.answer.metadata?.artifacts ?? [];
 
       expect(artifacts).toHaveLength(2);
       expect(artifacts.map((a) => a.content)).toEqual(['first version', 'second version']);
     });
 
-    it('returns the conversation unchanged when the API response has no artifacts', () => {
+    it('adds no artifacts (but still stamps timestamps) when the API response has none', () => {
       const conversation = makeConversation([makePair(0, 'Q1', 'A1')]);
 
       const apiData: ClaudeApiConversationResponse = {
@@ -232,15 +224,89 @@ describe('ClaudeApiService', () => {
         name: 'Test',
         created_at: '2026-01-01T00:00:00Z',
         updated_at: '2026-01-01T00:00:00Z',
+        chat_messages: [makeApiMessage('u1', 0, 'human'), makeApiMessage('a1', 1, 'assistant')],
+      };
+
+      const result = ClaudeApiService.enrichConversation(conversation, apiData);
+      expect(result.conversation.pairs[0]?.answer.metadata?.artifacts).toBeUndefined();
+      expect(result.conversation.pairs[0]?.question.timestamp).toEqual(
+        new Date('2026-01-01T00:00:00Z')
+      );
+      expect(result.conversation.pairs[0]?.answer.timestamp).toEqual(
+        new Date('2026-01-01T00:00:00Z')
+      );
+      expect(result.warning).toBeUndefined();
+    });
+  });
+
+  describe('enrichConversation — timestamps', () => {
+    it('stamps both messages of a pair even when the conversation has no artifacts', () => {
+      const conversation = makeConversation([makePair(0, 'Q', 'A')]);
+      const apiData = {
+        uuid: 'conv-1',
+        name: 'Test conversation',
+        created_at: '2026-07-26T09:31:12Z',
+        updated_at: '2026-07-29T15:02:47Z',
+        chat_messages: [
+          makeApiMessage('u1', 0, 'human', [], '2026-07-26T09:31:12Z'),
+          makeApiMessage('a1', 1, 'assistant', [], '2026-07-26T09:32:40Z'),
+        ],
+      } as ClaudeApiConversationResponse;
+
+      const { conversation: enriched, warning } = ClaudeApiService.enrichConversation(
+        conversation,
+        apiData
+      );
+
+      expect(warning).toBeUndefined();
+      expect(enriched.pairs[0]?.question.timestamp).toEqual(new Date('2026-07-26T09:31:12Z'));
+      expect(enriched.pairs[0]?.answer.timestamp).toEqual(new Date('2026-07-26T09:32:40Z'));
+    });
+
+    it('leaves the conversation untouched when the human count disagrees with the pairs', () => {
+      const conversation = makeConversation([makePair(0, 'Q', 'A'), makePair(1, 'Q2', 'A2')]);
+      const apiData = {
+        uuid: 'conv-1',
+        name: 'Test conversation',
+        created_at: '2026-07-26T09:31:12Z',
+        updated_at: '2026-07-26T09:31:12Z',
         chat_messages: [
           makeApiMessage('u1', 0, 'human'),
           makeApiMessage('a1', 1, 'assistant'),
+          makeApiMessage('a2', 2, 'assistant'),
         ],
-      };
+      } as ClaudeApiConversationResponse;
 
-      const result = ClaudeApiService.enrichConversationWithArtifacts(conversation, apiData);
-      expect(result.conversation).toEqual(conversation);
-      expect(result.warning).toBeUndefined();
+      const { conversation: enriched, warning } = ClaudeApiService.enrichConversation(
+        conversation,
+        apiData
+      );
+
+      expect(warning).toBeDefined();
+      expect(enriched.pairs[0]?.question.timestamp).toBeUndefined();
+      // Only the human count actually diverges here (1 human vs. 2 assistant vs.
+      // 2 pairs) — the message must report that, not claim both sides are equal.
+      expect(warning).toContain('1 human message');
+      expect(warning).toContain('2 assistant messages');
+    });
+
+    it('ignores an unparseable created_at instead of stamping an Invalid Date', () => {
+      const conversation = makeConversation([makePair(0, 'Q', 'A')]);
+      const apiData = {
+        uuid: 'conv-1',
+        name: 'Test conversation',
+        created_at: '2026-07-26T09:31:12Z',
+        updated_at: '2026-07-26T09:31:12Z',
+        chat_messages: [
+          makeApiMessage('u1', 0, 'human', [], 'not-a-date'),
+          makeApiMessage('a1', 1, 'assistant', [], '2026-07-26T09:32:40Z'),
+        ],
+      } as ClaudeApiConversationResponse;
+
+      const { conversation: enriched } = ClaudeApiService.enrichConversation(conversation, apiData);
+
+      expect(enriched.pairs[0]?.question.timestamp).toBeUndefined();
+      expect(enriched.pairs[0]?.answer.timestamp).toEqual(new Date('2026-07-26T09:32:40Z'));
     });
   });
 });

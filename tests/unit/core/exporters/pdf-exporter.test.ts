@@ -32,23 +32,53 @@ const { instances, MockJsPDF } = vi.hoisted(() => {
       this.calls.push({ method, args });
     }
 
-    setFontSize(...args: unknown[]) { this.record('setFontSize', args); }
-    setFont(...args: unknown[]) { this.record('setFont', args); }
-    setTextColor(...args: unknown[]) { this.record('setTextColor', args); }
-    setDrawColor(...args: unknown[]) { this.record('setDrawColor', args); }
-    setFillColor(...args: unknown[]) { this.record('setFillColor', args); }
-    setLineWidth(...args: unknown[]) { this.record('setLineWidth', args); }
-    text(...args: unknown[]) { this.record('text', args); }
-    line(...args: unknown[]) { this.record('line', args); }
-    rect(...args: unknown[]) { this.record('rect', args); }
-    roundedRect(...args: unknown[]) { this.record('roundedRect', args); }
-    addPage(...args: unknown[]) { this.record('addPage', args); }
-    addImage(...args: unknown[]) { this.record('addImage', args); }
-    setPage(...args: unknown[]) { this.record('setPage', args); }
-    getNumberOfPages() { return 1; }
+    setFontSize(...args: unknown[]) {
+      this.record('setFontSize', args);
+    }
+    setFont(...args: unknown[]) {
+      this.record('setFont', args);
+    }
+    setTextColor(...args: unknown[]) {
+      this.record('setTextColor', args);
+    }
+    setDrawColor(...args: unknown[]) {
+      this.record('setDrawColor', args);
+    }
+    setFillColor(...args: unknown[]) {
+      this.record('setFillColor', args);
+    }
+    setLineWidth(...args: unknown[]) {
+      this.record('setLineWidth', args);
+    }
+    text(...args: unknown[]) {
+      this.record('text', args);
+    }
+    line(...args: unknown[]) {
+      this.record('line', args);
+    }
+    rect(...args: unknown[]) {
+      this.record('rect', args);
+    }
+    roundedRect(...args: unknown[]) {
+      this.record('roundedRect', args);
+    }
+    addPage(...args: unknown[]) {
+      this.record('addPage', args);
+    }
+    addImage(...args: unknown[]) {
+      this.record('addImage', args);
+    }
+    setPage(...args: unknown[]) {
+      this.record('setPage', args);
+    }
+    getNumberOfPages() {
+      return 1;
+    }
     // No wrapping -- keeps the exact strings PdfExporter asked to render
     // visible to the assertions below instead of split into fragments.
-    splitTextToSize(text: string) { return [text]; }
+    splitTextToSize(text: string) {
+      return [text];
+    }
     output(type: string) {
       this.record('output', [type]);
       return new Blob(['%PDF-mock'], { type: 'application/pdf' });
@@ -62,6 +92,12 @@ const { instances, MockJsPDF } = vi.hoisted(() => {
 // vi.mock is hoisted above imports, so the dynamic `import('jspdf')` inside
 // pdf-exporter.ts resolves to this mock.
 vi.mock('jspdf', () => ({ jsPDF: MockJsPDF }));
+
+// jsdom never fires load/error on <img>, so the real loader hangs. An empty
+// cache is exactly the "every image failed to load" state under test.
+vi.mock('../../../../src/core/utils/image-loader', () => ({
+  loadImagesParallel: async () => new Map(),
+}));
 
 function buildConversation(): { conversation: Conversation; pairs: QAPair[] } {
   const pair: QAPair = {
@@ -105,7 +141,10 @@ function textCallsOf(instance: InstanceType<typeof MockJsPDF>): string[] {
 }
 
 /** The setFontSize value in effect when a given text string was rendered. */
-function fontSizeBeforeText(instance: InstanceType<typeof MockJsPDF>, text: string): number | undefined {
+function fontSizeBeforeText(
+  instance: InstanceType<typeof MockJsPDF>,
+  text: string
+): number | undefined {
   const idx = instance.calls.findIndex((c) => c.method === 'text' && c.args[0] === text);
   if (idx === -1) return undefined;
   for (let i = idx - 1; i >= 0; i--) {
@@ -227,7 +266,8 @@ describe('PdfExporter', () => {
         id: 'a-link-identical',
         role: 'assistant',
         content: 'fallback',
-        htmlContent: '<p>See <a href="https://example.com/">https://example.com/</a> for details.</p>',
+        htmlContent:
+          '<p>See <a href="https://example.com/">https://example.com/</a> for details.</p>',
         timestamp: new Date('2025-01-01T12:00:00Z'),
       },
     };
@@ -254,6 +294,47 @@ describe('PdfExporter', () => {
     expect(combined).not.toContain('https://example.com/ (https://example.com/)');
   });
 
+  it('keeps the URL in the placeholder when an image fails to load and has alt text', async () => {
+    const pair: QAPair = {
+      id: 'pair-img',
+      index: 0,
+      selected: true,
+      question: {
+        id: 'q-img',
+        role: 'user',
+        content: 'question',
+        timestamp: new Date('2025-01-01T12:00:00Z'),
+      },
+      answer: {
+        id: 'a-img',
+        role: 'assistant',
+        content: 'fallback',
+        htmlContent: '<p><img src="https://example.com/pic.png" alt="A diagram"></p>',
+        timestamp: new Date('2025-01-01T12:00:00Z'),
+      },
+    };
+    const conversation: Conversation = {
+      id: 'test-conversation-img',
+      title: 'Image Test',
+      platform: 'claude',
+      model: 'claude-3',
+      pairs: [pair],
+      url: 'https://claude.ai/chat/image-test',
+      createdAt: new Date('2025-01-01T12:00:00Z'),
+    };
+
+    await new PdfExporter().export(conversation, [pair], {
+      format: 'pdf',
+      filename: 'test',
+      includeMetadata: false,
+      includeTimestamps: false,
+    });
+
+    const combined = textCallsOf(instances[0]!).join(' ');
+    expect(combined).toContain('[Image: A diagram]');
+    expect(combined).toContain('https://example.com/pic.png');
+  });
+
   it('switches to a monospace font for the code block', async () => {
     const { conversation, pairs } = buildConversation();
     await new PdfExporter().export(conversation, pairs, {
@@ -264,9 +345,13 @@ describe('PdfExporter', () => {
     });
 
     const instance = instances[0]!;
-    const idx = instance.calls.findIndex((c) => c.method === 'text' && c.args[0] === 'function foo() {}');
+    const idx = instance.calls.findIndex(
+      (c) => c.method === 'text' && c.args[0] === 'function foo() {}'
+    );
     expect(idx).toBeGreaterThan(-1);
-    const fontCallBefore = [...instance.calls.slice(0, idx)].reverse().find((c) => c.method === 'setFont');
+    const fontCallBefore = [...instance.calls.slice(0, idx)]
+      .reverse()
+      .find((c) => c.method === 'setFont');
     expect(fontCallBefore?.args[0]).toBe('courier');
   });
 
@@ -281,7 +366,9 @@ describe('PdfExporter', () => {
       });
 
       const rendered = textCallsOf(instances[0]!);
-      expect(rendered.some((t) => t.includes('2025-01-01 12:00:00'))).toBe(true);
+      expect(rendered.some((t) => t.includes('(12:00:00)'))).toBe(true);
+      // The day is announced once by a day separator, not repeated per message.
+      expect(rendered.some((t) => t.includes('2025-01-01 12:00:00'))).toBe(false);
     });
 
     it('omits the timestamp when includeTimestamps is off', async () => {
@@ -294,7 +381,7 @@ describe('PdfExporter', () => {
       });
 
       const rendered = textCallsOf(instances[0]!);
-      expect(rendered.some((t) => t.includes('2025-01-01 12:00:00'))).toBe(false);
+      expect(rendered.some((t) => t.includes('12:00:00'))).toBe(false);
     });
 
     it('emits no stray label or "undefined" when a message has no timestamp', async () => {

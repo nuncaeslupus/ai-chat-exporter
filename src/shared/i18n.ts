@@ -7,7 +7,9 @@
  * Check if chrome.i18n is available (not available in test environment)
  */
 function isI18nAvailable(): boolean {
-  return typeof chrome !== 'undefined' && chrome.i18n && typeof chrome.i18n.getMessage === 'function';
+  return (
+    typeof chrome !== 'undefined' && chrome.i18n && typeof chrome.i18n.getMessage === 'function'
+  );
 }
 
 /**
@@ -43,7 +45,7 @@ export function getUILanguage(): string {
  * @returns Localized message string
  */
 export function getMessageWithValues(key: string, ...values: (string | number)[]): string {
-  const stringValues = values.map(v => String(v));
+  const stringValues = values.map((v) => String(v));
   return getMessage(key, stringValues);
 }
 
@@ -58,47 +60,42 @@ export function formatNumber(num: number): string {
 }
 
 /**
+ * Vendors capitalize their own names, and the message keys follow them:
+ * `platformChatGPT`, `roleChatGPT`. Capitalizing the id `chatgpt` yields
+ * `Chatgpt`, which matches no declared key — so the name is stated here rather
+ * than derived. Ids that capitalize regularly need no entry.
+ */
+const DISPLAY_NAMES: Record<string, string> = {
+  chatgpt: 'ChatGPT',
+};
+
+/**
+ * Display name for a platform or role id — `chatgpt` → `ChatGPT`, `user` → `User`.
+ * Doubles as the suffix of the message key and as the fallback when no bundle
+ * declares that key.
+ */
+export function displayName(id: string): string {
+  return DISPLAY_NAMES[id] ?? id.charAt(0).toUpperCase() + id.slice(1);
+}
+
+/**
  * Get platform name in current language
  * @param platformId - Platform identifier (chatgpt, claude, gemini, etc.)
- * @returns Localized platform name
+ * @returns Localized platform name, or the display name when undeclared
  */
 export function getPlatformName(platformId: string): string {
-  const key = `platform${platformId.charAt(0).toUpperCase()}${platformId.slice(1)}`;
-  const message = getMessage(key);
-
-  // If no i18n available or no translation found, return formatted platform ID
-  if (!isI18nAvailable() || message === key) {
-    // Handle special cases
-    if (platformId === 'chatgpt') return 'ChatGPT';
-    if (platformId === 'claude') return 'Claude';
-    if (platformId === 'gemini') return 'Gemini';
-    // Default: capitalize first letter
-    return platformId.charAt(0).toUpperCase() + platformId.slice(1);
-  }
-
-  return message;
+  const name = displayName(platformId);
+  const message = getMessage(`platform${name}`);
+  return message === `platform${name}` ? name : message;
 }
 
 /**
  * Get role name in current language
  * @param role - Role identifier (user, assistant, chatgpt, claude, gemini)
- * @returns Localized role name
+ * @returns Localized role name, or the display name when undeclared
  */
 export function getRoleName(role: string): string {
-  const key = `role${role.charAt(0).toUpperCase()}${role.slice(1)}`;
-  const message = getMessage(key);
-
-  // If no i18n available or no translation found, return formatted role name
-  if (!isI18nAvailable() || message === key) {
-    // Handle special cases
-    if (role === 'chatgpt') return 'ChatGPT';
-    if (role === 'claude') return 'Claude';
-    if (role === 'gemini') return 'Gemini';
-    if (role === 'user') return 'User';
-    if (role === 'assistant') return 'Assistant';
-    // Default: capitalize first letter
-    return role.charAt(0).toUpperCase() + role.slice(1);
-  }
-
-  return message;
+  const name = displayName(role);
+  const message = getMessage(`role${name}`);
+  return message === `role${name}` ? name : message;
 }

@@ -11,6 +11,7 @@ import {
   type PrintConversationMessage,
 } from '../../shared/messages';
 import type { ExportFormat } from '../../core/types';
+import { sendTabMessage } from '../../shared/tab-messaging';
 
 /**
  * Extension installation handler
@@ -18,15 +19,21 @@ import type { ExportFormat } from '../../core/types';
 chrome.runtime.onInstalled.addListener((details) => {
   console.log(`[${EXTENSION_NAME}] Extension installed/updated`, details);
 
-  if (details.reason === 'install') {
+  // Compared as a string, not via chrome.runtime.OnInstalledReason: Firefox does
+  // not expose that enum object at runtime.
+  const reason: string = details.reason;
+
+  if (reason === 'install') {
     // First time installation
     console.log(`[${EXTENSION_NAME}] First time installation`);
 
     // You could open a welcome page here if desired
     // chrome.tabs.create({ url: 'pages/welcome.html' });
-  } else if (details.reason === 'update') {
+  } else if (reason === 'update') {
     // Extension updated
-    console.log(`[${EXTENSION_NAME}] Extension updated to version ${chrome.runtime.getManifest().version}`);
+    console.log(
+      `[${EXTENSION_NAME}] Extension updated to version ${chrome.runtime.getManifest().version}`
+    );
   }
 });
 
@@ -42,11 +49,11 @@ chrome.runtime.onStartup.addListener(() => {
 /**
  * Message handler for communication between components
  */
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
   console.log(`[${EXTENSION_NAME}] Background received message:`, message);
 
   // Handle Claude API data fetch
-  if (message.type === 'fetch_claude_api_data') {
+  if (isClaudeApiFetchMessage(message)) {
     handleClaudeApiFetch(message.data)
       .then((data) => {
         sendResponse({ success: true, data });
@@ -65,6 +72,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   sendResponse({ success: true });
   return false;
 });
+
+interface ClaudeApiFetchMessage {
+  type: 'fetch_claude_api_data';
+  data: { organizationId: string; conversationId: string };
+}
+
+function isClaudeApiFetchMessage(message: unknown): message is ClaudeApiFetchMessage {
+  return (
+    typeof message === 'object' &&
+    message !== null &&
+    (message as { type?: unknown }).type === 'fetch_claude_api_data'
+  );
+}
 
 /**
  * Fetch Claude conversation data from API
@@ -92,7 +112,7 @@ async function handleClaudeApiFetch(request: {
       throw new Error(`API request failed: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data: unknown = await response.json();
     console.log(`[${EXTENSION_NAME}] Claude API response received`);
 
     return data;
@@ -112,12 +132,7 @@ chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
   }
 
   // Check if URL matches supported platforms
-  const supportedDomains = [
-    'chat.openai.com',
-    'chatgpt.com',
-    'claude.ai',
-    'gemini.google.com',
-  ];
+  const supportedDomains = ['chat.openai.com', 'chatgpt.com', 'claude.ai', 'gemini.google.com'];
 
   const url = new URL(tab.url);
   if (supportedDomains.some((domain) => url.hostname.includes(domain))) {
@@ -174,65 +189,86 @@ function createContextMenus(): void {
     console.log(`[${EXTENSION_NAME}] Creating context menus...`);
 
     // Create Export parent menu
-    chrome.contextMenus.create({
-      id: 'export',
-      title: chrome.i18n.getMessage('exportButton'),
-      contexts: ['page'],
-      documentUrlPatterns: SUPPORTED_URL_PATTERNS,
-    }, () => {
-      if (chrome.runtime.lastError) {
-        console.error(`[${EXTENSION_NAME}] Error creating Export menu:`, chrome.runtime.lastError);
-      } else {
-        console.log(`[${EXTENSION_NAME}] Created Export parent menu`);
+    chrome.contextMenus.create(
+      {
+        id: 'export',
+        title: chrome.i18n.getMessage('exportButton'),
+        contexts: ['page'],
+        documentUrlPatterns: SUPPORTED_URL_PATTERNS,
+      },
+      () => {
+        if (chrome.runtime.lastError) {
+          console.error(
+            `[${EXTENSION_NAME}] Error creating Export menu:`,
+            chrome.runtime.lastError
+          );
+        } else {
+          console.log(`[${EXTENSION_NAME}] Created Export parent menu`);
+        }
       }
-    });
+    );
 
     // Create Export submenus for each format
     EXPORT_FORMATS.forEach((format) => {
-      chrome.contextMenus.create({
-        id: `export-${format.id}`,
-        parentId: 'export',
-        title: chrome.i18n.getMessage(format.labelKey),
-        contexts: ['page'],
-        documentUrlPatterns: SUPPORTED_URL_PATTERNS,
-      }, () => {
-        if (chrome.runtime.lastError) {
-          console.error(`[${EXTENSION_NAME}] Error creating Export submenu ${format.id}:`, chrome.runtime.lastError);
-        } else {
-          console.log(`[${EXTENSION_NAME}] Created Export submenu: ${format.id}`);
+      chrome.contextMenus.create(
+        {
+          id: `export-${format.id}`,
+          parentId: 'export',
+          title: chrome.i18n.getMessage(format.labelKey),
+          contexts: ['page'],
+          documentUrlPatterns: SUPPORTED_URL_PATTERNS,
+        },
+        () => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              `[${EXTENSION_NAME}] Error creating Export submenu ${format.id}:`,
+              chrome.runtime.lastError
+            );
+          } else {
+            console.log(`[${EXTENSION_NAME}] Created Export submenu: ${format.id}`);
+          }
         }
-      });
+      );
     });
 
     // Create Print parent menu
-    chrome.contextMenus.create({
-      id: 'print',
-      title: chrome.i18n.getMessage('printButton'),
-      contexts: ['page'],
-      documentUrlPatterns: SUPPORTED_URL_PATTERNS,
-    }, () => {
-      if (chrome.runtime.lastError) {
-        console.error(`[${EXTENSION_NAME}] Error creating Print menu:`, chrome.runtime.lastError);
-      } else {
-        console.log(`[${EXTENSION_NAME}] Created Print parent menu`);
+    chrome.contextMenus.create(
+      {
+        id: 'print',
+        title: chrome.i18n.getMessage('printButton'),
+        contexts: ['page'],
+        documentUrlPatterns: SUPPORTED_URL_PATTERNS,
+      },
+      () => {
+        if (chrome.runtime.lastError) {
+          console.error(`[${EXTENSION_NAME}] Error creating Print menu:`, chrome.runtime.lastError);
+        } else {
+          console.log(`[${EXTENSION_NAME}] Created Print parent menu`);
+        }
       }
-    });
+    );
 
     // Create Print submenus for each format (excluding DOCX)
     PRINT_FORMATS.forEach((format) => {
-      chrome.contextMenus.create({
-        id: `print-${format.id}`,
-        parentId: 'print',
-        title: chrome.i18n.getMessage(format.labelKey),
-        contexts: ['page'],
-        documentUrlPatterns: SUPPORTED_URL_PATTERNS,
-      }, () => {
-        if (chrome.runtime.lastError) {
-          console.error(`[${EXTENSION_NAME}] Error creating Print submenu ${format.id}:`, chrome.runtime.lastError);
-        } else {
-          console.log(`[${EXTENSION_NAME}] Created Print submenu: ${format.id}`);
+      chrome.contextMenus.create(
+        {
+          id: `print-${format.id}`,
+          parentId: 'print',
+          title: chrome.i18n.getMessage(format.labelKey),
+          contexts: ['page'],
+          documentUrlPatterns: SUPPORTED_URL_PATTERNS,
+        },
+        () => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              `[${EXTENSION_NAME}] Error creating Print submenu ${format.id}:`,
+              chrome.runtime.lastError
+            );
+          } else {
+            console.log(`[${EXTENSION_NAME}] Created Print submenu: ${format.id}`);
+          }
         }
-      });
+      );
     });
 
     console.log(`[${EXTENSION_NAME}] Context menu creation initiated`);
@@ -240,26 +276,46 @@ function createContextMenus(): void {
 }
 
 /**
- * Send a message to a tab's content script and log a delivery failure
- * instead of swallowing it. `chrome.tabs.sendMessage` fails silently (no
- * callback invocation error, just a `chrome.runtime.lastError`) when the tab
- * has no content script — e.g. it was loaded before install, the extension
- * was reloaded, or the page is an unsupported one. There is no
- * "notifications" permission and no badge API used anywhere in this
- * extension to route the error through instead, so this reuses the
- * console.error(`[${EXTENSION_NAME}] ...`) pattern already used above for
- * chrome.contextMenus.create's own lastError checks — the established
- * error-surfacing path for this service worker.
+ * Flag (or clear) a failed request on the toolbar badge.
+ *
+ * The service worker has no UI of its own, so a `console.error` here is a
+ * failure the user never sees. `chrome.action` is already in the manifest;
+ * `notifications` is not, and is not worth a store re-review for an error path.
+ *
+ * ponytail: no auto-clear timer — an MV3 worker can be killed before one fires,
+ * leaving the badge stuck. The next export attempt clears it instead.
+ */
+function setErrorBadge(failed: boolean): void {
+  void chrome.action.setBadgeText({ text: failed ? '!' : '' });
+  if (failed) {
+    void chrome.action.setBadgeBackgroundColor({ color: '#D93025' });
+  }
+}
+
+/**
+ * Send a message to a tab's content script. A tab with no content script — one
+ * loaded before install, or after an extension reload — is the common case, and
+ * `sendTabMessage` recovers from it by injecting the script and retrying, so
+ * the export goes through instead of dying.
+ *
+ * Fire-and-forget by design (callers do not await it); a failure that survives
+ * the injection is surfaced on the badge.
  */
 function sendMessageToTab(tabId: number, message: unknown): void {
-  chrome.tabs.sendMessage(tabId, message, () => {
-    if (chrome.runtime.lastError) {
-      console.error(
-        `[${EXTENSION_NAME}] Failed to deliver message to tab (no content script?):`,
-        tabId,
-        chrome.runtime.lastError.message,
-      );
+  setErrorBadge(false);
+
+  void sendTabMessage(tabId, message).then((result) => {
+    if (result.ok) {
+      return;
     }
+    if (result.reason === 'failed') {
+      console.error(`[${EXTENSION_NAME}] Failed to deliver message to tab ${tabId}:`, result.error);
+    } else {
+      // Not a fault: injection was refused, so the page is one this extension
+      // cannot reach (restricted URL, revoked host access, dead tab).
+      console.debug(`[${EXTENSION_NAME}] No content script in tab ${tabId}:`, result.error);
+    }
+    setErrorBadge(true);
   });
 }
 
@@ -281,7 +337,10 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     const format = menuId.replace('export-', '') as ExportFormat;
     console.log(`[${EXTENSION_NAME}] Export requested: ${format}`);
 
-    sendMessageToTab(tab.id, createMessage<ExportConversationMessage>('export_conversation', { format }));
+    sendMessageToTab(
+      tab.id,
+      createMessage<ExportConversationMessage>('export_conversation', { format })
+    );
   }
   // Handle Print actions
   else if (menuId.startsWith('print-')) {
@@ -290,7 +349,10 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     const format = menuId.replace('print-', '') as ExportFormat;
     console.log(`[${EXTENSION_NAME}] Print requested: ${format}`);
 
-    sendMessageToTab(tab.id, createMessage<PrintConversationMessage>('print_conversation', { format }));
+    sendMessageToTab(
+      tab.id,
+      createMessage<PrintConversationMessage>('print_conversation', { format })
+    );
   }
 });
 
@@ -317,7 +379,7 @@ chrome.commands.onCommand.addListener((command) => {
               // Safe cast: persisted by this extension from a previous export,
               // so it is always a valid ExportFormat when present.
               format: (format ?? DEFAULT_PREFERENCES.defaultFormat) as ExportFormat,
-            }),
+            })
           );
         })
         .catch((error: unknown) => {

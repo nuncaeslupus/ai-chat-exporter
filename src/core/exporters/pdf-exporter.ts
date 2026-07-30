@@ -2,6 +2,7 @@
  * PDF exporter using jsPDF with structured content rendering
  */
 
+import type { jsPDF } from 'jspdf';
 import type {
   ExportFormat,
   ExportOptions,
@@ -10,10 +11,13 @@ import type {
   QAPair,
   PDFExportOptions,
   StructuredContentBlock,
+  StructuredConversation,
   InlineContent,
   ListBlock,
   TableBlock,
   ImageBlock,
+  Artifact,
+  WebSearchResult,
 } from '../types';
 import { DEFAULT_PDF_OPTIONS } from '../types';
 import { BaseExporter } from './base-exporter';
@@ -25,10 +29,30 @@ import {
   COLOR,
   FONT_FAMILY,
   FONT_SIZE_PT,
+  PAGINATION,
   PDF_FONT_SIZE_PT,
   SPACING,
+  bodyHeadingLevel,
+  brandColorFor,
+  fontScaleFactor,
   hexToRgbTuple,
+  scaleFontSizes,
 } from './style-tokens';
+
+/**
+ * jsPDF types `splitTextToSize` as returning `any`; it returns the wrapped lines.
+ */
+function splitLines(doc: jsPDF, text: string, width: number): string[] {
+  return doc.splitTextToSize(text, width) as string[];
+}
+
+/**
+ * Breathing room, in lines, that renderBlocks demands before starting any
+ * block. Anything that must stay with the block below it (a role label) has to
+ * reserve at least this much too, or renderBlocks page-breaks straight after it
+ * and strands it — which is exactly what used to happen to the role label.
+ */
+const BLOCK_MIN_LINES = 3;
 
 /**
  * Exports conversations to PDF format
@@ -38,7 +62,16 @@ export class PdfExporter extends BaseExporter {
   readonly extension = 'pdf';
   readonly mimeType = 'application/pdf';
 
-  private imageCache: Map<string, LoadedImage | null> = new Map();
+  private imageCache = new Map<string, LoadedImage | null>();
+
+  /**
+   * The size tables for this export, already multiplied by the chosen step.
+   * Set once per export (a fresh exporter is built per export, like
+   * `imageCache`) so the ~30 draw sites below never see an unscaled size —
+   * there is no call site that can forget to apply it.
+   */
+  private sizes = scaleFontSizes(FONT_SIZE_PT);
+  private pdfSizes = scaleFontSizes(PDF_FONT_SIZE_PT);
 
   /**
    * Export selected Q&A pairs to PDF
@@ -49,6 +82,9 @@ export class PdfExporter extends BaseExporter {
     options: ExportOptions
   ): Promise<ExportResult> {
     try {
+      this.sizes = scaleFontSizes(FONT_SIZE_PT, options.fontScale);
+      this.pdfSizes = scaleFontSizes(PDF_FONT_SIZE_PT, options.fontScale);
+
       // Convert to structured format (only the selected pairs)
       const structured = ConversationStructureService.toStructured({
         ...conversation,
@@ -87,7 +123,7 @@ export class PdfExporter extends BaseExporter {
   /**
    * Extract all image URLs from the structured conversation
    */
-  private extractImageUrls(conversation: any): string[] {
+  private extractImageUrls(conversation: StructuredConversation): string[] {
     const urls: string[] = [];
 
     for (const pair of conversation.pairs) {
@@ -117,9 +153,8 @@ export class PdfExporter extends BaseExporter {
    * Render content to the PDF document with improved formatting
    */
   private renderContent(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
-    conversation: any, // StructuredConversation
+    doc: jsPDF,
+    conversation: StructuredConversation,
     options: ExportOptions,
     pdfOptions: PDFExportOptions
   ): void {
@@ -129,10 +164,17 @@ export class PdfExporter extends BaseExporter {
     const contentWidth = pageWidth - margins.left - margins.right;
 
     let y = margins.top;
-    const lineHeight = 6;
+    /*
+     * pdf's layout is hand-rolled, so the line advance is a constant rather
+     * than something derived from the font size — which means scaling the
+     * sizes alone would shrink the glyphs and leave the leading (and the page
+     * count) exactly where it was. It is the same factor, so the ratio of text
+     * to leading is unchanged at every step.
+     */
+    const lineHeight = 6 * fontScaleFactor(options.fontScale);
 
     // Title
-    doc.setFontSize(PDF_FONT_SIZE_PT.title);
+    doc.setFontSize(this.pdfSizes.title);
     doc.setFont(FONT_FAMILY.body.pdf, 'bold');
     doc.setTextColor(...hexToRgbTuple(COLOR.textPrimary));
     doc.text(sanitizeTextForPDF(conversation.title), margins.left, y);
@@ -140,11 +182,15 @@ export class PdfExporter extends BaseExporter {
 
     // Metadata
     if (options.includeMetadata) {
-      doc.setFontSize(FONT_SIZE_PT.meta);
+      doc.setFontSize(this.sizes.meta);
       doc.setFont(FONT_FAMILY.body.pdf, 'normal');
       doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
 
-      doc.text(`${this.getMetadataLabel('platform')}: ${this.formatPlatformName(conversation.platform)}`, margins.left, y);
+      doc.text(
+        `${this.getMetadataLabel('platform')}: ${this.formatPlatformName(conversation.platform)}`,
+        margins.left,
+        y
+      );
       y += lineHeight;
 
       if (conversation.model) {
@@ -152,8 +198,22 @@ export class PdfExporter extends BaseExporter {
         y += lineHeight;
       }
 
+      const dateRange = this.formatDateRange(conversation.pairs);
+      if (dateRange) {
+        doc.text(
+          sanitizeTextForPDF(`${this.getMetadataLabel('dateRange')}: ${dateRange}`),
+          margins.left,
+          y
+        );
+        y += lineHeight;
+      }
+
       if (conversation.createdAt) {
-        doc.text(`${this.getMetadataLabel('exported')}: ${this.formatTimestamp(conversation.createdAt)}`, margins.left, y);
+        doc.text(
+          `${this.getMetadataLabel('exported')}: ${this.formatTimestamp(conversation.createdAt)}`,
+          margins.left,
+          y
+        );
         y += lineHeight;
       }
 
@@ -169,17 +229,32 @@ export class PdfExporter extends BaseExporter {
     }
 
     // Q&A pairs
-    doc.setFontSize(FONT_SIZE_PT.body);
+    doc.setFontSize(this.sizes.body);
 
     // Get assistant name and color based on platform
     const assistantInfo = this.getAssistantInfo(conversation.platform);
 
+    const daySeparator = this.daySeparator(options.includeTimestamps);
+    const pageCentre = pageWidth / 2;
+    const renderDaySeparator = (date: Date | undefined, currentY: number): number => {
+      const separator = daySeparator(date);
+      if (!separator) return currentY;
+
+      doc.setFontSize(this.sizes.meta);
+      doc.setFont(FONT_FAMILY.body.pdf, 'normal');
+      doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
+      doc.text(sanitizeTextForPDF(separator), pageCentre, currentY + lineHeight, {
+        align: 'center',
+      });
+      doc.setFontSize(this.sizes.body);
+      return currentY + lineHeight * 2;
+    };
+
     for (const pair of conversation.pairs) {
       // Check if we need a new page
-      if (y > pageHeight - margins.bottom - lineHeight * 10) {
-        doc.addPage();
-        y = margins.top;
-      }
+      y = this.ensureSpace(doc, y, lineHeight * 10, margins, pageHeight);
+
+      y = renderDaySeparator(pair.question.timestamp, y);
 
       // User message (blue)
       y = this.renderMessage(
@@ -197,6 +272,8 @@ export class PdfExporter extends BaseExporter {
       // Add spacing between user and assistant
       y += lineHeight * 0.5;
 
+      y = renderDaySeparator(pair.answer.timestamp, y);
+
       // Assistant message (platform-specific color and name)
       y = this.renderMessage(
         doc,
@@ -212,10 +289,18 @@ export class PdfExporter extends BaseExporter {
 
       // Render artifacts if present
       if (pair.answer.metadata?.artifacts && Array.isArray(pair.answer.metadata.artifacts)) {
-        const artifactsWithContent = pair.answer.metadata.artifacts.filter((a: any) => a.content);
+        const artifactsWithContent = pair.answer.metadata.artifacts.filter((a) => a.content);
         if (artifactsWithContent.length > 0) {
           y += lineHeight * 0.5;
-          y = this.renderArtifacts(doc, artifactsWithContent, y, margins, contentWidth, lineHeight, pageHeight);
+          y = this.renderArtifacts(
+            doc,
+            artifactsWithContent,
+            y,
+            margins,
+            contentWidth,
+            lineHeight,
+            pageHeight
+          );
         }
       }
 
@@ -224,7 +309,15 @@ export class PdfExporter extends BaseExporter {
         const webSearches = pair.answer.metadata.webSearches;
         if (webSearches.length > 0) {
           y += lineHeight * 0.5;
-          y = this.renderWebSearches(doc, webSearches, y, margins, contentWidth, lineHeight, pageHeight);
+          y = this.renderWebSearches(
+            doc,
+            webSearches,
+            y,
+            margins,
+            contentWidth,
+            lineHeight,
+            pageHeight
+          );
         }
       }
 
@@ -237,7 +330,7 @@ export class PdfExporter extends BaseExporter {
       const pageCount = doc.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
-        doc.setFontSize(PDF_FONT_SIZE_PT.small);
+        doc.setFontSize(this.pdfSizes.small);
         doc.setTextColor(...hexToRgbTuple(COLOR.textFaint));
         doc.text(
           getMessageWithValues('pageNumberFormat', String(i), String(pageCount)),
@@ -250,11 +343,31 @@ export class PdfExporter extends BaseExporter {
   }
 
   /**
+   * Start a new page when `needed` mm of content will not fit below `y`.
+   *
+   * pdf's layout is hand-rolled, so every "keep together" rule here is a
+   * measurement taken before drawing rather than a property Word/CSS applies
+   * for us. This is the single place that measurement lives.
+   */
+  private ensureSpace(
+    doc: jsPDF,
+    y: number,
+    needed: number,
+    margins: { top: number; bottom: number },
+    pageHeight: number
+  ): number {
+    if (y + needed > pageHeight - margins.bottom) {
+      doc.addPage();
+      return margins.top;
+    }
+    return y;
+  }
+
+  /**
    * Render a single message (user or assistant)
    */
   private renderMessage(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     role: string,
     blocks: StructuredContentBlock[],
     startY: number,
@@ -266,9 +379,21 @@ export class PdfExporter extends BaseExporter {
   ): number {
     let y = startY;
 
+    // Keep-with-next: the label plus the first lines of its message must fit,
+    // or the label strands at the foot of the page with its content overleaf.
+    // Only the user label was covered before, by the pair-level check in
+    // renderContent — the assistant label had no check at all.
+    y = this.ensureSpace(
+      doc,
+      y,
+      lineHeight * (1.2 + Math.max(PAGINATION.keepWithNextLines, BLOCK_MIN_LINES)),
+      margins,
+      pageHeight
+    );
+
     // Role label
     doc.setFont(FONT_FAMILY.body.pdf, 'bold');
-    doc.setFontSize(PDF_FONT_SIZE_PT.roleLabel);
+    doc.setFontSize(this.pdfSizes.roleLabel);
     doc.setTextColor(...roleColor);
     doc.text(`${role}:`, margins.left, y);
     y += lineHeight * 1.2;
@@ -283,8 +408,7 @@ export class PdfExporter extends BaseExporter {
    * Render structured content blocks
    */
   private renderBlocks(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     blocks: StructuredContentBlock[],
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
@@ -296,14 +420,19 @@ export class PdfExporter extends BaseExporter {
 
     for (const block of blocks) {
       // Check if we need a new page
-      if (y > pageHeight - margins.bottom - lineHeight * 3) {
-        doc.addPage();
-        y = margins.top;
-      }
+      y = this.ensureSpace(doc, y, lineHeight * BLOCK_MIN_LINES, margins, pageHeight);
 
       switch (block.type) {
         case 'paragraph':
-          y = this.renderParagraph(doc, block.content, y, margins, contentWidth, lineHeight, pageHeight);
+          y = this.renderParagraph(
+            doc,
+            block.content,
+            y,
+            margins,
+            contentWidth,
+            lineHeight,
+            pageHeight
+          );
           break;
 
         case 'heading':
@@ -311,7 +440,16 @@ export class PdfExporter extends BaseExporter {
           break;
 
         case 'code':
-          y = this.renderCodeBlock(doc, block.code, block.language, y, margins, contentWidth, lineHeight, pageHeight);
+          y = this.renderCodeBlock(
+            doc,
+            block.code,
+            block.language,
+            y,
+            margins,
+            contentWidth,
+            lineHeight,
+            pageHeight
+          );
           break;
 
         case 'list':
@@ -319,7 +457,15 @@ export class PdfExporter extends BaseExporter {
           break;
 
         case 'blockquote':
-          y = this.renderBlockquote(doc, block.content, y, margins, contentWidth, lineHeight, pageHeight);
+          y = this.renderBlockquote(
+            doc,
+            block.content,
+            y,
+            margins,
+            contentWidth,
+            lineHeight,
+            pageHeight
+          );
           break;
 
         case 'hr':
@@ -333,6 +479,21 @@ export class PdfExporter extends BaseExporter {
         case 'image':
           y = this.renderImage(doc, block, y, margins, contentWidth, lineHeight, pageHeight);
           break;
+
+        // A PDF can't play the clip; emit the same labelled placeholder an
+        // unloadable image gets, with the URL so it stays reachable.
+        case 'media':
+          y = this.renderText(
+            doc,
+            `[${this.mediaLabel(block)}] ${block.url}`,
+            y,
+            margins,
+            contentWidth,
+            lineHeight,
+            pageHeight,
+            true
+          );
+          break;
       }
     }
 
@@ -343,9 +504,8 @@ export class PdfExporter extends BaseExporter {
    * Render artifacts section
    */
   private renderArtifacts(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
-    artifacts: any[],
+    doc: jsPDF,
+    artifacts: Artifact[],
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
     contentWidth: number,
@@ -356,7 +516,7 @@ export class PdfExporter extends BaseExporter {
 
     // "Artifacts" label
     doc.setFont(FONT_FAMILY.body.pdf, 'bold');
-    doc.setFontSize(PDF_FONT_SIZE_PT.sectionLabel);
+    doc.setFontSize(this.pdfSizes.sectionLabel);
     doc.setTextColor(...hexToRgbTuple(COLOR.textBody));
     doc.text('Artifacts:', margins.left, y);
     y += lineHeight * 1.2;
@@ -364,16 +524,13 @@ export class PdfExporter extends BaseExporter {
     // Render each artifact
     for (const artifact of artifacts) {
       // Check if we need a new page
-      if (y > pageHeight - margins.bottom - lineHeight * 5) {
-        doc.addPage();
-        y = margins.top;
-      }
+      y = this.ensureSpace(doc, y, lineHeight * 5, margins, pageHeight);
 
       // Artifact title
       doc.setFont(FONT_FAMILY.body.pdf, 'bold');
-      doc.setFontSize(PDF_FONT_SIZE_PT.artifactTitle);
+      doc.setFontSize(this.pdfSizes.artifactTitle);
       doc.setTextColor(...hexToRgbTuple(COLOR.textPrimary));
-      const titleLines = doc.splitTextToSize(sanitizeTextForPDF(artifact.title), contentWidth);
+      const titleLines = splitLines(doc, sanitizeTextForPDF(artifact.title), contentWidth);
       for (const line of titleLines) {
         doc.text(line, margins.left, y);
         y += lineHeight;
@@ -382,7 +539,7 @@ export class PdfExporter extends BaseExporter {
       // Artifact type
       if (artifact.typeLabel) {
         doc.setFont(FONT_FAMILY.body.pdf, 'italic');
-        doc.setFontSize(FONT_SIZE_PT.meta);
+        doc.setFontSize(this.sizes.meta);
         doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
         doc.text(`Type: ${sanitizeTextForPDF(artifact.typeLabel)}`, margins.left, y);
         y += lineHeight;
@@ -392,7 +549,7 @@ export class PdfExporter extends BaseExporter {
 
       // Artifact content (code block)
       doc.setFont(FONT_FAMILY.code.pdf, 'normal');
-      doc.setFontSize(FONT_SIZE_PT.code);
+      doc.setFontSize(this.sizes.code);
       doc.setTextColor(...hexToRgbTuple(COLOR.textStrong));
 
       const contentLines = (artifact.content || '').split('\n');
@@ -401,7 +558,7 @@ export class PdfExporter extends BaseExporter {
           doc.addPage();
           y = margins.top;
         }
-        const wrappedLines = doc.splitTextToSize(sanitizeTextForPDF(line || ' '), contentWidth);
+        const wrappedLines = splitLines(doc, sanitizeTextForPDF(line || ' '), contentWidth);
         for (const wrappedLine of wrappedLines) {
           doc.text(wrappedLine, margins.left + 5, y);
           y += lineHeight * 0.8;
@@ -410,7 +567,7 @@ export class PdfExporter extends BaseExporter {
 
       // Reset font
       doc.setFont(FONT_FAMILY.body.pdf, 'normal');
-      doc.setFontSize(FONT_SIZE_PT.body);
+      doc.setFontSize(this.sizes.body);
 
       y += lineHeight;
     }
@@ -422,9 +579,8 @@ export class PdfExporter extends BaseExporter {
    * Render web search results
    */
   private renderWebSearches(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
-    webSearches: any[],
+    doc: jsPDF,
+    webSearches: WebSearchResult[],
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
     contentWidth: number,
@@ -435,7 +591,7 @@ export class PdfExporter extends BaseExporter {
 
     // "Web Search Results" label
     doc.setFont(FONT_FAMILY.body.pdf, 'bold');
-    doc.setFontSize(PDF_FONT_SIZE_PT.sectionLabel);
+    doc.setFontSize(this.pdfSizes.sectionLabel);
     doc.setTextColor(...hexToRgbTuple(COLOR.textBody));
     doc.text('Web Search Results:', margins.left, y);
     y += lineHeight * 1.2;
@@ -443,14 +599,11 @@ export class PdfExporter extends BaseExporter {
     // Render each search
     for (const search of webSearches) {
       // Check if we need a new page
-      if (y > pageHeight - margins.bottom - lineHeight * 5) {
-        doc.addPage();
-        y = margins.top;
-      }
+      y = this.ensureSpace(doc, y, lineHeight * 5, margins, pageHeight);
 
       // Search query
       doc.setFont(FONT_FAMILY.body.pdf, 'bold');
-      doc.setFontSize(PDF_FONT_SIZE_PT.artifactTitle);
+      doc.setFontSize(this.pdfSizes.artifactTitle);
       doc.setTextColor(...hexToRgbTuple(COLOR.textPrimary));
       doc.text(sanitizeTextForPDF(search.query || 'References'), margins.left, y);
       y += lineHeight;
@@ -458,7 +611,7 @@ export class PdfExporter extends BaseExporter {
       // Result count
       if (search.resultCount) {
         doc.setFont(FONT_FAMILY.body.pdf, 'italic');
-        doc.setFontSize(FONT_SIZE_PT.meta);
+        doc.setFontSize(this.sizes.meta);
         doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
         doc.text(`${search.resultCount} results found`, margins.left, y);
         y += lineHeight;
@@ -469,28 +622,31 @@ export class PdfExporter extends BaseExporter {
       // Render results
       if (search.results && Array.isArray(search.results)) {
         doc.setFont(FONT_FAMILY.body.pdf, 'normal');
-        doc.setFontSize(PDF_FONT_SIZE_PT.small);
+        doc.setFontSize(this.pdfSizes.small);
 
         for (const result of search.results) {
-          if (y > pageHeight - margins.bottom - lineHeight * 3) {
-            doc.addPage();
-            y = margins.top;
-          }
+          y = this.ensureSpace(doc, y, lineHeight * 3, margins, pageHeight);
 
           // Result title (as link)
           doc.setTextColor(...hexToRgbTuple(COLOR.link));
-          const titleLines = doc.splitTextToSize(sanitizeTextForPDF(result.title), contentWidth - 10);
+          const titleLines = splitLines(doc, sanitizeTextForPDF(result.title), contentWidth - 10);
           for (const line of titleLines) {
             doc.text('• ' + line, margins.left + 5, y);
             y += lineHeight * 0.9;
           }
 
-          // Result domain
-          if (result.domain) {
+          // Result URL. ponytail: printed on its own line in place of the
+          // domain it contains — a PDF has no clickable citation, so the full
+          // URL is the only way back to the source; the domain would just
+          // repeat its prefix.
+          const url = sanitizeTextForPDF(result.url ?? '');
+          if (url) {
             doc.setFont(FONT_FAMILY.body.pdf, 'italic');
             doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
-            doc.text(`  ${sanitizeTextForPDF(result.domain)}`, margins.left + 7, y);
-            y += lineHeight * 0.9;
+            for (const line of splitLines(doc, url, contentWidth - 12)) {
+              doc.text(`  ${line}`, margins.left + 7, y);
+              y += lineHeight * 0.9;
+            }
             doc.setFont(FONT_FAMILY.body.pdf, 'normal');
           }
 
@@ -508,8 +664,7 @@ export class PdfExporter extends BaseExporter {
    * Render a paragraph with inline formatting
    */
   private renderParagraph(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     content: InlineContent[],
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
@@ -532,8 +687,7 @@ export class PdfExporter extends BaseExporter {
    * Render a heading
    */
   private renderHeading(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     block: { level: number; content: InlineContent[] },
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
@@ -548,15 +702,16 @@ export class PdfExporter extends BaseExporter {
       // Add spacing before heading
       y += lineHeight * 0.5;
 
-      // Set font size based on heading level
-      const fontSize = PDF_FONT_SIZE_PT.headingByLevel[
-        Math.min(block.level - 1, PDF_FONT_SIZE_PT.headingByLevel.length - 1)
-      ];
+      // Font size is pdf's only heading-level surface — index the shared scale
+      // by document level so a body heading can never outrank the role label.
+      const fontSize =
+        this.pdfSizes.headingByLevel[bodyHeadingLevel(block.level) - 1] ??
+        this.pdfSizes.sectionLabel;
       doc.setFontSize(fontSize);
       doc.setFont(FONT_FAMILY.body.pdf, 'bold');
       doc.setTextColor(...hexToRgbTuple(COLOR.textStrong));
 
-      const lines = doc.splitTextToSize(sanitizeTextForPDF(text), contentWidth);
+      const lines = splitLines(doc, sanitizeTextForPDF(text), contentWidth);
       for (const line of lines) {
         if (y > pageHeight - margins.bottom) {
           doc.addPage();
@@ -567,7 +722,7 @@ export class PdfExporter extends BaseExporter {
       }
 
       // Reset font
-      doc.setFontSize(FONT_SIZE_PT.body);
+      doc.setFontSize(this.sizes.body);
       doc.setFont(FONT_FAMILY.body.pdf, 'normal');
 
       y += lineHeight * 0.3; // Spacing after heading
@@ -580,8 +735,7 @@ export class PdfExporter extends BaseExporter {
    * Render a list
    */
   private renderList(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     block: ListBlock,
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
@@ -594,7 +748,7 @@ export class PdfExporter extends BaseExporter {
     const indent = SPACING.listIndentStepMm * (depth + 1); // 5mm per nesting level
 
     doc.setFont(FONT_FAMILY.body.pdf, 'normal');
-    doc.setFontSize(FONT_SIZE_PT.body);
+    doc.setFontSize(this.sizes.body);
     doc.setTextColor(...hexToRgbTuple(COLOR.textBody));
 
     for (let i = 0; i < block.items.length; i++) {
@@ -606,20 +760,17 @@ export class PdfExporter extends BaseExporter {
 
       if (text.trim()) {
         // Check if we need a new page
-        if (y > pageHeight - margins.bottom - lineHeight * 2) {
-          doc.addPage();
-          y = margins.top;
-        }
+        y = this.ensureSpace(doc, y, lineHeight * 2, margins, pageHeight);
 
         const bulletX = margins.left + indent;
         const textX = bulletX + 8; // Space for bullet + gap
         const textWidth = contentWidth - indent - 8;
 
         // Split ONLY the text (not the prefix) to avoid breaking the bullet
-        const lines = doc.splitTextToSize(text, textWidth);
+        const lines = splitLines(doc, text, textWidth);
 
         // Render all lines
-        for (let j = 0; j < lines.length; j++) {
+        for (const [j, line] of lines.entries()) {
           if (y > pageHeight - margins.bottom) {
             doc.addPage();
             y = margins.top;
@@ -628,18 +779,25 @@ export class PdfExporter extends BaseExporter {
           if (j === 0) {
             // First line: render bullet and text
             doc.text(prefix, bulletX, y);
-            doc.text(lines[j], textX, y);
-          } else {
-            // Continuation lines: indent to align with first line text
-            doc.text(lines[j], textX, y);
           }
+          // Continuation lines: indent to align with first line text
+          doc.text(line, textX, y);
           y += lineHeight;
         }
       }
 
       // Render nested list if present
-      if (item && item.nested) {
-        y = this.renderList(doc, item.nested, y, margins, contentWidth, lineHeight, pageHeight, depth + 1);
+      if (item?.nested) {
+        y = this.renderList(
+          doc,
+          item.nested,
+          y,
+          margins,
+          contentWidth,
+          lineHeight,
+          pageHeight,
+          depth + 1
+        );
       }
     }
 
@@ -652,8 +810,7 @@ export class PdfExporter extends BaseExporter {
    * Render a blockquote
    */
   private renderBlockquote(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     content: StructuredContentBlock[],
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
@@ -696,8 +853,7 @@ export class PdfExporter extends BaseExporter {
    * Render a horizontal rule
    */
   private renderHorizontalRule(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
     contentWidth: number,
@@ -726,8 +882,7 @@ export class PdfExporter extends BaseExporter {
    * Render an image block
    */
   private renderImage(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     block: ImageBlock,
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
@@ -737,22 +892,17 @@ export class PdfExporter extends BaseExporter {
   ): number {
     let y = startY;
 
+    // Same shape as txt/docx: keep the URL even when alt text exists, so a
+    // failed image still points at the picture. renderText wraps it.
+    const placeholder = `[Image: ${block.alt || 'image'}] ${block.url}`;
+
     // Try to get the loaded image from cache
     const loadedImage = this.imageCache.get(block.url);
 
     if (!loadedImage) {
       // Image failed to load, show placeholder text
       y += lineHeight * 0.3;
-      y = this.renderText(
-        doc,
-        `[Image: ${block.alt || block.url}]`,
-        y,
-        margins,
-        contentWidth,
-        lineHeight,
-        pageHeight,
-        true
-      );
+      y = this.renderText(doc, placeholder, y, margins, contentWidth, lineHeight, pageHeight, true);
       return y;
     }
 
@@ -789,24 +939,17 @@ export class PdfExporter extends BaseExporter {
 
     try {
       // Add the image to the PDF
-      doc.addImage(
-        loadedImage.dataUrl,
-        loadedImage.format,
-        margins.left,
-        y,
-        imgWidth,
-        imgHeight
-      );
+      doc.addImage(loadedImage.dataUrl, loadedImage.format, margins.left, y, imgWidth, imgHeight);
 
       y += imgHeight + lineHeight * 0.3; // Move past the image
 
       // Add alt text below image if available
       if (block.alt) {
-        doc.setFontSize(FONT_SIZE_PT.meta);
+        doc.setFontSize(this.sizes.meta);
         doc.setFont(FONT_FAMILY.body.pdf, 'italic');
         doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
         const altText = sanitizeTextForPDF(block.alt);
-        const altLines = doc.splitTextToSize(altText, contentWidth);
+        const altLines = splitLines(doc, altText, contentWidth);
         for (const line of altLines) {
           if (y > pageHeight - margins.bottom) {
             doc.addPage();
@@ -816,7 +959,7 @@ export class PdfExporter extends BaseExporter {
           y += lineHeight * 0.8;
         }
         // Reset font
-        doc.setFontSize(FONT_SIZE_PT.body);
+        doc.setFontSize(this.sizes.body);
         doc.setFont(FONT_FAMILY.body.pdf, 'normal');
         doc.setTextColor(...hexToRgbTuple(COLOR.textBody));
       }
@@ -825,16 +968,7 @@ export class PdfExporter extends BaseExporter {
     } catch (error) {
       console.error('Failed to add image to PDF:', error);
       // Fall back to showing placeholder text
-      y = this.renderText(
-        doc,
-        `[Image: ${block.alt || block.url}]`,
-        y,
-        margins,
-        contentWidth,
-        lineHeight,
-        pageHeight,
-        true
-      );
+      y = this.renderText(doc, placeholder, y, margins, contentWidth, lineHeight, pageHeight, true);
     }
 
     return y;
@@ -844,8 +978,7 @@ export class PdfExporter extends BaseExporter {
    * Render a table
    */
   private renderTable(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     table: TableBlock,
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
@@ -857,7 +990,7 @@ export class PdfExporter extends BaseExporter {
     y += lineHeight * 0.5; // Spacing before table
 
     // Calculate column widths (equal width for simplicity)
-    const numCols = table.headers.length || (table.rows[0]?.length || 1);
+    const numCols = table.headers.length || table.rows[0]?.length || 1;
     const colWidth = contentWidth / numCols;
     const cellPadding = 2;
     const minRowHeight = lineHeight * 1.5;
@@ -868,7 +1001,7 @@ export class PdfExporter extends BaseExporter {
       for (const cell of cells) {
         if (!cell) continue;
         const cellText = this.inlineToPlainText(cell);
-        const lines = doc.splitTextToSize(cellText, colWidth - cellPadding * 2);
+        const lines = splitLines(doc, cellText, colWidth - cellPadding * 2);
         maxLines = Math.max(maxLines, lines.length);
       }
       return Math.max(minRowHeight, maxLines * lineHeight + cellPadding);
@@ -878,11 +1011,11 @@ export class PdfExporter extends BaseExporter {
     if (table.headers && table.headers.length > 0) {
       const headerHeight = calculateRowHeight(table.headers);
 
-      // Check if we need a new page
-      if (y + headerHeight > pageHeight - margins.bottom) {
-        doc.addPage();
-        y = margins.top;
-      }
+      // Keep the header with its first body row: a header alone at the foot of
+      // a page labels nothing. Rows themselves already never split mid-row.
+      const firstRow = table.rows?.[0];
+      const firstRowHeight = firstRow ? calculateRowHeight(firstRow) : 0;
+      y = this.ensureSpace(doc, y, headerHeight + firstRowHeight, margins, pageHeight);
 
       // Draw header background
       doc.setFillColor(...hexToRgbTuple(COLOR.surfaceSubtle));
@@ -900,7 +1033,7 @@ export class PdfExporter extends BaseExporter {
 
       // Draw header text
       doc.setFont(FONT_FAMILY.body.pdf, 'bold');
-      doc.setFontSize(PDF_FONT_SIZE_PT.small);
+      doc.setFontSize(this.pdfSizes.small);
       doc.setTextColor(...hexToRgbTuple(COLOR.textBody));
 
       table.headers.forEach((header, i) => {
@@ -969,7 +1102,7 @@ export class PdfExporter extends BaseExporter {
     // uses for the identical constraint, keeping the fallback consistent
     // across formats instead of inventing a third one.
     const text = content
-      .map(item =>
+      .map((item) =>
         item.type === 'link' && item.url && item.url !== item.text
           ? `${item.text} (${item.url})`
           : item.text
@@ -982,14 +1115,8 @@ export class PdfExporter extends BaseExporter {
    * Get assistant name and color based on platform
    */
   private getAssistantInfo(platform: string): { name: string; color: [number, number, number] } {
-    const platformColors: Record<string, string> = {
-      chatgpt: COLOR.brand.chatgpt,
-      claude: COLOR.brand.claude,
-      gemini: COLOR.brand.gemini,
-    };
-
     const name = this.getRoleName('assistant', platform);
-    const color = hexToRgbTuple(platformColors[platform] ?? COLOR.brand.default);
+    const color = hexToRgbTuple(brandColorFor(COLOR.brand, platform));
 
     return { name, color };
   }
@@ -998,8 +1125,7 @@ export class PdfExporter extends BaseExporter {
    * Render a code block with background
    */
   private renderCodeBlock(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     code: string,
     language: string,
     startY: number,
@@ -1015,7 +1141,7 @@ export class PdfExporter extends BaseExporter {
 
     // Language label
     if (language) {
-      doc.setFontSize(FONT_SIZE_PT.codeLabel);
+      doc.setFontSize(this.sizes.codeLabel);
       doc.setFont(FONT_FAMILY.body.pdf, 'bold');
       doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
       doc.text(sanitizeTextForPDF(language.toUpperCase()), margins.left, y);
@@ -1031,11 +1157,11 @@ export class PdfExporter extends BaseExporter {
     const wrappedLines: string[] = [];
 
     doc.setFont(FONT_FAMILY.code.pdf, 'normal');
-    doc.setFontSize(FONT_SIZE_PT.code);
+    doc.setFontSize(this.sizes.code);
 
     for (const line of codeLines) {
       const sanitized = sanitizeTextForPDF(line || ' ');
-      const wrapped = doc.splitTextToSize(sanitized, codeContentWidth);
+      const wrapped = splitLines(doc, sanitized, codeContentWidth);
       wrappedLines.push(...wrapped);
       totalCodeHeight += wrapped.length * lineHeight * 0.9;
     }
@@ -1070,7 +1196,7 @@ export class PdfExporter extends BaseExporter {
 
     // Reset font
     doc.setFont(FONT_FAMILY.body.pdf, 'normal');
-    doc.setFontSize(FONT_SIZE_PT.body);
+    doc.setFontSize(this.sizes.body);
 
     return y;
   }
@@ -1079,26 +1205,42 @@ export class PdfExporter extends BaseExporter {
    * Render regular text
    */
   private renderText(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    doc: any,
+    doc: jsPDF,
     text: string,
     startY: number,
     margins: { top: number; right: number; bottom: number; left: number },
     contentWidth: number,
     lineHeight: number,
     pageHeight: number,
-    isItalic: boolean = false
+    isItalic = false
   ): number {
     let y = startY;
 
     doc.setFont(FONT_FAMILY.body.pdf, isItalic ? 'italic' : 'normal');
-    doc.setFontSize(FONT_SIZE_PT.body);
+    doc.setFontSize(this.sizes.body);
     doc.setTextColor(...hexToRgbTuple(COLOR.textBody));
 
     const sanitized = sanitizeTextForPDF(text);
-    const lines = doc.splitTextToSize(sanitized, contentWidth);
-    for (const line of lines) {
-      if (y > pageHeight - margins.bottom) {
+    const lines = splitLines(doc, sanitized, contentWidth);
+
+    // Orphan/widow control. Lines used to be placed one at a time, so a
+    // paragraph could leave a single line at the foot of a page or carry a
+    // single line over. Decide the split point up front instead: how many
+    // lines fit below `y`, then pull the break back (or move the whole
+    // paragraph) until both sides clear the PAGINATION minimums.
+    const limit = pageHeight - margins.bottom;
+    let keepHere = Math.max(0, Math.floor((limit - y) / lineHeight) + 1);
+    if (keepHere < lines.length) {
+      if (lines.length - keepHere < PAGINATION.widows) {
+        keepHere = lines.length - PAGINATION.widows;
+      }
+      if (keepHere < PAGINATION.orphans) {
+        keepHere = 0; // the whole paragraph moves to the next page
+      }
+    }
+
+    for (const [i, line] of lines.entries()) {
+      if (i === keepHere || y > limit) {
         doc.addPage();
         y = margins.top;
       }

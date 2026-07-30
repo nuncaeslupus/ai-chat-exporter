@@ -61,7 +61,10 @@ async function exportAndRun(codeHtml: string) {
   }
   const html = await blobToText(result.blob);
 
-  const dom = new JSDOM(html, { runScripts: 'dangerously', url: 'https://example.com/export.html' });
+  const dom = new JSDOM(html, {
+    runScripts: 'dangerously',
+    url: 'https://example.com/export.html',
+  });
   // Let the DOMContentLoaded-triggered highlighter script run.
   await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
   return dom;
@@ -172,19 +175,46 @@ describe('HtmlExporter structural contract', () => {
   it('embeds highlight.js classes on code blocks, matching the language shared across formats', async () => {
     const { html } = await exportStructured(false);
 
-    expect(html).toContain('<pre><code class="language-js">function foo() { return 1; }</code></pre>');
+    expect(html).toContain(
+      '<pre><code class="language-js">function foo() { return 1; }</code></pre>'
+    );
 
     // The highlighter that runs client-side on open promotes 'hljs' onto the
     // same code element and tags recognized keywords -- exercise it for real
     // in a DOM rather than just checking the static markup.
-    const dom = new JSDOM(html, { runScripts: 'dangerously', url: 'https://example.com/export.html' });
+    const dom = new JSDOM(html, {
+      runScripts: 'dangerously',
+      url: 'https://example.com/export.html',
+    });
     await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
     const codeBlock = dom.window.document.querySelector('pre code');
-    // Not asserting on the injected <span class="hljs-keyword"> markup itself:
-    // the highlighter's later "strings" regex re-matches the quoted class
-    // attribute the keyword pass just inserted and corrupts it (see reported
-    // bug in the worker outcome). The 'hljs' class toggle is unaffected.
     expect(codeBlock?.classList.contains('hljs')).toBe(true);
+  });
+
+  it('highlights a keyword and a quoted string in the same code block without corrupting markup', async () => {
+    // A code sample with BOTH a keyword and a quoted string: the keyword
+    // pass injects `<span class="hljs-keyword">...</span>` and a later
+    // "strings" pass must not re-match the quoted `"hljs-keyword"` class
+    // attribute value it just wrote.
+    const dom = await exportAndRun('function foo() { return "hi"; }');
+    const codeBlock = dom.window.document.querySelector('pre code');
+    expect(codeBlock).not.toBeNull();
+
+    // No <span> markup ever nested inside another element's class attribute
+    // value -- the reported corruption pattern.
+    for (const el of Array.from(codeBlock!.querySelectorAll('*'))) {
+      expect(el.getAttribute('class')).not.toContain('<span');
+    }
+
+    const keywordText = Array.from(codeBlock!.querySelectorAll('.hljs-keyword')).map(
+      (el) => el.textContent
+    );
+    expect(keywordText).toEqual(expect.arrayContaining(['function', 'return']));
+
+    const stringText = Array.from(codeBlock!.querySelectorAll('.hljs-string')).map(
+      (el) => el.textContent
+    );
+    expect(stringText).toEqual(['"hi"']);
   });
 
   it('keeps message order, heading level, and code placement consistent', async () => {
@@ -243,7 +273,9 @@ describe('HtmlExporter per-message timestamps', () => {
       includeTimestamps: true,
     });
     const html = await blobToText(result.blob!);
-    expect(html).toContain('2025-01-01 12:00:00');
+    expect(html).toContain('(12:00:00)');
+    // The day is announced once by a day separator, not repeated per message.
+    expect(html).not.toContain('2025-01-01 12:00:00');
   });
 
   it('omits the timestamp when includeTimestamps is off', async () => {
@@ -256,7 +288,7 @@ describe('HtmlExporter per-message timestamps', () => {
       includeTimestamps: false,
     });
     const html = await blobToText(result.blob!);
-    expect(html).not.toContain('2025-01-01 12:00:00');
+    expect(html).not.toContain('12:00:00');
   });
 
   it('emits no stray label or "undefined" when a message has no timestamp', async () => {
@@ -328,9 +360,11 @@ describe('exported HTML makes no third-party requests', () => {
   it('embeds no remote subresource of any kind', async () => {
     const html = await exportWithSearch();
     const dom = new JSDOM(html);
-    const remote = [...dom.window.document.querySelectorAll('img[src], script[src], link[href], iframe[src]')]
-      .map(el => el.getAttribute('src') ?? el.getAttribute('href') ?? '')
-      .filter(u => /^https?:\/\//i.test(u));
+    const remote = [
+      ...dom.window.document.querySelectorAll('img[src], script[src], link[href], iframe[src]'),
+    ]
+      .map((el) => el.getAttribute('src') ?? el.getAttribute('href') ?? '')
+      .filter((u) => /^https?:\/\//i.test(u));
     expect(remote).toEqual([]);
   });
 

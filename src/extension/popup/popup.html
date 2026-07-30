@@ -8,11 +8,12 @@
   </head>
   <body>
     <div class="popup-container">
+      <!-- Fixed 56px header. -->
       <header class="popup-header">
-        <img src="../assets/icons/icon-128.png" alt="Logo" class="header-logo" />
+        <img src="../assets/icons/icon-header.svg" alt="" class="header-logo" />
         <div class="header-title">
           <h1 class="popup-title" data-i18n="extensionName">AI Chat Exporter</h1>
-          <span class="popup-version" id="popup-version"></span>
+          <span class="popup-version" id="popup-version" data-version></span>
         </div>
         <div class="status-indicator" id="status-indicator" role="status">
           <span class="status-dot"></span>
@@ -20,100 +21,453 @@
         </div>
       </header>
 
-      <main class="popup-main">
-        <!-- Not supported message -->
-        <section class="not-supported-section" id="not-supported-section" style="display: none;">
-          <div class="not-supported-message">
-            <svg class="not-supported-icon" width="48" height="48" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-              <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            <h3 class="not-supported-title" data-i18n="noChatbotDetectedTitle">No Chatbot Detected</h3>
-            <p class="not-supported-text">
-              <span data-i18n="noChatbotDetectedMessage">This page doesn't appear to have a supported chatbot conversation.</span>
-              <br><br>
-              <strong data-i18n="supportedPlatforms">Supported platforms:</strong>
-              <span id="supported-platforms-list"></span>
+      <!--
+        Fixed 320px body. Every view and every UI state paints inside this box,
+        so the popup is always 378px tall and never jumps. Anything that grows
+        scrolls in a `.view-scroll` child, never stretches the box.
+      -->
+      <main class="popup-body" id="popup-body" data-view="main" data-ui-state="detecting">
+        <section class="popup-view" id="view-main">
+          <div class="view-scroll">
+            <!--
+              Secondary states. Exactly one `.state-block` (or `#main-content`)
+              paints, picked by `data-ui-state` on the body box in popup.css —
+              no JS display juggling, so a state can never leak into another.
+            -->
+
+            <!-- Detecting: skeletons standing in for the text that is coming. -->
+            <div class="state-block state-skeleton" id="state-detecting" aria-hidden="true">
+              <span class="skeleton skeleton--title"></span>
+              <span class="skeleton skeleton--meta"></span>
+              <span class="skeleton skeleton--row skeleton--push"></span>
+              <span class="skeleton skeleton--row skeleton--short"></span>
+            </div>
+
+            <!-- Unsupported page. Links are generated from parserRegistry. -->
+            <div class="state-block state-centered" id="state-unsupported">
+              <h2 class="state-title" data-i18n="noChatbotDetectedTitle">
+                There's no conversation to export here
+              </h2>
+              <p class="state-help" data-i18n="noChatbotDetectedMessage">
+                Open a chat on one of these pages — it opens in a new tab.
+              </p>
+              <div class="platform-links" id="platform-links"></div>
+            </div>
+
+            <!--
+              Supported page, but the parser found nothing on it -- distinct
+              from "unsupported": this is a parse bug, not a navigation prompt.
+            -->
+            <div class="state-block state-centered" id="state-no-conversation">
+              <h2 class="state-title" data-i18n="noConversationFoundTitle">
+                Couldn't find a conversation here
+              </h2>
+              <p class="state-help" data-i18n="noConversationFoundMessage">
+                This page is supported, but no messages could be read.
+              </p>
+            </div>
+
+            <!-- Reload needed: the content script never answered. -->
+            <div class="state-block state-centered" id="state-reload">
+              <span class="state-circle" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M21 10C21 10 18.995 7.268 17.366 5.638 15.737 4.008 13.486 3 11 3 6.029 3 2 7.029 2 12s4.029 9 9 9c4.103 0 7.565-2.746 8.648-6.5M21 10V4M21 10H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <h2 class="state-title state-title--reload" data-i18n="reloadRequiredTitle">
+                Reload the page to export this conversation
+              </h2>
+              <p class="state-help" data-i18n="reloadRequiredMessage">
+                The extension was updated after this tab was opened.
+              </p>
+              <button type="button" class="state-button" id="reload-button">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M21 10C21 10 18.995 7.268 17.366 5.638 15.737 4.008 13.486 3 11 3 6.029 3 2 7.029 2 12s4.029 9 9 9c4.103 0 7.565-2.746 8.648-6.5M21 10V4M21 10H15" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span data-i18n="reloadPageButton">Reload the page</span>
+              </button>
+              <p class="key-hint" aria-hidden="true"><kbd>Ctrl</kbd><kbd>R</kbd></p>
+            </div>
+            <div id="main-content">
+              <!--
+                Degraded export. Shown only in the `warning` state; the full
+                reason lands in the detail line and its `title`.
+              -->
+              <div class="warning-card" id="warning-card" role="status">
+                <svg class="warning-card-icon" width="17" height="17" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M8 2.5 14.5 13.5H1.5L8 2.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+                  <path d="M8 6.8v2.6M8 11.4h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                <div class="warning-card-body">
+                  <p class="warning-card-title" data-i18n="exportWarningTitle">Saved, but incomplete</p>
+                  <p class="warning-card-detail" id="warning-card-detail"></p>
+                  <button type="button" class="warning-card-retry" id="warning-retry-button" data-i18n="exportWarningRetry">
+                    Retry
+                  </button>
+                </div>
+              </div>
+
+              <!--
+                Selector drift. Non-blocking on purpose: a degraded export is
+                usually still wanted, and anything demanding attention trains
+                users to dismiss it. Hidden unless `data-drift="true"`.
+              -->
+              <button type="button" class="drift-row" id="drift-row" data-nav="report" hidden>
+                <svg class="drift-row-icon" width="17" height="17" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.4"/>
+                  <path d="M8 4.8v3.6M8 10.9h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                <span class="drift-row-body">
+                  <span class="drift-row-title" data-i18n="driftRowTitle">This page may have changed</span>
+                  <span class="drift-row-detail" data-i18n="driftRowDetail">Your export may be incomplete.</span>
+                </span>
+                <span class="drift-row-action" data-i18n="driftRowAction">See what happened</span>
+              </button>
+
+              <!-- Conversation block: title + `platform · N pairs · date range`. -->
+              <div class="conversation-block">
+                <h2 class="conversation-title" id="conversation-title">-</h2>
+                <p class="conversation-meta">
+                  <img class="platform-icon" id="platform-icon" alt="" style="display: none;" />
+                  <span class="conversation-meta-text" id="conversation-meta"></span>
+                </p>
+              </div>
+
+            </div> <!-- End main-content -->
+          </div>
+
+          <!--
+            Setting rows sit outside the scroll area on purpose. Pinning them
+            with `margin-top:auto` inside it works only while the conversation
+            title is one line; past that they get pushed under the action bar.
+            As their own `flex:none` strip they land in the same place and stay
+            reachable. Both are pure navigation triggers: `data-nav` is all the
+            R1 router needs.
+          -->
+          <div class="setting-rows">
+            <button type="button" class="setting-row" data-nav="content">
+              <span class="setting-row-label" data-i18n="rowContent">Content</span>
+              <span class="setting-row-spacer"></span>
+              <span class="setting-row-value" id="content-row-value"></span>
+              <svg class="setting-row-chevron" width="8" height="12" viewBox="0 0 8 12" fill="none" aria-hidden="true">
+                <path d="M1.5 1 6.5 6l-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <button type="button" class="setting-row setting-row--options" data-nav="options">
+              <span class="setting-row-label" data-i18n="rowOptions">Options</span>
+              <span
+                class="setting-row-dot"
+                id="options-changed-dot"
+                role="img"
+                data-i18n-label="rowOptionsChanged"
+                hidden
+              ></span>
+              <span class="setting-row-spacer"></span>
+              <svg class="setting-row-chevron" width="8" height="12" viewBox="0 0 8 12" fill="none" aria-hidden="true">
+                <path d="M1.5 1 6.5 6l-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Action bar: split export button + print, then the privacy line. -->
+          <div class="action-bar">
+            <div class="action-row">
+              <div class="split-button">
+                <button type="button" class="split-export" id="export-button" disabled>
+                  <svg class="split-export-icon" width="17" height="17" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="M8 1.5v9m0 0 3.2-3.2M8 10.5 4.8 7.3M2.5 14h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <span class="split-export-label" id="export-button-label" data-i18n="exportButton">Export</span>
+                </button>
+                <button
+                  type="button"
+                  class="split-toggle"
+                  id="format-menu-toggle"
+                  data-format-menu-toggle
+                  data-i18n-label="changeFormatButton"
+                >
+                  <svg class="split-toggle-chevron" width="12" height="8" viewBox="0 0 12 8" fill="none" aria-hidden="true">
+                    <path d="M1 1.5 6 6.5 11 1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+              <button type="button" class="print-button" id="print-button" data-i18n-label="printButton" disabled>
+                <svg class="print-button-icon" width="19" height="19" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M4 5V2h8v3M4 11H2V7h12v4h-2M4 9h8v5H4V9z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+            <p class="privacy-line">
+              <svg class="privacy-icon" width="12" height="12" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <path d="M4 6.5V4.6a3 3 0 0 1 6 0v1.9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                <rect x="2.6" y="6.4" width="8.8" height="6.2" rx="2" stroke="currentColor" stroke-width="1.4"/>
+              </svg>
+              <span data-i18n="privacyNotice">Generated in your browser. Nothing is sent to any server.</span>
             </p>
           </div>
+
+          <!--
+            Format menu. Floats over the main view, anchored to the split
+            button's chevron — not a full screen. It is positioned against
+            `.popup-body`, so it can never grow the box, and `data-format-menu`
+            is what the router's outside-click check keys on. Open/closed is
+            the `data-format-menu-open` attribute alone; nothing here is
+            display-juggled from JS. `data-format` carries the choice.
+          -->
+          <div class="format-menu" data-format-menu role="menu" aria-labelledby="format-menu-label">
+            <p class="format-menu-label" id="format-menu-label" data-i18n="formatMenuLabel">Format</p>
+            <div class="format-menu-list">
+              <button type="button" class="format-row" role="menuitemradio" aria-checked="false" data-format="md">
+                <img class="format-row-icon" src="../assets/icons/md-icon.svg" alt="" />
+                <span class="format-row-name" data-i18n="formatNameMD">Markdown</span>
+                <svg class="format-row-check" width="12" height="9" viewBox="0 0 14 11" fill="none" aria-hidden="true">
+                  <path d="M1 5.5 5 9.5 13 1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <button type="button" class="format-row" role="menuitemradio" aria-checked="false" data-format="pdf">
+                <img class="format-row-icon" src="../assets/icons/pdf-icon.svg" alt="" />
+                <span class="format-row-name" data-i18n="formatNamePDF">PDF</span>
+                <svg class="format-row-check" width="12" height="9" viewBox="0 0 14 11" fill="none" aria-hidden="true">
+                  <path d="M1 5.5 5 9.5 13 1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <button type="button" class="format-row" role="menuitemradio" aria-checked="false" data-format="html">
+                <img class="format-row-icon" src="../assets/icons/html-icon.svg" alt="" />
+                <span class="format-row-name" data-i18n="formatNameHTML">HTML</span>
+                <svg class="format-row-check" width="12" height="9" viewBox="0 0 14 11" fill="none" aria-hidden="true">
+                  <path d="M1 5.5 5 9.5 13 1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <button type="button" class="format-row" role="menuitemradio" aria-checked="false" data-format="docx">
+                <img class="format-row-icon" src="../assets/icons/docx-icon.svg" alt="" />
+                <span class="format-row-name" data-i18n="formatNameDOCX">Word</span>
+                <svg class="format-row-check" width="12" height="9" viewBox="0 0 14 11" fill="none" aria-hidden="true">
+                  <path d="M1 5.5 5 9.5 13 1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <button type="button" class="format-row" role="menuitemradio" aria-checked="false" data-format="txt">
+                <img class="format-row-icon" src="../assets/icons/txt-icon.svg" alt="" />
+                <span class="format-row-name" data-i18n="formatNameTXT">Plain text</span>
+                <svg class="format-row-check" width="12" height="9" viewBox="0 0 14 11" fill="none" aria-hidden="true">
+                  <path d="M1 5.5 5 9.5 13 1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <button type="button" class="format-row" role="menuitemradio" aria-checked="false" data-format="json">
+                <img class="format-row-icon" src="../assets/icons/json-icon.svg" alt="" />
+                <span class="format-row-name" data-i18n="formatNameJSON">JSON</span>
+                <svg class="format-row-check" width="12" height="9" viewBox="0 0 14 11" fill="none" aria-hidden="true">
+                  <path d="M1 5.5 5 9.5 13 1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+          </div>
         </section>
 
-        <!-- Main content (shown when supported) -->
-        <div id="main-content">
-        <!-- Conversation info -->
-        <div class="conversation-info">
-          <div class="conversation-header">
-            <img class="platform-icon" id="platform-icon" alt="Platform" style="display: none;" />
-            <div class="conversation-title" id="conversation-title">-</div>
-          </div>
-          <div class="conversation-meta" id="conversation-meta">-</div>
-        </div>
-
-        <!-- Q&A pair selection -->
-        <section class="qa-selection" id="qa-selection-section" style="display: none;">
-          <div class="qa-selection-header">
-            <span class="qa-selection-title" data-i18n="qaSelectionTitle">Select Q&amp;A pairs to export</span>
-            <button type="button" class="qa-selection-toggle-all" id="qa-selection-toggle-all"></button>
+        <!--
+          Submenu views. Still unstyled: the router owns visibility, the final
+          layouts land with the Content / Options / Filename tasks. What lives
+          here now is the pre-redesign markup those tasks take over, parked in
+          the view it belongs to so its wiring keeps working meanwhile.
+          Anything added here must keep the `.view-scroll` (flex:1) + flex:none
+          header/footer shape so it scrolls inside the box.
+        -->
+        <!--
+          Pair chooser. Three bands inside the same 320px box: header and
+          footer are `flex:none`, only the list scrolls. Back and Done are pure
+          navigation triggers — `data-nav` is all the R1 router needs.
+        -->
+        <section class="popup-view" id="view-content" hidden>
+          <div class="submenu-header">
+            <button type="button" class="submenu-back" data-nav="main" data-i18n-label="submenuBack">
+              <svg width="7" height="11" viewBox="0 0 8 12" fill="none" aria-hidden="true">
+                <path d="M6.5 1 1.5 6l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <h2 class="submenu-title" data-i18n="qaSelectionTitle">Choose pairs</h2>
+            <button type="button" class="pair-chooser-toggle-all" id="qa-selection-toggle-all"></button>
           </div>
           <ul class="qa-selection-list" id="qa-selection-list"></ul>
-          <div class="qa-selection-count" id="qa-selection-count"></div>
+          <div class="submenu-footer">
+            <span class="pair-chooser-summary" id="qa-selection-count"></span>
+            <button type="button" class="submenu-done" data-nav="main" data-i18n="submenuDone">
+              Done
+            </button>
+          </div>
         </section>
 
-        <!-- Export controls -->
-        <div class="export-controls">
-          <div class="format-select-wrapper">
-            <img src="../assets/icons/md-icon.svg" alt="" class="format-icon" id="format-icon" />
-            <select class="format-select" id="format-select" disabled>
-              <option value="md" data-i18n="formatMarkdown">Markdown</option>
-              <option value="html" data-i18n="formatHTML">HTML Document</option>
-              <option value="pdf" data-i18n="formatPDF">PDF Document</option>
-              <option value="docx" data-i18n="formatDOCX">Word Document</option>
-              <option value="txt" data-i18n="formatTXT">Plain Text</option>
-              <option value="json" data-i18n="formatJSON">JSON Data</option>
-            </select>
-          </div>
-          <div class="button-row">
-            <button class="action-button" id="export-button" disabled>
-              <svg class="button-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M8 1v10M8 11l3-3M8 11l-3-3M2 14h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <!--
+          Options. Same three bands, and deliberately bare: a short row list,
+          no explanatory paragraphs. The day-change date is *not* a row — with
+          timestamps on, the exporters always emit the separator.
+        -->
+        <section class="popup-view" id="view-options" hidden>
+          <div class="submenu-header options-header">
+            <button type="button" class="submenu-back" data-nav="main" data-i18n-label="submenuBack">
+              <svg width="7" height="11" viewBox="0 0 8 12" fill="none" aria-hidden="true">
+                <path d="M6.5 1 1.5 6l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
-              <span class="button-label" data-i18n="exportButton">Export</span>
             </button>
-            <button class="action-button" id="print-button" disabled>
-              <svg class="button-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M4 5V2h8v3M4 11H2V7h12v4h-2M4 9h8v5H4V9z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-              <span class="button-label" data-i18n="printButton">Print</span>
-            </button>
+            <h2 class="submenu-title" data-i18n="rowOptions">Options</h2>
           </div>
-        </div>
 
-        <!-- Export options -->
-        <div class="settings-grid">
-          <label class="setting-item" for="option-include-metadata">
-            <input type="checkbox" id="option-include-metadata" />
-            <span data-i18n="optionIncludeMetadata">Include metadata</span>
-          </label>
-          <label class="setting-item" for="option-include-timestamps">
-            <input type="checkbox" id="option-include-timestamps" />
-            <span data-i18n="optionIncludeTimestamps">Include timestamps</span>
-          </label>
-        </div>
-        </div> <!-- End main-content -->
+          <div class="options-list">
+            <label class="option-row" for="option-include-metadata">
+              <input type="checkbox" id="option-include-metadata" />
+              <span class="option-row-label" data-i18n="optionIncludeMetadata">
+                Header with the chat details
+              </span>
+            </label>
+            <label class="option-row" for="option-include-timestamps">
+              <input type="checkbox" id="option-include-timestamps" />
+              <span class="option-row-label" data-i18n="optionIncludeTimestamps">
+                Time on each message
+              </span>
+            </label>
+            <!--
+              Text size. Three steps, not a size input: the ask was "fewer
+              pages", which a coarse step answers and a free size does not.
+              A native radio group in a fieldset — the legend names the group
+              for a screen reader and arrow keys move between the steps, with
+              no JS beyond persisting the choice.
+            -->
+            <fieldset class="option-row option-row--choice">
+              <legend class="option-row-label" data-i18n="optionFontScale">Text size</legend>
+              <div class="option-choices">
+                <label class="option-choice">
+                  <input type="radio" name="option-font-scale" value="compact" />
+                  <span data-i18n="optionFontScaleCompact">Compact</span>
+                </label>
+                <label class="option-choice">
+                  <input type="radio" name="option-font-scale" value="normal" />
+                  <span data-i18n="optionFontScaleNormal">Normal</span>
+                </label>
+                <label class="option-choice">
+                  <input type="radio" name="option-font-scale" value="large" />
+                  <span data-i18n="optionFontScaleLarge">Large</span>
+                </label>
+              </div>
+            </fieldset>
+            <!--
+              Navigation row. The filename view is R6's; `data-nav` is all the
+              router needs, so it works the day that view gets its markup.
+            -->
+            <button type="button" class="option-row option-row--nav" data-nav="filename">
+              <span class="option-row-gutter" aria-hidden="true"></span>
+              <span class="option-row-stack">
+                <span class="option-row-label" data-i18n="optionsFilenameRow">File name</span>
+                <span class="option-row-filename" id="options-filename-preview" data-filename-preview></span>
+              </span>
+              <svg class="option-row-chevron" width="8" height="12" viewBox="0 0 8 12" fill="none" aria-hidden="true">
+                <path d="M1.5 1 6.5 6l-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="submenu-footer options-footer">
+            <span class="options-footer-version" id="options-footer-version" data-version></span>
+            <span class="options-footer-dot" aria-hidden="true"></span>
+            <a
+              href="https://github.com/nuncaeslupus/ai-chat-exporter/blob/main/docs/PRIVACY.md"
+              target="_blank"
+              class="options-footer-link"
+              data-i18n="footerPrivacy"
+            >
+              Privacy
+            </a>
+            <span class="options-footer-dot" aria-hidden="true"></span>
+            <a
+              href="https://github.com/nuncaeslupus/ai-chat-exporter"
+              target="_blank"
+              class="options-footer-link"
+              data-i18n="footerGitHub"
+            >
+              GitHub
+            </a>
+            <button type="button" class="submenu-done" data-nav="main" data-i18n="submenuDone">
+              Done
+            </button>
+          </div>
+        </section>
+
+        <!--
+          Page structure report. Same three bands as the pair chooser: fixed
+          header, scrolling body, fixed footer. The preview is the exact string
+          that goes to the clipboard — not a summary of it — which is what makes
+          "nothing else is sent" something the user can check rather than trust.
+        -->
+        <section class="popup-view" id="view-report" hidden>
+          <div class="submenu-header">
+            <button type="button" class="submenu-back" data-nav="main" data-i18n-label="submenuBack">
+              <svg width="7" height="11" viewBox="0 0 8 12" fill="none" aria-hidden="true">
+                <path d="M6.5 1 1.5 6l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <h2 class="submenu-title" data-i18n="driftReportTitle">Page structure report</h2>
+          </div>
+          <div class="drift-report-body">
+            <p class="drift-report-intro" data-i18n="driftReportIntro">
+              This is the whole report. It has no part of your conversation in it — every piece of
+              text is replaced by how many characters it had. Nothing is sent anywhere unless you
+              choose to share it.
+            </p>
+            <pre class="drift-report-preview" id="drift-report-preview" tabindex="0"></pre>
+          </div>
+          <div class="submenu-footer drift-report-footer">
+            <span class="drift-report-status" id="drift-report-status" role="status"></span>
+            <button type="button" class="drift-report-secondary" id="drift-report-copy" data-i18n="driftReportCopy">
+              Copy report
+            </button>
+            <button type="button" class="submenu-done" id="drift-report-copy-and-report" data-i18n="driftReportCopyAndReport">
+              Copy &amp; report
+            </button>
+          </div>
+        </section>
+
+        <!--
+          File name builder. Same three bands. The pieces field, the add
+          chips and the footer name are all rendered from `filenamePieces`
+          by popup.ts — the markup here is only the frame they land in, so
+          there is one source for what the name is made of.
+        -->
+        <section class="popup-view" id="view-filename" hidden>
+          <div class="submenu-header filename-header">
+            <button type="button" class="submenu-back" data-nav="options" data-i18n-label="submenuBack">
+              <svg width="7" height="11" viewBox="0 0 8 12" fill="none" aria-hidden="true">
+                <path d="M6.5 1 1.5 6l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <h2 class="submenu-title" data-i18n="optionsFilenameRow">File name</h2>
+            <button
+              type="button"
+              class="filename-default"
+              id="filename-restore-default"
+              data-i18n="filenameRestoreDefault"
+            >
+              Default
+            </button>
+          </div>
+
+          <div class="filename-body">
+            <!-- The composed name. Chips are draggable; the caret marks where the next one lands. -->
+            <div class="filename-field" id="filename-pieces"></div>
+            <div class="filename-add" id="filename-add-chips"></div>
+            <p class="filename-hint" data-i18n="filenameDragHint">
+              Drag the pieces to reorder them.
+            </p>
+          </div>
+
+          <div class="submenu-footer filename-footer">
+            <svg class="filename-footer-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M3.5 2.5h6L12.5 5.5v8h-9v-11Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+              <path d="M9.2 2.6v3.1h3.2" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+            </svg>
+            <span class="filename-footer-name" id="filename-preview" data-filename-preview></span>
+            <button type="button" class="submenu-done" data-nav="options" data-i18n="submenuDone">
+              Done
+            </button>
+          </div>
+        </section>
       </main>
-
-      <footer class="popup-footer">
-        <a
-          href="https://github.com/nuncaeslupus/ai-chat-exporter"
-          target="_blank"
-          class="footer-link"
-          data-i18n="footerGitHub"
-        >
-          GitHub
-        </a>
-        <span class="footer-separator">•</span>
-        <a href="#" class="footer-link" id="report-issue" data-i18n="footerReportIssue">Report Issue</a>
-      </footer>
     </div>
 
     <script src="popup.js" type="module"></script>

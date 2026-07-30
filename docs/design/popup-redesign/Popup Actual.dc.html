@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+body { margin:0; background:#eef1f0; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
+a { color:#0d8266; text-decoration:none; }
+a:hover { opacity:.8; }
+</style>
+</helmet>
+<div style="padding:40px; display:flex; flex-direction:column; gap:24px">
+  <div style="display:flex; flex-direction:column; gap:4px">
+    <div style="font-size:13px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#6b7280">Estado actual · current build</div>
+    <div style="font-size:15px; color:#4b5563; max-width:640px">Recreación fiel de <code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px">src/extension/popup/</code> (popup.html + popup.css + popup.ts) a 360&nbsp;px. Sin cambios de diseño.</div>
+  </div>
+
+  <div style="display:flex; flex-wrap:wrap; gap:32px; align-items:flex-start">
+
+    <div style="display:flex; flex-direction:column; gap:10px">
+      <div style="font-size:12px; font-weight:600; color:#6b7280">Listo · ES</div>
+      <div style="width:360px; background:#ffffff; border:1px solid #d8dedb; box-shadow:0 8px 24px rgba(15,32,28,.12); font-size:14px; line-height:1.5; color:#1f2937; display:flex; flex-direction:column">
+        <div style="display:flex; align-items:flex-start; gap:10px; padding:12px 16px; border-bottom:1px solid #e5e7eb; background:#f9fafb">
+          <img src="src/assets/icons/icon-128.png" alt="Logo" style="width:32px; height:32px; flex-shrink:0">
+          <div style="display:flex; flex-direction:column; gap:2px; flex:1">
+            <h1 style="font-size:18px; font-weight:600; margin:0 0 4px 0">Exportador de Chats IA</h1>
+            <span style="font-size:12px; color:#6b7280">v1.1.1</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; flex-shrink:0">
+            <span style="width:6px; height:6px; border-radius:50%; background:#0d8266; flex-shrink:0"></span>
+            <span style="font-size:10px; color:#6b7280; white-space:nowrap; font-weight:500">Listo</span>
+          </div>
+        </div>
+        <div style="flex:1; padding:16px">
+          <div style="margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid #e5e7eb">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px">
+              <img src="src/assets/icons/gemini-logo.svg" alt="gemini logo" style="width:24px; height:24px; flex-shrink:0; object-fit:contain">
+              <div style="font-size:15px; font-weight:600; color:#1f2937; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1">Gemini Conversation</div>
+            </div>
+            <div style="font-size:12px; color:#6b7280; padding-left:34px; line-height:1.6; font-weight:500">Pares pregunta-respuesta: 2; Palabras: 6633</div>
+          </div>
+          <div style="margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid #e5e7eb">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; gap:8px">
+              <span style="font-size:13px; font-weight:600; color:#1f2937">Selecciona los pares de pregunta y respuesta a exportar</span>
+              <button type="button" style="background:none; border:none; color:#0d8266; font-size:12px; cursor:pointer; padding:2px 4px; font-family:inherit; text-align:right">Deseleccionar todo</button>
+            </div>
+            <ul style="list-style:none; margin:0; padding:0; max-height:120px; overflow-y:auto">
+              <li style="display:flex; align-items:center; gap:8px; padding:4px; border-radius:4px">
+                <input type="checkbox" checked style="width:16px; height:16px; flex-shrink:0; accent-color:#0d8266; margin:0">
+                <label style="font-size:12px; color:#1f2937; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">I am working on a systematic-investing research progr…</label>
+              </li>
+              <li style="display:flex; align-items:center; gap:8px; padding:4px; border-radius:4px">
+                <input type="checkbox" checked style="width:16px; height:16px; flex-shrink:0; accent-color:#0d8266; margin:0">
+                <label style="font-size:12px; color:#1f2937; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">Start research</label>
+              </li>
+            </ul>
+            <div style="margin-top:4px; font-size:11px; color:#6b7280">2 de 2 seleccionados</div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px">
+            <div style="position:relative; display:flex; align-items:center; gap:10px; width:100%">
+              <img src="src/assets/icons/md-icon.svg" alt="" style="width:20px; height:20px; flex-shrink:0; opacity:.8">
+              <div style="flex:1; padding:10px 32px 10px 12px; border:1px solid #e5e7eb; border-radius:6px; background:#ffffff url(&quot;data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E&quot;) no-repeat right 12px center; color:#1f2937; font-size:13px; font-weight:500">Markdown</div>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:4px">
+              <div style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:10px 16px; border:2px solid #0d8266; border-radius:6px; background:#ffffff; color:#0d8266; font-size:13px; font-weight:600; white-space:nowrap">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0"><path d="M8 1v10M8 11l3-3M8 11l-3-3M2 14h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                <span style="font-weight:600">Exportar</span>
+              </div>
+              <div style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:10px 16px; border:2px solid #0d8266; border-radius:6px; background:#ffffff; color:#0d8266; font-size:13px; font-weight:600; white-space:nowrap">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0"><path d="M4 5V2h8v3M4 11H2V7h12v4h-2M4 9h8v5H4V9z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                <span style="font-weight:600">Imprimir</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:12px; margin-top:16px">
+            <label style="display:flex; align-items:center; gap:8px; padding:4px; border-radius:4px">
+              <input type="checkbox" checked style="width:16px; height:16px; accent-color:#0d8266; margin:0">
+              <span style="font-size:13px; color:#1f2937">Incluir metadatos</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; padding:4px; border-radius:4px">
+              <input type="checkbox" checked style="width:16px; height:16px; accent-color:#0d8266; margin:0">
+              <span style="font-size:13px; color:#1f2937">Incluir marcas de tiempo</span>
+            </label>
+          </div>
+        </div>
+        <div style="padding:12px 16px; border-top:1px solid #e5e7eb; background:#f9fafb; text-align:center; font-size:12px; color:#6b7280">
+          <a href="#" style="color:#0d8266; text-decoration:none">GitHub</a>
+          <span style="margin:0 8px">•</span>
+          <a href="#" style="color:#0d8266; text-decoration:none">Reportar Problema</a>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:10px">
+      <div style="font-size:12px; font-weight:600; color:#6b7280">Ready · EN</div>
+      <div style="width:360px; background:#ffffff; border:1px solid #d8dedb; box-shadow:0 8px 24px rgba(15,32,28,.12); font-size:14px; line-height:1.5; color:#1f2937; display:flex; flex-direction:column">
+        <div style="display:flex; align-items:flex-start; gap:10px; padding:12px 16px; border-bottom:1px solid #e5e7eb; background:#f9fafb">
+          <img src="src/assets/icons/icon-128.png" alt="Logo" style="width:32px; height:32px; flex-shrink:0">
+          <div style="display:flex; flex-direction:column; gap:2px; flex:1">
+            <h1 style="font-size:18px; font-weight:600; margin:0 0 4px 0">AI Chat Exporter</h1>
+            <span style="font-size:12px; color:#6b7280">v1.1.1</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; flex-shrink:0">
+            <span style="width:6px; height:6px; border-radius:50%; background:#0d8266; flex-shrink:0"></span>
+            <span style="font-size:10px; color:#6b7280; white-space:nowrap; font-weight:500">Ready</span>
+          </div>
+        </div>
+        <div style="flex:1; padding:16px">
+          <div style="margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid #e5e7eb">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px">
+              <img src="src/assets/icons/chatgpt-logo.svg" alt="chatgpt logo" style="width:24px; height:24px; flex-shrink:0; object-fit:contain">
+              <div style="font-size:15px; font-weight:600; color:#1f2937; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1">Portfolio backtest review</div>
+            </div>
+            <div style="font-size:12px; color:#6b7280; padding-left:34px; line-height:1.6; font-weight:500">Q&amp;A pairs: 14; Words: 12,904; Code Images</div>
+          </div>
+          <div style="margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid #e5e7eb">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; gap:8px">
+              <span style="font-size:13px; font-weight:600; color:#1f2937">Select Q&amp;A pairs to export</span>
+              <button type="button" style="background:none; border:none; color:#0d8266; font-size:12px; cursor:pointer; padding:2px 4px; font-family:inherit; text-align:right">Deselect all</button>
+            </div>
+            <ul style="list-style:none; margin:0; padding:0; max-height:120px; overflow-y:auto">
+              <li style="display:flex; align-items:center; gap:8px; padding:4px; border-radius:4px">
+                <input type="checkbox" checked style="width:16px; height:16px; flex-shrink:0; accent-color:#0d8266; margin:0">
+                <label style="font-size:12px; color:#1f2937; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">Can you review my walk-forward validation setup for…</label>
+              </li>
+              <li style="display:flex; align-items:center; gap:8px; padding:4px; border-radius:4px">
+                <input type="checkbox" checked style="width:16px; height:16px; flex-shrink:0; accent-color:#0d8266; margin:0">
+                <label style="font-size:12px; color:#1f2937; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">What about transaction costs?</label>
+              </li>
+              <li style="display:flex; align-items:center; gap:8px; padding:4px; border-radius:4px">
+                <input type="checkbox" checked style="width:16px; height:16px; flex-shrink:0; accent-color:#0d8266; margin:0">
+                <label style="font-size:12px; color:#1f2937; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">Rewrite the sizing function using vol targeting</label>
+              </li>
+              <li style="display:flex; align-items:center; gap:8px; padding:4px; border-radius:4px">
+                <input type="checkbox" checked style="width:16px; height:16px; flex-shrink:0; accent-color:#0d8266; margin:0">
+                <label style="font-size:12px; color:#1f2937; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">Show the drawdown table again</label>
+              </li>
+              <li style="display:flex; align-items:center; gap:8px; padding:4px; border-radius:4px">
+                <input type="checkbox" checked style="width:16px; height:16px; flex-shrink:0; accent-color:#0d8266; margin:0">
+                <label style="font-size:12px; color:#1f2937; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">Summarise the whole thread for my notes</label>
+              </li>
+            </ul>
+            <div style="margin-top:4px; font-size:11px; color:#6b7280">14 of 14 selected</div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px">
+            <div style="position:relative; display:flex; align-items:center; gap:10px; width:100%">
+              <img src="src/assets/icons/pdf-icon.svg" alt="" style="width:20px; height:20px; flex-shrink:0; opacity:.8">
+              <div style="flex:1; padding:10px 32px 10px 12px; border:1px solid #e5e7eb; border-radius:6px; background:#ffffff url(&quot;data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E&quot;) no-repeat right 12px center; color:#1f2937; font-size:13px; font-weight:500">PDF Document</div>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:4px">
+              <div style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:10px 16px; border:2px solid #0d8266; border-radius:6px; background:#ffffff; color:#0d8266; font-size:13px; font-weight:600; white-space:nowrap">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0"><path d="M8 1v10M8 11l3-3M8 11l-3-3M2 14h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                <span style="font-weight:600">Export</span>
+              </div>
+              <div style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:10px 16px; border:2px solid #0d8266; border-radius:6px; background:#ffffff; color:#0d8266; font-size:13px; font-weight:600; white-space:nowrap">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0"><path d="M4 5V2h8v3M4 11H2V7h12v4h-2M4 9h8v5H4V9z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                <span style="font-weight:600">Print</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:12px; margin-top:16px">
+            <label style="display:flex; align-items:center; gap:8px; padding:4px; border-radius:4px">
+              <input type="checkbox" checked style="width:16px; height:16px; accent-color:#0d8266; margin:0">
+              <span style="font-size:13px; color:#1f2937">Include metadata</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; padding:4px; border-radius:4px">
+              <input type="checkbox" style="width:16px; height:16px; accent-color:#0d8266; margin:0">
+              <span style="font-size:13px; color:#1f2937">Include timestamps</span>
+            </label>
+          </div>
+        </div>
+        <div style="padding:12px 16px; border-top:1px solid #e5e7eb; background:#f9fafb; text-align:center; font-size:12px; color:#6b7280">
+          <a href="#" style="color:#0d8266; text-decoration:none">GitHub</a>
+          <span style="margin:0 8px">•</span>
+          <a href="#" style="color:#0d8266; text-decoration:none">Report Issue</a>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:10px">
+      <div style="font-size:12px; font-weight:600; color:#6b7280">No compatible · ES</div>
+      <div style="width:360px; background:#ffffff; border:1px solid #d8dedb; box-shadow:0 8px 24px rgba(15,32,28,.12); font-size:14px; line-height:1.5; color:#1f2937; display:flex; flex-direction:column">
+        <div style="display:flex; align-items:flex-start; gap:10px; padding:12px 16px; border-bottom:1px solid #e5e7eb; background:#f9fafb">
+          <img src="src/assets/icons/icon-128.png" alt="Logo" style="width:32px; height:32px; flex-shrink:0">
+          <div style="display:flex; flex-direction:column; gap:2px; flex:1">
+            <h1 style="font-size:18px; font-weight:600; margin:0 0 4px 0">Exportador de Chats IA</h1>
+            <span style="font-size:12px; color:#6b7280">v1.1.1</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; flex-shrink:0">
+            <span style="width:6px; height:6px; border-radius:50%; background:#6b7280; flex-shrink:0"></span>
+            <span style="font-size:10px; color:#6b7280; white-space:nowrap; font-weight:500">No compatible</span>
+          </div>
+        </div>
+        <div style="flex:1; padding:16px">
+          <div style="padding:20px; text-align:center">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:16px; padding:24px; background:#f9fafb; border-radius:8px; border:1px solid #e5e7eb">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" style="color:#f59e0b; flex-shrink:0"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"></circle><path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+              <h3 style="font-size:16px; font-weight:600; color:#1f2937; margin:0">Chatbot No Detectado</h3>
+              <p style="font-size:13px; color:#6b7280; line-height:1.6; margin:0; text-align:left">
+                Esta página no parece tener una conversación de chatbot compatible.
+                <br><br>
+                <strong style="color:#1f2937; font-weight:600">Plataformas compatibles:</strong>
+                <br>• ChatGPT (chat.openai.com, chatgpt.com)
+                <br>• Claude (claude.ai)
+                <br>• Gemini (gemini.google.com)
+              </p>
+            </div>
+          </div>
+        </div>
+        <div style="padding:12px 16px; border-top:1px solid #e5e7eb; background:#f9fafb; text-align:center; font-size:12px; color:#6b7280">
+          <a href="#" style="color:#0d8266; text-decoration:none">GitHub</a>
+          <span style="margin:0 8px">•</span>
+          <a href="#" style="color:#0d8266; text-decoration:none">Reportar Problema</a>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:10px">
+      <div style="font-size:12px; font-weight:600; color:#6b7280">Recarga necesaria · ES</div>
+      <div style="width:360px; background:#ffffff; border:1px solid #d8dedb; box-shadow:0 8px 24px rgba(15,32,28,.12); font-size:14px; line-height:1.5; color:#1f2937; display:flex; flex-direction:column">
+        <div style="display:flex; align-items:flex-start; gap:10px; padding:12px 16px; border-bottom:1px solid #e5e7eb; background:#f9fafb">
+          <img src="src/assets/icons/icon-128.png" alt="Logo" style="width:32px; height:32px; flex-shrink:0">
+          <div style="display:flex; flex-direction:column; gap:2px; flex:1">
+            <h1 style="font-size:18px; font-weight:600; margin:0 0 4px 0">Exportador de Chats IA</h1>
+            <span style="font-size:12px; color:#6b7280">v1.1.1</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; flex-shrink:0">
+            <span style="width:6px; height:6px; border-radius:50%; background:#f59e0b; flex-shrink:0"></span>
+            <span style="font-size:10px; color:#6b7280; white-space:nowrap; font-weight:500">Recarga necesaria</span>
+          </div>
+        </div>
+        <div style="flex:1; padding:16px">
+          <div style="padding:20px; text-align:center">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:16px; padding:24px; background:#f9fafb; border-radius:8px; border:1px solid #e5e7eb">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" style="color:#f59e0b; flex-shrink:0"><path d="M21 10C21 10 18.995 7.26822 17.3662 5.63824C15.7373 4.00827 13.4864 3 11 3C6.02944 3 2 7.02944 2 12C2 16.9706 6.02944 21 11 21C15.1031 21 18.5649 18.2543 19.6482 14.5M21 10V4M21 10H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <h3 style="font-size:16px; font-weight:600; color:#1f2937; margin:0">Recarga de Página Requerida</h3>
+              <p style="font-size:13px; color:#6b7280; line-height:1.6; margin:0; text-align:left">
+                Por favor, recarga esta página para habilitar la extensión Exportador de Chats IA.
+                <br><br>
+                <strong style="color:#1f2937; font-weight:600">Cómo recargar:</strong>
+                <br>• Presiona Ctrl+R (Windows/Linux) o ⌘+R (Mac)
+                <br>• O haz clic en el botón de recarga de tu navegador
+              </p>
+            </div>
+          </div>
+        </div>
+        <div style="padding:12px 16px; border-top:1px solid #e5e7eb; background:#f9fafb; text-align:center; font-size:12px; color:#6b7280">
+          <a href="#" style="color:#0d8266; text-decoration:none">GitHub</a>
+          <span style="margin:0 8px">•</span>
+          <a href="#" style="color:#0d8266; text-decoration:none">Reportar Problema</a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</x-dc>
+</body>
+</html>

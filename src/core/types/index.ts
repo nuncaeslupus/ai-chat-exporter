@@ -11,6 +11,7 @@ export type {
   QAPair,
   Conversation,
   Artifact,
+  MediaItem,
   WebSearchResult,
 } from './conversation';
 
@@ -25,6 +26,7 @@ export type {
   BlockquoteBlock,
   HorizontalRuleBlock,
   ImageBlock,
+  MediaBlock,
   TableBlock,
   StructuredContentBlock,
   InlineContent,
@@ -47,6 +49,7 @@ export { DEFAULT_PARSER_CONFIG } from './parser';
 // Exporter types
 export type {
   ExportFormat,
+  FontScale,
   PDFExportOptions,
   DOCXExportOptions,
   ExportOptions,
@@ -67,12 +70,14 @@ export {
 // Config types
 export type {
   FilenameVariables,
-  UserPreferences,
+  FilenamePiece,
+  FilenamePieceType,
+  FilenamePreferences,
   PrintOptions,
 } from './config';
 export {
   DEFAULT_FILENAME_TEMPLATE,
-  DEFAULT_PREFERENCES,
+  DEFAULT_FILENAME_PIECES,
   DEFAULT_PRINT_OPTIONS,
 } from './config';
 
@@ -86,7 +91,4 @@ export type {
   ClaudeApiConversationResponse,
   ClaudeApiRequest,
 } from './claude-api';
-export {
-  isToolUseContent,
-  isArtifactContent,
-} from './claude-api';
+export { isToolUseContent, isArtifactContent } from './claude-api';

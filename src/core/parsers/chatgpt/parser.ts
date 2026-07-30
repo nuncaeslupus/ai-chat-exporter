@@ -11,7 +11,7 @@ import type {
   WebSearchResult,
 } from '../../types';
 import { BaseParser } from '../base-parser';
-import { CHATGPT_SELECTORS, isChatGPTUrl } from './selectors';
+import { CHATGPT_SELECTORS, EMBEDDED_FRAME_REPORT_ATTR, isChatGPTUrl } from './selectors';
 
 /**
  * Parser for ChatGPT conversations
@@ -20,13 +20,18 @@ export class ChatGPTParser extends BaseParser {
   readonly platformInfo: PlatformInfo = {
     id: 'chatgpt',
     name: 'ChatGPT',
-    urlPatterns: [
-      /^https?:\/\/(www\.)?chat\.openai\.com/,
-      /^https?:\/\/(www\.)?chatgpt\.com/,
-    ],
+    urlPatterns: [/^https?:\/\/(www\.)?chat\.openai\.com/, /^https?:\/\/(www\.)?chatgpt\.com/],
   };
 
   readonly selectors = CHATGPT_SELECTORS;
+
+  protected override get chromeStrings(): readonly string[] {
+    return ['ChatGPT said:', 'You said:'];
+  }
+
+  protected override get requiredSelectorKeys(): readonly string[] {
+    return [...super.requiredSelectorKeys, 'custom.conversationTurn', 'custom.assistantTurn'];
+  }
 
   /**
    * Check if this parser can handle the current page
@@ -62,7 +67,7 @@ export class ChatGPTParser extends BaseParser {
 
     // Try to extract from URL
     const url = this.getUrl();
-    const match = url.match(/\/c\/([a-f0-9-]+)/);
+    const match = /\/c\/([a-f0-9-]+)/.exec(url);
     if (match) {
       const conversationLink = this.document.querySelector(`a[href*="${match[0]}"]`);
       const title = conversationLink
@@ -107,59 +112,110 @@ export class ChatGPTParser extends BaseParser {
   }
 
   /**
-   * Extract Q&A pairs from the ChatGPT DOM
+   * Extract Q&A pairs from the ChatGPT DOM.
+   *
+   * Pairs structurally: turns are walked in document order (one combined,
+   * unfiltered query over both `userTurn` and `assistantTurn`), and each
+   * user turn is paired with the assistant turn that immediately follows
+   * it. A turn whose content fails to extract still occupies its slot in
+   * that walk -- it degrades to an empty half plus a warning (see
+   * `collectWarnings`) rather than being dropped, which is what previously
+   * let a later answer silently shift onto the wrong question (lo-d0f0).
    */
   protected extractQAPairs(config: ParserConfig): QAPair[] {
     const pairs: QAPair[] = [];
-    const userMessages = this.extractUserMessages(config);
-    const assistantMessages = this.extractAssistantMessages(config);
+    const turns = this.document.querySelectorAll(
+      `${this.selectors.custom.userTurn}, ${this.selectors.custom.assistantTurn}`
+    );
 
-    // Pair up user and assistant messages
-    const maxPairs = Math.min(userMessages.length, assistantMessages.length);
-    for (let i = 0; i < maxPairs; i++) {
-      const userMsg = userMessages[i];
-      const assistantMsg = assistantMessages[i];
-      // These are guaranteed to exist because i < maxPairs
-      if (userMsg && assistantMsg) {
-        const pair = this.createQAPair(i, userMsg, assistantMsg);
-        pairs.push(pair);
+    let pendingQuestion: Message | null = null;
+    let hasPendingQuestion = false;
+
+    turns.forEach((turn) => {
+      if (turn.matches(this.selectors.custom.userTurn)) {
+        if (hasPendingQuestion) {
+          // The previous user turn never got an assistant reply (e.g. the
+          // conversation was regenerated). Keep it as its own pair with an
+          // empty answer instead of letting this turn's answer attach to it.
+          pairs.push(
+            this.createQAPair(
+              pairs.length,
+              pendingQuestion ?? this.createMessage('user', ''),
+              this.createMessage('assistant', '')
+            )
+          );
+        }
+        pendingQuestion = this.extractUserMessageFromTurn(turn, config);
+        hasPendingQuestion = true;
+        return;
       }
-    }
 
-    // Handle orphan user messages (no assistant response yet)
-    // We skip these for now as they're incomplete
+      // Assistant turn.
+      const answer = this.extractAssistantMessageFromTurn(turn, config);
+      if (!hasPendingQuestion) {
+        // Orphan assistant turn with no preceding question; nothing to pair.
+        return;
+      }
+      pairs.push(
+        this.createQAPair(
+          pairs.length,
+          pendingQuestion ?? this.createMessage('user', ''),
+          answer ?? this.createMessage('assistant', '')
+        )
+      );
+      pendingQuestion = null;
+      hasPendingQuestion = false;
+    });
+
+    // A trailing pending question (no assistant reply yet) is an in-progress
+    // conversation -- skip it, same as before.
 
     return pairs;
   }
 
   /**
-   * Extract all user messages from the DOM
+   * Flag half-empty turns so a partially-read conversation is visible to the
+   * user instead of quietly shipping a blank question or answer.
    */
-  private extractUserMessages(config: ParserConfig): Message[] {
-    const messages: Message[] = [];
+  protected override collectWarnings(pairs: QAPair[]): string[] | undefined {
+    const warnings = super.collectWarnings(pairs) ?? [];
 
-    // Get all user turns
-    const userTurns = this.document.querySelectorAll(this.selectors.custom.userTurn);
-
-    userTurns.forEach((turn) => {
-      // Try to find a message element within the turn
-      const messageElement = turn.querySelector(this.selectors.userMessage);
-
-      if (messageElement) {
-        const message = this.extractUserMessage(messageElement, config);
-        if (message) {
-          messages.push(message);
-        }
-      } else {
-        // Fallback: treat the whole turn as a message
-        const message = this.extractUserMessage(turn, config);
-        if (message) {
-          messages.push(message);
-        }
+    for (const pair of pairs) {
+      const turn = String(pair.index + 1);
+      if (!pair.question.content) {
+        warnings.push(`Turn ${turn}: the question could not be read`);
       }
-    });
+      if (!pair.answer.content) {
+        warnings.push(`Turn ${turn}: the answer could not be read`);
+      }
+    }
 
-    return messages;
+    return warnings.length > 0 ? warnings : undefined;
+  }
+
+  /**
+   * Extract the user message from a single user turn.
+   */
+  private extractUserMessageFromTurn(turn: Element, config: ParserConfig): Message | null {
+    const messageElement = turn.querySelector(this.selectors.userMessage);
+    return this.extractUserMessage(messageElement ?? turn, config);
+  }
+
+  /**
+   * Extract the assistant message from a single assistant turn.
+   */
+  private extractAssistantMessageFromTurn(turn: Element, config: ParserConfig): Message | null {
+    // Find ALL message elements within the turn (for deep research, there can be multiple)
+    const messageElements = turn.querySelectorAll(this.selectors.assistantMessage);
+
+    if (messageElements.length > 0) {
+      // Normal text response(s) - may have multiple for deep research
+      // Combine all messages from this turn into a single message
+      return this.extractCombinedMessage(turn, messageElements, config);
+    }
+
+    // Special turn type (canvas or image-gen) - treat the whole turn as a message
+    return this.extractAssistantMessage(turn, config);
   }
 
   /**
@@ -167,7 +223,8 @@ export class ChatGPTParser extends BaseParser {
    */
   private extractUserMessage(element: Element, config: ParserConfig): Message | null {
     // Get message ID from attribute
-    const messageId = element.getAttribute(this.selectors.custom.messageIdAttr) || this.generateId();
+    const messageId =
+      element.getAttribute(this.selectors.custom.messageIdAttr) || this.generateId();
 
     // Extract images first so an image-only turn still occupies its slot
     const images = this.extractImages(element);
@@ -179,8 +236,10 @@ export class ChatGPTParser extends BaseParser {
     let htmlContent: string | undefined;
 
     if (!contentElement) {
-      // Try to get content directly from the element
-      content = element.textContent?.trim();
+      // Try to get content directly from the element. Via extractContent, not
+      // raw textContent: the turn wrapper carries ChatGPT's screenreader label
+      // ("You said:"), and that is not the user's message (lo-f132).
+      content = this.extractContent(element, false).content;
     } else {
       ({ content, htmlContent } = this.extractContent(contentElement, config.preserveHtml));
     }
@@ -204,38 +263,6 @@ export class ChatGPTParser extends BaseParser {
   }
 
   /**
-   * Extract all assistant messages from the DOM
-   */
-  private extractAssistantMessages(config: ParserConfig): Message[] {
-    const messages: Message[] = [];
-
-    // Get all assistant turns (includes text, canvas, and image-gen turns)
-    const assistantTurns = this.document.querySelectorAll(this.selectors.custom.assistantTurn);
-
-    assistantTurns.forEach((turn) => {
-      // Find ALL message elements within the turn (for deep research, there can be multiple)
-      const messageElements = turn.querySelectorAll(this.selectors.assistantMessage);
-
-      if (messageElements.length > 0) {
-        // Normal text response(s) - may have multiple for deep research
-        // Combine all messages from this turn into a single message
-        const combinedMessage = this.extractCombinedMessage(turn, messageElements, config);
-        if (combinedMessage) {
-          messages.push(combinedMessage);
-        }
-      } else {
-        // Special turn type (canvas or image-gen) - treat the whole turn as a message
-        const message = this.extractAssistantMessage(turn, config);
-        if (message) {
-          messages.push(message);
-        }
-      }
-    });
-
-    return messages;
-  }
-
-  /**
    * Extract and combine multiple message elements from a single turn (for deep research, canvas, etc.)
    */
   private extractCombinedMessage(
@@ -244,13 +271,14 @@ export class ChatGPTParser extends BaseParser {
     config: ParserConfig
   ): Message | null {
     const messageIdAttr = this.selectors.custom.messageIdAttr;
-    const messageId = turn.getAttribute(messageIdAttr) ||
-                     messageElements[0]?.getAttribute(messageIdAttr) ||
-                     this.generateId();
+    const messageId =
+      turn.getAttribute(messageIdAttr) ||
+      messageElements[0]?.getAttribute(messageIdAttr) ||
+      this.generateId();
 
     const contentParts: string[] = [];
     const htmlParts: string[] = [];
-    const allImages: Array<{ src: string; alt?: string }> = [];
+    const allImages: { src: string; alt?: string }[] = [];
 
     // Check if this turn contains canvas content (should be extracted first)
     const canvasContent = this.extractCanvasContent(turn);
@@ -325,12 +353,18 @@ export class ChatGPTParser extends BaseParser {
    */
   private extractAssistantMessage(element: Element, config: ParserConfig): Message | null {
     // Get message ID from attribute
-    const messageId = element.getAttribute(this.selectors.custom.messageIdAttr) || this.generateId();
+    const messageId =
+      element.getAttribute(this.selectors.custom.messageIdAttr) || this.generateId();
 
     // Check if this is a canvas turn
     const canvasContent = this.extractCanvasContent(element);
     if (canvasContent) {
-      const message = this.createMessage('assistant', canvasContent.text, canvasContent.html, messageId);
+      const message = this.createMessage(
+        'assistant',
+        canvasContent.text,
+        canvasContent.html,
+        messageId
+      );
       return message;
     }
 
@@ -348,15 +382,20 @@ export class ChatGPTParser extends BaseParser {
     const contentElement = element.querySelector(this.selectors.custom.assistantMessageContent);
 
     if (!contentElement) {
-      // Try to get content directly from the element
-      const text = element.textContent?.trim();
+      // A widget answer (Deep Research) has no readable body at all, so
+      // announce it; otherwise fall back to the turn's own text -- via
+      // extractContent, not raw textContent, because the turn wrapper carries
+      // ChatGPT's screenreader label ("ChatGPT said:") and shipping that as the
+      // answer is how a Deep Research export came out 13 characters long.
+      const text =
+        this.extractEmbeddedWidgetContent(element) ?? this.extractContent(element, false).content;
       if (!text) {
         return null;
       }
       return this.createMessage('assistant', text, undefined, messageId);
     }
 
-    let { content, htmlContent } = this.extractContent(contentElement, config.preserveHtml);
+    const { content, htmlContent } = this.extractContent(contentElement, config.preserveHtml);
 
     // Extract images from the assistant's turn
     const images = this.extractImages(element);
@@ -402,8 +441,10 @@ export class ChatGPTParser extends BaseParser {
   /**
    * Extract images from a message element
    */
-  private extractImages(element: Element): Array<{ src: string; alt?: string; width?: number; height?: number }> {
-    const images: Array<{ src: string; alt?: string; width?: number; height?: number }> = [];
+  private extractImages(
+    element: Element
+  ): { src: string; alt?: string; width?: number; height?: number }[] {
+    const images: { src: string; alt?: string; width?: number; height?: number }[] = [];
 
     // Find all img tags within the message
     const imgElements = element.querySelectorAll('img');
@@ -428,7 +469,12 @@ export class ChatGPTParser extends BaseParser {
       const alt = img.getAttribute('alt');
 
       // Skip UI icons, tiny images, and non-content container images
-      if (src && !src.includes('sprites-core') && !src.includes('icon') && !img.closest(excludedImageContainerSelector)) {
+      if (
+        src &&
+        !src.includes('sprites-core') &&
+        !src.includes('icon') &&
+        !img.closest(excludedImageContainerSelector)
+      ) {
         const imageData: { src: string; alt?: string; width?: number; height?: number } = { src };
         if (alt) {
           imageData.alt = alt;
@@ -492,13 +538,17 @@ export class ChatGPTParser extends BaseParser {
     const text = proseMirrorContent.textContent?.trim() || '';
     const html = proseMirrorContent.innerHTML || '';
 
-    return text ? { text: `[Canvas Content]\n${text}`, html: `<div class="canvas-content">${html}</div>` } : null;
+    return text
+      ? { text: `[Canvas Content]\n${text}`, html: `<div class="canvas-content">${html}</div>` }
+      : null;
   }
 
   /**
    * Extract generated image from image-gen turn
    */
-  private extractGeneratedImage(element: Element): { src: string; alt?: string; width?: number; height?: number } | null {
+  private extractGeneratedImage(
+    element: Element
+  ): { src: string; alt?: string; width?: number; height?: number } | null {
     // Look for image generation container
     const imageGenContainer = element.querySelector(this.selectors.custom.generatedImageContainer);
     if (!imageGenContainer) {
@@ -580,9 +630,57 @@ export class ChatGPTParser extends BaseParser {
   }
 
   /**
+   * Content for an answer ChatGPT renders in a sandboxed cross-origin frame
+   * instead of in the page -- Deep Research, and any sibling connector
+   * widget, since they all carry `title="internal://<widget>"`.
+   *
+   * The frame's own document is on `*.oaiusercontent.com`, cross-origin from
+   * the page, so this parser cannot read a single character of it directly.
+   * A content script running *inside* the frame (let in because
+   * `allow-same-origin` keeps the frame's real origin) relays the rendered
+   * text out over `postMessage`, and the page's content script stashes it on
+   * this iframe element as `EMBEDDED_FRAME_REPORT_ATTR` (lo-9001) -- prefer
+   * that when present.
+   *
+   * When it is not (the relay never ran, the frame never finished rendering,
+   * the text came back empty), fall back to naming the widget: the src
+   * carries no report id either (`?app=chatgpt&locale=…` only), so there is
+   * no link worth emitting, and naming the widget beats the screenreader
+   * label or nothing at all.
+   *
+   * ponytail: only the widget-only turn is covered. A turn mixing a widget
+   * with real markdown would keep the markdown and drop this -- no capture
+   * shows one; extend `extractCombinedMessage` the same way if one turns up.
+   */
+  private extractEmbeddedWidgetContent(element: Element): string | null {
+    const frame = element.querySelector(this.selectors.custom.embeddedWidgetFrame);
+    if (!frame) {
+      return null;
+    }
+
+    const reportText = frame.getAttribute(EMBEDDED_FRAME_REPORT_ATTR)?.trim();
+    if (reportText) {
+      return reportText;
+    }
+
+    const title = frame.getAttribute('title');
+    const name = (title ?? '')
+      .replace(/^internal:\/\//, '')
+      .replace(/[-_]/g, ' ')
+      .trim()
+      .replace(/\b[a-z]/g, (c) => c.toUpperCase());
+
+    return name
+      ? `[${name}: rendered in an embedded viewer ChatGPT does not expose to the page]`
+      : null;
+  }
+
+  /**
    * Extract deep research information
    */
-  private extractDeepResearchInfo(element: Element): { duration: string; sources: number; searches: number } | null {
+  private extractDeepResearchInfo(
+    element: Element
+  ): { duration: string; sources: number; searches: number } | null {
     // Look for research completion indicator
     const researchButton = element.querySelector(this.selectors.custom.deepResearchButton);
     if (!researchButton) {
@@ -592,9 +690,9 @@ export class ChatGPTParser extends BaseParser {
     const text = researchButton.textContent?.trim() || '';
 
     // Parse research info (e.g., "Research completed in 6m· 18 fuentes· 60 búsquedas")
-    const durationMatch = text.match(/(\d+[msh])/);
-    const sourcesMatch = text.match(/(\d+)\s*(?:fuentes|sources)/i);
-    const searchesMatch = text.match(/(\d+)\s*(?:búsquedas|searches)/i);
+    const durationMatch = /(\d+[msh])/.exec(text);
+    const sourcesMatch = /(\d+)\s*(?:fuentes|sources)/i.exec(text);
+    const searchesMatch = /(\d+)\s*(?:búsquedas|searches)/i.exec(text);
 
     if (durationMatch || sourcesMatch || searchesMatch) {
       return {
@@ -702,12 +800,12 @@ export class ChatGPTParser extends BaseParser {
       return [];
     }
 
-    const results: Array<{
+    const results: {
       title: string;
       url: string;
       favicon?: string;
       domain?: string;
-    }> = [];
+    }[] = [];
 
     citationLinks.forEach((link) => {
       const url = link.getAttribute('href');
@@ -750,11 +848,13 @@ export class ChatGPTParser extends BaseParser {
     }
 
     // Return a single WebSearchResult with all citations
-    return [{
-      query: 'Web Search',
-      resultCount: results.length,
-      results,
-    }];
+    return [
+      {
+        query: 'Web Search',
+        resultCount: results.length,
+        results,
+      },
+    ];
   }
 
   /**

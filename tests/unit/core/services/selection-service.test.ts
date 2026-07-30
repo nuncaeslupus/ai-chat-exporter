@@ -34,9 +34,11 @@ describe('SelectionService', () => {
     });
 
     it('does not mutate the original array', () => {
-      const original = [...pairs];
-      SelectionService.toggleSelection(pairs, '0');
-      expect(pairs[0]!.selected).toBe(original[0]!.selected);
+      // Snapshot primitives: a shallow array copy shares the pair objects and
+      // would compare equal even if toggleSelection mutated them in place.
+      const original = pairs.map((pair) => pair.selected);
+      SelectionService.toggleSelection(pairs, 'pair-0');
+      expect(pairs.map((pair) => pair.selected)).toEqual(original);
     });
 
     it('only toggles the specified pair', () => {

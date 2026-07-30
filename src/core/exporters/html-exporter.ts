@@ -10,20 +10,43 @@ import type {
   Conversation,
   QAPair,
   StructuredContentBlock,
+  StructuredConversation,
+  StructuredQAPair,
   InlineContent,
   ListBlock,
   ListItem,
   TableBlock,
+  Artifact,
+  WebSearchResult,
 } from '../types';
 import { BaseExporter } from './base-exporter';
 import { ConversationStructureService } from '../services';
 import { getMessage, getUILanguage } from '../../shared/i18n';
-import { COLOR, FONT_FAMILY, FONT_SIZE_PT, HTML_FONT_SIZE_PT, SPACING, mmToPx, ptToPx } from './style-tokens';
+import {
+  COLOR,
+  FONT_FAMILY,
+  FONT_SIZE_PT,
+  HTML_FONT_SIZE_PT,
+  PAGINATION,
+  SPACING,
+  bodyHeadingLevel,
+  mmToPx,
+  ptToPx,
+  scaleFontSizes,
+} from './style-tokens';
 
 export class HtmlExporter extends BaseExporter {
   readonly format: ExportFormat = 'html';
   readonly extension = 'html';
   readonly mimeType = 'text/html';
+
+  /**
+   * The size tables for this export, already multiplied by the chosen step.
+   * Set once per export (a fresh exporter is built per export), so no rule in
+   * `generateCSS()` can be emitted at an unscaled size.
+   */
+  private sizes = scaleFontSizes(FONT_SIZE_PT);
+  private htmlSizes = scaleFontSizes(HTML_FONT_SIZE_PT);
 
   async export(
     conversation: Conversation,
@@ -31,6 +54,9 @@ export class HtmlExporter extends BaseExporter {
     options: ExportOptions
   ): Promise<ExportResult> {
     try {
+      this.sizes = scaleFontSizes(FONT_SIZE_PT, options.fontScale);
+      this.htmlSizes = scaleFontSizes(HTML_FONT_SIZE_PT, options.fontScale);
+
       // Convert to structured format (only the selected pairs)
       const structured = ConversationStructureService.toStructured({
         ...conversation,
@@ -48,11 +74,12 @@ export class HtmlExporter extends BaseExporter {
     }
   }
 
-  private generateHTML(conversation: any, options: ExportOptions): string {
+  private generateHTML(conversation: StructuredConversation, options: ExportOptions): string {
     const title = this.escapeHtml(conversation.title);
     const platform = this.escapeHtml(this.formatPlatformName(conversation.platform));
     const model = conversation.model ? this.escapeHtml(conversation.model) : '';
     const date = this.formatTimestamp(conversation.createdAt);
+    const dateRange = this.escapeHtml(this.formatDateRange(conversation.pairs));
     const url = this.escapeHtml(conversation.url);
 
     return `<!DOCTYPE html>
@@ -68,7 +95,7 @@ export class HtmlExporter extends BaseExporter {
     <div class="container">
         <header class="header">
             <h1 class="title">${title}</h1>
-            ${options.includeMetadata ? this.generateMetadata(platform, model, date, url) : ''}
+            ${options.includeMetadata ? this.generateMetadata(platform, model, dateRange, date, url) : ''}
         </header>
 
         <main class="conversation">
@@ -83,18 +110,37 @@ export class HtmlExporter extends BaseExporter {
 </html>`;
   }
 
-  private generateMetadata(platform: string, model: string, date: string, url: string): string {
+  private generateMetadata(
+    platform: string,
+    model: string,
+    dateRange: string,
+    date: string,
+    url: string
+  ): string {
     return `
             <div class="metadata">
                 <div class="metadata-item">
                     <span class="metadata-label">${this.getMetadataLabel('platform')}:</span>
                     <span class="metadata-value">${platform}</span>
                 </div>
-                ${model ? `
+                ${
+                  model
+                    ? `
                 <div class="metadata-item">
                     <span class="metadata-label">${this.getMetadataLabel('model')}:</span>
                     <span class="metadata-value">${model}</span>
-                </div>` : ''}
+                </div>`
+                    : ''
+                }
+                ${
+                  dateRange
+                    ? `
+                <div class="metadata-item">
+                    <span class="metadata-label">${this.getMetadataLabel('dateRange')}:</span>
+                    <span class="metadata-value">${dateRange}</span>
+                </div>`
+                    : ''
+                }
                 <div class="metadata-item">
                     <span class="metadata-label">${this.getMetadataLabel('exported')}:</span>
                     <span class="metadata-value">${date}</span>
@@ -106,23 +152,30 @@ export class HtmlExporter extends BaseExporter {
             </div>`;
   }
 
-  private generatePairs(pairs: any[], platform: string, options: ExportOptions): string {
+  private generatePairs(
+    pairs: StructuredQAPair[],
+    platform: string,
+    options: ExportOptions
+  ): string {
     const assistantName = this.getRoleName('assistant', platform);
+    const daySeparator = this.daySeparator(options.includeTimestamps);
 
-    return pairs.map(pair => `
+    return pairs
+      .map(
+        (pair) => `${this.renderDaySeparator(daySeparator(pair.question.timestamp))}
             <div class="qa-pair">
                 <div class="message user-message">
                     <div class="message-header">
-                        <span class="message-role">${this.getRoleName('user')}</span>${this.renderTimestampSpan(pair.question.timestamp, options.includeTimestamps)}
+                        <h2 class="message-role">${this.getRoleName('user')}</h2>${this.renderTimestampSpan(pair.question.timestamp, options.includeTimestamps)}
                     </div>
                     <div class="message-content">
                         ${this.renderBlocks(pair.question.blocks)}
                     </div>
                 </div>
-
+                ${this.renderDaySeparator(daySeparator(pair.answer.timestamp))}
                 <div class="message assistant-message" data-platform="${platform}">
                     <div class="message-header">
-                        <span class="message-role">${assistantName}</span>${this.renderTimestampSpan(pair.answer.timestamp, options.includeTimestamps)}
+                        <h2 class="message-role">${assistantName}</h2>${this.renderTimestampSpan(pair.answer.timestamp, options.includeTimestamps)}
                     </div>
                     <div class="message-content">
                         ${this.renderBlocks(pair.answer.blocks)}
@@ -130,7 +183,13 @@ export class HtmlExporter extends BaseExporter {
                         ${this.renderWebSearches(pair.answer.metadata?.webSearches)}
                     </div>
                 </div>
-            </div>`).join('\n');
+            </div>`
+      )
+      .join('\n');
+  }
+
+  private renderDaySeparator(separator: string): string {
+    return separator ? `<div class="day-separator">${this.escapeHtml(separator)}</div>` : '';
   }
 
   private renderTimestampSpan(date: Date | undefined, includeTimestamps: boolean): string {
@@ -138,12 +197,12 @@ export class HtmlExporter extends BaseExporter {
     return suffix ? `<span class="message-timestamp">${this.escapeHtml(suffix)}</span>` : '';
   }
 
-  private renderArtifacts(artifacts?: any[]): string {
+  private renderArtifacts(artifacts?: Artifact[]): string {
     if (!artifacts || !Array.isArray(artifacts)) {
       return '';
     }
 
-    const artifactsWithContent = artifacts.filter(a => a.content);
+    const artifactsWithContent = artifacts.filter((a) => a.content);
     if (artifactsWithContent.length === 0) {
       return '';
     }
@@ -151,16 +210,20 @@ export class HtmlExporter extends BaseExporter {
     return `
                         <div class="artifacts-section">
                             <h3>Artifacts</h3>
-                            ${artifactsWithContent.map(artifact => `
+                            ${artifactsWithContent
+                              .map(
+                                (artifact) => `
                             <div class="artifact">
                                 <h4>${this.escapeHtml(artifact.title)}</h4>
                                 ${artifact.typeLabel ? `<p class="artifact-type"><em>Type: ${this.escapeHtml(artifact.typeLabel)}</em></p>` : ''}
                                 <pre><code class="language-${this.escapeHtml(artifact.language || '')}">${this.escapeHtml(artifact.content || '')}</code></pre>
-                            </div>`).join('\n')}
+                            </div>`
+                              )
+                              .join('\n')}
                         </div>`;
   }
 
-  private renderWebSearches(webSearches?: any[]): string {
+  private renderWebSearches(webSearches?: WebSearchResult[]): string {
     if (!webSearches || !Array.isArray(webSearches) || webSearches.length === 0) {
       return '';
     }
@@ -168,100 +231,147 @@ export class HtmlExporter extends BaseExporter {
     return `
                         <div class="web-searches-section">
                             <h3>Web Search Results</h3>
-                            ${webSearches.map(search => `
+                            ${webSearches
+                              .map(
+                                (search) => `
                             <div class="web-search">
                                 <h4>${this.escapeHtml(search.query || 'References')}</h4>
                                 ${search.resultCount ? `<p class="search-count"><em>${search.resultCount} results found</em></p>` : ''}
-                                ${search.results && search.results.length > 0 ? `
+                                ${
+                                  search.results && search.results.length > 0
+                                    ? `
                                 <ul class="search-results">
-                                    ${search.results.map((result: any) => `
+                                    ${search.results
+                                      .map(
+                                        (result) => `
                                     <li class="search-result">
                                         <div class="result-content">
                                             <a href="${this.escapeHtml(result.url)}" target="_blank" rel="noopener noreferrer" class="result-title">${this.escapeHtml(result.title)}</a>
                                             ${result.domain ? `<span class="result-domain">${this.escapeHtml(result.domain)}</span>` : ''}
                                         </div>
-                                    </li>`).join('\n')}
-                                </ul>` : ''}
-                            </div>`).join('\n')}
+                                    </li>`
+                                      )
+                                      .join('\n')}
+                                </ul>`
+                                    : ''
+                                }
+                            </div>`
+                              )
+                              .join('\n')}
                         </div>`;
   }
 
   private renderBlocks(blocks: StructuredContentBlock[]): string {
-    return blocks.map(block => {
-      switch (block.type) {
-        case 'paragraph':
-          const content = this.renderInline(block.content).trim();
-          return content ? `<p>${content}</p>` : '';
+    return blocks
+      .map((block) => {
+        switch (block.type) {
+          case 'paragraph': {
+            const content = this.renderInline(block.content).trim();
+            return content ? `<p>${content}</p>` : '';
+          }
 
-        case 'heading':
-          const level = Math.min(block.level + 2, 6); // Shift down since title is h1
-          const headingContent = this.renderInline(block.content).trim();
-          return headingContent ? `<h${level}>${headingContent}</h${level}>` : '';
+          case 'heading': {
+            const level = bodyHeadingLevel(block.level); // h1 is the title, h2 the role label
+            const headingContent = this.renderInline(block.content).trim();
+            return headingContent ? `<h${level}>${headingContent}</h${level}>` : '';
+          }
 
-        case 'code':
-          const language = this.escapeHtml(block.language);
-          const code = this.escapeHtml(block.code);
-          return `<pre><code class="language-${language}">${code}</code></pre>`;
+          case 'code': {
+            const language = this.escapeHtml(block.language);
+            const code = this.escapeHtml(block.code);
+            return `<pre><code class="language-${language}">${code}</code></pre>`;
+          }
 
-        case 'list':
-          return this.renderList(block);
+          case 'list':
+            return this.renderList(block);
 
-        case 'blockquote':
-          return `<blockquote>${this.renderBlocks(block.content)}</blockquote>`;
+          case 'blockquote':
+            return `<blockquote>${this.renderBlocks(block.content)}</blockquote>`;
 
-        case 'hr':
-          return '<hr>';
+          case 'hr':
+            return '<hr>';
 
-        case 'image':
-          const alt = this.escapeHtml(block.alt || 'image');
-          const imgUrl = this.escapeHtml(block.url);
-          const imgTitle = block.title ? ` title="${this.escapeHtml(block.title)}"` : '';
-          const imgWidth = block.width ? ` width="${block.width}"` : '';
-          const imgHeight = block.height ? ` height="${block.height}"` : '';
-          return `<img src="${imgUrl}" alt="${alt}"${imgTitle}${imgWidth}${imgHeight}>`;
+          case 'image': {
+            const alt = this.escapeHtml(block.alt || 'image');
+            const imgUrl = this.escapeHtml(block.url);
+            const imgTitle = block.title ? ` title="${this.escapeHtml(block.title)}"` : '';
+            const imgWidth = block.width ? ` width="${block.width}"` : '';
+            const imgHeight = block.height ? ` height="${block.height}"` : '';
+            const img = `<img src="${imgUrl}" alt="${alt}"${imgTitle}${imgWidth}${imgHeight}>`;
+            // A linked thumbnail/citation: HTML is the only format that can put
+            // the image back inside its anchor, so this is where linkUrl is read.
+            if (!block.linkUrl) return img;
+            const href = this.escapeHtml(block.linkUrl);
+            return `<a href="${href}" target="_blank" rel="noopener noreferrer">${img}</a>`;
+          }
 
-        case 'table':
-          return this.renderTable(block);
+          // HTML is the only format that can actually play the clip. The inner
+          // link doubles as the fallback for a browser that can't.
+          case 'media': {
+            const mediaUrl = this.escapeHtml(block.url);
+            const mediaLabel = this.escapeHtml(this.mediaLabel(block));
+            const mediaType = block.mimeType ? ` type="${this.escapeHtml(block.mimeType)}"` : '';
+            const tag = block.kind === 'video' ? 'video' : 'audio';
+            return `<${tag} controls src="${mediaUrl}"${mediaType}><a href="${mediaUrl}">${mediaLabel}</a></${tag}>`;
+          }
 
-        default:
-          return '';
-      }
-    }).filter(Boolean).join('\n');
+          case 'table':
+            return this.renderTable(block);
+
+          default:
+            return '';
+        }
+      })
+      .filter(Boolean)
+      .join('\n');
   }
 
   private renderInline(content: InlineContent[]): string {
-    return content.map(item => {
-      const text = this.escapeHtml(item.text);
+    return content
+      .map((item) => {
+        const text = this.escapeHtml(item.text);
 
-      switch (item.type) {
-        case 'text':
-          return text;
+        switch (item.type) {
+          case 'text':
+            return text;
 
-        case 'bold':
-          return `<strong>${text}</strong>`;
+          case 'bold':
+            return `<strong>${text}</strong>`;
 
-        case 'italic':
-          return `<em>${text}</em>`;
+          case 'italic':
+            return `<em>${text}</em>`;
 
-        case 'code':
-          return `<code class="inline-code">${text}</code>`;
+          case 'code':
+            return `<code class="inline-code">${text}</code>`;
 
-        case 'link':
-          const linkUrl = this.escapeHtml(item.url || '#');
-          return `<a href="${linkUrl}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+          case 'link': {
+            const linkUrl = this.escapeHtml(item.url || '#');
+            return `<a href="${linkUrl}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+          }
 
-        case 'strikethrough':
-          return `<del>${text}</del>`;
+          case 'strikethrough':
+            return `<del>${text}</del>`;
 
-        default:
-          return text;
-      }
-    }).join('');
+          // lo-320b: the delimited LaTeX source, tagged so it is identifiable as
+          // math rather than prose that happens to contain "$". Deliberately NOT
+          // MathML or a KaTeX span: converting LaTeX to either needs a TeX parser,
+          // and KaTeX's stylesheet + fonts would have to be inlined to keep the
+          // export self-contained (no remote subresource, pinned since PR #54).
+          // The class is the hook for a reader who wants to run KaTeX auto-render
+          // over the saved file themselves.
+          case 'math':
+            return `<span class="math math-${item.display === 'block' ? 'display' : 'inline'}">${text}</span>`;
+
+          default:
+            return text;
+        }
+      })
+      .join('');
   }
 
   private renderList(block: ListBlock): string {
     const tag = block.ordered ? 'ol' : 'ul';
-    const items = block.items.map(item => this.renderListItem(item)).join('\n');
+    const items = block.items.map((item) => this.renderListItem(item)).join('\n');
     return `<${tag}>${items}</${tag}>`;
   }
 
@@ -306,9 +416,9 @@ export class HtmlExporter extends BaseExporter {
       '<': '&lt;',
       '>': '&gt;',
       '"': '&quot;',
-      "'": '&#039;'
+      "'": '&#039;',
     };
-    return text.replace(/[&<>"']/g, char => map[char] || char);
+    return text.replace(/[&<>"']/g, (char) => map[char] || char);
   }
 
   private generateCSS(): string {
@@ -322,7 +432,7 @@ export class HtmlExporter extends BaseExporter {
 
         body {
             font-family: ${FONT_FAMILY.body.css};
-            font-size: ${ptToPx(FONT_SIZE_PT.body)}px;
+            font-size: ${ptToPx(this.sizes.body)}px;
             line-height: 1.6;
             color: ${COLOR.textStrong};
             background-color: ${COLOR.surfaceSubtle};
@@ -343,7 +453,7 @@ export class HtmlExporter extends BaseExporter {
         }
 
         .title {
-            font-size: ${ptToPx(HTML_FONT_SIZE_PT.title)}px;
+            font-size: ${ptToPx(this.htmlSizes.title)}px;
             font-weight: 700;
             color: ${COLOR.textPrimary};
             margin-bottom: 1rem;
@@ -352,7 +462,7 @@ export class HtmlExporter extends BaseExporter {
         .metadata {
             display: grid;
             gap: 0.5rem;
-            font-size: ${ptToPx(FONT_SIZE_PT.meta)}px;
+            font-size: ${ptToPx(this.sizes.meta)}px;
             color: ${COLOR.textMuted};
         }
 
@@ -424,8 +534,10 @@ export class HtmlExporter extends BaseExporter {
         }
 
         .message-role {
+            display: inline;
+            margin: 0;
             font-weight: 600;
-            font-size: ${ptToPx(HTML_FONT_SIZE_PT.roleLabel)}px;
+            font-size: ${ptToPx(this.htmlSizes.roleLabel)}px;
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
@@ -450,9 +562,16 @@ export class HtmlExporter extends BaseExporter {
             color: ${COLOR.brandTextOnLight.gemini};
         }
 
+        .day-separator {
+            margin: 1.5rem 0;
+            text-align: center;
+            font-size: ${ptToPx(this.sizes.meta)}px;
+            color: ${COLOR.textMuted};
+        }
+
         .message-timestamp {
             margin-left: 0.5rem;
-            font-size: ${ptToPx(HTML_FONT_SIZE_PT.timestamp)}px;
+            font-size: ${ptToPx(this.htmlSizes.timestamp)}px;
             font-weight: 400;
             text-transform: none;
             letter-spacing: normal;
@@ -482,12 +601,12 @@ export class HtmlExporter extends BaseExporter {
             line-height: 1.3;
         }
 
-        .message-content h1 { font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[0])}px; }
-        .message-content h2 { font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[1])}px; }
-        .message-content h3 { font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[2])}px; }
-        .message-content h4 { font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[3])}px; }
-        .message-content h5 { font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[4])}px; }
-        .message-content h6 { font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[5])}px; }
+        .message-content h1 { font-size: ${ptToPx(this.htmlSizes.headingByLevel[0])}px; }
+        .message-content h2 { font-size: ${ptToPx(this.htmlSizes.headingByLevel[1])}px; }
+        .message-content h3 { font-size: ${ptToPx(this.htmlSizes.headingByLevel[2])}px; }
+        .message-content h4 { font-size: ${ptToPx(this.htmlSizes.headingByLevel[3])}px; }
+        .message-content h5 { font-size: ${ptToPx(this.htmlSizes.headingByLevel[4])}px; }
+        .message-content h6 { font-size: ${ptToPx(this.htmlSizes.headingByLevel[5])}px; }
 
         .message-content pre {
             background: ${COLOR.textStrong};
@@ -496,7 +615,7 @@ export class HtmlExporter extends BaseExporter {
             padding: 1rem;
             overflow-x: auto;
             margin: 1rem 0;
-            font-size: ${ptToPx(FONT_SIZE_PT.code)}px;
+            font-size: ${ptToPx(this.sizes.code)}px;
             line-height: 1.5;
         }
 
@@ -513,6 +632,18 @@ export class HtmlExporter extends BaseExporter {
 
         .assistant-message .inline-code {
             background: rgba(0, 0, 0, 0.08);
+        }
+
+        /* Untypeset LaTeX source — see renderInline's 'math' case. Styled to
+           read as a formula rather than prose; display math gets its own line. */
+        .message-content .math {
+            font-family: ${FONT_FAMILY.code.css};
+        }
+
+        .message-content .math-display {
+            display: block;
+            text-align: center;
+            margin: 1rem 0;
         }
 
         .message-content ul,
@@ -603,7 +734,7 @@ export class HtmlExporter extends BaseExporter {
         }
 
         .artifacts-section h3 {
-            font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[3])}px;
+            font-size: ${ptToPx(this.htmlSizes.headingByLevel[3])}px;
             font-weight: 600;
             margin-bottom: 1rem;
             color: ${COLOR.textBody};
@@ -622,14 +753,14 @@ export class HtmlExporter extends BaseExporter {
         }
 
         .artifact h4 {
-            font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[4])}px;
+            font-size: ${ptToPx(this.htmlSizes.headingByLevel[4])}px;
             font-weight: 600;
             margin-bottom: 0.5rem;
             color: ${COLOR.textPrimary};
         }
 
         .artifact-type {
-            font-size: ${ptToPx(FONT_SIZE_PT.meta)}px;
+            font-size: ${ptToPx(this.sizes.meta)}px;
             color: ${COLOR.textMuted};
             margin-bottom: 0.75rem;
         }
@@ -645,7 +776,7 @@ export class HtmlExporter extends BaseExporter {
         }
 
         .web-searches-section h3 {
-            font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[3])}px;
+            font-size: ${ptToPx(this.htmlSizes.headingByLevel[3])}px;
             font-weight: 600;
             margin-bottom: 1rem;
             color: ${COLOR.textBody};
@@ -656,14 +787,14 @@ export class HtmlExporter extends BaseExporter {
         }
 
         .web-search h4 {
-            font-size: ${ptToPx(HTML_FONT_SIZE_PT.headingByLevel[4])}px;
+            font-size: ${ptToPx(this.htmlSizes.headingByLevel[4])}px;
             font-weight: 600;
             margin-bottom: 0.5rem;
             color: ${COLOR.textPrimary};
         }
 
         .search-count {
-            font-size: ${ptToPx(FONT_SIZE_PT.meta)}px;
+            font-size: ${ptToPx(this.sizes.meta)}px;
             color: ${COLOR.textMutedOnSurfaceMuted};
             margin-bottom: 0.75rem;
         }
@@ -717,7 +848,7 @@ export class HtmlExporter extends BaseExporter {
 
         .result-domain {
             display: block;
-            font-size: ${ptToPx(FONT_SIZE_PT.meta)}px;
+            font-size: ${ptToPx(this.sizes.meta)}px;
             color: ${COLOR.textMuted};
             margin-top: 0.25rem;
         }
@@ -726,7 +857,7 @@ export class HtmlExporter extends BaseExporter {
             margin-top: 3rem;
             padding: 1.5rem;
             text-align: center;
-            font-size: ${ptToPx(FONT_SIZE_PT.meta)}px;
+            font-size: ${ptToPx(this.sizes.meta)}px;
             color: ${COLOR.textMuted};
         }
 
@@ -752,6 +883,197 @@ export class HtmlExporter extends BaseExporter {
             .message-content pre {
                 padding: 0.75rem;
                 font-size: 0.8125rem;
+            }
+        }
+
+        /*
+         * Dark mode for the exported document.
+         *
+         * Scoped to \`screen\` on purpose. An export is a document as much as a
+         * page: it gets printed and archived, and a paper copy is always white.
+         * Without the media type, a reader on a dark OS would print light-grey
+         * ink onto white paper — so the dark palette is screen-only and print
+         * (and print-to-PDF) keeps the light one, no override needed below.
+         *
+         * The hexes are literal rather than \`COLOR\` tokens because style-tokens.ts
+         * is the palette shared with the pdf and docx exporters, which have no
+         * dark surface at all — a dark table there would be dead weight for two
+         * of its three consumers. They are GitHub-Dark neutrals, matching the
+         * syntax theme already inlined below (which needs no override: it is a
+         * dark code block in both modes). Every pair here is held to WCAG AA by
+         * tests/unit/accessibility/contrast.test.ts, same as the light palette.
+         */
+        @media screen and (prefers-color-scheme: dark) {
+            body {
+                color: #c9d1d9;
+                background-color: #0d1117;
+            }
+
+            .header {
+                background: #161b22;
+            }
+
+            .title {
+                color: #e6edf3;
+            }
+
+            .metadata {
+                color: #9198a1;
+            }
+
+            .metadata-value {
+                color: #c9d1d9;
+            }
+
+            .metadata-value a {
+                color: #58a6ff;
+            }
+
+            .user-message {
+                background: #161b22;
+                border-left-color: #58a6ff;
+            }
+
+            .assistant-message {
+                background: #1c2128;
+                border-left-color: #8b949e;
+            }
+
+            .user-message .message-role {
+                color: #58a6ff;
+            }
+
+            .assistant-message .message-role {
+                color: #9198a1;
+            }
+
+            .assistant-message[data-platform="chatgpt"] .message-role {
+                color: #3fb9a0;
+            }
+
+            .assistant-message[data-platform="claude"] .message-role {
+                color: #e08a63;
+            }
+
+            .assistant-message[data-platform="gemini"] .message-role {
+                color: #79aaff;
+            }
+
+            .day-separator {
+                color: #9198a1;
+            }
+
+            .message-timestamp {
+                color: #7d8590;
+            }
+
+            /* The light rule tints with black, which is invisible on a dark card. */
+            .message-content .inline-code {
+                background: rgba(255, 255, 255, 0.08);
+            }
+
+            .assistant-message .inline-code {
+                background: rgba(255, 255, 255, 0.11);
+            }
+
+            .message-content blockquote {
+                color: #a2abb6;
+                border-left-color: #4b535d;
+            }
+
+            .message-content hr {
+                border-top-color: #30363d;
+            }
+
+            .message-content a {
+                color: #58a6ff;
+            }
+
+            .message-content table {
+                border-color: #30363d;
+            }
+
+            .message-content th,
+            .message-content td {
+                border-color: #30363d;
+            }
+
+            .message-content th {
+                background: #1c2128;
+            }
+
+            .message-content tr:nth-child(even) {
+                background: #161b22;
+            }
+
+            .artifacts-section {
+                border-top-color: #30363d;
+            }
+
+            .artifacts-section h3 {
+                color: #c9d1d9;
+            }
+
+            .web-searches-section {
+                border-top-color: #30363d;
+            }
+
+            .web-searches-section h3 {
+                color: #c9d1d9;
+            }
+
+            .artifact {
+                background: #161b22;
+                border-color: #30363d;
+            }
+
+            .user-message .artifact {
+                background: #1c2128;
+            }
+
+            .artifact h4 {
+                color: #e6edf3;
+            }
+
+            .artifact-type {
+                color: #9198a1;
+            }
+
+            .web-search h4 {
+                color: #e6edf3;
+            }
+
+            .search-count {
+                color: #a2abb6;
+            }
+
+            .search-result {
+                background: #161b22;
+                border-color: #30363d;
+            }
+
+            .user-message .search-result {
+                background: #1c2128;
+            }
+
+            .search-result:hover {
+                background: #1c2128;
+            }
+
+            .user-message .search-result:hover {
+                background: #22282f;
+            }
+
+            .result-title {
+                color: #58a6ff;
+            }
+
+            .result-domain {
+                color: #9198a1;
+            }
+
+            .footer {
+                color: #9198a1;
             }
         }
 
@@ -820,6 +1142,38 @@ export class HtmlExporter extends BaseExporter {
                 break-inside: avoid;
             }
 
+            /* A paragraph that does straddle a page leaves/carries whole lines,
+               never a single stranded one. */
+            .message-content p,
+            .message-content li,
+            .message-content blockquote {
+                orphans: ${PAGINATION.orphans};
+                widows: ${PAGINATION.widows};
+            }
+
+            /* A heading stays with the content it introduces. */
+            .message-content h1,
+            .message-content h2,
+            .message-content h3,
+            .message-content h4,
+            .message-content h5,
+            .message-content h6 {
+                page-break-after: avoid;
+                break-after: avoid;
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+
+            /* A table row is never split down the middle; a header repeats. */
+            .message-content tr {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+
+            .message-content thead {
+                display: table-header-group;
+            }
+
             .footer {
                 display: none;
             }
@@ -877,23 +1231,34 @@ export class HtmlExporter extends BaseExporter {
                     .replace(/</g, '&lt;')
                     .replace(/>/g, '&gt;');
 
-                // Basic syntax patterns - covers most common cases
-                html = html
-                    // Keywords
-                    .replace(/\\b(function|const|let|var|if|else|for|while|return|class|import|export|from|async|await|try|catch|throw|new|this|typeof|instanceof)\\b/g,
-                        '<span class="hljs-keyword">$1</span>')
-                    // Strings
-                    .replace(/("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*'|\`(?:[^\`\\\\]|\\\\.)*\`)/g,
-                        '<span class="hljs-string">$1</span>')
-                    // Numbers
-                    .replace(/\\b(\\d+\\.?\\d*)\\b/g,
-                        '<span class="hljs-number">$1</span>')
-                    // Comments (single-line)
-                    .replace(/(\\/{2,}.*$)/gm,
-                        '<span class="hljs-comment">$1</span>')
-                    // Comments (multi-line)
-                    .replace(/(\\/\\*[\\s\\S]*?\\*\\/)/g,
-                        '<span class="hljs-comment">$1</span>');
+                // Basic syntax patterns - covers most common cases.
+                // Single pass: a combined regex tokenizes the source left to
+                // right and each match is wrapped as it's found, so a later
+                // token class can never re-match markup an earlier one just
+                // emitted (the old chained .replace() calls had that bug --
+                // the "strings" pass re-matched the quoted class attribute
+                // the "keywords" pass had just written).
+                html = html.replace(
+                    /(\\/\\*[\\s\\S]*?\\*\\/)|(\\/{2,}.*)|("(?:[^"\\\\]|\\\\.)*"|'(?:[^'\\\\]|\\\\.)*'|\`(?:[^\`\\\\]|\\\\.)*\`)|\\b(\\d+\\.?\\d*)\\b|\\b(function|const|let|var|if|else|for|while|return|class|import|export|from|async|await|try|catch|throw|new|this|typeof|instanceof)\\b/g,
+                    (match, blockComment, lineComment, str, number, keyword) => {
+                        // Capture groups are either the matched text or unset -- never an
+                        // empty string, since every alternative requires >=1 character --
+                        // so a plain truthy check picks the right token class.
+                        if (blockComment || lineComment) {
+                            return '<span class="hljs-comment">' + match + '</span>';
+                        }
+                        if (str) {
+                            return '<span class="hljs-string">' + match + '</span>';
+                        }
+                        if (number) {
+                            return '<span class="hljs-number">' + match + '</span>';
+                        }
+                        if (keyword) {
+                            return '<span class="hljs-keyword">' + match + '</span>';
+                        }
+                        return match;
+                    }
+                );
 
                 block.innerHTML = html;
                 block.classList.add('hljs');
@@ -901,5 +1266,4 @@ export class HtmlExporter extends BaseExporter {
         });
     </script>`;
   }
-
 }

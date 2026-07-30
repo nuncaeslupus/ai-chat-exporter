@@ -135,21 +135,51 @@ describe('an artifact with content renders exactly once per export format', () =
           this.calls.push({ method, args });
         }
 
-        setFontSize(...args: unknown[]) { this.record('setFontSize', args); }
-        setFont(...args: unknown[]) { this.record('setFont', args); }
-        setTextColor(...args: unknown[]) { this.record('setTextColor', args); }
-        setDrawColor(...args: unknown[]) { this.record('setDrawColor', args); }
-        setFillColor(...args: unknown[]) { this.record('setFillColor', args); }
-        setLineWidth(...args: unknown[]) { this.record('setLineWidth', args); }
-        text(...args: unknown[]) { this.record('text', args); }
-        line(...args: unknown[]) { this.record('line', args); }
-        rect(...args: unknown[]) { this.record('rect', args); }
-        roundedRect(...args: unknown[]) { this.record('roundedRect', args); }
-        addPage(...args: unknown[]) { this.record('addPage', args); }
-        addImage(...args: unknown[]) { this.record('addImage', args); }
-        setPage(...args: unknown[]) { this.record('setPage', args); }
-        getNumberOfPages() { return 1; }
-        splitTextToSize(text: string) { return [text]; }
+        setFontSize(...args: unknown[]) {
+          this.record('setFontSize', args);
+        }
+        setFont(...args: unknown[]) {
+          this.record('setFont', args);
+        }
+        setTextColor(...args: unknown[]) {
+          this.record('setTextColor', args);
+        }
+        setDrawColor(...args: unknown[]) {
+          this.record('setDrawColor', args);
+        }
+        setFillColor(...args: unknown[]) {
+          this.record('setFillColor', args);
+        }
+        setLineWidth(...args: unknown[]) {
+          this.record('setLineWidth', args);
+        }
+        text(...args: unknown[]) {
+          this.record('text', args);
+        }
+        line(...args: unknown[]) {
+          this.record('line', args);
+        }
+        rect(...args: unknown[]) {
+          this.record('rect', args);
+        }
+        roundedRect(...args: unknown[]) {
+          this.record('roundedRect', args);
+        }
+        addPage(...args: unknown[]) {
+          this.record('addPage', args);
+        }
+        addImage(...args: unknown[]) {
+          this.record('addImage', args);
+        }
+        setPage(...args: unknown[]) {
+          this.record('setPage', args);
+        }
+        getNumberOfPages() {
+          return 1;
+        }
+        splitTextToSize(text: string) {
+          return [text];
+        }
         output(type: string) {
           this.record('output', [type]);
           return new Blob(['%PDF-mock'], { type: 'application/pdf' });
@@ -175,9 +205,7 @@ describe('an artifact with content renders exactly once per export format', () =
       expect(result.success).toBe(true);
 
       const doc = instances[0]!;
-      const textArgs = doc.calls
-        .filter((c) => c.method === 'text')
-        .map((c) => String(c.args[0]));
+      const textArgs = doc.calls.filter((c) => c.method === 'text').map((c) => String(c.args[0]));
       const occurrences = textArgs.filter((s) => s.includes(ARTIFACT_TITLE)).length;
       expect(occurrences).toBe(1);
     });

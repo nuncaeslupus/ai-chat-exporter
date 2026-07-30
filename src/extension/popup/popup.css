@@ -1,23 +1,243 @@
 /**
  * Popup styles for AI Chat Exporter extension
+ *
+ * Layout contract (docs/design/popup-redesign.md, direction 5a + R11 scale-up):
+ * fixed 56px header + fixed 320px body, 420px wide. Every state paints inside
+ * that box, so the popup never changes height. Growing content scrolls in a
+ * `flex:1; overflow-y:auto; min-height:0` child.
  */
 
+/**
+ * Design tokens. Named by role, taken from the spec's token table.
+ * Component rules below must use these — never an inline hex — so dark mode
+ * can be added by swapping this table and nothing else.
+ */
 :root {
-  --primary-color: #0d8266;
-  --primary-hover: #0d8a6a;
-  --danger-color: #ef4444;
-  --warning-color: #f59e0b;
-  --text-primary: #1f2937;
-  --text-secondary: #6b7280;
-  --border-color: #e5e7eb;
-  --bg-primary: #ffffff;
-  --bg-secondary: #f9fafb;
-  --bg-hover: #f3f4f6;
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
+  /* Accent / actions */
+  --color-accent: #0a6b54;
+  --color-accent-pressed: #075343;
+  --color-accent-tint: #e7f1ed;
+  --color-accent-wash: #f2f8f5;
+  --color-on-accent: #ffffff;
+  --color-on-accent-hover: rgba(255, 255, 255, 0.08);
+  --color-on-accent-active: rgba(255, 255, 255, 0.14);
+  --color-on-accent-divider: rgba(255, 255, 255, 0.22);
+
+  /* Header */
+  --color-header: #06342a;
+  --color-header-muted: #0e2c25;
+  --color-header-accent: #7fd9be;
+  --color-header-text: #ffffff;
+  /* Spec says rgba(255,255,255,.5) over the header; flattened to an opaque
+     value so the WCAG contrast check can resolve it. */
+  --color-header-text-dim: #9fb3ad;
+  --color-header-pill: rgba(255, 255, 255, 0.14);
+  --color-header-pill-text: #c9ede1;
+  --color-header-dot-idle: #8fa8a0;
+
+  /* Text */
+  --color-text-primary: #16211e;
+  --color-text-body: #2b3833;
+  /* Spec value is #6E7C77, which measures 4.36:1 on white and fails the
+     repo's WCAG AA gate; darkened until it clears 4.5:1 on every surface.
+     Also stands in for the privacy line's #7E8D88 (3.30:1 on the action bar).
+     Same treatment for the tertiary value text: spec #8A9691 is 3.06:1. */
+  --color-text-secondary: #63716c;
+  --color-text-tertiary: #6a7470;
+  /* Decorative only — chevrons and separator dots, never text, so the bar is
+     3:1 rather than 4.5:1. Spec value is #9AA5A1, which measures 2.54:1 on
+     white and 2.37:1 on the setting-row hover tint — under even that 3:1 bar;
+     darkened until it clears it on every surface it is painted on (3.39:1
+     white, 3.16:1 sunken, 3.22:1 action bar). Same mistake as the six
+     darkened text greys — a light grey picked against the mock's white. */
+  --color-text-muted: #838e8a;
+
+  /* Surfaces */
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f4f8f6;
+  --color-surface-bar: #f7faf8;
+  --color-surface-hover: #edf3f0;
+  --color-surface-key: #f1f5f3;
+
+  /* Borders */
+  --color-border: #e2e9e5;
+  --color-border-strong: #d6e0db;
+  --color-border-hairline: #ebf0ee;
+
+  /* Warning */
+  --color-warning-surface: #fdf4e7;
+  --color-warning-stroke: #b07a0f;
+  --color-warning-text: #6b4a05;
+  --color-warning-text-soft: #7a5c1b;
+  --color-warning-text-strong: #7a5406;
+  /* Spec value is #96702A, which measures 4.15:1 on the amber surface and
+     fails the repo's WCAG AA gate; darkened until it clears 4.5:1. Doubles as
+     the chevron colour of the same row — spec's #B08A3F is 2.94:1, under even
+     the 3:1 non-text bar. */
+  --color-warning-action: #8b6725;
+  --color-warning-link: #8a6a12;
+  --color-warning-dot: #f0c368;
+
+  /* Skeletons (detecting) */
+  --color-skeleton: #edf1ef;
+  --color-skeleton-soft: #f2f5f3;
+
+  /* Error. The spec designs no error screen; provisional until it does. */
+  --color-danger: #b3261e;
+
+  /* Disabled */
+  --color-disabled-surface: #e9eeec;
+  --color-disabled-text: #a3aeaa;
+  --color-disabled-icon: #bac4c0;
+  --color-disabled-border: #e6ece9;
+
+  /* Geometry — the whole point of the redesign: these do not change. */
+  --popup-width: 420px;
+  --header-height: 56px;
+  --body-height: 320px;
+
+  /* Radii */
+  --radius-key: 5px;
+  --radius-chip: 7px;
+  --radius-row: 8px;
+  --radius-link: 9px;
+  --radius-field: 10px;
+  --radius-lg: 12px;
+  --radius-pill: 999px;
+
+  /* Type */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /*
+   * Type scale. The colour table above was tokenised from the start; the font
+   * sizes were not, so "a bit bigger" used to be a hunt through ~30 component
+   * rules. Every `font-size` below this block reads from here instead, so the
+   * next adjustment is this block and nothing else.
+   *
+   * Values are the 5a spec's sizes × 1.15, rounded to the nearest 0.5 px.
+   * The comment on each line is the 5a size it replaces.
+   */
+  --text-3xs: 11.5px; /* 10   — uppercase labels, day separator */
+  --text-2xs: 12px; /* 10.5 — version, privacy line, mono filename, footers */
+  --text-xs: 12.5px; /* 11   — pair numbers, summaries */
+  --text-sm: 13px; /* 11.5 — pair text, row values, meta, warning body */
+  --text-md: 14px; /* 12   — format rows, state help, Done, kbd */
+  --text-base: 14.5px; /* 12.5 — setting rows, header name, warning title */
+  --text-lg: 15px; /* 13   — submenu titles, reload button */
+  --text-xl: 16px; /* 14   — document base */
+  --text-2xl: 16.5px; /* 14.5 — reload state title */
+  --text-3xl: 17.5px; /* 15   — unsupported state title */
+  --text-4xl: 19.5px; /* 17   — conversation title */
+  /*
+   * Deliberately off the scale. The author's call on the 5a action bar: "button
+   * is big enough". The split button's label stays at its 5a size while every
+   * other size grows, so it must not share a token with them.
+   */
+  --text-action: 14px;
+
+  /* Elevation. The hairline ring reads from the border token so dark mode
+     inherits it with the rest of the table instead of keeping a light edge. */
+  --shadow-menu: 0 12px 30px rgba(6, 52, 42, 0.22), 0 0 0 1px var(--color-border);
+}
+
+/**
+ * Dark mode (spec § 7). Because every component rule reads from the table
+ * above and none declares a colour of its own, dark mode *is* this block —
+ * the same tokens with the spec's dark values. Adding a component rule here
+ * would defeat that, so don't: put the colour in a token instead.
+ *
+ * Both palettes are held to WCAG AA by tests/unit/accessibility/contrast.test.ts,
+ * which resolves every asserted pair twice, once per table.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Accent / actions */
+    --color-accent: #3fb394;
+    /* The light table steps *down* to a pressed accent; on dark the accent is
+       the light half of the pair, so it steps up instead. It also has to work
+       as text: the selected format row paints it on the accent tint, where a
+       darker step measured 3.95:1 and failed the contrast gate. */
+    --color-accent-pressed: #55c4a6;
+    --color-accent-tint: #1e332d;
+    --color-accent-wash: #172723;
+    --color-on-accent: #07211a;
+    /* The accent is now the light half of the pair, so the overlays that tint
+       it on hover/press have to darken rather than lighten. */
+    --color-on-accent-hover: rgba(0, 0, 0, 0.1);
+    --color-on-accent-active: rgba(0, 0, 0, 0.18);
+    --color-on-accent-divider: rgba(0, 0, 0, 0.26);
+
+    /* Header */
+    --color-header: #0b1f1a;
+    --color-header-muted: #0a1a16;
+    --color-header-accent: #6fd3b5;
+    --color-header-text: #e9f0ed;
+    --color-header-text-dim: #9fb3ad;
+    --color-header-pill: rgba(255, 255, 255, 0.1);
+    --color-header-pill-text: #c9ede1;
+    --color-header-dot-idle: #8fa8a0;
+
+    /* Text. The spec gives one text value (#E9F0ED); the body step below it is
+       derived, keeping the primary/body hierarchy the light table has. */
+    --color-text-primary: #e9f0ed;
+    --color-text-body: #d5e0dc;
+    --color-text-secondary: #8fa29c;
+    /* Spec § 7 value is #7C8C87. It clears AA on the page (4.83:1) but only
+       measures 4.27:1 on the raised surface #1C2926, where the setting-row
+       value and the file-name separator actually sit; lightened until it
+       clears 4.5:1 there (now 4.75:1) — the same treatment the light table's
+       thirteen darkened values got, in the other direction. */
+    --color-text-tertiary: #849490;
+    /* Decorative only — chevrons and separator dots, never text; 3:1 bar. The
+       spec § 7 value already clears it in every dark pairing, so unlike the
+       light table it is sent as designed — but with only 3.03:1 on the raised
+       surface #1C2926 it has almost no headroom, so a future nudge to either
+       value will trip the contrast gate. That is deliberate. */
+    --color-text-muted: #64736e;
+
+    /* Surfaces */
+    --color-surface: #141e1b;
+    --color-surface-sunken: #1c2926;
+    --color-surface-bar: #101917;
+    --color-surface-hover: #182421;
+    --color-surface-key: #1c2926;
+
+    /* Borders. The spec gives the two visible weights; the hairline is derived
+       one step back toward the page, as in the light table. */
+    --color-border: #293833;
+    --color-border-strong: #2e3e38;
+    --color-border-hairline: #1f2c28;
+
+    /* Warning. The spec's § 7 table stops at the neutrals and the accent, so
+       the amber set is derived: the light pair is inverted (dark surface, light
+       ink) and then held to the same AA thresholds by the contrast test. */
+    --color-warning-surface: #2a2114;
+    --color-warning-stroke: #e0a93c;
+    --color-warning-text: #f5dfae;
+    --color-warning-text-soft: #e2cb9c;
+    --color-warning-text-strong: #f5dfae;
+    --color-warning-action: #e6c37e;
+    --color-warning-link: #e6c37e;
+    --color-warning-dot: #f0c368;
+
+    /* Skeletons (detecting) */
+    --color-skeleton: #1e2b28;
+    --color-skeleton-soft: #1a2523;
+
+    /* Error. Still provisional — the spec designs no error screen. */
+    --color-danger: #f2b8b5;
+
+    /* Disabled */
+    --color-disabled-surface: #1b2523;
+    --color-disabled-text: #6f7d78;
+    --color-disabled-icon: #5e6b66;
+    --color-disabled-border: #22302c;
+
+    /* Elevation. A dark popup needs a deeper shadow to read at all. */
+    --shadow-menu: 0 12px 30px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--color-border);
+  }
 }
 
 * {
@@ -27,147 +247,522 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
-    Arial, sans-serif;
-  font-size: 14px;
+  font-family: var(--font-sans);
+  font-size: var(--text-xl);
   line-height: 1.5;
-  color: var(--text-primary);
-  background: var(--bg-primary);
-  width: 360px;
+  color: var(--color-text-primary);
+  background: var(--color-surface);
+  width: var(--popup-width);
 }
 
 .popup-container {
   display: flex;
   flex-direction: column;
-  height: 100%;
 }
 
-/* Header */
+/* Header — fixed 56px */
 .popup-header {
+  flex: none;
+  height: var(--header-height);
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-secondary);
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  background: var(--color-header);
 }
 
 .header-logo {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
 }
 
 .header-title {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: 8px;
   flex: 1;
+  min-width: 0;
 }
 
 .popup-title {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 4px;
+  font-size: var(--text-base);
+  font-weight: 650;
+  color: var(--color-header-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .popup-version {
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--text-2xs);
+  color: var(--color-header-text-dim);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 
-/* Main */
-.popup-main {
+/* Body — fixed 320px. Every view lives inside; the box never resizes. */
+.popup-body {
+  position: relative;
+  flex: none;
+  height: var(--body-height);
+  overflow: hidden;
+  min-height: 0;
+  background: var(--color-surface);
+}
+
+.popup-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.popup-view[hidden] {
+  display: none;
+}
+
+/* The only thing allowed to grow: it scrolls, the box does not. */
+.view-scroll {
   flex: 1;
-  padding: 16px;
+  min-height: 0;
   overflow-y: auto;
+  padding: 16px 18px 0;
 }
 
-/* Status in Header */
+/* Status pill in the header */
 .status-indicator {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-header-pill);
 }
 
 .status-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--text-secondary);
+  background: var(--color-header-dot-idle);
   flex-shrink: 0;
 }
 
 .status-indicator.active .status-dot {
-  background: var(--primary-color);
+  background: var(--color-header-accent);
   animation: pulse 2s ease-in-out infinite;
 }
 
 .status-indicator.warning .status-dot {
-  background: var(--warning-color);
+  background: var(--color-warning-dot);
 }
 
 .status-indicator.error .status-dot {
-  background: var(--danger-color);
+  background: var(--color-danger);
 }
 
 .status-indicator.inactive .status-dot {
-  background: var(--text-secondary);
+  background: var(--color-header-dot-idle);
 }
 
 .status-text {
-  font-size: 10px;
-  color: var(--text-secondary);
+  font-size: var(--text-2xs);
+  color: var(--color-header-pill-text);
   white-space: nowrap;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
-/* Sections */
-.conversation-info {
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.conversation-header {
+/*
+ * Main "ready" view. The scroll area is a column: the conversation block sits
+ * at the top, the setting rows are pushed to the bottom with `margin-top:auto`,
+ * and the action bar lives outside it as a `flex:none` strip.
+ */
+#view-main .view-scroll {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
+  flex-direction: column;
 }
 
-.platform-icon {
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
+#main-content {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+
+.conversation-block {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
 }
 
 .conversation-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
+  font-size: var(--text-4xl);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+  text-wrap: pretty;
+  color: var(--color-text-primary);
+  /*
+   * The mock's title is one line; real ones are not, so clamp and leave the
+   * full title in the tooltip.
+   *
+   * R11 re-measured the ceiling on the 320px body. The original reason — "past
+   * two lines the setting rows scroll out of reach" — is gone: R2 moved the
+   * rows out of the scroll region, so they are in view at any title length. Two
+   * is still the right number for a different, measured reason: in the 118px
+   * scroll band a 2-line title leaves 26.8px of slack, 3 lines clears by only
+   * 2.4px (one wrapped meta line eats it) and 4 overflows by 22px.
+   */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
 }
 
 .conversation-meta {
-  font-size: 12px;
-  color: var(--text-secondary);
-  padding-left: 34px;
-  line-height: 1.6;
-  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.platform-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.conversation-meta-text {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Setting rows — navigation into the Content / Options views. */
+.setting-rows {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 18px 0;
+}
+
+/* Nothing to configure on the screens that have no conversation. */
+.popup-body[data-ui-state='unsupported'] .setting-rows,
+.popup-body[data-ui-state='noConversation'] .setting-rows,
+.popup-body[data-ui-state='reload'] .setting-rows {
+  display: none;
+}
+
+.setting-row {
+  flex: none;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 2px;
+  border: none;
+  border-radius: var(--radius-row);
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.setting-row--options {
+  gap: 9px;
+}
+
+.setting-row:hover {
+  background: var(--color-surface-sunken);
+}
+
+.setting-row-label {
+  font-size: var(--text-base);
+  color: var(--color-text-body);
+}
+
+.setting-row-spacer {
+  flex: 1;
+}
+
+.setting-row-value {
+  font-size: var(--text-sm);
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Shown only when some preference is off its default. */
+.setting-row-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  flex-shrink: 0;
+}
+
+.setting-row-dot[hidden] {
+  display: none;
+}
+
+.setting-row-chevron {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+/*
+ * Action bar — split export button, print, privacy line.
+ *
+ * The one part of the box that did NOT grow with R11. The author's call on the
+ * 5a bar: "button is big enough". So the 50px split button, its 42px right
+ * half, the 50x50 print button and the 14px label all keep their 5a numbers
+ * while everything around them scales. Only the privacy line takes a scale
+ * token, which is the bar's whole ~2px of growth.
+ */
+.action-bar {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px 10px;
+  background: var(--color-surface-bar);
+}
+
+/* The unsupported / no-conversation / reload screens have nothing to export. */
+.popup-body[data-ui-state='unsupported'] .action-bar,
+.popup-body[data-ui-state='noConversation'] .action-bar,
+.popup-body[data-ui-state='reload'] .action-bar {
+  display: none;
+}
+
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.split-button {
+  flex: 1;
+  height: 50px;
+  display: flex;
+  align-items: stretch;
+  border-radius: var(--radius-lg);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  overflow: hidden;
+}
+
+.split-export {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 4px 0 12px;
+  border: none;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  font-size: var(--text-action);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.split-export:hover:not(:disabled) {
+  background: var(--color-accent-pressed);
+}
+
+.split-export-icon {
+  flex-shrink: 0;
+}
+
+.split-toggle {
+  width: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-left: 1px solid var(--color-on-accent-divider);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.split-toggle:hover {
+  background: var(--color-on-accent-hover);
+}
+
+/* Menu open: the half stays marked and the chevron points back at the button. */
+.popup-body[data-format-menu-open='true'] .split-toggle {
+  background: var(--color-on-accent-active);
+}
+
+.popup-body[data-format-menu-open='true'] .split-toggle-chevron {
+  transform: rotate(180deg);
+}
+
+/*
+ * ── Format menu ───────────────────────────────────────────────────────────
+ * Floats over the main view, anchored to the split button's chevron. It is
+ * positioned against `.popup-body`, so it lives entirely inside the 320px box
+ * and the popup never resizes. Visibility is this one attribute.
+ *
+ * `left`/`right`/`bottom` track the action bar, which R11 left at its 5a size,
+ * so they keep their 5a values — only the taller privacy line moved `bottom`
+ * by the 2px the bar grew.
+ */
+.format-menu {
+  display: none;
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 78px;
+  max-height: 207px;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-menu);
+  overflow: hidden;
+}
+
+.popup-body[data-format-menu-open='true'] .format-menu {
+  display: flex;
+}
+
+/* Everything behind the menu steps back. The action bar keeps its colour —
+   the button it belongs to is what opened the menu. */
+.popup-body[data-format-menu-open='true'] .view-scroll,
+.popup-body[data-format-menu-open='true'] .setting-rows {
+  opacity: 0.35;
+}
+
+.format-menu-label {
+  flex: none;
+  padding: 8px 12px 5px;
+  font-size: var(--text-3xs);
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  /* Spec paints this label #9AA5A1 — 2.35:1 on white, well under AA even as a
+     10px cap. Uses the secondary text token instead, which already clears
+     4.5:1 on every surface in this palette. */
+  color: var(--color-text-secondary);
+}
+
+.format-menu-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 7px 7px;
+}
+
+.format-row {
+  /* Without `flex:none` the six rows collapse inside the scrolling column —
+     the spec calls this out by name, and it is the whole reason the menu has
+     a fixed row height at all. R11 re-measured the list: 228px of rows in a
+     177px band. The six formats still cannot all be visible at once (the menu
+     would have to start above the top of the box), so it still scrolls. */
+  flex: none;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 9px;
+  border: none;
+  border-radius: var(--radius-row);
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.format-row:hover {
+  background: var(--color-surface-hover);
+}
+
+.format-row-icon {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+
+.format-row-name {
+  flex: 1;
+  font-size: var(--text-md);
+  color: var(--color-text-body);
+}
+
+.format-row-check {
+  display: none;
+  flex-shrink: 0;
+  color: var(--color-accent);
+}
+
+/* The chosen row. Tinted, bolder and checked — three cues, since the tint
+   alone is a colour-only signal. */
+.format-row[aria-checked='true'] {
+  background: var(--color-accent-tint);
+}
+
+.format-row[aria-checked='true'] .format-row-name {
+  font-weight: 700;
+  color: var(--color-accent-pressed);
+}
+
+.format-row[aria-checked='true'] .format-row-check {
+  display: block;
+}
+
+.print-button {
+  flex: none;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.print-button:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  background: var(--color-accent-wash);
+}
+
+.print-button:disabled {
+  border-color: var(--color-disabled-border);
+  color: var(--color-disabled-icon);
+  cursor: not-allowed;
+}
+
+.privacy-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: var(--text-2xs);
+  color: var(--color-text-secondary);
+}
+
+.privacy-icon {
+  flex-shrink: 0;
 }
 
 /* Remove old section styles */
@@ -185,338 +780,1026 @@ section {
   margin-bottom: 0;
 }
 
-.badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  vertical-align: middle;
-}
-
-.badge-code {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.badge-image {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-/* Q&A pair selection */
-.qa-selection {
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.qa-selection-header {
+/*
+ * ── Submenus (Content, Options) ───────────────────────────────────────────
+ * Three bands in the same 320px box: header and footer are `flex:none`, only
+ * the middle band scrolls. Nothing here can grow the popup. The header, the
+ * footer bar and the Done button are shared by every submenu; what differs
+ * is only the band between them.
+ */
+.submenu-header {
+  flex: none;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
+  gap: 9px;
+  padding: 13px 18px 9px;
 }
 
-.qa-selection-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.qa-selection-toggle-all {
-  background: none;
-  border: none;
-  color: var(--primary-color);
-  font-size: 12px;
-  cursor: pointer;
-  padding: 2px 4px;
-}
-
-.qa-selection-toggle-all:hover {
-  text-decoration: underline;
-}
-
-.qa-selection-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  max-height: 120px;
-  overflow-y: auto;
-}
-
-.qa-selection-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px;
-  border-radius: var(--radius-sm);
-}
-
-.qa-selection-item:hover {
-  background: var(--bg-hover);
-}
-
-.qa-selection-item input[type='checkbox'] {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  cursor: pointer;
-  accent-color: var(--primary-color);
-}
-
-.qa-selection-item label {
-  font-size: 12px;
-  color: var(--text-primary);
-  cursor: pointer;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.qa-selection-count {
-  margin-top: 4px;
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-
-/* Actions Section */
-.export-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-/* Format Select with Icon */
-.format-select-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-}
-
-.format-icon {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  opacity: 0.8;
-}
-
-.format-select {
-  flex: 1;
-  padding: 10px 32px 10px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%236B7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-}
-
-.format-select:hover:not(:disabled) {
-  border-color: var(--primary-color);
-}
-
-.format-select:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: var(--bg-secondary);
-}
-
-.format-select:focus {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.1);
-}
-
-.button-row {
-  display: flex;
-  gap: 10px;
-  margin-top: 4px;
-}
-
-/* Action Buttons */
-.action-button {
-  flex: 1;
+.submenu-back {
+  flex: none;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 10px 16px;
-  border: 2px solid var(--primary-color);
-  border-radius: var(--radius-md);
-  background: var(--bg-primary);
-  color: var(--primary-color);
-  font-size: 13px;
-  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-chip);
+  background: var(--color-surface-key);
+  color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
 }
 
-.action-button:hover:not(:disabled) {
-  background: var(--primary-color);
-  color: white;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(16, 163, 127, 0.25);
+.submenu-back:hover {
+  background: var(--color-surface-hover);
 }
 
-.action-button:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow: none;
+.submenu-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-text-primary);
 }
 
-.action-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  border-color: var(--border-color);
-  color: var(--text-secondary);
-}
-
-.button-icon {
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-}
-
-.button-label {
+.pair-chooser-toggle-all {
+  flex: none;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: var(--text-sm);
   font-weight: 600;
+  color: var(--color-accent);
+  cursor: pointer;
 }
 
-/* Settings Section */
-.settings-grid {
+.pair-chooser-toggle-all:hover {
+  color: var(--color-accent-pressed);
+}
+
+.qa-selection-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 2px;
+  padding: 0 12px 0 18px;
+  list-style: none;
 }
 
-.setting-item {
+.pair-row {
+  /* Without `flex:none` the rows collapse inside the scrolling column — the
+     same trap the format menu hit, and the reason its rows are fixed too. */
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 7px 7px 7px 0;
+  border-radius: var(--radius-row);
+}
+
+/* Expanded: full text, tinted, and the left edge gains the padding the
+   rounded surface needs. */
+.pair-row[data-expanded='true'] {
+  padding-left: 4px;
+  background: var(--color-surface-bar);
+}
+
+.pair-row input[type='checkbox'] {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  margin-top: 1px;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+/*
+ * Normal type with tabular figures — the spec is explicit that this is NOT
+ * monospace; the lining figures are what keeps the column straight.
+ * Spec paints it #9AA5A1 (2.54:1 on white), which the WCAG gate rejects for
+ * text, so it takes the secondary token instead.
+ */
+.pair-row-number {
+  flex: none;
+  min-width: 16px;
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+.pair-row-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 7px;
+}
+
+/* Two lines, then the tooltip. `word-break` stays at its default so the clamp
+   lands between words and never mid-word. */
+.pair-row-text {
+  font-size: var(--text-sm);
+  line-height: 1.35;
+  color: var(--color-text-body);
+  cursor: pointer;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.pair-row[data-expanded='true'] .pair-row-text {
+  display: block;
+  overflow: visible;
+}
+
+/* Deselected rows step back. Spec's #5F6E69 rounds to the secondary token,
+   which already clears AA on white and on the expanded tint. */
+.pair-row[data-selected='false'] .pair-row-text {
+  color: var(--color-text-secondary);
+}
+
+.pair-row-toggle {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.pair-row-toggle:hover {
+  color: var(--color-accent-pressed);
+}
+
+/* Day separator — two hairlines with the date between them. */
+.pair-day-separator {
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  padding: 8px 7px 6px 0;
+}
+
+.pair-day-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--color-border-hairline);
+}
+
+.pair-day-label {
+  flex: none;
+  font-size: var(--text-3xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  /* Spec's #9AA5A1 again — 2.54:1, under AA even at this size. */
+  color: var(--color-text-secondary);
+}
+
+/* Footer — whatever the submenu is tracking, and the way out. */
+.submenu-footer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 18px 13px;
+  background: var(--color-surface-bar);
+}
+
+.pair-chooser-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}
+
+.submenu-done {
+  flex: none;
+  height: 34px;
+  padding: 0 15px;
+  border: none;
+  border-radius: var(--radius-row);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-family: inherit;
+  font-size: var(--text-md);
+  font-weight: 700;
   cursor: pointer;
-  padding: 4px;
-  border-radius: var(--radius-sm);
-  transition: background 0.15s ease;
 }
 
-.setting-item:hover {
-  background: var(--bg-hover);
+.submenu-done:hover {
+  background: var(--color-accent-pressed);
 }
 
-.setting-item input[type='checkbox'] {
-  width: 16px;
-  height: 16px;
+/*
+ * ── Options submenu ───────────────────────────────────────────────────────
+ * Three rows and nothing else — no examples, no explanatory paragraphs.
+ */
+.options-header {
+  padding-bottom: 7px;
+}
+
+.options-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 0 18px;
+}
+
+.option-row {
+  /* Same trap as the pair rows: without `flex:none` they collapse. */
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  text-align: left;
   cursor: pointer;
-  accent-color: var(--primary-color);
 }
 
-.setting-item span {
-  font-size: 13px;
-  color: var(--text-primary);
+.option-row input[type='checkbox'] {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
 }
 
-/* Footer */
-.popup-footer {
-  padding: 12px 16px;
-  border-top: 1px solid var(--border-color);
-  background: var(--bg-secondary);
-  text-align: center;
-  font-size: 12px;
-  color: var(--text-secondary);
+.option-row-label {
+  font-size: var(--text-base);
+  color: var(--color-text-body);
 }
 
-.footer-link {
-  color: var(--primary-color);
+/* Only the checkbox rows: inside the nav row's stack it must not stretch. */
+.option-row > .option-row-label {
+  flex: 1;
+}
+
+/*
+ * Choice row (text size). A `fieldset` so the `legend` names the group; the
+ * flex layout of `.option-row` does not survive a legend, so this one stacks:
+ * label, then the three steps side by side.
+ */
+.option-row--choice {
+  display: block;
+  /* A fieldset sizes to its content by default; without this a long
+     translation of the three steps pushes past the fixed 420px popup. */
+  min-width: 0;
+  margin: 0;
+  padding: 11px 0;
+}
+
+/* `legend` ships its own inline padding; the rows above start flush left. */
+.option-row--choice > .option-row-label {
+  padding: 0;
+}
+
+.option-choices {
+  display: flex;
+  /* Seven locales, three labels: the long ones wrap rather than clip. */
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 8px;
+}
+
+.option-choice {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--text-sm);
+  color: var(--color-text-body);
+  cursor: pointer;
+}
+
+.option-choice input[type='radio'] {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+/* Navigation row: label over the filename, chevron aligned to the label. */
+.option-row--nav {
+  align-items: flex-start;
+  padding: 10px 0;
+}
+
+/* Keeps the label on the same left edge as the two checkbox rows above. */
+.option-row-gutter {
+  flex: none;
+  width: 17px;
+}
+
+.option-row-stack {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.option-row-filename {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.option-row-chevron {
+  flex: none;
+  margin-top: 3px;
+  color: var(--color-text-muted);
+}
+
+.option-row--nav:hover .option-row-chevron {
+  color: var(--color-text-secondary);
+}
+
+/* Footer: version, the two links, Done. */
+.options-footer {
+  gap: 9px;
+  font-size: var(--text-2xs);
+  color: var(--color-text-secondary);
+}
+
+.options-footer-version {
+  font-variant-numeric: tabular-nums;
+}
+
+.options-footer-dot {
+  flex: none;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+
+.options-footer-link {
+  color: var(--color-text-secondary);
   text-decoration: none;
-  transition: opacity 0.15s ease;
 }
 
-.footer-link:hover {
-  opacity: 0.8;
+.options-footer-link:hover {
+  color: var(--color-accent);
 }
 
-.footer-separator {
-  margin: 0 8px;
+.options-footer .submenu-done {
+  margin-left: auto;
+}
+
+/*
+ * ── File name submenu ─────────────────────────────────────────────────────
+ * The name as an ordered list of chips. Same three bands as the other
+ * submenus; only the middle one is new. Nothing here declares a size in hex
+ * or a literal font-size — the chips ride the same type scale as everything
+ * else, so a future scale bump carries them along.
+ */
+.filename-header {
+  padding-bottom: 7px;
+}
+
+/* `Default`, the header's restore link. */
+.filename-default {
+  flex: none;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.filename-default:hover {
+  color: var(--color-accent-pressed);
+}
+
+.filename-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 18px;
+}
+
+/* The composed name. Wraps rather than scrolls: the box must not grow. */
+.filename-field {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-height: 50px;
+  padding: 8px;
+  border-radius: var(--radius-field);
+  background: var(--color-surface-sunken);
+}
+
+.filename-chip {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 5px 4px 8px;
+  border-radius: var(--radius-chip);
+  background: var(--color-surface);
+  box-shadow: 0 0 0 1px var(--color-border);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-body);
+  cursor: grab;
+}
+
+.filename-chip:active {
+  cursor: grabbing;
+}
+
+/* Free text: the chip label is the field. Grows with what is typed. */
+.filename-chip-input {
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: inherit;
+  color: inherit;
+}
+
+.filename-chip-input:focus {
+  outline: none;
+}
+
+.filename-chip-remove {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-key);
+  background: var(--color-surface-key);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.filename-chip-remove:hover {
+  background: var(--color-surface-hover);
+}
+
+/* The `_` the exporter really puts between two pieces. */
+.filename-separator {
+  flex: none;
+  font-size: var(--text-md);
+  color: var(--color-text-tertiary);
+}
+
+/* Where the next chip lands. Decorative — insertion is always at the end. */
+.filename-caret {
+  flex: none;
+  width: 1.5px;
+  height: 20px;
+  margin-left: 1px;
+  border-radius: 1px;
+  background: var(--color-accent);
+}
+
+.filename-add {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.filename-add-chip {
+  padding: 5px 9px;
+  border: none;
+  border-radius: var(--radius-chip);
+  background: var(--color-surface);
+  box-shadow: 0 0 0 1px var(--color-border);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  color: var(--color-text-body);
+  cursor: pointer;
+}
+
+.filename-add-chip:hover {
+  box-shadow: 0 0 0 1.5px var(--color-accent);
+  color: var(--color-accent-pressed);
+}
+
+.filename-hint {
+  flex: none;
+  font-size: var(--text-2xs);
+  line-height: 1.4;
+  color: var(--color-text-tertiary);
+}
+
+/* Footer: the real resulting name, never a rendering of the template. */
+.filename-footer-icon {
+  flex: none;
+  color: var(--color-text-secondary);
+}
+
+.filename-footer-name {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-accent-pressed);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Scrollbar */
-.popup-main::-webkit-scrollbar {
+.view-scroll::-webkit-scrollbar,
+.qa-selection-list::-webkit-scrollbar {
   width: 6px;
 }
 
-.popup-main::-webkit-scrollbar-track {
+.view-scroll::-webkit-scrollbar-track,
+.qa-selection-list::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.popup-main::-webkit-scrollbar-thumb {
-  background: var(--border-color);
+.view-scroll::-webkit-scrollbar-thumb,
+.qa-selection-list::-webkit-scrollbar-thumb {
+  background: var(--color-border);
   border-radius: 3px;
 }
 
-.popup-main::-webkit-scrollbar-thumb:hover {
-  background: var(--text-secondary);
+.view-scroll::-webkit-scrollbar-thumb:hover,
+.qa-selection-list::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
 }
 
-/* Not Supported Section */
-.not-supported-section {
-  padding: 20px;
+/*
+ * ── Secondary states ──────────────────────────────────────────────────────
+ * Exactly one block paints, picked by `data-ui-state` on the body box. No JS
+ * display juggling, so two states can never be visible at once — and each one
+ * still lives inside the same 320px, so the popup does not resize.
+ */
+.state-block {
+  display: none;
+}
+
+.popup-body[data-ui-state='detecting'] #state-detecting,
+.popup-body[data-ui-state='unsupported'] #state-unsupported,
+.popup-body[data-ui-state='noConversation'] #state-no-conversation,
+.popup-body[data-ui-state='reload'] #state-reload {
+  display: flex;
+}
+
+.popup-body[data-ui-state='detecting'] #main-content,
+.popup-body[data-ui-state='unsupported'] #main-content,
+.popup-body[data-ui-state='noConversation'] #main-content,
+.popup-body[data-ui-state='reload'] #main-content {
+  display: none;
+}
+
+/* Detecting — skeletons where the conversation text is about to land. */
+.state-skeleton {
+  flex: 1;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.skeleton {
+  display: block;
+  flex: none;
+  height: 18px;
+  width: 74%;
+  border-radius: var(--radius-chip);
+  background: var(--color-skeleton);
+}
+
+.skeleton--meta {
+  height: 11.5px;
+  width: 48%;
+  border-radius: var(--radius-key);
+  background: var(--color-skeleton-soft);
+}
+
+.skeleton--row {
+  height: 14px;
+  width: 56%;
+  border-radius: 6px;
+  background: var(--color-skeleton-soft);
+}
+
+.skeleton--short {
+  width: 36%;
+}
+
+/* Sits where the setting rows will, once there is something to configure. */
+.skeleton--push {
+  margin-top: auto;
+}
+
+.popup-body[data-ui-state='detecting'] .setting-rows {
+  display: none;
+}
+
+/*
+ * Warning state: the card takes the room the setting rows had. The mock shows
+ * no rows here either.
+ *
+ * R11 re-measured this on the 320px body. Retry no longer falls off the fold
+ * outright — with the rows shown it now clears it by 2.6px instead of the 99px
+ * it used to miss by — but that margin is one wrapped card title wide, and the
+ * band still overflows by 100px, which puts the whole conversation block below
+ * the fold. So the rows stay hidden; without them the card fits with 0 overflow.
+ */
+.popup-body[data-ui-state='warning'] .setting-rows {
+  display: none;
+}
+
+.popup-body[data-ui-state='detecting'] .privacy-line {
+  visibility: hidden;
+}
+
+/* Unsupported / reload — one centred column inside the box. */
+.state-centered {
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 0 5px 7px;
   text-align: center;
 }
 
-.not-supported-message {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  padding: 24px;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-color);
+.state-title {
+  font-size: var(--text-3xl);
+  font-weight: 650;
+  line-height: 1.4;
+  max-width: 300px;
+  text-wrap: pretty;
+  color: var(--color-text-primary);
 }
 
-.not-supported-icon {
-  color: var(--warning-color);
+.state-title--reload {
+  font-size: var(--text-2xl);
+  max-width: 310px;
+}
+
+.state-help {
+  font-size: var(--text-md);
+  line-height: 1.5;
+  max-width: 290px;
+  color: var(--color-text-secondary);
+}
+
+#state-reload .state-help {
+  font-size: var(--text-sm);
+}
+
+/* Platform links — one row per registered parser, opened in a new tab. */
+.platform-links {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.platform-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 13px;
+  border-radius: var(--radius-link);
+  background: var(--color-surface-sunken);
+  text-decoration: none;
+}
+
+.platform-link:hover {
+  background: var(--color-surface-hover);
+}
+
+.platform-link-icon {
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
 }
 
-.not-supported-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.not-supported-text {
-  font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.6;
-  margin: 0;
+.platform-link-name {
+  flex: 1;
   text-align: left;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--color-text-body);
 }
 
-.not-supported-text strong {
-  color: var(--text-primary);
+.platform-link-external {
+  flex-shrink: 0;
+  color: var(--color-text-tertiary);
+}
+
+/* Reload — amber circle, the real button, then the keyboard shortcut. */
+.state-circle {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--color-warning-surface);
+  color: var(--color-warning-stroke);
+}
+
+.state-button {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  height: 48px;
+  padding: 0 21px;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-family: inherit;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.state-button:hover {
+  background: var(--color-accent-pressed);
+}
+
+.key-hint {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Exported with warnings — amber card above the conversation block. */
+.warning-card {
+  display: none;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--color-warning-surface);
+}
+
+.popup-body[data-ui-state='warning'] .warning-card {
+  display: flex;
+}
+
+.warning-card-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--color-warning-stroke);
+}
+
+.warning-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.warning-card-title {
+  font-size: var(--text-base);
+  font-weight: 650;
+  color: var(--color-warning-text);
+}
+
+/* Two lines, then the tooltip: a long reason must not grow the box. */
+.warning-card-detail {
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--color-warning-text-soft);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.warning-card-retry {
+  align-self: flex-start;
+  padding: 2px 0 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-warning-link);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/*
+ * Nothing selected — the Content row *is* the warning, since the export
+ * button next to it has just gone inert and needs to say why.
+ */
+.popup-body[data-ui-state='noSelection'] .setting-row[data-nav='content'] {
+  padding: 0 10px;
+  border-radius: var(--radius-link);
+  background: var(--color-warning-surface);
+}
+
+.popup-body[data-ui-state='noSelection'] .setting-row[data-nav='content'] .setting-row-label {
   font-weight: 600;
+  color: var(--color-warning-text-strong);
+}
+
+.popup-body[data-ui-state='noSelection'] .setting-row[data-nav='content'] .setting-row-value {
+  color: var(--color-warning-action);
+}
+
+.popup-body[data-ui-state='noSelection'] .setting-row[data-nav='content'] .setting-row-chevron {
+  color: var(--color-warning-action);
+}
+
+/* Inert export button: detecting has nothing yet, noSelection has nothing left. */
+.popup-body[data-ui-state='detecting'] .split-button,
+.popup-body[data-ui-state='noSelection'] .split-button {
+  background: var(--color-disabled-surface);
+  color: var(--color-disabled-text);
+}
+
+.popup-body[data-ui-state='detecting'] .split-toggle,
+.popup-body[data-ui-state='noSelection'] .split-toggle {
+  border-left-color: var(--color-disabled-border);
+}
+
+.split-export:disabled {
+  cursor: not-allowed;
+}
+
+/*
+ * Unsupported page: the header goes quiet with the rest of the box. It sits
+ * outside `.popup-body`, so the state is mirrored onto `<body>` to reach it.
+ */
+body[data-ui-state='unsupported'] .popup-header {
+  background: var(--color-header-muted);
+}
+
+body[data-ui-state='unsupported'] .header-logo {
+  opacity: 0.75;
 }
 
 kbd {
-  background-color: #f3f4f6;
-  border: 1px solid #d1d5db;
-  border-radius: 3px;
-  padding: 2px 6px;
-  font-family: monospace;
-  font-size: 12px;
+  background-color: var(--color-surface-key);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-key);
+  padding: 2px 7px;
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
   font-weight: 600;
-  color: var(--text-primary);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.1);
+  color: var(--color-text-primary);
+}
+
+/* The reload state's shortcut hint runs a size down. */
+.key-hint kbd {
+  font-size: var(--text-2xs);
+}
+
+/* Keyboard focus must stay visible everywhere in the popup. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Selector drift: an amber row in the ready view, and the report view.
+   Amber, not red: the export still happened and is usually still wanted.
+   -------------------------------------------------------------------------- */
+
+.drift-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  text-align: left;
+  border: 1px solid var(--color-warning-stroke);
+  border-radius: 8px;
+  background: var(--color-warning-surface);
+  color: var(--color-warning-text);
+  cursor: pointer;
+}
+
+.drift-row[hidden] {
+  display: none;
+}
+
+.drift-row-icon {
+  flex: none;
+  margin-top: 1px;
+}
+
+.drift-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.drift-row-title {
+  font-weight: 600;
+}
+
+.drift-row-detail {
+  opacity: 0.85;
+}
+
+.drift-row-action {
+  flex: none;
+  align-self: center;
+  text-decoration: underline;
+}
+
+.drift-report-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.drift-report-intro {
+  margin: 0 0 10px;
+  color: var(--color-text-secondary);
+}
+
+.drift-report-preview {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--color-border-hairline);
+  border-radius: 6px;
+  background: var(--color-surface-sunken);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-3xs);
+  line-height: 1.45;
+  white-space: pre;
+  overflow-x: auto;
+  user-select: text;
+}
+
+.drift-report-footer {
+  gap: 8px;
+}
+
+.drift-report-status {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-text-secondary);
+}
+
+/*
+ * "Copy report" — the text-button idiom this popup already uses for a
+ * secondary action (cf. `.pair-chooser-toggle-all`), not a second filled
+ * button competing with "Copy & report" beside it. `height` matches
+ * `.submenu-done` so the two sit on one baseline in the footer row; without
+ * it the button collapsed to its 19px line box next to a 34px primary.
+ */
+.drift-report-secondary {
+  flex: none;
+  height: 34px;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.drift-report-secondary:hover {
+  color: var(--color-accent-pressed);
 }
