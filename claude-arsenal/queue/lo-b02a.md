@@ -74,3 +74,36 @@ Non-negotiable constraints carried over from R-2:
   import.
 
 Do all three items (fonts, question turn fill, tables + code-language tab).
+
+---
+
+## STATUS UPDATE 2026-07-30 — item 1 (fonts) IS ALREADY DONE ON `main`
+
+Verified on `main` at `c357de3`. Do **not** redo it, and do **not** touch
+`package.json`:
+
+- `@fontsource/source-sans-3` and `@fontsource/ibm-plex-mono` are already
+  declared (the owner's chosen route — npm deps, not vendored base64).
+- `scripts/generate-pdf-fonts.mjs` runs on `postinstall` and emits
+  `src/core/exporters/pdf-fonts.generated.ts` (tracked; 4 faces, ~149 KB
+  TrueType, 26 covered ranges).
+- `pdf-exporter.ts:26` imports `EMBEDDED_FONTS` and calls `addFileToVFS` at
+  line 165; `this.fonts.body` / `this.fonts.code` are in use throughout.
+
+**Remaining scope is items 2 and 3 only:**
+
+**2. The question turn fill.** The design puts the question on `#F6F7F6` and the
+answer on white. pdf's layout is hand-rolled top-to-bottom and jsPDF has no
+z-order, so a `rect` drawn after the text covers it. You need the question box's
+height *before* drawing: a measure pass over `renderBlocks` (a dry run that
+advances `y` without drawing), then `rect`, then the text. There is already a
+comment at `pdf-exporter.ts:407` calling measurement "the single place that
+measurement lives" — start there and extend it rather than adding a second
+measurement path. html (R-6) and txt (R-5) already moved their fill to the
+question; pdf is the last format where the background says nothing about who is
+asking.
+
+**3. Tables and the code-language tab.**
+- Tables: horizontal rules only (a `renderHorizontalRule` helper already exists
+  near line 943), tabular figures, numeric columns right-aligned.
+- Code blocks: the language in a tab **above** the block rather than inline.
