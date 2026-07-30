@@ -64,10 +64,10 @@ const CAPTURED_REPORT_HTML = `
     <thead><tr><th>Tactica</th><th>Objetivo</th></tr></thead>
     <tbody><tr><td>Chorro directo</td><td>Enfriar el combustible</td></tr></tbody>
   </table>
-  <svg xmlns="http://www.w3.org/2000/svg"><text x="0" y="10">2006-01-01</text><text x="0" y="20">2026-01-01</text></svg>
+  <svg xmlns="http://www.w3.org/2000/svg" width="500" height="200"><text x="0" y="10">2006-01-01</text><text x="0" y="20">2026-01-01</text></svg>
 `;
 
-function buildFixtureDocument(): Document {
+function buildFixtureDocument(reportHtml: string = CAPTURED_REPORT_HTML): Document {
   const dom = new JSDOM(
     `<main id="main">
        <section data-turn="user" data-testid="conversation-turn-1">
@@ -92,7 +92,7 @@ function buildFixtureDocument(): Document {
   );
 
   const iframe = dom.window.document.querySelector('iframe');
-  iframe?.setAttribute(EMBEDDED_FRAME_REPORT_HTML_ATTR, CAPTURED_REPORT_HTML);
+  iframe?.setAttribute(EMBEDDED_FRAME_REPORT_HTML_ATTR, reportHtml);
   return dom.window.document;
 }
 
@@ -170,6 +170,89 @@ describe('Deep Research report: captured HTML fidelity (D-31)', () => {
       b.type === 'paragraph' ? b.content.flatMap((c) => ('text' in c ? [c.text] : [])) : []
     );
     expect(paragraphTexts).toContain('[Deep Research: 8m, 18 sources, 60 searches]');
+  });
+});
+
+// Coordinator review of #196: both cleanup heuristics above were too broad and
+// could silently delete real report content, which is exactly what "never
+// fabricate or silently truncate" forbids.
+describe('Deep Research report: cleanup heuristics never delete real content', () => {
+  it('keeps both cells of a table row with identical adjacent values (unit columns, repeated ranges like "~6-8 bar")', () => {
+    const html = `
+      <h1>${TITLE}</h1>
+      <table>
+        <thead><tr><th>Tactica</th><th>Presion</th><th>Presion</th></tr></thead>
+        <tbody><tr><td>Chorro directo</td><td>~6-8 bar</td><td>~6-8 bar</td></tr></tbody>
+      </table>
+    `;
+    const result = new ChatGPTParser(buildFixtureDocument(html)).parse();
+    const answer = result.conversation!.pairs[0]!.answer;
+    expect(answer.content.match(/~6-8 bar/g)).toHaveLength(2);
+  });
+
+  it('keeps both rows of a table body with identical adjacent rows', () => {
+    const html = `
+      <h1>${TITLE}</h1>
+      <table>
+        <tbody>
+          <tr><td>–</td><td>–</td></tr>
+          <tr><td>–</td><td>–</td></tr>
+        </tbody>
+      </table>
+    `;
+    const result = new ChatGPTParser(buildFixtureDocument(html)).parse();
+    const answer = result.conversation!.pairs[0]!.answer;
+    const blocks = ConversationStructureService.toStructured({
+      id: 'c1',
+      title: 'test',
+      platform: 'chatgpt',
+      url: 'https://chatgpt.com/c/1',
+      createdAt: new Date('2025-01-01T00:00:00Z'),
+      pairs: [
+        {
+          id: 'p1',
+          index: 0,
+          selected: true,
+          question: { id: 'q1', role: 'user', content: 'question' },
+          answer,
+        },
+      ],
+    } as unknown as Conversation).pairs[0]!.answer.blocks;
+    const table = blocks.find(
+      (b): b is Extract<StructuredContentBlock, { type: 'table' }> => b.type === 'table'
+    );
+    expect(table?.rows).toHaveLength(2);
+  });
+
+  it('keeps both items of a list with two legitimately identical adjacent entries', () => {
+    const html = `
+      <h1>${TITLE}</h1>
+      <ul><li>Revisar manguera</li><li>Revisar manguera</li></ul>
+    `;
+    const result = new ChatGPTParser(buildFixtureDocument(html)).parse();
+    const answer = result.conversation!.pairs[0]!.answer;
+    expect(answer.content.match(/Revisar manguera/g)).toHaveLength(2);
+  });
+
+  it('does not mark a small inline icon SVG (a citation glyph, ~16-24px) as a diagram', () => {
+    const html = `
+      <h1>${TITLE}</h1>
+      <p>Citation<svg width="20" height="20" viewBox="0 0 20 20"><path d="M0 0h20v20H0z"/></svg></p>
+    `;
+    const result = new ChatGPTParser(buildFixtureDocument(html)).parse();
+    const answer = result.conversation!.pairs[0]!.answer;
+    expect(answer.content).not.toContain('[Diagram');
+  });
+
+  it('marks a large diagram-sized SVG (hundreds of px, like the Mermaid timeline) exactly once', () => {
+    const html = `
+      <h1>${TITLE}</h1>
+      <svg width="500" height="200"><text>2006-01-01</text><text>2026-01-01</text></svg>
+    `;
+    const result = new ChatGPTParser(buildFixtureDocument(html)).parse();
+    const answer = result.conversation!.pairs[0]!.answer;
+    expect(answer.content.match(/\[Diagram: not shown/g)).toHaveLength(1);
+    expect(answer.content).not.toContain('2006-01-01');
   });
 });
 

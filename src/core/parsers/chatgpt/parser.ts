@@ -712,25 +712,52 @@ export class ChatGPTParser extends BaseParser {
   }
 
   /**
+   * Container tags whose direct children are never candidates for
+   * `dedupeAdjacentDuplicates`: a `<tr>`'s cells, a `<tbody>`'s rows, a
+   * `<ul>`/`<ol>`/`<dl>`'s items routinely repeat the same text on purpose
+   * (unit columns, "-" placeholders, repeated ranges like "~6-8 bar", or a
+   * genuinely repeated list entry) -- that repetition is real content, not
+   * chrome. Belt-and-braces with the heading-only restriction below: even
+   * without this list, a `<td>`/`<th>`/`<li>` is never itself a heading tag,
+   * so it could only ever be removed as the *earlier* half of a pair, and its
+   * sibling is never a heading either -- but excluding these containers
+   * outright also protects duplicate whole *rows* under `<tbody>`, which the
+   * heading check alone would not catch.
+   */
+  private static readonly DEDUPE_SKIP_PARENTS = new Set([
+    'tr',
+    'tbody',
+    'thead',
+    'table',
+    'ul',
+    'ol',
+    'dl',
+  ]);
+
+  /**
    * Drop an element that is exactly repeated by its immediately following
-   * sibling, keeping the later one. The relayed Deep Research report was
-   * observed with its title rendered twice in a row -- widget chrome (a
-   * title bar, rendered before the report body) showing the title as plain
-   * text, immediately followed by the report's own heading with the same
-   * text. Keeping the later element is the general rule: chrome/furniture
-   * renders before content, not after, so of two adjacent blocks with
-   * identical text the second is the more likely to carry the real
-   * structure (e.g. an actual heading tag, where the first is a plain div).
-   * Dropping an exact, immediate repeat at all is safe generically: authored
-   * prose essentially never repeats a whole block verbatim back-to-back.
+   * sibling, keeping the later one -- but only when the later one is a
+   * heading (`h1`-`h6`). The relayed Deep Research report was observed with
+   * its title rendered twice in a row -- widget chrome (a title bar, rendered
+   * before the report body) showing the title as plain text, immediately
+   * followed by the report's own heading with the same text. Restricting to
+   * "the survivor is a heading" targets exactly that defect -- a duplicated
+   * title, one specific piece of leading chrome -- rather than treating
+   * "repeats its neighbor" as a general property of the whole document, which
+   * used to be able to eat a `<td>`/`<li>` that legitimately repeats an
+   * adjacent one (a unit column, a "-" placeholder, a genuinely repeated list
+   * entry).
    */
   private dedupeAdjacentDuplicates(root: Element): void {
-    const containers = [root, ...Array.from(root.querySelectorAll('*'))];
+    const isHeading = (el: Element) => /^h[1-6]$/.test(el.tagName.toLowerCase());
+    const containers = [root, ...Array.from(root.querySelectorAll('*'))].filter(
+      (el) => !ChatGPTParser.DEDUPE_SKIP_PARENTS.has(el.tagName.toLowerCase())
+    );
     for (const parent of containers) {
       let previous: Element | null = null;
       for (const child of Array.from(parent.children)) {
         const text = child.textContent?.trim() ?? '';
-        if (text && previous && (previous.textContent?.trim() ?? '') === text) {
+        if (text && previous && isHeading(child) && (previous.textContent?.trim() ?? '') === text) {
           previous.remove();
         }
         previous = child;
@@ -847,16 +874,79 @@ export class ChatGPTParser extends BaseParser {
   }
 
   /**
+   * An icon (~16-24px) vs. a diagram (the Mermaid timeline was hundreds of px
+   * wide) can only be told apart here by attributes, not layout -- jsdom has
+   * no layout at all (`getBoundingClientRect` is always zero), and even in a
+   * real browser the frame this HTML came from no longer exists by the time
+   * this runs. Reads `width`/`height` first, falling back to `viewBox`'s
+   * third/fourth numbers when those are absent.
+   */
+  private static readonly DIAGRAM_MIN_DIMENSION = 80;
+
+  /**
+   * Whether an `<svg>` is plausibly a diagram rather than a decorative icon
+   * (a citation-pill glyph, a bullet, a disclosure arrow -- ChatGPT's
+   * rendered content is full of these, and #196 originally flagged every one
+   * as `[Diagram: ...]`, which was noisier than the bare axis-label dump it
+   * replaced).
+   *
+   * Size is the primary signal (see `DIAGRAM_MIN_DIMENSION`). When no size
+   * information exists at all -- no `width`/`height`, no `viewBox` -- there is
+   * no positive evidence either way, so this prefers the old strip-silently
+   * behavior (treat it as an icon) unless a `<title>`/`<desc>`/`aria-label`
+   * explicitly names it a diagram/chart/graph/timeline/mermaid.
+   */
+  private isPlausibleDiagram(svg: Element): boolean {
+    const parseDimension = (value: string | null): number | null => {
+      if (!value) return null;
+      const parsed = parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    let width = parseDimension(svg.getAttribute('width'));
+    let height = parseDimension(svg.getAttribute('height'));
+
+    if (width === null || height === null) {
+      const viewBox = svg
+        .getAttribute('viewBox')
+        ?.trim()
+        .split(/[\s,]+/)
+        .map(Number);
+      if (viewBox?.length === 4 && viewBox.every((n) => Number.isFinite(n))) {
+        width ??= viewBox[2] ?? null;
+        height ??= viewBox[3] ?? null;
+      }
+    }
+
+    if (width !== null && height !== null) {
+      return (
+        width >= ChatGPTParser.DIAGRAM_MIN_DIMENSION &&
+        height >= ChatGPTParser.DIAGRAM_MIN_DIMENSION
+      );
+    }
+
+    const label = (
+      svg.querySelector('title, desc')?.textContent ??
+      svg.getAttribute('aria-label') ??
+      ''
+    ).toLowerCase();
+    return /diagram|chart|graph|timeline|mermaid/.test(label);
+  }
+
+  /**
    * Replace a diagram (rendered as inline SVG -- ChatGPT's Deep Research
    * report uses this for a Mermaid timeline) with a short honest marker
    * instead of letting it flatten to a bare dump of its text nodes (axis
-   * dates, stray labels) further down the pipeline, or vanish silently when
-   * `extractContent`'s cleanup strips the `<svg>` as decorative chrome.
-   * Matches the existing precedent for unrepresentable embedded content (see
-   * the widget-name marker below).
+   * dates, stray labels) further down the pipeline. A small decorative SVG
+   * (icons, bullets) is left alone here and falls through to
+   * `extractContent`'s existing cleanup, which strips it silently as
+   * decorative chrome, same as before this change.
    */
   private replaceDiagramsWithMarker(root: Element): void {
     root.querySelectorAll('svg').forEach((svg) => {
+      if (!this.isPlausibleDiagram(svg)) {
+        return;
+      }
       const marker = svg.ownerDocument.createElement('p');
       marker.textContent = '[Diagram: not shown -- not representable in this export]';
       svg.replaceWith(marker);
