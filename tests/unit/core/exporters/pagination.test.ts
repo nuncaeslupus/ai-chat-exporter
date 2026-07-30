@@ -15,7 +15,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Conversation, QAPair } from '../../../../src/core/types';
 import { PAGINATION } from '../../../../src/core/exporters/style-tokens';
-import { extractDocxEntry } from '../../../utils/docx-helpers';
+import { docxRunText, extractDocxEntry } from '../../../utils/docx-helpers';
 import { blobToText } from '../../../utils/exporter-helpers';
 
 interface Call {
@@ -306,11 +306,18 @@ describe('docx pagination policy', () => {
   }
 
   /** Paragraph bodies, so a property can be attributed to the paragraph carrying a given text. */
+  /**
+   * Paragraph chunks whose *rendered text* contains `needle`.
+   *
+   * Matches on joined run text rather than the raw XML: R-8 splits a code block
+   * into one run per highlighted token, so `'const a = 1;'` is no longer a
+   * contiguous substring of the markup and a raw search silently found nothing.
+   */
   function paragraphsContaining(xml: string, needle: string): string[] {
     return xml
       .split('<w:p ')
       .flatMap((chunk) => chunk.split('<w:p>'))
-      .filter((chunk) => chunk.includes(needle));
+      .filter((chunk) => chunk.includes(needle) || docxRunText(chunk).includes(needle));
   }
 
   it('sets keepNext on role labels so a label cannot strand at the page foot', async () => {

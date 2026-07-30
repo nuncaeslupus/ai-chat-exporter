@@ -69,7 +69,9 @@ describe('R-1: the redesigned type system', () => {
     expect(CODE_TOKEN_COLOR.function).toBe('#4C5FA8');
     expect(CODE_TOKEN_COLOR.string).toBe('#12665A');
     expect(CODE_TOKEN_COLOR.number).toBe('#8A5A1A');
-    expect(CODE_TOKEN_COLOR.comment).toBe('#8D9598');
+    // Darkened from the design's #8D9598, which fails WCAG AA on the code
+    // background it is specified against (2.64:1). See CODE_TOKEN_COLOR.
+    expect(CODE_TOKEN_COLOR.comment).toBe('#676D6F');
   });
 });
 

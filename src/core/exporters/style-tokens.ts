@@ -218,7 +218,14 @@ export const CODE_TOKEN_COLOR = {
   function: '#4C5FA8', // functions and class names
   string: '#12665A',
   number: '#8A5A1A', // numbers and constants
-  comment: '#8D9598',
+  /**
+   * The design names `#8D9598`, which measures **2.64:1** on its own `#EDEFEE`
+   * code background — well under WCAG AA. Darkened to clear 4.5:1. A comment is
+   * meant to be de-emphasized, but de-emphasized still has to be readable, and
+   * the same "accessibility floor, not drift" rule applied to `textMuted` in R-1
+   * applies here.
+   */
+  comment: '#676D6F',
 } as const;
 
 // ---------------------------------------------------------------------------

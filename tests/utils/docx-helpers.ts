@@ -31,3 +31,21 @@ export async function extractDocxEntry(blob: Blob, entryName: string): Promise<s
   if (!entry) throw new Error(`Entry not found in zip: ${entryName}`);
   return entry.async('string');
 }
+
+/**
+ * The concatenated text of every `<w:t>` run in some OOXML.
+ *
+ * R-8 splits a code block into one run per highlighted token, so a code sample
+ * is no longer a contiguous string in `document.xml`. Any assertion about what
+ * the reader actually sees must join the runs first; searching the raw XML for
+ * `'const a = 1;'` silently stopped matching.
+ */
+export function docxRunText(xml: string): string {
+  return [...xml.matchAll(/<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/g)]
+    .map((m) => m[1] ?? '')
+    .join('')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&');
+}

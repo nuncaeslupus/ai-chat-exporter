@@ -17,7 +17,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { COLOR } from '../../../src/core/exporters/style-tokens';
+import { CODE_TOKEN_COLOR, COLOR } from '../../../src/core/exporters/style-tokens';
 
 const popupCss = readFileSync(
   resolve(__dirname, '../../../src/extension/popup/popup.css'),
@@ -930,45 +930,41 @@ function makeExporterPairs(exporterColor: Resolve): Pair[] {
   ];
 }
 
-const hljsBg = exporterColor('pre code.hljs {', 'background');
+/**
+ * R-8/R-9: the five code-token colours on the code background.
+ *
+ * This replaced the GitHub-Dark hljs theme, which was a dark block dropped onto
+ * a light page and unrelated to the document's own palette. The five tokens are
+ * checked two ways: WCAG AA against the block background, and pairwise greyscale
+ * separation — the design claims they stay distinguishable printed in black and
+ * white, and that claim is worth asserting rather than trusting.
+ */
+const codeBg = exporterColor('.message-content pre {', 'background');
 
-// GitHub-Dark syntax highlighting theme (also part of the exported HTML).
-// Search text is the literal selector prefix as it appears in the source
-// (grouped selectors are comma-separated on one line, so the prefix ends
-// at the comma rather than at `{`).
-const hljsTokenSelectors = [
-  '.hljs-comment {',
-  '.hljs-keyword,',
-  '.hljs-string,',
-  '.hljs-number,',
-  '.hljs-function,',
-  '.hljs-built_in {',
-  '.hljs-class .hljs-title {',
-];
-const hljsPairs: Pair[] = [
+const codeTokenPairs: Pair[] = [
   {
-    label: 'hljs base text',
-    fg: exporterColor('pre code.hljs {', 'color'),
-    bg: hljsBg,
+    label: 'code block base text',
+    fg: exporterColor('.message-content pre {', 'color'),
+    bg: codeBg,
     threshold: 4.5,
   },
-  ...hljsTokenSelectors.map((sel) => ({
-    label: `hljs token ${sel}`,
-    fg: exporterColor(sel, 'color'),
-    bg: hljsBg,
+  ...(Object.keys(CODE_TOKEN_COLOR) as (keyof typeof CODE_TOKEN_COLOR)[]).map((token) => ({
+    label: `code token ${token}`,
+    fg: CODE_TOKEN_COLOR[token],
+    bg: codeBg,
     threshold: 4.5 as const,
   })),
 ];
 
-// The syntax theme is GitHub Dark in both modes — it is already a dark block
-// on a light page, so dark mode leaves it alone and it is checked once.
+// The code tokens are one palette in both modes (the block keeps a light
+// background), so they are checked once, with the light palette.
 const palettes: { mode: string; pairs: Pair[] }[] = [
   {
     mode: 'light',
     pairs: [
       ...makePopupPairs((s, p) => popupColorIn(popupLightVars, s, p)),
       ...makeExporterPairs(exporterColor),
-      ...hljsPairs,
+      ...codeTokenPairs,
     ],
   },
   {
@@ -993,5 +989,78 @@ describe.each(palettes)('WCAG AA contrast — $mode palette', ({ mode, pairs }) 
   it('actually swaps palettes between modes', () => {
     const bodyBg = pairs.find((p) => p.label === 'popup body text')?.bg;
     expect(bodyBg).toBe(mode === 'dark' ? '#141e1b' : '#ffffff');
+  });
+});
+
+/**
+ * R-9: greyscale behaviour of the five code tokens — measured, not assumed.
+ *
+ * The design states the five "siguen distinguiéndose al imprimir en escala de
+ * grises". **They do not.** Measured pairwise gaps in relative luminance:
+ *
+ *   keyword  vs function  0.0102
+ *   keyword  vs string    0.0115
+ *   keyword  vs number    0.0127
+ *   function vs number    0.0024   <- effectively the same grey
+ *   function vs string    0.0218
+ *   string   vs number    0.0242
+ *   (every pair with `comment`)    0.0218 - 0.0460
+ *
+ * Four of ten pairs sit under 0.02, which is about the smallest step that stays
+ * distinguishable side by side in print. The four are all mid-dark and differ
+ * mainly in HUE, and hue is exactly what greyscale discards. Only `comment`
+ * separates reliably, because it is the one token that differs in lightness.
+ *
+ * Rather than quietly relax the claim or unilaterally re-tune an approved
+ * palette, this pins the floor the palette actually achieves, so a future colour
+ * edit cannot make it worse. Recorded as a divergence for a real decision:
+ * either accept hue-only differentiation on screen, or re-tune the four colours
+ * to spread luminance.
+ */
+describe('R-9: code tokens in greyscale (measured floor, not the design claim)', () => {
+  const tokens = Object.entries(CODE_TOKEN_COLOR) as [string, string][];
+
+  it('declares exactly five tokens, so the set stays checkable by eye', () => {
+    expect(tokens).toHaveLength(5);
+  });
+
+  it('never lets two tokens collapse to an identical grey', () => {
+    // A guard against total collapse, which WOULD be a bug: two tokens rendering
+    // as the same grey means the highlighting conveys nothing in print.
+    const IDENTICAL = 0.002;
+    const collapsed: string[] = [];
+    for (let i = 0; i < tokens.length; i++) {
+      for (let j = i + 1; j < tokens.length; j++) {
+        const [nameA, hexA] = tokens[i]!;
+        const [nameB, hexB] = tokens[j]!;
+        const gap = Math.abs(relativeLuminance(hexToRgb(hexA)) - relativeLuminance(hexToRgb(hexB)));
+        if (gap < IDENTICAL) collapsed.push(`${nameA} vs ${nameB}: ${gap.toFixed(4)}`);
+      }
+    }
+    expect(collapsed).toEqual([]);
+  });
+
+  it('holds the measured floor so the palette cannot flatten further', () => {
+    // The worst pair today is function vs number at 0.0024. Anything below this
+    // is a regression introduced by a later colour edit.
+    const MEASURED_FLOOR = 0.002;
+    const gaps = tokens.flatMap(([, hexA], i) =>
+      tokens
+        .slice(i + 1)
+        .map(([, hexB]) =>
+          Math.abs(relativeLuminance(hexToRgb(hexA)) - relativeLuminance(hexToRgb(hexB)))
+        )
+    );
+    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(MEASURED_FLOOR);
+  });
+
+  it('keeps comment separable by lightness, since it is the one that must read as aside', () => {
+    const comment = relativeLuminance(hexToRgb(CODE_TOKEN_COLOR.comment));
+    const others = tokens
+      .filter(([name]) => name !== 'comment')
+      .map(([, hex]) => relativeLuminance(hexToRgb(hex)));
+    for (const other of others) {
+      expect(Math.abs(comment - other)).toBeGreaterThan(0.02);
+    }
   });
 });

@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import type { Conversation, QAPair } from '../../../../src/core/types';
 import { DocxExporter } from '../../../../src/core/exporters/docx-exporter';
 import { COLOR, hexToDocxColor } from '../../../../src/core/exporters/style-tokens';
-import { extractDocxEntry } from '../../../utils/docx-helpers';
+import { docxRunText, extractDocxEntry } from '../../../utils/docx-helpers';
 
 /**
  * A pair whose answer carries a heading and a code block via htmlContent, so
@@ -146,7 +146,9 @@ describe('DocxExporter', () => {
       });
       const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
 
-      expect(xml).toContain('function foo() { return 1; }');
+      // R-8 splits code into one run per token, so join the runs before asserting
+      // on what the reader sees.
+      expect(docxRunText(xml)).toContain('function foo() { return 1; }');
       expect(xml).toContain('Courier New');
     });
 
@@ -162,7 +164,11 @@ describe('DocxExporter', () => {
       });
       const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
 
-      const idx = (s: string) => xml.indexOf(s);
+      // Index into the RENDERED text, not the raw XML: R-8 splits code into one
+      // run per token, so the code sample is no longer a contiguous substring of
+      // the markup and `indexOf` on it returned -1.
+      const text = docxRunText(xml);
+      const idx = (s: string) => text.indexOf(s);
       expect(idx(conversation.url)).toBeGreaterThan(-1); // metadata rendered
       expect(idx(conversation.url)).toBeLessThan(idx('plain question')); // metadata before body
       expect(idx('plain question')).toBeLessThan(idx('Section Heading')); // question before answer
