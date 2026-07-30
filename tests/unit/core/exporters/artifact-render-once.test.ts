@@ -180,6 +180,9 @@ describe('an artifact with content renders exactly once per export format', () =
         splitTextToSize(text: string) {
           return [text];
         }
+        getTextWidth(text: string) {
+          return text.length * 2;
+        }
         output(type: string) {
           this.record('output', [type]);
           return new Blob(['%PDF-mock'], { type: 'application/pdf' });

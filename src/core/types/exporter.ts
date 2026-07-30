@@ -52,7 +52,7 @@ export interface PDFExportOptions {
 export const DEFAULT_PDF_OPTIONS: PDFExportOptions = {
   pageSize: 'a4',
   orientation: 'portrait',
-  margins: { top: 20, right: 20, bottom: 20, left: 20 },
+  margins: { top: 20, right: 18, bottom: 16, left: 18 },
   includePageNumbers: true,
   imageQuality: 0.92,
 };

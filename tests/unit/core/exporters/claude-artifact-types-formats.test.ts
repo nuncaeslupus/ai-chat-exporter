@@ -87,6 +87,10 @@ const { instances, MockJsPDF } = vi.hoisted(() => {
     splitTextToSize(text: string) {
       return [text];
     }
+    getTextWidth(text: string) {
+      // Enough for layout maths; real jsPDF measures the font.
+      return text.length * 2;
+    }
     output(type: string) {
       this.record('output', [type]);
       return new Blob(['%PDF-mock'], { type: 'application/pdf' });

@@ -332,11 +332,14 @@ export class PdfExporter extends BaseExporter {
         doc.setPage(i);
         doc.setFontSize(this.pdfSizes.small);
         doc.setTextColor(...hexToRgbTuple(COLOR.textFaint));
+        // Attribution left, page number right — the design's footer. The
+        // attribution is deliberately not localized: it is the product name.
+        doc.text('Exported with AI Chat Exporter', margins.left, pageHeight - margins.bottom / 2);
         doc.text(
           getMessageWithValues('pageNumberFormat', String(i), String(pageCount)),
-          pageWidth / 2,
+          pageWidth - margins.right,
           pageHeight - margins.bottom / 2,
-          { align: 'center' }
+          { align: 'right' }
         );
       }
     }
@@ -396,7 +399,17 @@ export class PdfExporter extends BaseExporter {
     doc.setFont(FONT_FAMILY.body.pdf, 'bold');
     doc.setFontSize(this.sizes.roleLabel);
     doc.setTextColor(...roleColor);
-    doc.text(`${role}:`, margins.left, y);
+    const label = `${role}:`;
+    doc.text(label, margins.left, y);
+
+    // The R2 treatment: a short rule beneath the label in the platform's colour.
+    // This is the only place a brand colour appears in the body, and it is what
+    // orders the page when a conversation runs to many turns.
+    const ruleWidth = doc.getTextWidth(label);
+    doc.setDrawColor(...roleColor);
+    doc.setLineWidth(0.4);
+    doc.line(margins.left, y + 1.1, margins.left + ruleWidth, y + 1.1);
+
     y += lineHeight * 1.2;
 
     // Render blocks

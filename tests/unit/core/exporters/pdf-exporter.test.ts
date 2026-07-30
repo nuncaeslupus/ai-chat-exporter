@@ -13,6 +13,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Conversation, QAPair } from '../../../../src/core/types';
 import { PdfExporter } from '../../../../src/core/exporters/pdf-exporter';
+import { COLOR, hexToRgbTuple } from '../../../../src/core/exporters/style-tokens';
+import { DEFAULT_PDF_OPTIONS } from '../../../../src/core/types';
 
 interface Call {
   method: string;
@@ -78,6 +80,10 @@ const { instances, MockJsPDF } = vi.hoisted(() => {
     // visible to the assertions below instead of split into fragments.
     splitTextToSize(text: string) {
       return [text];
+    }
+    getTextWidth(text: string) {
+      // Enough for layout maths; real jsPDF measures the font.
+      return text.length * 2;
     }
     output(type: string) {
       this.record('output', [type]);
@@ -421,5 +427,50 @@ describe('PdfExporter', () => {
       expect(rendered.some((t) => t.includes('undefined'))).toBe(false);
       expect(rendered.some((t) => /\(\s*\)/.test(t))).toBe(false);
     });
+  });
+});
+
+describe('R-2: page chrome and the R2 role label', () => {
+  async function render() {
+    instances.length = 0;
+    const { conversation, pairs } = buildConversation();
+    await new PdfExporter().export(conversation, pairs, {
+      format: 'pdf',
+      filename: 'test',
+      includeMetadata: true,
+      includeTimestamps: false,
+    } as never);
+    return instances[0]!;
+  }
+
+  it('uses the design margins, not a uniform 20mm box', () => {
+    // 20 top / 18 sides / 16 bottom, per the 1a direction.
+    expect(DEFAULT_PDF_OPTIONS.margins).toEqual({ top: 20, right: 18, bottom: 16, left: 18 });
+  });
+
+  it('rules the role label in the platform colour (R2)', async () => {
+    const instance = await render();
+    const calls = instance.calls;
+    // The assistant's name comes from i18n, absent in this harness, so match the
+    // label's shape rather than the resolved word.
+    const labelIndex = calls.findIndex(
+      (c) => c.method === 'text' && /^[A-Za-z]+:$/.test(String(c.args[0]))
+    );
+    expect(labelIndex).toBeGreaterThan(-1);
+
+    // A brand-coloured rule is drawn for the label — the one place the
+    // platform's colour appears in the body.
+    const drawColors = calls
+      .filter((c) => c.method === 'setDrawColor')
+      .map((c) => c.args.join(','));
+    // buildConversation() is a Claude conversation.
+    expect(drawColors).toContain(hexToRgbTuple(COLOR.brand.claude).join(','));
+    expect(calls.some((c) => c.method === 'line')).toBe(true);
+  });
+
+  it('prints the exporter attribution in the footer alongside the page number', async () => {
+    const instance = await render();
+    const texts = instance.calls.filter((c) => c.method === 'text').map((c) => String(c.args[0]));
+    expect(texts.some((t) => t.includes('AI Chat Exporter'))).toBe(true);
   });
 });
