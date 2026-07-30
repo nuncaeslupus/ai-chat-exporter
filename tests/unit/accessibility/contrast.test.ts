@@ -247,6 +247,15 @@ function makePopupPairs(popupColor: Resolve): Pair[] {
       bg: popupColor('body {', 'background'),
       threshold: 4.5,
     },
+    // P-8: the ChatGPT platform mark (.platform-icon), recoloured from the
+    // default-black SVG fill to the project's own brand token so it survives
+    // the dark popup surface. Decorative, not text — 3:1 bar.
+    {
+      label: 'ChatGPT platform icon',
+      fg: COLOR.brand.chatgpt,
+      bg: popupColor('body {', 'background'),
+      threshold: 3,
+    },
     {
       label: 'setting-row label',
       fg: popupColor('.setting-row-label {', 'color'),
@@ -1045,5 +1054,24 @@ describe('R-9: code tokens survive greyscale printing', () => {
     for (let i = 1; i < byLuminance.length; i++) {
       expect(byLuminance[i]!.l).toBeGreaterThan(byLuminance[i - 1]!.l);
     }
+  });
+});
+
+/**
+ * P-8: the contrast pair above proves `COLOR.brand.chatgpt` itself clears 3:1
+ * on both popup surfaces — it says nothing about whether the SVG file still
+ * uses that colour. The bug was a fill *missing entirely* from the file, so
+ * the regression this guards against is the fill being dropped or reverted
+ * to black again, independent of the token's own value.
+ */
+describe('P-8: ChatGPT logo file stays wired to the brand token', () => {
+  const svgSource = readFileSync(
+    resolve(__dirname, '../../../src/assets/icons/chatgpt-logo.svg'),
+    'utf-8'
+  );
+
+  it('fills its path with COLOR.brand.chatgpt, not a hardcoded or missing colour', () => {
+    const match = /\bfill\s*=\s*["']([^"']+)["']/.exec(svgSource);
+    expect(match?.[1]?.toLowerCase()).toBe(COLOR.brand.chatgpt.toLowerCase());
   });
 });
