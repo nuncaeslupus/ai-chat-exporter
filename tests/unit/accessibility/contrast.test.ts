@@ -698,17 +698,39 @@ function makePopupPairs(popupColor: Resolve): Pair[] {
   ];
 }
 
+/**
+ * The colour an assistant message actually shows. R-6 made it transparent, so
+ * the visible background is the page's.
+ */
+function bodyBgBehindAssistant(exporterColor: Resolve): string {
+  const declared = exporterColor('.assistant-message {', 'background');
+  return /^(transparent|none)$/i.test(declared.trim())
+    ? exporterColor('body {', 'background-color')
+    : declared;
+}
+
 function makeExporterPairs(exporterColor: Resolve): Pair[] {
   // Ambient container backgrounds used by several exported-HTML text rules.
   const headerBg = exporterColor('.header {', 'background');
   const userMsgBg = exporterColor('.user-message {', 'background');
-  const assistantMsgBg = exporterColor('.assistant-message {', 'background');
+  /**
+   * R-6 moved the turn fill onto the QUESTION, so `.assistant-message` now
+   * declares `background: transparent` — it shows whatever is behind it, which
+   * is the page. Contrast against the literal keyword is meaningless, so resolve
+   * it to the body background it actually reveals.
+   */
+  const assistantMsgBg = bodyBgBehindAssistant(exporterColor);
   const bodyBg = exporterColor('body {', 'background-color');
   const artifactBg = exporterColor('.artifact {', 'background');
   const artifactUserBg = exporterColor('.user-message .artifact {', 'background');
   const searchResultBg = exporterColor('.search-result {', 'background');
   const searchResultUserBg = exporterColor('.user-message .search-result {', 'background');
-  const thBg = exporterColor('.message-content th {', 'background');
+  /**
+   * R-6 dropped `th`'s own fill (horizontal rules only), so header text sits on
+   * whichever message contains it. The tinted question fill is the darker of the
+   * two containers, so checking against it is the strict case.
+   */
+  const thBg = userMsgBg;
   const preBg = exporterColor('.message-content pre {', 'background');
 
   return [
@@ -774,25 +796,25 @@ function makeExporterPairs(exporterColor: Resolve): Pair[] {
       threshold: 4.5,
     },
     {
-      label: 'blockquote on user (white) bg',
+      label: 'blockquote on user (tinted) bg',
       fg: exporterColor('.message-content blockquote {', 'color'),
       bg: userMsgBg,
       threshold: 4.5,
     },
     {
-      label: 'blockquote on assistant (grey) bg',
+      label: 'blockquote on assistant (page) bg',
       fg: exporterColor('.message-content blockquote {', 'color'),
       bg: assistantMsgBg,
       threshold: 4.5,
     },
     {
-      label: 'message-content a on user (white) bg',
+      label: 'message-content a on user (tinted) bg',
       fg: exporterColor('.message-content a {', 'color'),
       bg: userMsgBg,
       threshold: 4.5,
     },
     {
-      label: 'message-content a on assistant (grey) bg',
+      label: 'message-content a on assistant (page) bg',
       fg: exporterColor('.message-content a {', 'color'),
       bg: assistantMsgBg,
       threshold: 4.5,
@@ -804,25 +826,25 @@ function makeExporterPairs(exporterColor: Resolve): Pair[] {
       threshold: 4.5,
     },
     {
-      label: 'artifacts-section h3 on user (white) bg',
+      label: 'artifacts-section h3 on user (tinted) bg',
       fg: exporterColor('.artifacts-section h3 {', 'color'),
       bg: userMsgBg,
       threshold: 4.5,
     },
     {
-      label: 'artifacts-section h3 on assistant (grey) bg',
+      label: 'artifacts-section h3 on assistant (page) bg',
       fg: exporterColor('.artifacts-section h3 {', 'color'),
       bg: assistantMsgBg,
       threshold: 4.5,
     },
     {
-      label: 'web-searches-section h3 on user (white) bg',
+      label: 'web-searches-section h3 on user (tinted) bg',
       fg: exporterColor('.web-searches-section h3 {', 'color'),
       bg: userMsgBg,
       threshold: 4.5,
     },
     {
-      label: 'web-searches-section h3 on assistant (grey) bg',
+      label: 'web-searches-section h3 on assistant (page) bg',
       fg: exporterColor('.web-searches-section h3 {', 'color'),
       bg: assistantMsgBg,
       threshold: 4.5,
@@ -852,25 +874,25 @@ function makeExporterPairs(exporterColor: Resolve): Pair[] {
       threshold: 4.5,
     },
     {
-      label: 'web-search h4 on user (white) bg',
+      label: 'web-search h4 on user (tinted) bg',
       fg: exporterColor('.web-search h4 {', 'color'),
       bg: userMsgBg,
       threshold: 4.5,
     },
     {
-      label: 'web-search h4 on assistant (grey) bg',
+      label: 'web-search h4 on assistant (page) bg',
       fg: exporterColor('.web-search h4 {', 'color'),
       bg: assistantMsgBg,
       threshold: 4.5,
     },
     {
-      label: 'search-count on user (white) bg',
+      label: 'search-count on user (tinted) bg',
       fg: exporterColor('.search-count {', 'color'),
       bg: userMsgBg,
       threshold: 4.5,
     },
     {
-      label: 'search-count on assistant (grey) bg',
+      label: 'search-count on assistant (page) bg',
       fg: exporterColor('.search-count {', 'color'),
       bg: assistantMsgBg,
       threshold: 4.5,
