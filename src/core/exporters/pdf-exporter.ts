@@ -21,8 +21,10 @@ import type {
 } from '../types';
 import { DEFAULT_PDF_OPTIONS } from '../types';
 import { BaseExporter } from './base-exporter';
+import { isProseArtifact } from './artifact-content';
+import { escapeHtmlText, loadMarkdownRenderer } from './code-highlight';
 import { EMBEDDED_FONTS } from './pdf-fonts.generated';
-import { ConversationStructureService } from '../services';
+import { ConversationStructureService, HtmlContentParser } from '../services';
 import { getMessageWithValues } from '../../shared/i18n';
 import { sanitizeTextForPDF } from '../utils/pdf-characters';
 import { loadImagesParallel, type LoadedImage } from '../utils/image-loader';
@@ -87,6 +89,13 @@ export class PdfExporter extends BaseExporter {
   };
 
   /**
+   * Markdown -> sanitized HTML, for prose artifacts. Null when `marked` could
+   * not be loaded, in which case a prose artifact falls back to a code block
+   * (same fallback as html-exporter).
+   */
+  private markdown: ((md: string) => string | null) | null = null;
+
+  /**
    * Export selected Q&A pairs to PDF
    */
   async export(
@@ -97,6 +106,10 @@ export class PdfExporter extends BaseExporter {
     try {
       this.sizes = scaleFontSizes(FONT_SIZE_PT, options.fontScale);
       this.pdfSizes = scaleFontSizes(PDF_FONT_SIZE_PT, options.fontScale);
+      // pdf has no code highlighting today (unlike html/docx), so the fenced-code
+      // renderer only needs to keep the markup inert — `renderCodeBlock` renders
+      // plain monospace text regardless.
+      this.markdown = await loadMarkdownRenderer(null, escapeHtmlText);
 
       // Convert to structured format (only the selected pairs)
       const structured = ConversationStructureService.toStructured({
@@ -603,21 +616,42 @@ export class PdfExporter extends BaseExporter {
 
       y += lineHeight * 0.3;
 
-      // Artifact content (code block)
-      doc.setFont(this.fonts.code, 'normal');
-      doc.setFontSize(this.sizes.code);
-      doc.setTextColor(...hexToRgbTuple(COLOR.textStrong));
+      // Artifact content: prose (type: 'document') renders through the same
+      // markdown -> HTML -> structured-block pipeline message content uses;
+      // code artifacts (including one whose language happens to be
+      // 'markdown') stay a plain code block, same as before.
+      const proseHtml =
+        isProseArtifact(artifact) && this.markdown && artifact.content
+          ? this.markdown(artifact.content)
+          : null;
 
-      const contentLines = (artifact.content || '').split('\n');
-      for (const line of contentLines) {
-        if (y > pageHeight - margins.bottom) {
-          doc.addPage();
-          y = margins.top;
-        }
-        const wrappedLines = splitLines(doc, sanitizeTextForPDF(line || ' '), contentWidth);
-        for (const wrappedLine of wrappedLines) {
-          doc.text(wrappedLine, margins.left + 5, y);
-          y += lineHeight * 0.8;
+      if (proseHtml !== null) {
+        y = this.renderBlocks(
+          doc,
+          HtmlContentParser.parse(proseHtml),
+          y,
+          margins,
+          contentWidth,
+          lineHeight,
+          pageHeight
+        );
+      } else {
+        // Artifact content (code block)
+        doc.setFont(this.fonts.code, 'normal');
+        doc.setFontSize(this.sizes.code);
+        doc.setTextColor(...hexToRgbTuple(COLOR.textStrong));
+
+        const contentLines = (artifact.content || '').split('\n');
+        for (const line of contentLines) {
+          if (y > pageHeight - margins.bottom) {
+            doc.addPage();
+            y = margins.top;
+          }
+          const wrappedLines = splitLines(doc, sanitizeTextForPDF(line || ' '), contentWidth);
+          for (const wrappedLine of wrappedLines) {
+            doc.text(wrappedLine, margins.left + 5, y);
+            y += lineHeight * 0.8;
+          }
         }
       }
 

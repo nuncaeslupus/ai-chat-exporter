@@ -39,14 +39,17 @@ import type {
   TableBlock,
 } from '../types';
 import { BaseExporter } from './base-exporter';
+import { isProseArtifact } from './artifact-content';
 import {
+  escapeHtmlText,
   highlightCode,
   loadHighlighter,
+  loadMarkdownRenderer,
   tokenLines,
   type CodeToken,
   type Highlighter,
 } from './code-highlight';
-import { ConversationStructureService } from '../services';
+import { ConversationStructureService, HtmlContentParser } from '../services';
 import {
   CODE_TOKEN_COLOR,
   COLOR,
@@ -105,6 +108,13 @@ export class DocxExporter extends BaseExporter {
   private highlighter: Highlighter | null = null;
 
   /**
+   * Markdown -> sanitized HTML, for prose artifacts. Null when `marked` could
+   * not be loaded, in which case a prose artifact falls back to a code block
+   * (same fallback as html-exporter).
+   */
+  private markdown: ((md: string) => string | null) | null = null;
+
+  /**
    * The DOM document used to parse hljs output into tokens.
    *
    * Typed via `typeof globalThis.document`, not `Document`: the `docx` library
@@ -126,6 +136,11 @@ export class DocxExporter extends BaseExporter {
       this.sizes = scaleFontSizes(FONT_SIZE_PT, options.fontScale);
       this.docxSizes = scaleFontSizes(DOCX_FONT_SIZE_PT, options.fontScale);
       this.highlighter = await loadHighlighter();
+      // The renderer inside a prose artifact's fenced code is discarded again by
+      // `HtmlContentParser.parseCodeBlock` (it keeps only the plain text and the
+      // language class) — `renderCodeBlock` below re-derives highlighting from
+      // that, so this callback only needs to be inert, not coloured.
+      this.markdown = await loadMarkdownRenderer(null, escapeHtmlText);
 
       // Convert to structured format (only the selected pairs)
       const structured = ConversationStructureService.toStructured({
@@ -511,21 +526,15 @@ export class DocxExporter extends BaseExporter {
           }
 
           // Artifact content
-          // For markdown artifacts, try to render; for others, show as code
-          if (artifact.type === 'document' || artifact.language === 'markdown') {
-            // Note: Full markdown parsing for DOCX would be complex
-            // For now, just render as formatted text
-            paragraphs.push(
-              new Paragraph({
-                children: [
-                  new TextRun({
-                    text: artifact.content || '',
-                    size: ptToHalfPt(this.sizes.body),
-                  }),
-                ],
-                spacing: { after: 150 },
-              })
-            );
+          // Prose artifacts (type: 'document') render through the same
+          // markdown -> HTML -> structured-block pipeline message content
+          // uses; code artifacts (including one whose language happens to be
+          // 'markdown') stay monospace below.
+          const proseBlocks = isProseArtifact(artifact)
+            ? this.renderProseArtifact(artifact.content ?? '')
+            : null;
+          if (proseBlocks) {
+            paragraphs.push(...proseBlocks);
           } else {
             // Show as monospace code
             const contentLines = (artifact.content || '').split('\n');
@@ -581,6 +590,23 @@ export class DocxExporter extends BaseExporter {
     }
 
     return paragraphs;
+  }
+
+  /**
+   * A prose artifact's content, rendered as real DOCX structure instead of a
+   * single unstyled paragraph of raw markdown source.
+   *
+   * Route: markdown -> sanitized HTML (`marked`) -> structured blocks (the
+   * same `HtmlContentParser` message content goes through) -> the existing
+   * block renderer below. Returns null when the markdown renderer could not
+   * be loaded or there is no content, so the caller falls back to a code
+   * block — the same fallback html-exporter uses for prose artifacts.
+   */
+  private renderProseArtifact(content: string): (Paragraph | Table)[] | null {
+    if (!this.markdown || !content) return null;
+    const html = this.markdown(content);
+    if (html === null) return null;
+    return this.renderBlocks(HtmlContentParser.parse(html));
   }
 
   /**

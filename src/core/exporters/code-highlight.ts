@@ -242,6 +242,18 @@ export function tokenLines(tokens: CodeToken[]): CodeToken[][] {
 }
 
 /**
+ * Escape text for embedding in HTML.
+ *
+ * Used as the fenced-code renderer passed to `loadMarkdownRenderer` by
+ * consumers (pdf, docx) whose own code-block renderer re-derives highlighting
+ * from the parsed block's plain text rather than from this markup — so it
+ * only needs to be inert, not coloured.
+ */
+export function escapeHtmlText(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
  * Load `marked` on demand and return a Markdown -> sanitized-HTML function.
  *
  * Dynamic for the same reason as the highlighter: it belongs in the lazily-loaded

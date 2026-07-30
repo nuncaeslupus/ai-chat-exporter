@@ -16,6 +16,7 @@ import type {
   TableBlock,
 } from '../types';
 import { BaseExporter } from './base-exporter';
+import { isProseArtifact } from './artifact-content';
 import { ConversationStructureService } from '../services';
 import { getMessage } from '../../shared/i18n';
 import { DOC_HEADING_LEVEL, bodyHeadingLevel } from './style-tokens';
@@ -157,7 +158,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
               lines.push(artifact.content);
               lines.push('```');
               lines.push('</details>');
-            } else if (artifact.type === 'document' || artifact.language === 'markdown') {
+            } else if (isProseArtifact(artifact)) {
               // Markdown documents: render directly as markdown
               lines.push(artifact.content || '');
             } else {

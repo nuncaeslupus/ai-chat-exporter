@@ -20,6 +20,7 @@ import type {
   WebSearchResult,
 } from '../types';
 import { BaseExporter } from './base-exporter';
+import { isProseArtifact } from './artifact-content';
 import {
   highlightCode,
   loadHighlighter,
@@ -272,7 +273,7 @@ export class HtmlExporter extends BaseExporter {
    */
   private renderArtifactBody(artifact: Artifact): string {
     const content = artifact.content ?? '';
-    const isProse = artifact.type === 'document' || artifact.language === 'markdown';
+    const isProse = isProseArtifact(artifact);
 
     if (isProse && this.markdown && content) {
       const rendered = this.markdown(content);
