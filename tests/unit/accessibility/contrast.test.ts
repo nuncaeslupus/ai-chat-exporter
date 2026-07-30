@@ -993,74 +993,50 @@ describe.each(palettes)('WCAG AA contrast — $mode palette', ({ mode, pairs }) 
 });
 
 /**
- * R-9: greyscale behaviour of the five code tokens — measured, not assumed.
+ * R-9: the five code tokens stay distinguishable printed in greyscale.
  *
- * The design states the five "siguen distinguiéndose al imprimir en escala de
- * grises". **They do not.** Measured pairwise gaps in relative luminance:
+ * They did not, originally. The design's values differed almost entirely in
+ * HUE, which greyscale discards: `function` and `number` measured 0.0024 apart
+ * — the same grey — and four of ten pairs were under 0.02. The palette was
+ * retuned to spread relative luminance while holding each hue family, solved
+ * against two constraints at once: WCAG AA on the code background (which caps
+ * foreground luminance at 0.1520) and a minimum pairwise gap.
  *
- *   keyword  vs function  0.0102
- *   keyword  vs string    0.0115
- *   keyword  vs number    0.0127
- *   function vs number    0.0024   <- effectively the same grey
- *   function vs string    0.0218
- *   string   vs number    0.0242
- *   (every pair with `comment`)    0.0218 - 0.0460
- *
- * Four of ten pairs sit under 0.02, which is about the smallest step that stays
- * distinguishable side by side in print. The four are all mid-dark and differ
- * mainly in HUE, and hue is exactly what greyscale discards. Only `comment`
- * separates reliably, because it is the one token that differs in lightness.
- *
- * Rather than quietly relax the claim or unilaterally re-tune an approved
- * palette, this pins the floor the palette actually achieves, so a future colour
- * edit cannot make it worse. Recorded as a divergence for a real decision:
- * either accept hue-only differentiation on screen, or re-tune the four colours
- * to spread luminance.
+ * Both halves are asserted here, because satisfying one alone is easy and
+ * satisfying both is what took the solve.
  */
-describe('R-9: code tokens in greyscale (measured floor, not the design claim)', () => {
+describe('R-9: code tokens survive greyscale printing', () => {
   const tokens = Object.entries(CODE_TOKEN_COLOR) as [string, string][];
+
+  const gap = (a: string, b: string): number =>
+    Math.abs(relativeLuminance(hexToRgb(a)) - relativeLuminance(hexToRgb(b)));
 
   it('declares exactly five tokens, so the set stays checkable by eye', () => {
     expect(tokens).toHaveLength(5);
   });
 
-  it('never lets two tokens collapse to an identical grey', () => {
-    // A guard against total collapse, which WOULD be a bug: two tokens rendering
-    // as the same grey means the highlighting conveys nothing in print.
-    const IDENTICAL = 0.002;
-    const collapsed: string[] = [];
+  it('separates every pair by at least 0.02 relative luminance', () => {
+    // 0.02 is about the smallest step that stays distinguishable side by side in
+    // print. Listing the offenders rather than asserting a bare minimum makes a
+    // regression name the two colours that collapsed.
+    const tooClose: string[] = [];
     for (let i = 0; i < tokens.length; i++) {
       for (let j = i + 1; j < tokens.length; j++) {
         const [nameA, hexA] = tokens[i]!;
         const [nameB, hexB] = tokens[j]!;
-        const gap = Math.abs(relativeLuminance(hexToRgb(hexA)) - relativeLuminance(hexToRgb(hexB)));
-        if (gap < IDENTICAL) collapsed.push(`${nameA} vs ${nameB}: ${gap.toFixed(4)}`);
+        const d = gap(hexA, hexB);
+        if (d < 0.02) tooClose.push(`${nameA} (${hexA}) vs ${nameB} (${hexB}): ${d.toFixed(4)}`);
       }
     }
-    expect(collapsed).toEqual([]);
+    expect(tooClose).toEqual([]);
   });
 
-  it('holds the measured floor so the palette cannot flatten further', () => {
-    // The worst pair today is function vs number at 0.0024. Anything below this
-    // is a regression introduced by a later colour edit.
-    const MEASURED_FLOOR = 0.002;
-    const gaps = tokens.flatMap(([, hexA], i) =>
-      tokens
-        .slice(i + 1)
-        .map(([, hexB]) =>
-          Math.abs(relativeLuminance(hexToRgb(hexA)) - relativeLuminance(hexToRgb(hexB)))
-        )
-    );
-    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(MEASURED_FLOOR);
-  });
-
-  it('keeps comment separable by lightness, since it is the one that must read as aside', () => {
-    const comment = relativeLuminance(hexToRgb(CODE_TOKEN_COLOR.comment));
-    const others = tokens
-      .filter(([name]) => name !== 'comment')
-      .map(([, hex]) => relativeLuminance(hexToRgb(hex)));
-    for (const other of others) {
-      expect(Math.abs(comment - other)).toBeGreaterThan(0.02);
+  it('orders the tokens by lightness with no ties, so greyscale reads as a ramp', () => {
+    const byLuminance = tokens
+      .map(([name, hex]) => ({ name, l: relativeLuminance(hexToRgb(hex)) }))
+      .sort((a, b) => a.l - b.l);
+    for (let i = 1; i < byLuminance.length; i++) {
+      expect(byLuminance[i]!.l).toBeGreaterThan(byLuminance[i - 1]!.l);
     }
   });
 });

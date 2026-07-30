@@ -211,18 +211,30 @@ export const FONT_SIZE_PT = {
 } as const;
 
 /**
- * Five token classes, not twenty (R-1). Dark and low-saturation so each clears
- * WCAG AA on the code-block background and they stay distinguishable printed in
- * greyscale — both asserted in tests/unit/accessibility/contrast.test.ts.
+ * Five token classes, not twenty (R-1), each clearing WCAG AA on the code-block
+ * background AND separated in relative luminance so they survive greyscale
+ * printing — both asserted in tests/unit/accessibility/contrast.test.ts.
+ *
+ * The luminance spread is deliberate. The design's original values differed
+ * almost entirely in HUE, which greyscale discards: measured, `function` and
+ * `number` sat 0.0024 apart — the same grey — and four of ten pairs were under
+ * 0.02, so the design's own claim that the five stay distinguishable in print
+ * was false. Each hue family is preserved; only lightness moved, solved against
+ * two constraints at once — AA on `#EDEFEE` (foreground luminance <= 0.1520) and
+ * a >= 0.02 pairwise gap. `comment` sits at the AA ceiling (0.1497), so the
+ * other four are spread beneath it. Worst pair is now 0.0243.
+ *
+ * Do not retune one of these in isolation: they are a set solved together, and
+ * moving one lightness can collapse a pair three colours away.
  *
  * `highlight.js` (already a dependency) produces far more scopes than this; R-8
  * maps them down onto these five rather than adding a palette per language.
  */
 export const CODE_TOKEN_COLOR = {
-  keyword: '#9C3F63',
-  function: '#4C5FA8', // functions and class names
-  string: '#12665A',
-  number: '#8A5A1A', // numbers and constants
+  keyword: '#722E48',
+  function: '#435393', // functions and class names
+  string: '#09322C',
+  number: '#89591A', // numbers and constants
   /**
    * The design names `#8D9598`, which measures **2.64:1** on its own `#EDEFEE`
    * code background — well under WCAG AA. Darkened to clear 4.5:1. A comment is
