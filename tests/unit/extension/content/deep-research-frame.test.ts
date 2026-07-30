@@ -10,6 +10,9 @@ import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } fr
 /** Must match QUIET_PERIOD_MS in deep-research-frame.ts. */
 const QUIET_PERIOD_MS = 500;
 
+/** Must match MAX_PLAUSIBLE_LENGTH in deep-research-frame.ts. */
+const MAX_PLAUSIBLE_LENGTH = 200_000;
+
 async function loadFrameScript(): Promise<void> {
   vi.resetModules();
   await import('../../../../src/extension/content/deep-research-frame');
@@ -75,5 +78,71 @@ describe('deep-research-frame relay', () => {
       },
       '*'
     );
+  });
+
+  // lo-6333: on a live page the report doesn't render into this frame's own
+  // document -- it renders into a nested, same-origin `about:blank` iframe
+  // (`#root`) that the widget runtime creates inside it. None of this can be
+  // exercised end-to-end here (no fixture can hold a cross-document nested
+  // frame's content, and jsdom lacks `innerText`), but jsdom does support a
+  // real, synchronously-accessible `contentDocument` for a plain same-origin
+  // `<iframe>`, which is enough to unit-test the *selection* logic below with
+  // a stubbed nested frame.
+  describe('nested #root frame selection', () => {
+    it("prefers the nested #root iframe's document over the shell's own text", async () => {
+      document.body.textContent = 'shell noise, not the report';
+      const iframe = document.createElement('iframe');
+      iframe.id = 'root';
+      document.body.appendChild(iframe);
+      iframe.contentDocument!.body.textContent = 'The nested report.';
+
+      await loadFrameScript();
+
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        { type: 'ai-chat-exporter:deep-research-report', text: 'The nested report.' },
+        '*'
+      );
+    });
+
+    it('falls back to the first <iframe> when no #root id is present', async () => {
+      const iframe = document.createElement('iframe');
+      document.body.appendChild(iframe);
+      iframe.contentDocument!.body.textContent = 'Report via fallback iframe.';
+
+      await loadFrameScript();
+
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        { type: 'ai-chat-exporter:deep-research-report', text: 'Report via fallback iframe.' },
+        '*'
+      );
+    });
+
+    it('relays nothing when the captured text exceeds the sanity bound', async () => {
+      document.body.textContent = 'x'.repeat(MAX_PLAUSIBLE_LENGTH + 1);
+
+      await loadFrameScript();
+
+      expect(postMessageSpy).not.toHaveBeenCalled();
+    });
+
+    it("re-attaches to the nested document on the iframe's load event", async () => {
+      const iframe = document.createElement('iframe');
+      iframe.id = 'root';
+      document.body.appendChild(iframe);
+      // Empty at first -- e.g. `about:blank` before the widget runtime has
+      // populated it -- so there is nothing to relay yet.
+
+      await loadFrameScript();
+      expect(postMessageSpy).not.toHaveBeenCalled();
+
+      // The child document is populated/navigated later; `load` re-fires.
+      iframe.contentDocument!.body.textContent = 'Report loaded after navigation.';
+      iframe.dispatchEvent(new Event('load'));
+
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        { type: 'ai-chat-exporter:deep-research-report', text: 'Report loaded after navigation.' },
+        '*'
+      );
+    });
   });
 });
