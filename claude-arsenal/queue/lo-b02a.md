@@ -53,3 +53,24 @@ the failure surfaces as an unrelated assertion rather than a clear error.
 
 ## Location
 `src/core/exporters/pdf-exporter.ts`, plus a new base64 font module beside it.
+
+---
+
+## OWNER DECISION 2026-07-30 — fonts: `@fontsource` npm dependencies
+
+Item 1 is **unblocked and in scope**. Use `@fontsource/source-sans-3` and
+`@fontsource/ibm-plex-mono` as **devDependencies**, reading the `.ttf` files at
+build time into the base64 module. Do NOT vendor hand-generated base64 blobs.
+
+Non-negotiable constraints carried over from R-2:
+
+- The generated font module is imported from `pdf-exporter.ts` **only** — never
+  the barrel, never a shared module — or the lazy-chunk split leaks and the
+  fonts land in the eager content-script bundle.
+- `pnpm build:content` must still pass its eager-bundle size gate **with the
+  fonts embedded**. If it does not, subset the fonts (Latin + the design's
+  `−`, `√`, `—`) rather than dropping the requirement, and say so in the PR.
+- devDependencies, not dependencies: the TTFs are a build input, not a runtime
+  import.
+
+Do all three items (fonts, question turn fill, tables + code-language tab).
