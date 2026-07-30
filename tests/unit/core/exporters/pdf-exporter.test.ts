@@ -15,6 +15,7 @@ import type { Conversation, QAPair } from '../../../../src/core/types';
 import { PdfExporter } from '../../../../src/core/exporters/pdf-exporter';
 import { COLOR, hexToRgbTuple } from '../../../../src/core/exporters/style-tokens';
 import { DEFAULT_PDF_OPTIONS } from '../../../../src/core/types';
+import { sanitizeTextForPDF } from '../../../../src/core/utils/pdf-characters';
 
 interface Call {
   method: string;
@@ -80,6 +81,12 @@ const { instances, MockJsPDF } = vi.hoisted(() => {
     // visible to the assertions below instead of split into fragments.
     splitTextToSize(text: string) {
       return [text];
+    }
+    addFileToVFS(...args: unknown[]) {
+      this.record('addFileToVFS', args);
+    }
+    addFont(...args: unknown[]) {
+      this.record('addFont', args);
     }
     getTextWidth(text: string) {
       // Enough for layout maths; real jsPDF measures the font.
@@ -351,7 +358,9 @@ describe('PdfExporter', () => {
     const fontCallBefore = [...instance.calls.slice(0, idx)]
       .reverse()
       .find((c) => c.method === 'setFont');
-    expect(fontCallBefore?.args[0]).toBe('courier');
+    // R-2b: IBM Plex Mono, embedded. It was jsPDF's built-in courier, one of the
+    // standard 14 and WinAnsi-only.
+    expect(fontCallBefore?.args[0]).toBe('IBMPlexMono');
   });
 
   describe('per-message timestamps', () => {
@@ -467,5 +476,45 @@ describe('R-2: page chrome and the R2 role label', () => {
     const instance = await render();
     const texts = instance.calls.filter((c) => c.method === 'text').map((c) => String(c.args[0]));
     expect(texts.some((t) => t.includes('AI Chat Exporter'))).toBe(true);
+  });
+});
+
+describe('R-2b: embedded fonts and what they mean for transliteration', () => {
+  it('registers all four faces before anything is drawn', async () => {
+    instances.length = 0;
+    const { conversation, pairs } = buildConversation();
+    await new PdfExporter().export(conversation, pairs, {
+      format: 'pdf',
+      filename: 'test',
+      includeMetadata: true,
+      includeTimestamps: false,
+    } as never);
+    const instance = instances[0]!;
+
+    const added = instance.calls.filter((c) => c.method === 'addFont').map((c) => c.args[1]);
+    expect(added).toEqual(
+      expect.arrayContaining(['SourceSans3', 'SourceSans3', 'SourceSans3', 'IBMPlexMono'])
+    );
+
+    // Registration must precede every setFont, or jsPDF falls back silently.
+    const firstSetFont = instance.calls.findIndex((c) => c.method === 'setFont');
+    const lastAddFont = instance.calls.map((c) => c.method).lastIndexOf('addFont');
+    expect(lastAddFont).toBeLessThan(firstSetFont);
+  });
+
+  it('stops transliterating characters the embedded fonts render', () => {
+    // These were mangled because jsPDF's built-ins are WinAnsi-only. The
+    // embedded faces have them, so the replacement is now a downgrade.
+    expect(sanitizeTextForPDF('a — b')).toBe('a — b');
+    expect(sanitizeTextForPDF('−5')).toBe('−5');
+    expect(sanitizeTextForPDF('a – b')).toBe('a – b');
+    expect(sanitizeTextForPDF('€10')).toBe('€10');
+  });
+
+  it('still transliterates what the latin subset genuinely lacks', () => {
+    // The fonts ship a latin subset, not all of Unicode — coverage is read from
+    // their own cmap, so these are still replaced rather than dropped.
+    expect(sanitizeTextForPDF('√2')).not.toContain('√');
+    expect(sanitizeTextForPDF('₹5')).not.toContain('₹');
   });
 });

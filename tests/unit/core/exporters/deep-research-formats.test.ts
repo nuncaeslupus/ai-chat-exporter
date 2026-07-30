@@ -81,6 +81,12 @@ const { instances, MockJsPDF } = vi.hoisted(() => {
     splitTextToSize(text: string) {
       return [text];
     }
+    addFileToVFS(...args: unknown[]) {
+      this.record('addFileToVFS', args);
+    }
+    addFont(...args: unknown[]) {
+      this.record('addFont', args);
+    }
     getTextWidth(text: string) {
       // Enough for layout maths; real jsPDF measures the font.
       return text.length * 2;

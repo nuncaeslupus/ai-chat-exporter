@@ -72,7 +72,13 @@ export function mmToPx(mm: number): number {
 
 export const FONT_FAMILY = {
   body: {
-    pdf: 'helvetica',
+    /**
+     * Source Sans 3, embedded (R-2b). jsPDF's built-in Helvetica is one of the
+     * standard 14, which are WinAnsi/Latin-1 only — `−`, `√` and `—` did not
+     * render at all, they were silently dropped. An embedded TrueType carries
+     * its own cmap, so the design's own notation survives.
+     */
+    pdf: 'SourceSans3',
     /**
      * Calibri and Consolas (below) ship with every Office install on Windows and
      * Mac (R-3), so Word never substitutes and the document keeps its measured
@@ -82,7 +88,7 @@ export const FONT_FAMILY = {
     css: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
   },
   code: {
-    pdf: 'courier',
+    pdf: 'IBMPlexMono',
     docx: 'Consolas',
     css: "'Courier New', Courier, monospace",
   },

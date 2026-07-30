@@ -1,3 +1,5 @@
+import { EMBEDDED_FONT_COVERAGE } from '../exporters/pdf-fonts.generated';
+
 /**
  * Character replacements for PDF generation
  *
@@ -214,6 +216,21 @@ export const PDF_CHARACTER_REPLACEMENTS: Record<string, string> = {
  * First replaces known characters (including emojis) with safe equivalents,
  * then strips any remaining emojis that don't have a good replacement
  */
+/**
+ * Does every embedded face render this string?
+ *
+ * A single-character replacement is pointless once the font has the glyph — and
+ * actively harmful, since it turns a correct `—` into `--`. Multi-character keys
+ * (emoji sequences) are always replaced: coverage is checked per codepoint and a
+ * sequence is about more than glyph presence.
+ */
+function embeddedFontRenders(char: string): boolean {
+  const codepoints = [...char].map((c) => c.codePointAt(0) ?? 0);
+  if (codepoints.length !== 1) return false;
+  const cp = codepoints[0] ?? 0;
+  return EMBEDDED_FONT_COVERAGE.some(([start, end]) => cp >= start && cp <= end);
+}
+
 export function sanitizeTextForPDF(text: string): string {
   // First apply character replacements (including emojis with text equivalents)
   // Sort by length (longest first) to handle multi-character sequences properly
@@ -223,6 +240,13 @@ export function sanitizeTextForPDF(text: string): string {
 
   let sanitized = text;
   for (const [char, replacement] of sortedReplacements) {
+    // R-2b: skip anything the embedded fonts actually render. This map exists
+    // because jsPDF's built-in fonts are WinAnsi-only; with Source Sans 3 and
+    // IBM Plex Mono embedded, most of it is now a downgrade rather than a fix.
+    // Coverage is read from the fonts' own cmap, so it tracks the subset instead
+    // of a hardcoded guess.
+    if (embeddedFontRenders(char)) continue;
+
     // Escape special regex characters
     const escapedChar = char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     sanitized = sanitized.replace(new RegExp(escapedChar, 'g'), replacement);

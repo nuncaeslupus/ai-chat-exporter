@@ -37,6 +37,34 @@ function blobToArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
 }
 
 /**
+ * Whether a PDF is genuinely text-bearing: real embedded fonts plus a
+ * `/ToUnicode` CMap, which is what makes a reader able to search, select and
+ * copy it rather than treating it as a picture of text.
+ *
+ * R-2b replaced jsPDF's standard-14 fonts with embedded TrueType. Those write
+ * GLYPH IDS (`<0009002000270027> Tj`), not literal text, so the substring
+ * assertions this suite used to run against the raw bytes silently stopped
+ * matching anything — they were only ever working because uncompressed
+ * standard-14 output happens to contain readable operands.
+ *
+ * Decoding glyph ids back to text needs each font's own bfchar table resolved
+ * through the page's font resource dict; merging the tables collides, because
+ * glyph 0x0009 means different characters in different fonts. Writing that
+ * parser inside a test is not worth it — per-string PDF content is asserted in
+ * tests/unit/core/exporters/pdf-exporter.test.ts, which observes the actual
+ * `doc.text()` calls via a jsPDF mock (see `textCallsOf`). What this suite adds,
+ * and what only it can add, is that the REAL jsPDF produces a well-formed,
+ * text-bearing document from real parser output.
+ */
+function pdfIsTextBearing(buffer: Buffer): { embedsFonts: boolean; searchable: boolean } {
+  const raw = buffer.toString('latin1');
+  return {
+    embedsFonts: raw.includes('/FontFile2'),
+    searchable: raw.includes('/ToUnicode') && /<[0-9a-fA-F]{4,}>\s*Tj/.test(raw),
+  };
+}
+
+/**
  * Decode an ExportResult's blob into a string we can run substring
  * assertions against. Text formats are trivial; the binary formats (pdf,
  * docx) need format-specific decoding since a naive text decode would just
@@ -53,9 +81,10 @@ async function extractSearchableText(format: ExportFormat, blob: Blob): Promise<
   }
 
   if (format === 'pdf') {
-    // jsPDF is used here without stream compression, so the literal text
-    // operands (e.g. "(some text) Tj") remain readable in the raw bytes.
-    return buffer.toString('latin1');
+    // Not decodable to text here — see pdfIsTextBearing. Returning '' would make
+    // the shared content assertions below pass vacuously, so pdf opts out of
+    // them explicitly instead (`describe.each` filter).
+    throw new Error('pdf text is asserted via pdfIsTextBearing, not substring search');
   }
 
   // md, txt, json, html are plain text blobs.
@@ -121,6 +150,19 @@ describe('fixture -> parser -> every exporter', () => {
       const result = await exporter.export(conversation, selectedPairs, EXPORT_OPTIONS('pdf'));
       expect(result.success, result.error).toBe(true);
     });
+
+    it('produces a searchable document, not a picture of text', async () => {
+      const exporter = await exporterRegistry.get('pdf')!();
+      const result = await exporter.export(conversation, selectedPairs, EXPORT_OPTIONS('pdf'));
+      const buffer = Buffer.from(await blobToArrayBuffer(result.blob!));
+      const { embedsFonts, searchable } = pdfIsTextBearing(buffer);
+
+      // R-2b embeds TrueType so the design's own notation renders at all. The
+      // risk it introduces is an unsearchable PDF, which is what /ToUnicode
+      // rules out.
+      expect(embedsFonts).toBe(true);
+      expect(searchable).toBe(true);
+    });
   });
 
   it('parses the ChatGPT capture and exports it to every format without throwing', async () => {
@@ -135,7 +177,9 @@ describe('fixture -> parser -> every exporter', () => {
     }
   });
 
-  describe.each(Array.from(exporterRegistry.keys()))('%s exporter', (format) => {
+  const textFormats = Array.from(exporterRegistry.keys()).filter((f) => f !== 'pdf');
+
+  describe.each(textFormats)('%s exporter', (format) => {
     async function exportFixture() {
       const exporter = await exporterRegistry.get(format)!();
       const result = await exporter.export(conversation, selectedPairs, EXPORT_OPTIONS(format));

@@ -86,6 +86,12 @@ const { instances, MockJsPDF } = vi.hoisted(() => {
     splitTextToSize(text: string) {
       return [text];
     }
+    addFileToVFS(...args: unknown[]) {
+      this.record('addFileToVFS', args);
+    }
+    addFont(...args: unknown[]) {
+      this.record('addFont', args);
+    }
     getTextWidth(text: string) {
       // Enough for layout maths; real jsPDF measures the font.
       return text.length * 2;
@@ -107,9 +113,10 @@ const DAY_1 = 'Jan 1, 2025';
 const DAY_2 = 'Jan 2, 2025';
 const SEP_1 = `— ${DAY_1} —`;
 const SEP_2 = `— ${DAY_2} —`;
-// pdf sanitizes em dashes to '--' (WinAnsi, see src/core/utils/pdf-characters.ts).
-const PDF_SEP_1 = `-- ${DAY_1} --`;
-const PDF_SEP_2 = `-- ${DAY_2} --`;
+// R-2b: with Source Sans 3 embedded the em dash renders, so pdf no longer
+// transliterates it to '--' — the separator is the same string as everywhere else.
+const PDF_SEP_1 = SEP_1;
+const PDF_SEP_2 = SEP_2;
 
 function pair(index: number, day: 1 | 2, answerDay: 1 | 2 = day): QAPair {
   return {
@@ -232,8 +239,9 @@ describe('export header carries all five fields in every format', () => {
     const text = await renderPdf(twoDay, headerOptions);
     expect(text).toContain('ChatGPT');
     expect(text).toContain('gpt-4');
-    // pdf sanitizes the en dash to '-'
-    expect(text).toContain(`${DAY_1} - ${DAY_2}`);
+    // R-2b: the embedded Source Sans 3 has the en dash, so pdf no longer
+    // transliterates it — the date range now reads identically in all six formats.
+    expect(text).toContain(`${DAY_1} – ${DAY_2}`);
     expect(text).toContain('2025-01-03 08:00:00');
     expect(text).toContain('https://chatgpt.com/c/1');
   });

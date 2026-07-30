@@ -67,3 +67,6 @@ claude-arsenal/session/host_branch
 
 # Claude Code agent worktrees (throwaway, per-session)
 .claude/worktrees/
+
+# Generated from @fontsource at build time (see scripts/generate-pdf-fonts.mjs)
+src/core/exporters/pdf-fonts.generated.ts

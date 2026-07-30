@@ -27,7 +27,13 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.d.ts', 'src/**/index.ts'],
+      exclude: [
+        'src/**/*.d.ts',
+        'src/**/index.ts',
+        // Generated base64 font data, not logic. Counting it drags every
+        // percentage down by the size of the fonts.
+        'src/core/exporters/pdf-fonts.generated.ts',
+      ],
       // Floor set just under measured coverage (statements/lines 20.27%,
       // branches 60.8%, functions 81.15% as of this change) so it actually
       // gates instead of failing on arrival. Raise as testing tasks land.
