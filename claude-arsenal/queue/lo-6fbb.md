@@ -60,3 +60,36 @@ code of the command itself.
 
 ## Location
 `vitest.config.ts`
+
+---
+
+## OWNER DECISION 2026-07-30 — the accepted fix is `onUnhandledError`, after the vitest 4 upgrade
+
+Attempt 1 closed PR #182 unmerged. Do **not** repeat its approach.
+
+**Rejected:** `dangerouslyIgnoreUnhandledErrors: true` in `vitest.config.ts`. It
+suppresses every unhandled error in every vitest invocation, so a future genuine
+unhandled promise rejection would also stop failing the suite. D-25 is a
+signal-erosion task; that trade replaces one eroded signal with a broader one.
+
+**Also rejected:** scoping the same flag to just the `test:coverage` script.
+Narrower, but `validate` gates on `test:coverage`, so a real unhandled error
+would still slip past the developer gate.
+
+**Accepted:** once `lo-5373` lands vitest 4.x, use the `onUnhandledError`
+callback to suppress **only** the
+`[vitest-worker]: Timeout calling "onTaskUpdate"` RPC error — matched by message
+— and keep failing the run on every other unhandled error. This task is now
+blocked on `lo-5373` and is a small change once it lands.
+
+Do not re-derive what attempt 1 established: the 3.2.4 birpc timeout is
+hardcoded and exposed through no public config surface, and
+`poolOptions.threads.maxThreads` measurably does not clear it. See `lo-5373.md`.
+
+## Attempt 1 failure
+Gate: passed mechanically (exit 0), but the approach was rejected on review.
+Tried: `dangerouslyIgnoreUnhandledErrors: true` in `vitest.config.ts` (PR #182,
+closed unmerged), after ruling out RPC-timeout config and thread-pool changes.
+Hypothesis: wait for `lo-5373` (vitest 4), then filter by message via
+`onUnhandledError`. Attempts were reset — the work was sound, the design
+direction was overridden by the owner.
