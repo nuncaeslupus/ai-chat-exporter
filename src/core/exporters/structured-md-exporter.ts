@@ -91,19 +91,32 @@ export class StructuredMarkdownExporter extends BaseExporter {
       }
     };
 
+    /**
+     * `**User** · 12:04` — bold text with a middot, not a heading (R-4).
+     *
+     * Markdown formats the time itself rather than reusing
+     * `formatTimestampSuffix`'s ` (12:04:37)`: the design's per-message time is
+     * hours and minutes, and the seconds are noise at this scale. pdf, docx,
+     * html and txt each restyle the same instant in their own idiom, which is
+     * why this is local rather than a change to the shared helper.
+     */
+    const roleLabel = (name: string, timestamp?: Date): string => {
+      if (!options.includeTimestamps || !timestamp) return `**${name}**`;
+      return `**${name}** · ${this.formatTime(timestamp).slice(0, 5)}`;
+    };
+
     for (const [i, pair] of conversation.pairs.entries()) {
-      // User question
+      // User question — quoted, which is what separates the voices now that the
+      // role label is no longer a heading.
       pushDaySeparator(pair.question.timestamp);
-      lines.push(
-        `**${this.getRoleName('user')}**${this.formatTimestampSuffix(pair.question.timestamp, options.includeTimestamps)}`
-      );
+      lines.push(roleLabel(this.getRoleName('user'), pair.question.timestamp));
       lines.push('');
-      lines.push(...this.renderBlocks(pair.question.blocks));
+      lines.push(...this.quote(this.renderBlocks(pair.question.blocks)));
 
       // Assistant answer
       pushDaySeparator(pair.answer.timestamp);
       lines.push(
-        `**${this.getRoleName('assistant', conversation.platform)}**${this.formatTimestampSuffix(pair.answer.timestamp, options.includeTimestamps)}`
+        roleLabel(this.getRoleName('assistant', conversation.platform), pair.answer.timestamp)
       );
       lines.push('');
       lines.push(...this.renderBlocks(pair.answer.blocks));
@@ -191,6 +204,21 @@ export class StructuredMarkdownExporter extends BaseExporter {
   /**
    * Render structured content blocks to markdown
    */
+  /**
+   * Prefix rendered lines with Markdown's quote marker. Interior blank lines
+   * become a bare `>` so the quote survives as one block instead of splitting at
+   * every paragraph break.
+   *
+   * Trailing blanks are dropped and replaced with one unquoted blank line: a
+   * quote that ends on `>` puts the next line directly against the block, where
+   * Markdown's lazy continuation can swallow it into the quote — which would
+   * pull the *assistant's* role label inside the user's question.
+   */
+  private quote(lines: string[]): string[] {
+    const end = lines.reduce((last, line, i) => (line ? i + 1 : last), 0);
+    return [...lines.slice(0, end).map((line) => (line ? `> ${line}` : '>')), ''];
+  }
+
   private renderBlocks(blocks: StructuredContentBlock[]): string[] {
     const lines: string[] = [];
 
@@ -206,7 +234,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
         }
 
         case 'heading': {
-          const hashes = '#'.repeat(bodyHeadingLevel(block.level)); // # is the title, ## the role label
+          const hashes = '#'.repeat(bodyHeadingLevel(block.level)); // # is the title; body headings start at ##
           const headingText = this.renderInline(block.content).trim();
           if (headingText) {
             lines.push(`${hashes} ${headingText}`);
@@ -240,33 +268,16 @@ export class StructuredMarkdownExporter extends BaseExporter {
           break;
 
         case 'image': {
+          /**
+           * Native Markdown (R-4). This used to emit a raw `<img>` scaled to a
+           * 200 px "webchat thumbnail", which is a rendering decision a
+           * Markdown file has no business making: it is not Markdown, it does
+           * not survive a converter, and it shrinks a full-width chart to a
+           * thumbnail everywhere the file is read. Width belongs to whatever
+           * renders the file.
+           */
           const alt = block.alt || 'image';
-
-          // Match Claude's webchat thumbnail size (typically ~200px)
-          const webChatThumbnailSize = 200;
-          let width = block.width;
-          let height = block.height;
-
-          // If we have dimensions and they exceed webchat size, scale proportionally
-          if (width && width > webChatThumbnailSize) {
-            const scale = webChatThumbnailSize / width;
-            width = webChatThumbnailSize;
-            height = height ? Math.round(height * scale) : undefined;
-          }
-
-          // Use HTML img tag for better size control
-          if (width && height) {
-            lines.push(`<img src="${block.url}" alt="${alt}" width="${width}" height="${height}">`);
-          } else if (width || height) {
-            const widthAttr = width ? ` width="${width}"` : '';
-            const heightAttr = height ? ` height="${height}"` : '';
-            lines.push(`<img src="${block.url}" alt="${alt}"${widthAttr}${heightAttr}>`);
-          } else {
-            // No dimensions - constrain with CSS to match webchat
-            lines.push(
-              `<img src="${block.url}" alt="${alt}" style="max-width: 200px; height: auto;">`
-            );
-          }
+          lines.push(`![${alt}](${block.url})`);
           lines.push('');
           break;
         }
