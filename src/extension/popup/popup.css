@@ -113,11 +113,14 @@
   --pad-x: 26px;
 
   /* How far a navigable row's chevron sits from that row's own edge (which
-     already sits `--pad-x` in from the popup edge). #183 set this to a
-     uniform 10px; the P-5 pass raises it further, still uniform across every
-     navigable row — Contenido, Opciones and Nombre del archivo all read from
-     this one token so they can never drift apart again. */
-  --chevron-inset: 14px;
+     already sits `--pad-x` in from the popup edge), on BOTH sides of the
+     chevron — right, toward the popup border, and left, toward the row's own
+     label/value. #183 set this to a uniform 10px; P-5 raised it to 14px but
+     only on the right; P-6 ("still too close to the right border AND to its
+     left text") raises it again and makes it symmetric, still uniform across
+     every navigable row — Contenido, Opciones and Nombre del archivo all read
+     from this one token so they can never drift apart again. */
+  --chevron-inset: 18px;
 
   /*
    * Vertical spacing scale (P-5: "put some order in the popup spacing...
@@ -621,6 +624,13 @@ body {
 .setting-row-label {
   font-size: var(--text-base);
   color: var(--color-text-body);
+  /* Structural, not by luck: this is the one flex child allowed to shrink
+     (see `.setting-row-value` for why it never needs to), so a long
+     translation truncates here instead of colliding with the chevron. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .setting-row-spacer {
@@ -631,6 +641,12 @@ body {
   font-size: var(--text-sm);
   color: var(--color-text-tertiary);
   font-variant-numeric: tabular-nums;
+  /* Sits directly left of the chevron with no spacer between them, so it
+     gets the same truncation guard as the label. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Shown only when some preference is off its default. */
@@ -649,9 +665,16 @@ body {
 .setting-row-chevron {
   flex-shrink: 0;
   /* `.setting-row`'s own `0 2px` padding already supplies 2px of the total
-     `--chevron-inset`; this margin makes up the rest, so the two together
-     always equal the token. `.option-row-chevron` below matches the token
-     directly (that row has no padding of its own to share the load). */
+     `--chevron-inset` on each side; these margins make up the rest, so each
+     side always equals the token. Symmetric on purpose (P-6: "too close to
+     the right border AND to its left text") — the row's own flex `gap`
+     already puts *some* space between the value/label and the chevron, but
+     that gap is tuned for the row's internal rhythm, not the chevron's own
+     breathing room, so it doesn't scale with `--chevron-inset`; this margin
+     is the guaranteed minimum regardless. `.option-row-chevron` below matches
+     the token directly (that row has no padding of its own to share the
+     load). */
+  margin-left: calc(var(--chevron-inset) - 2px);
   margin-right: calc(var(--chevron-inset) - 2px);
   color: var(--color-text-muted);
 }
@@ -662,16 +685,19 @@ body {
  * The split button/print button did NOT grow with R11. The author's call on
  * the 5a bar: "button is big enough". So the 50px split button, its 42px
  * right half, the 50x50 print button and the 14px label all keep their 5a
- * numbers. The P-5 pass gives the privacy line real room above and below
+ * numbers. The P-5 pass gave the privacy line real room above and below
  * instead: the gap above it and the padding below it both read from
- * `--space-loose`, up from 8px/10px.
+ * `--space-loose`, up from 8px/10px. P-6 ("Export and Print buttons are too
+ * close to the popup borders") fixes the last one-off inset: the bar's own
+ * 14px side padding used to be its own number, out of step with every other
+ * full-width band in the popup; it now reads from `--pad-x` like the rest.
  */
 .action-bar {
   flex: none;
   display: flex;
   flex-direction: column;
   gap: var(--space-loose);
-  padding: 12px 14px var(--space-loose);
+  padding: 12px var(--pad-x) var(--space-loose);
   background: var(--color-surface-bar);
 }
 
@@ -754,15 +780,16 @@ body {
  * positioned against `.popup-body`, so it lives entirely inside the 340px box
  * and the popup never resizes. Visibility is this one attribute.
  *
- * `left`/`right` track the action bar's own horizontal padding, which R11 left
- * at its 5a size, so they keep their 5a values. `bottom` tracks the action
- * bar's total height, which grows with `--space-loose` in the P-5 pass.
+ * `left`/`right` track the action bar's own horizontal padding — `--pad-x` as
+ * of P-6, up from R11's own 14px — so the menu's edges stay flush with the
+ * split/print buttons below it. `bottom` tracks the action bar's total
+ * height, which grows with `--space-loose` in the P-5 pass.
  */
 .format-menu {
   display: none;
   position: absolute;
-  left: 14px;
-  right: 14px;
+  left: var(--pad-x);
+  right: var(--pad-x);
   bottom: 120px;
   max-height: 207px;
   flex-direction: column;
@@ -937,7 +964,14 @@ section {
   height: 28px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  /* P-6: "the back arrow more to the left... it looks weird being more to the
+     right than the text below." The header's own `padding-left: var(--pad-x)`
+     already puts this button's box flush with the content column; centering
+     the glyph inside a 28px tap target then re-indented it, so the ink read
+     as sitting to the right of the row content beneath it. Left-aligning the
+     glyph instead makes the header — chip and chevron alike — the outermost
+     element, matching every submenu that has one. */
+  justify-content: flex-start;
   border: none;
   border-radius: var(--radius-chip);
   background: var(--color-surface-key);
@@ -1199,8 +1233,21 @@ section {
   /* A fieldset sizes to its content by default; without this a long
      translation of the three steps pushes past the fixed popup width. */
   min-width: 0;
-  margin: 0;
-  padding: var(--space-loose) 0;
+  /*
+   * `--space-loose` is the *between-setting* gap and belongs outside this
+   * element, not inside it — but a fieldset's own top padding renders below
+   * its legend, not above it, so as `padding` it was landing between the
+   * legend ("Tamaño del texto") and its own choice row, on top of the
+   * `--space-tight` margin already doing that job below. That silently
+   * doubled the within-setting gap to 24px net (P-6: "'Tamaño del texto'
+   * looks like an option and 'Compacto'/'Normal'/'Grande' another one" — the
+   * P-5 pass added the tight margin but never caught this leak). `margin`
+   * sits outside the fieldset instead, so it separates this whole
+   * label+control group from its neighbours without leaking into the
+   * group's own internal gap.
+   */
+  margin: var(--space-loose) 0;
+  padding: 0;
 }
 
 /*
@@ -1217,9 +1264,21 @@ section {
 
 .option-choices {
   display: flex;
-  /* Seven locales, three labels: the long ones wrap rather than clip. */
-  flex-wrap: wrap;
-  gap: 8px 14px;
+  /*
+   * P-6, pre-existing but fixed while here: at 356px available (this row's
+   * indent matches the legend above it — see the left margin below) three
+   * labels wrapped 2+1 in the longest locales, which read as unbalanced and
+   * fed item 4's "two separate options" impression. `flex-wrap` let each
+   * pill size to its own text and then wrap when the row ran out of room;
+   * giving every pill an equal `flex: 1` share instead (below) means the row
+   * always sums to exactly the container width, so it can never wrap
+   * regardless of locale or font metrics — a lightweight segmented control
+   * rather than three independently-sized labels. Chosen over widening the
+   * row past the 28px indent (only buys 28px back, not enough on its own)
+   * or shortening the translated labels (a wording change, not a layout
+   * one). Text size is untouched — the type scale still governs it.
+   */
+  gap: 14px;
   /* Tight — reads as the legend's own control, not a second row. Same left
      edge as the legend above it (checkbox width + row gap; see there). */
   margin-top: var(--space-tight);
@@ -1233,6 +1292,20 @@ section {
   font-size: var(--text-sm);
   color: var(--color-text-body);
   cursor: pointer;
+  /* Equal share of the row (see `.option-choices` above); `min-width: 0` lets
+     it shrink below its label's intrinsic width instead of forcing the row
+     wider than the container. */
+  flex: 1;
+  min-width: 0;
+}
+
+/* Guard for the shrink above: an extreme locale/width combination clips with
+   an ellipsis instead of overflowing or forcing the row to wrap. */
+.option-choice span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .option-choice input[type='radio'] {
@@ -1277,8 +1350,12 @@ section {
   flex: none;
   margin-top: 3px;
   /* `.option-row` has no horizontal padding of its own, so this row supplies
-     the full `--chevron-inset` itself — same token `.setting-row-chevron`
-     reads from, so every navigable row stays in agreement. */
+     the full `--chevron-inset` itself, on both sides — same token
+     `.setting-row-chevron` reads from, so every navigable row stays in
+     agreement. The filename preview text already truncates on its own
+     (`.option-row-filename`), so the left margin here is the guaranteed
+     floor rather than the only thing standing between it and the chevron. */
+  margin-left: var(--chevron-inset);
   margin-right: var(--chevron-inset);
   color: var(--color-text-muted);
 }
