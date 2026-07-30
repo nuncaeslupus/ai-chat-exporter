@@ -97,7 +97,10 @@ function toggle(id: string): HTMLInputElement {
 }
 
 function dotHidden(): boolean {
-  return document.getElementById('options-changed-dot')!.hidden;
+  // `hidden` is `string | boolean` in the current DOM lib -- it also accepts
+  // `"until-found"`, which is still hidden. Coerce rather than assert, so the
+  // helper keeps meaning "is it hidden" for every value the property can take.
+  return Boolean(document.getElementById('options-changed-dot')!.hidden);
 }
 
 /** Whatever StorageService actually wrote to chrome.storage.sync. */
