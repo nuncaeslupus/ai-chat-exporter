@@ -227,7 +227,7 @@ class ContentScript {
     try {
       console.log('[AI Chat Exporter] Enriching Claude conversation with API data...');
 
-      const ids = ClaudeApiService.extractIdsFromPage(conversation.url, document);
+      const ids = await ClaudeApiService.extractIdsFromPage(conversation.url, document);
 
       if (!ids) {
         console.log('[AI Chat Exporter] Could not extract IDs for API enrichment');
