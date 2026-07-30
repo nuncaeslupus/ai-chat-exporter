@@ -58,6 +58,8 @@ describe('R-1: the redesigned type system', () => {
   });
 
   it('declares exactly five code-token colours', () => {
+    // Retuned from the design's values, which differed by hue alone and so
+    // collapsed in greyscale. See CODE_TOKEN_COLOR for the two constraints.
     expect(Object.keys(CODE_TOKEN_COLOR).sort()).toEqual([
       'comment',
       'function',
@@ -65,10 +67,10 @@ describe('R-1: the redesigned type system', () => {
       'number',
       'string',
     ]);
-    expect(CODE_TOKEN_COLOR.keyword).toBe('#9C3F63');
-    expect(CODE_TOKEN_COLOR.function).toBe('#4C5FA8');
-    expect(CODE_TOKEN_COLOR.string).toBe('#12665A');
-    expect(CODE_TOKEN_COLOR.number).toBe('#8A5A1A');
+    expect(CODE_TOKEN_COLOR.keyword).toBe('#722E48');
+    expect(CODE_TOKEN_COLOR.function).toBe('#435393');
+    expect(CODE_TOKEN_COLOR.string).toBe('#09322C');
+    expect(CODE_TOKEN_COLOR.number).toBe('#89591A');
     // Darkened from the design's #8D9598, which fails WCAG AA on the code
     // background it is specified against (2.64:1). See CODE_TOKEN_COLOR.
     expect(CODE_TOKEN_COLOR.comment).toBe('#676D6F');
