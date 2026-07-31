@@ -18,16 +18,32 @@ import { createTestQAPair } from '../../../utils/exporter-helpers';
 import { WARNING_KEYS } from '../../../../src/shared/constants';
 
 const mockTabsQuery = vi.fn();
+const mockTabsGet = vi.fn();
 const mockTabsSendMessage = vi.fn();
 const mockTabsCreate = vi.fn();
 const mockTabsReload = vi.fn();
 const mockExecuteScript = vi.fn();
 const mockInsertCSS = vi.fn();
 
-/** What the shipped manifest declares; the injection helper reads it from there. */
+/**
+ * What the shipped manifest declares; the injection helper reads it from
+ * there and (SEC-2) filters entries by `matches` against the tab's URL via
+ * `chrome.tabs.get`, so the stub needs `matches` too, not just file lists.
+ */
 const MANIFEST = {
   version: '1.1.1',
-  content_scripts: [{ js: ['content/content-script.js'], css: ['content/styles.css'] }],
+  content_scripts: [
+    {
+      matches: [
+        'https://chat.openai.com/*',
+        'https://chatgpt.com/*',
+        'https://claude.ai/*',
+        'https://gemini.google.com/*',
+      ],
+      js: ['content/content-script.js'],
+      css: ['content/styles.css'],
+    },
+  ],
 };
 
 /** Chrome's wording for "nobody is listening in that tab". */
@@ -119,6 +135,9 @@ async function loadPopup(beforeImport?: () => Promise<void>): Promise<void> {
 
 function baseChrome(): void {
   mockTabsQuery.mockReset();
+  // Only the injection-recovery tests exercise this; default it to the same
+  // tab those tests already drive everything else with.
+  mockTabsGet.mockReset().mockResolvedValue({ id: 1, url: 'https://claude.ai/chat/abc' });
   mockTabsSendMessage.mockReset();
   mockTabsCreate.mockReset();
   mockTabsReload.mockReset();
@@ -127,6 +146,7 @@ function baseChrome(): void {
   Object.assign(chrome, {
     tabs: {
       query: mockTabsQuery,
+      get: mockTabsGet,
       sendMessage: mockTabsSendMessage,
       create: mockTabsCreate,
       reload: mockTabsReload,
@@ -303,11 +323,11 @@ describe('popup secondary states — no content script in the tab', () => {
     });
     // Files come off the manifest, not a second hardcoded list.
     expect(mockInsertCSS).toHaveBeenCalledWith({
-      target: { tabId: 1 },
+      target: { tabId: 1, allFrames: false },
       files: ['content/styles.css'],
     });
     expect(mockExecuteScript).toHaveBeenCalledWith({
-      target: { tabId: 1 },
+      target: { tabId: 1, allFrames: false },
       files: ['content/content-script.js'],
     });
     expect(consoleError).not.toHaveBeenCalled();
