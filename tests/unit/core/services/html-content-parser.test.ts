@@ -443,3 +443,64 @@ describe('D-23: prose keeps its shape around inline widgets', () => {
     expect(code?.text).toBe('a  +  b');
   });
 });
+
+describe('D-35: block-level content flattened as prose never joins wordlessly', () => {
+  /** The flattened text of every paragraph block, as an exporter would render it. */
+  function paragraphText(html: string): string {
+    const blocks = HtmlContentParser.parse(html) as ParagraphBlock[];
+    return blocks
+      .filter((b) => b.type === 'paragraph')
+      .map((b) => b.content.map((c) => c.text).join(''))
+      .join('\n');
+  }
+
+  it('never concatenates the cells of a div-based table (no <table> tag at all)', () => {
+    // Gemini's real export renders a table as a grid of plain divs, with no
+    // whitespace between adjacent tags -- exactly what a serialized DOM
+    // looks like. Unfixed, this collapsed to one run:
+    // "JurisdicciónImpuesto (Acrónimo)Tasa Impositiva...".
+    const html =
+      '<div><div><div>Jurisdicción</div><div>Impuesto (Acrónimo)</div><div>Tasa Impositiva</div></div>' +
+      '<div><div>España</div><div>ITF (Tasa Tobin)</div><div>0.20%</div></div></div>';
+
+    const text = paragraphText(html);
+    expect(text).not.toContain('JurisdicciónImpuesto');
+    expect(text).not.toContain('(Acrónimo)Tasa');
+    expect(text).not.toContain('ImpositivaEspaña');
+    expect(text).toContain('Jurisdicción');
+    expect(text).toContain('Impuesto (Acrónimo)');
+  });
+
+  it('never joins adjacent numeric cells (the exact "0 EUR19%" corruption)', () => {
+    const html = '<div><div><div>Hasta 6.000 EUR</div><div>0 EUR</div><div>19%</div></div></div>';
+    const text = paragraphText(html);
+    expect(text).not.toContain('0 EUR19%');
+    expect(text).toContain('0 EUR');
+    expect(text).toContain('19%');
+  });
+
+  it('keeps a lone "–" cell distinct from its neighbours', () => {
+    const html = '<div><div><div>Ajuste</div><div>–</div><div>0%</div></div></div>';
+    const text = paragraphText(html);
+    expect(text).not.toContain('Ajuste–');
+    expect(text).not.toContain('–0%');
+    expect(text).toContain('–');
+  });
+
+  it('keeps identical adjacent cells distinct rather than merging into one run', () => {
+    const html = '<div><div><div>Nota</div><div>EUR</div><div>EUR</div></div></div>';
+    const text = paragraphText(html);
+    expect(text).not.toContain('NotaEUREUR');
+    expect(text.match(/EUR/g)?.length).toBe(2);
+  });
+
+  it('does not add spurious spaces around inline elements mid-sentence (no regression)', () => {
+    const html = '<p>The <strong>quick</strong> fox jumps over the <em>lazy</em> dog.</p>';
+    expect(paragraphText(html)).toBe('The quick fox jumps over the lazy dog.');
+  });
+
+  it('does not add a boundary around a plain inline element (e.g. <sup>) mid-word', () => {
+    const html = '<p>footnote<sup>1</sup> continues</p>';
+    expect(paragraphText(html)).toBe('footnote1 continues');
+  });
+});

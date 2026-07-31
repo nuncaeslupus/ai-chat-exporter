@@ -203,3 +203,86 @@ describe('BaseParser cleanupElement (via GeminiParser.extractContent)', () => {
     });
   });
 });
+
+describe('BaseParser.extractContent: block-level content never joins (D-35)', () => {
+  function buildParser(html: string): TestableParser {
+    const dom = new JSDOM(`<html><body>${html}</body></html>`, {
+      url: 'https://gemini.google.com/app/test',
+    });
+    return new GeminiParser(dom.window.document) as TestableParser;
+  }
+
+  it('never concatenates the cells of a div-based table (no <table> tag at all)', () => {
+    // Gemini's real export renders a table as a grid of plain divs with no
+    // whitespace between adjacent tags -- unfixed, plain `textContent`
+    // collapsed this to "Base LiquidableCuota0 EUR19%...".
+    const html =
+      '<div><div><div>Base Liquidable</div><div>Cuota</div><div>Pct</div></div>' +
+      '<div><div>Hasta 6.000 EUR</div><div>0 EUR</div><div>19%</div></div></div>';
+    const parser = buildParser(html);
+    const { content } = parser.extractContent(parser.document.body, false);
+
+    expect(content).not.toContain('0 EUR19%');
+    expect(content).not.toContain('Base LiquidableCuota');
+    expect(content).toContain('0 EUR');
+    expect(content).toContain('19%');
+  });
+
+  it('separates a real <table> cell-by-cell and row-by-row', () => {
+    const html =
+      '<table><tr><th>Base</th><th>Cuota</th></tr><tr><td>0 EUR</td><td>19%</td></tr></table>';
+    const parser = buildParser(html);
+    const { content } = parser.extractContent(parser.document.body, false);
+
+    expect(content).toBe('Base | Cuota\n0 EUR | 19%');
+  });
+
+  it('keeps a lone "–" cell distinct from its neighbours', () => {
+    const html = '<table><tr><td>Ajuste</td><td>–</td><td>0%</td></tr></table>';
+    const parser = buildParser(html);
+    const { content } = parser.extractContent(parser.document.body, false);
+
+    expect(content).not.toContain('Ajuste–');
+    expect(content).not.toContain('–0%');
+  });
+
+  it('keeps identical adjacent cells distinct rather than merging into one run', () => {
+    const html = '<table><tr><td>Nota</td><td>EUR</td><td>EUR</td></tr></table>';
+    const parser = buildParser(html);
+    const { content } = parser.extractContent(parser.document.body, false);
+
+    expect(content).not.toContain('NotaEUREUR');
+    expect(content.match(/EUR/g)?.length).toBe(2);
+  });
+
+  it('never concatenates two adjacent block divs', () => {
+    const parser = buildParser('<div>First block</div><div>Second block</div>');
+    const { content } = parser.extractContent(parser.document.body, false);
+
+    expect(content).not.toContain('First blockSecond block');
+    expect(content).toBe('First block\nSecond block');
+  });
+
+  it('never concatenates a heading with the list that follows it', () => {
+    const parser = buildParser('<h2>Section Title</h2><ul><li>Item one</li></ul>');
+    const { content } = parser.extractContent(parser.document.body, false);
+
+    expect(content).not.toContain('Section TitleItem one');
+  });
+
+  it('does not add spurious spaces around inline elements mid-sentence (no regression)', () => {
+    const parser = buildParser(
+      '<p>The <strong>quick</strong> fox jumps over the <em>lazy</em> dog.</p>'
+    );
+    const { content } = parser.extractContent(parser.document.body, false);
+
+    expect(content).toBe('The quick fox jumps over the lazy dog.');
+  });
+
+  it('keeps <pre>/<code> content byte-exact', () => {
+    const parser = buildParser('<pre>  keep\n\tthis   exactly  </pre>');
+    const { content } = parser.extractContent(parser.document.body, false);
+
+    expect(content).toBe('keep\n\tthis   exactly');
+  });
+});

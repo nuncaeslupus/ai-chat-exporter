@@ -15,6 +15,7 @@ import type {
   InlineContent,
   ListItem,
 } from '../types/structured-content';
+import { flattenElementText, boundaryLevelForTag } from '../utils/dom-text';
 
 /**
  * Parse HTML content into structured blocks
@@ -372,9 +373,14 @@ export class HtmlContentParser {
    *
    * Deliberately not used for inline `<code>` or for a math marker: there the
    * whitespace is content, not source formatting.
+   *
+   * D-35: delegates to `flattenElementText`, which also inserts a boundary
+   * between block-level descendants (so an unrecognised block -- a div-based
+   * table row, say -- flattened through here can never join two cells into
+   * one run) while leaving genuinely inline content unchanged.
    */
   private static inlineText(el: Element): string {
-    return (el.textContent || '').replace(/\s+/g, ' ');
+    return flattenElementText(el);
   }
 
   /**
@@ -504,7 +510,17 @@ export class HtmlContentParser {
           // path, and the one that made D-23 visible.
           const text = this.inlineText(el);
           if (text.trim()) {
-            this.pushText(result, text);
+            // D-35: a paragraph's InlineContent is one flowing text run, so a
+            // block-level stray (an unrecognised div-based table row, a `tr`,
+            // a `td`) can't carry a real line break here -- but it still must
+            // never fuse wordlessly into whatever came before it (e.g. two
+            // adjacent row divs with no whitespace between them in source).
+            // A forced space guarantees a boundary; pushText's own whitespace
+            // collapse below then normalises it exactly like any other
+            // inter-word space, so this cannot double up or leak into D-23's
+            // inline-widget spacing.
+            const needsBoundary = boundaryLevelForTag(tagName) > 0 && result.length > 0;
+            this.pushText(result, needsBoundary ? ` ${text}` : text);
           }
         }
       }
