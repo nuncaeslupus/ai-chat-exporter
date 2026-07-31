@@ -95,9 +95,6 @@ export const CLAUDE_SELECTORS: SelectorSet = {
     webSearchResultTitle: 'p.relative.text-\\[0\\.875rem\\]',
     webSearchResultDomain: 'p.relative.bottom-\\[1px\\].text-\\[0\\.75rem\\].text-text-500',
 
-    // Timestamp
-    timestamp: 'span.text-text-500.text-xs',
-
     // Message actions (to exclude)
     messageActions: 'div[role="group"][aria-label="Message actions"]',
   },

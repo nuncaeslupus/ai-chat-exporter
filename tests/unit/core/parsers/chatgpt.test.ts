@@ -453,6 +453,68 @@ describe('ChatGPTParser implementation', () => {
       expect(pairs[2]?.question.content).toBe('Third question');
       expect(pairs[2]?.answer.content).toBe('Third answer');
     });
+
+    it('signals turns-dropped when a leading orphan assistant turn is silently skipped (PAR-1)', () => {
+      // A custom-GPT greeting opens the conversation with an assistant turn
+      // before any question -- extractQAPairs has nothing to pair it with and
+      // drops it. Before the turns-dropped rule this produced success:true,
+      // warnings:undefined, drift:undefined with the greeting gone and no
+      // signal anywhere.
+      const html = `
+        <html><body><main>
+          <article data-testid="conversation-turn-1" data-turn="assistant">
+            <div data-message-author-role="assistant">
+              <div class="markdown prose">GREETING FROM A CUSTOM GPT</div>
+            </div>
+          </article>
+          <article data-testid="conversation-turn-2" data-turn="user">
+            <div data-message-author-role="user">
+              <div class="user-message-bubble-color"><div class="whitespace-pre-wrap">question two</div></div>
+            </div>
+          </article>
+          <article data-testid="conversation-turn-3" data-turn="assistant">
+            <div data-message-author-role="assistant">
+              <div class="markdown prose">answer two</div>
+            </div>
+          </article>
+        </main></body></html>
+      `;
+      const dom = new JSDOM(html, { url: 'https://chatgpt.com' });
+      const result = new ChatGPTParser(dom.window.document).parse();
+
+      const pairs = result.conversation?.pairs ?? [];
+      expect(pairs).toHaveLength(1);
+      expect(pairs[0]?.question.content).toBe('question two');
+      expect(pairs[0]?.answer.content).toBe('answer two');
+      expect(result.drift?.sanityFindings?.map((f) => f.rule)).toContain('turns-dropped');
+    });
+
+    it('signals content-shortfall when the answer is a sliver of the turn text (PAR-1)', () => {
+      // Reference case: a large sr-only block sits alongside a two-character
+      // visible answer inside the same turn. turnTextLengthsFor was dead code
+      // (always -1) before this fix, so content-shortfall never had a chance
+      // to fire for any platform.
+      const html = `
+        <html><body><main>
+          <article data-turn="user">
+            <div data-message-author-role="user">
+              <div class="user-message-bubble-color"><div class="whitespace-pre-wrap">Summarize it</div></div>
+            </div>
+          </article>
+          <article data-turn="assistant">
+            <div data-message-author-role="assistant">
+              <span class="sr-only">${'A'.repeat(4000)}</span>
+              <div class="markdown prose">ok</div>
+            </div>
+          </article>
+        </main></body></html>
+      `;
+      const dom = new JSDOM(html, { url: 'https://chatgpt.com' });
+      const result = new ChatGPTParser(dom.window.document).parse();
+
+      expect(result.conversation?.pairs[0]?.answer.content).toBe('ok');
+      expect(result.drift?.sanityFindings?.map((f) => f.rule)).toContain('content-shortfall');
+    });
   });
 
   // DOM-drift regression tests: the edge cases above cover empty and
@@ -544,6 +606,25 @@ describe('ChatGPTParser implementation', () => {
       expect(result.success).toBe(true);
       expect(result.conversation?.pairs).toEqual([]);
       expect(result.warnings).toContain('No Q&A pairs found in the conversation');
+    });
+
+    it('required-selector set names custom.userTurn, the actual role discriminator (PAR-1)', () => {
+      // custom.userTurn is half of the turn query and the sole role
+      // discriminator in extractQAPairs; custom.conversationTurn is read by no
+      // extraction code. Before this fix conversationTurn was required and
+      // userTurn was not, so a rename that broke only userTurn passed the
+      // required-selector check cleanly and named nothing in the drift report.
+      document.querySelectorAll('[data-turn="user"]').forEach((el) => {
+        el.setAttribute('data-turn', 'usr');
+      });
+
+      const result = parser.parse();
+      const userTurnFinding = result.drift?.selectorFindings?.find(
+        (f) => f.key === 'custom.userTurn'
+      );
+
+      expect(userTurnFinding?.matched).toBe(0);
+      expect(userTurnFinding?.required).toBe(true);
     });
   });
 });

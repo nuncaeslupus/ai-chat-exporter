@@ -91,6 +91,28 @@ describe('checkOutputSanity', () => {
     expect(findings.map((f) => f.rule)).toContain('no-question');
   });
 
+  it('fires turns-dropped when the DOM held more turns than the pairs account for (PAR-1)', () => {
+    // Three turn containers (e.g. a custom-GPT greeting, a question, an
+    // answer) but only one pair came out: the greeting was silently dropped.
+    const findings = checkOutputSanity({
+      pairs: [pair('question two', 'answer two')],
+      turnCount: 3,
+      turnTextLengths: [-1],
+      chromeStrings: chrome,
+    });
+    expect(findings.map((f) => f.rule)).toContain('turns-dropped');
+  });
+
+  it('does NOT fire turns-dropped on a healthy 1-pair-per-2-turns conversation', () => {
+    const findings = checkOutputSanity({
+      pairs: [pair('What is X?', 'X is Y.')],
+      turnCount: 2,
+      turnTextLengths: [-1],
+      chromeStrings: chrome,
+    });
+    expect(findings.map((f) => f.rule)).not.toContain('turns-dropped');
+  });
+
   it('returns nothing for a healthy conversation', () => {
     const findings = checkOutputSanity({
       pairs: [

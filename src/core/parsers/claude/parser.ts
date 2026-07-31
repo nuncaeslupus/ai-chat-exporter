@@ -113,6 +113,14 @@ export class ClaudeParser extends BaseParser {
   }
 
   /**
+   * `textContent.length` of each pair's source turn element, index-aligned
+   * with the pairs `extractQAPairs` emits. Feeds `turnTextLengthsFor` so the
+   * `content-shortfall` drift rule can actually fire (it is otherwise
+   * permanently suppressed -- see base-parser.ts).
+   */
+  private turnLengths: number[] = [];
+
+  /**
    * Check if this parser can handle the current page
    */
   canParse(): boolean {
@@ -223,6 +231,7 @@ export class ClaudeParser extends BaseParser {
    */
   protected extractQAPairs(config: ParserConfig): QAPair[] {
     const pairs: QAPair[] = [];
+    this.turnLengths = [];
     const turnContainer = this.selectors.custom?.turnContainer || 'div[data-test-render-count]';
     const userTurnWrapper = this.selectors.custom?.userTurnWrapper || 'div.mb-1.mt-6.group';
     const turns = this.document.querySelectorAll(turnContainer);
@@ -245,6 +254,7 @@ export class ClaudeParser extends BaseParser {
               this.createMessage('assistant', '')
             )
           );
+          this.turnLengths.push(-1);
         }
         pendingQuestion = this.extractUserMessage(turn, config);
         hasPendingQuestion = true;
@@ -269,6 +279,7 @@ export class ClaudeParser extends BaseParser {
           answer ?? this.createMessage('assistant', '')
         )
       );
+      this.turnLengths.push(turn.textContent?.length ?? -1);
       pendingQuestion = null;
       hasPendingQuestion = false;
     });
@@ -277,6 +288,10 @@ export class ClaudeParser extends BaseParser {
     // conversation -- skip it, same as before.
 
     return pairs;
+  }
+
+  protected override turnTextLengthsFor(): number[] {
+    return this.turnLengths;
   }
 
   /**
@@ -297,6 +312,26 @@ export class ClaudeParser extends BaseParser {
     }
 
     return warnings.length > 0 ? warnings : undefined;
+  }
+
+  /**
+   * How many turn containers the DOM holds, for drift accounting.
+   *
+   * The base implementation counts `selectors.messageElement`, but Claude's
+   * `messageElement` unions the turn wrapper with `div.mb-1.mt-6.group`, which
+   * is nested INSIDE that wrapper for user turns -- so both match per user
+   * turn and the base count overcounts by roughly the number of user turns.
+   * `extractQAPairs` itself walks `custom.turnContainer` (one element per
+   * turn, user or assistant), so that is the count that actually means "how
+   * many turns did the DOM hold".
+   */
+  protected override countTurnContainers(): number {
+    const turnContainer = this.selectors.custom?.turnContainer || 'div[data-test-render-count]';
+    try {
+      return this.document.querySelectorAll(turnContainer).length;
+    } catch {
+      return 0;
+    }
   }
 
   /**
@@ -356,7 +391,9 @@ export class ClaudeParser extends BaseParser {
   ): { src: string; alt?: string; width?: number; height?: number }[] {
     const images: { src: string; alt?: string; width?: number; height?: number }[] = [];
 
-    const imageContainers = element.querySelectorAll('div.relative.group\\/thumbnail');
+    const imageContainers = element.querySelectorAll(
+      this.selectors.custom?.userImageContainer || 'div.relative.group\\/thumbnail'
+    );
 
     imageContainers.forEach((container) => {
       const img = container.querySelector('img');
@@ -461,7 +498,8 @@ export class ClaudeParser extends BaseParser {
 
     // Extract text content from standard-markdown or progressive-markdown
     const markdownContainers = element.querySelectorAll(
-      'div.standard-markdown, div.progressive-markdown'
+      this.selectors.custom?.assistantMessageContent ||
+        'div.standard-markdown, div.progressive-markdown'
     );
     markdownContainers.forEach((container) => {
       const { content, htmlContent } = this.extractContent(container, config.preserveHtml);
@@ -614,20 +652,29 @@ export class ClaudeParser extends BaseParser {
    */
   private extractWebSearches(element: Element): WebSearchResult[] {
     const searches: WebSearchResult[] = [];
+    const custom = this.selectors.custom;
 
+    // PAR-1: read the declared custom.webSearch* selectors instead of a
+    // second, independently-drifted copy of the same strings inline -- the
+    // exact pattern selectors.ts exists to prevent (see chatgpt/selectors.ts's
+    // comment on the same antipattern, and lo-d0f0 which already fixed one
+    // instance of it here).
     const searchContainers = element.querySelectorAll(
-      'div.ease-out.transition-all.flex.flex-col.font-ui'
+      custom?.webSearchContainer ||
+        'div.ease-out.transition-all.flex.flex-col.font-ui.leading-normal'
     );
 
     searchContainers.forEach((container) => {
       // Check if this is a web search widget
-      const searchButton = container.querySelector('button.group\\/row');
+      const searchButton = container.querySelector(custom?.webSearchButton || 'button.group\\/row');
       if (!searchButton) {
         return;
       }
 
       // Extract query
-      const queryElement = container.querySelector('.flex.gap-2.relative.font-base');
+      const queryElement = container.querySelector(
+        custom?.webSearchQuery || '.flex.gap-2.relative.font-base.text-left'
+      );
       const query = queryElement?.textContent?.trim() || '';
 
       if (!query) {
@@ -635,14 +682,18 @@ export class ClaudeParser extends BaseParser {
       }
 
       // Extract result count
-      const countElement = container.querySelector('p.text-text-500.font-small');
+      const countElement = container.querySelector(
+        custom?.webSearchResultCount || 'p.relative.bottom-\\[0\\.5px\\].pl-1.text-text-500'
+      );
       const countText = countElement?.textContent?.trim() || '';
       const countMatch = /(\d+)/.exec(countText);
       const resultCount = countMatch?.[1] ? parseInt(countMatch[1], 10) : undefined;
 
       // Extract individual results
       const results: { title: string; url: string; favicon?: string; domain?: string }[] = [];
-      const resultLinks = container.querySelectorAll('div.flex.flex-nowrap.p-2 a');
+      const resultLinks = container.querySelectorAll(
+        custom?.webSearchResults || 'div.flex.flex-nowrap.p-2.pt-0.flex-col a'
+      );
 
       resultLinks.forEach((link) => {
         const href = link.getAttribute('href');
@@ -650,10 +701,15 @@ export class ClaudeParser extends BaseParser {
           return;
         }
 
-        const titleElement = link.querySelector('p.text-\\[0\\.875rem\\]');
+        const titleElement = link.querySelector(
+          custom?.webSearchResultTitle || 'p.relative.text-\\[0\\.875rem\\]'
+        );
         const title = titleElement?.textContent?.trim() || '';
 
-        const domainElement = link.querySelector('p.text-\\[0\\.75rem\\].text-text-500');
+        const domainElement = link.querySelector(
+          custom?.webSearchResultDomain ||
+            'p.relative.bottom-\\[1px\\].text-\\[0\\.75rem\\].text-text-500'
+        );
         const domain = domainElement?.textContent?.trim() || '';
 
         // ponytail: the citation favicon <img src> is taken straight off
@@ -688,38 +744,18 @@ export class ClaudeParser extends BaseParser {
   }
 
   /**
-   * Extract timestamp from a message element
+   * Extract timestamp from a message element.
+   *
+   * PAR-1: claude.ai's DOM only ever exposes a wall-clock HH:MM label (no
+   * date), so there is never a real date to attach it to. Stamping the
+   * scraped time onto today's date fabricated history -- a three-week-old
+   * conversation exported today, was, e.g. dated today. Per D-18
+   * (base-parser.ts:145-150), a fabricated timestamp is worse than none, so
+   * no per-message timestamp is emitted here; `Message.timestamp` stays
+   * unset and exporters render no date range / day separators for it.
    */
-  private extractTimestamp(element: Element): Date | undefined {
-    const timestampSelector = this.selectors.custom?.timestamp;
-    if (!timestampSelector) {
-      return undefined;
-    }
-
-    const timestampElement = element.querySelector(timestampSelector);
-    if (!timestampElement) {
-      return undefined;
-    }
-
-    const timeText = timestampElement.textContent?.trim();
-    if (!timeText) {
-      return undefined;
-    }
-
-    // Claude shows time in HH:MM format (e.g., "18:40")
-    // We'll create a date with today's date and the given time
-    const timeMatch = /(\d{1,2}):(\d{2})/.exec(timeText);
-    if (!timeMatch) {
-      return undefined;
-    }
-
-    const hours = parseInt(timeMatch[1] || '0', 10);
-    const minutes = parseInt(timeMatch[2] || '0', 10);
-
-    const now = new Date();
-    now.setHours(hours, minutes, 0, 0);
-
-    return now;
+  private extractTimestamp(_element: Element): Date | undefined {
+    return undefined;
   }
 
   /**

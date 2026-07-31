@@ -21,6 +21,7 @@ export interface SelectorFinding {
 /** The output-sanity rules, evaluated against the parsed pairs. */
 export type SanityRule =
   | 'no-pairs'
+  | 'turns-dropped'
   | 'empty-answer'
   | 'chrome-as-content'
   | 'content-shortfall'
