@@ -143,7 +143,8 @@ Having issues or suggestions? Visit our GitHub repository (https://github.com/nu
 
 📝 Version History
 
-v1.2.0 - Added right-click context menus for quick export and print access
+v1.2.0 - Gemini support, complete exports of long Claude conversations, rebuilt popup, and a notice when a chat site changes its page structure
+v1.1.1 - Added right-click context menus for quick export and print access
 v1.1.0 - Enhanced ChatGPT support with code artifacts, web citations, and improved formatting
 v1.0.0 - Initial release with multi-format export support
 
