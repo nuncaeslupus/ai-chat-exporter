@@ -2,7 +2,9 @@
  * DOCX Exporter Tests
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import type {
   Conversation,
   DOCXExportOptions,
@@ -292,6 +294,27 @@ describe('DocxExporter', () => {
   });
 
   describe('export() platform brand colour', () => {
+    // I18N-1: the assistant role label now resolves through getRoleName()
+    // (roleChatGPT/roleClaude/roleGemini) instead of a hardcoded per-platform
+    // map, so without a chrome.i18n mock every platform would render the
+    // same generic "Assistant" fallback in this test environment.
+    const originalChrome = globalThis.chrome;
+    beforeEach(() => {
+      const en = JSON.parse(
+        readFileSync(resolve(__dirname, '../../../../_locales/en/messages.json'), 'utf-8')
+      ) as Record<string, { message: string }>;
+      globalThis.chrome = {
+        ...originalChrome,
+        i18n: {
+          getUILanguage: () => 'en',
+          getMessage: (key: string) => en[key]?.message ?? '',
+        },
+      } as unknown as typeof chrome;
+    });
+    afterEach(() => {
+      globalThis.chrome = originalChrome;
+    });
+
     async function roleHeadingXml(platform: string): Promise<string> {
       const pair = buildStructuredPair();
       // `platform` is deliberately widened to string: one case exercises an

@@ -73,6 +73,10 @@ describe('HtmlExporter', () => {
       expect(html).toContain('Exportiert mit AI Chat Exporter');
       expect(html).not.toContain('>Platform<');
       expect(html).not.toContain('>User<');
+      // I18N-1: the metadata block is localised, but the section headings
+      // next to it (Artifacts/Type/Sources/Web Search Results) used to stay
+      // raw English literals -- same document, two languages.
+      expect(html).not.toContain('Artifacts');
     });
 
     it('takes the date-range label from the locale bundle, not an English fallback', async () => {

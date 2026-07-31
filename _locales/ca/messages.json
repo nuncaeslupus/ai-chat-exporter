@@ -80,7 +80,7 @@
     "description": "Title for no chatbot detected message"
   },
   "noChatbotDetectedMessage": {
-    "message": "Obriu un xat en una d'aquestes pàgines: s'obrirà en una pestanya nova.",
+    "message": "Obre un xat en una d'aquestes pàgines: s'obrirà en una pestanya nova.",
     "description": "Message when no chatbot is detected"
   },
   "noConversationFoundTitle": {
@@ -92,7 +92,7 @@
     "description": "Message shown when the page is a supported chatbot but its parser found no conversation"
   },
   "reloadRequiredTitle": {
-    "message": "Recarregueu la pàgina per exportar aquesta conversa",
+    "message": "Recarrega la pàgina per exportar aquesta conversa",
     "description": "Title for reload required message"
   },
   "reloadRequiredMessage": {
@@ -250,7 +250,7 @@
     "description": "User role label"
   },
   "roleAssistant": {
-    "message": "Assistant",
+    "message": "Assistent",
     "description": "Assistant role label (generic)"
   },
   "roleChatGPT": {
@@ -592,5 +592,79 @@
   "driftReportLoading": {
     "message": "S'està llegint l'estructura de la pàgina…",
     "description": "Shown while the content script builds the drift report skeleton"
+  },
+  "exportSectionArtifacts": {
+    "message": "Artefactes",
+    "description": "Section heading for artifacts in exported documents"
+  },
+  "exportArtifactType": {
+    "message": "Tipus",
+    "description": "Field label for an artifact's type, e.g. 'Type: Document'"
+  },
+  "exportSectionSources": {
+    "message": "Fonts",
+    "description": "Section heading for cited web-search sources, e.g. 'Sources — query'"
+  },
+  "exportSectionWebSearchResults": {
+    "message": "Resultats de la cerca web",
+    "description": "Section heading for web search results in exported documents"
+  },
+  "exportSearchResultCount": {
+    "message": "S'han trobat $1 resultats",
+    "description": "Count of web search results found. $1 = number of results",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "exportSourcesFallback": {
+    "message": "Referències",
+    "description": "Fallback heading for a web search with no query text"
+  },
+  "exportViewSvgCode": {
+    "message": "Veure el codi SVG",
+    "description": "Collapsible-section label for viewing raw SVG source in a Markdown export"
+  },
+  "mediaKindVideo": {
+    "message": "Vídeo",
+    "description": "Label for a video media block"
+  },
+  "mediaKindAudio": {
+    "message": "Àudio",
+    "description": "Label for an audio media block"
+  },
+  "commandExportConversation": {
+    "message": "Exporta la conversa actual",
+    "description": "Keyboard-shortcut description for the export-conversation command"
+  },
+  "artifactTypeImage": {
+    "message": "Imatge",
+    "description": "Artifact type label: image"
+  },
+  "artifactTypeReact": {
+    "message": "Artefacte interactiu",
+    "description": "Artifact type label: interactive (React) artifact"
+  },
+  "artifactTypeDocument": {
+    "message": "Document",
+    "description": "Artifact type label: document"
+  },
+  "artifactTypeDiagram": {
+    "message": "Diagrama",
+    "description": "Artifact type label: diagram"
+  },
+  "artifactTypeCode": {
+    "message": "Codi",
+    "description": "Artifact type label: code"
+  },
+  "artifactTypeGeneric": {
+    "message": "Artefacte",
+    "description": "Artifact type label: generic fallback"
+  },
+  "errorNoExporterForFormat": {
+    "message": "No hi ha cap exportador disponible per a aquest format.",
+    "description": "Error shown when no exporter is registered for the requested format (should not normally be reachable from the UI)"
   }
 }

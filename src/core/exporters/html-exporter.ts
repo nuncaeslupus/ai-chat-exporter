@@ -252,13 +252,13 @@ export class HtmlExporter extends BaseExporter {
 
     return `
                         <div class="artifacts-section">
-                            <h2>Artifacts</h2>
+                            <h2>${this.escapeHtml(this.artifactsSectionLabel())}</h2>
                             ${artifactsWithContent
                               .map(
                                 (artifact) => `
                             <div class="artifact">
                                 <h3>${this.escapeHtml(artifact.title)}</h3>
-                                ${artifact.typeLabel ? `<p class="artifact-type"><em>Type: ${this.escapeHtml(artifact.typeLabel)}</em></p>` : ''}
+                                ${artifact.typeLabel ? `<p class="artifact-type"><em>${this.escapeHtml(this.artifactTypeFieldLabel())}: ${this.escapeHtml(artifact.typeLabel)}</em></p>` : ''}
                                 ${this.renderArtifactBody(artifact)}
                             </div>`
                               )
@@ -301,13 +301,13 @@ export class HtmlExporter extends BaseExporter {
 
     return `
                         <div class="web-searches-section">
-                            <h2>Web Search Results</h2>
+                            <h2>${this.escapeHtml(this.webSearchSectionLabel())}</h2>
                             ${webSearches
                               .map(
                                 (search) => `
                             <div class="web-search">
-                                <h3>${this.escapeHtml(search.query || 'References')}</h3>
-                                ${search.resultCount ? `<p class="search-count"><em>${search.resultCount} results found</em></p>` : ''}
+                                <h3>${this.escapeHtml(search.query || this.sourcesFallbackLabel())}</h3>
+                                ${search.resultCount ? `<p class="search-count"><em>${this.escapeHtml(this.searchResultCountLabel(search.resultCount))}</em></p>` : ''}
                                 ${
                                   search.results && search.results.length > 0
                                     ? `

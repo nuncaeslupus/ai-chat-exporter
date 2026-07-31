@@ -15,7 +15,6 @@ const LOCALES = ['ca', 'de', 'en', 'es', 'fr', 'it', 'pt'] as const;
 
 const ROOT = resolve(__dirname, '../../..');
 const POPUP_HTML = join(ROOT, 'src/extension/popup/popup.html');
-const POPUP_TS = join(ROOT, 'src/extension/popup/popup.ts');
 
 interface Message {
   message: string;
@@ -57,13 +56,36 @@ const SOURCE = [
  */
 const DYNAMIC_KEY_PREFIXES = ['platform', 'role'];
 
-/** Keys the popup asks for by name — the set that must exist or render empty. */
+/**
+ * Values of the small `Record<X, string>` key maps that funnel getMessage()
+ * through a variable instead of a literal (`getMetadataLabel`'s local
+ * `keyMap`, popup.ts's `FORMAT_NAME_KEYS`/`PIECE_LABEL_KEYS`) — the
+ * literal-call regex below can't see through `getMessage(keyMap[field])`,
+ * so those maps' declared values are collected separately.
+ */
+const KEY_MAP_NAMES = ['keyMap', 'FORMAT_NAME_KEYS', 'PIECE_LABEL_KEYS'];
+
+function keyMapValues(): string[] {
+  const blocks = KEY_MAP_NAMES.flatMap((name) => [
+    ...SOURCE.matchAll(new RegExp(`\\b${name}[^={]*=\\s*{([^}]*)}`, 'g')),
+  ]);
+  return blocks.flatMap((block) =>
+    [...(block[1] ?? '').matchAll(/:\s*'([a-zA-Z][a-zA-Z0-9]*)'/g)].map((m) => m[1]!)
+  );
+}
+
+/**
+ * Keys the extension asks for by name, anywhere in `src/**\/*.ts` or
+ * popup.html — the set that must exist or render empty. Widened from a
+ * popup.html/popup.ts-only scan (which let a typo'd key at any other call
+ * site — base-exporter.ts, pdf-exporter.ts, service-worker.ts, ... — render
+ * the raw key text into every export with the whole suite staying green).
+ */
 function popupKeys(): string[] {
-  const html = read(POPUP_HTML);
-  const ts = read(POPUP_TS);
   return [
-    ...[...html.matchAll(/data-i18n(?:-label)?="([^"]+)"/g)].flatMap((m) => m[1] ?? []),
-    ...[...ts.matchAll(/getMessage\(\s*'([^']+)'/g)].flatMap((m) => m[1] ?? []),
+    ...[...SOURCE.matchAll(/data-i18n(?:-label)?="([^"]+)"/g)].flatMap((m) => m[1] ?? []),
+    ...[...SOURCE.matchAll(/getMessage(?:WithValues)?\(\s*'([^']+)'/g)].flatMap((m) => m[1] ?? []),
+    ...keyMapValues(),
   ];
 }
 

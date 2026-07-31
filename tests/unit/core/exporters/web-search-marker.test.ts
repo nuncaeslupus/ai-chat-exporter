@@ -10,7 +10,9 @@
  * json carries the raw metadata, so all six still announce the search.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import type { Conversation, ExportOptions, QAPair } from '../../../../src/core/types';
 import { StructuredMarkdownExporter } from '../../../../src/core/exporters/structured-md-exporter';
 import { TextExporter } from '../../../../src/core/exporters/txt-exporter';
@@ -188,6 +190,26 @@ async function exportAll(conversation: Conversation, pairs: QAPair[]) {
 }
 
 describe('web-search marker does not duplicate the sources section', () => {
+  // I18N-1: the "Sources —" / "Web Search Results" section labels now
+  // resolve through getMessage() instead of a hardcoded literal, so without
+  // a chrome.i18n mock they'd render the raw key in this test environment.
+  const originalChrome = globalThis.chrome;
+  beforeEach(() => {
+    const en = JSON.parse(
+      readFileSync(resolve(__dirname, '../../../../_locales/en/messages.json'), 'utf-8')
+    ) as Record<string, { message: string }>;
+    globalThis.chrome = {
+      ...originalChrome,
+      i18n: {
+        getUILanguage: () => 'en',
+        getMessage: (key: string) => en[key]?.message ?? '',
+      },
+    } as unknown as typeof chrome;
+  });
+  afterEach(() => {
+    globalThis.chrome = originalChrome;
+  });
+
   const withResults = conversationWith([
     { title: 'Keeper shortage explained', url: 'https://example.com/a', domain: 'example.com' },
   ]);

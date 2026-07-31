@@ -1,6 +1,6 @@
 {
   "extensionName": {
-    "message": "Exportador de Chats IA",
+    "message": "AI Chat Exporter",
     "description": "Nombre de la extensión"
   },
   "extensionDescription": {
@@ -300,7 +300,7 @@
     }
   },
   "exportedWithChatExporter": {
-    "message": "Exportado con Exportador de Chats IA",
+    "message": "Exportado con AI Chat Exporter",
     "description": "Mensaje de pie de página en exportaciones HTML"
   },
   "footerPrivacy": {
@@ -592,5 +592,79 @@
   "driftReportLoading": {
     "message": "Leyendo la estructura de la página…",
     "description": "Shown while the content script builds the drift report skeleton"
+  },
+  "exportSectionArtifacts": {
+    "message": "Artefactos",
+    "description": "Section heading for artifacts in exported documents"
+  },
+  "exportArtifactType": {
+    "message": "Tipo",
+    "description": "Field label for an artifact's type, e.g. 'Type: Document'"
+  },
+  "exportSectionSources": {
+    "message": "Fuentes",
+    "description": "Section heading for cited web-search sources, e.g. 'Sources — query'"
+  },
+  "exportSectionWebSearchResults": {
+    "message": "Resultados de la búsqueda web",
+    "description": "Section heading for web search results in exported documents"
+  },
+  "exportSearchResultCount": {
+    "message": "Se encontraron $1 resultados",
+    "description": "Count of web search results found. $1 = number of results",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "exportSourcesFallback": {
+    "message": "Referencias",
+    "description": "Fallback heading for a web search with no query text"
+  },
+  "exportViewSvgCode": {
+    "message": "Ver código SVG",
+    "description": "Collapsible-section label for viewing raw SVG source in a Markdown export"
+  },
+  "mediaKindVideo": {
+    "message": "Vídeo",
+    "description": "Label for a video media block"
+  },
+  "mediaKindAudio": {
+    "message": "Audio",
+    "description": "Label for an audio media block"
+  },
+  "commandExportConversation": {
+    "message": "Exportar conversación actual",
+    "description": "Keyboard-shortcut description for the export-conversation command"
+  },
+  "artifactTypeImage": {
+    "message": "Imagen",
+    "description": "Artifact type label: image"
+  },
+  "artifactTypeReact": {
+    "message": "Artefacto interactivo",
+    "description": "Artifact type label: interactive (React) artifact"
+  },
+  "artifactTypeDocument": {
+    "message": "Documento",
+    "description": "Artifact type label: document"
+  },
+  "artifactTypeDiagram": {
+    "message": "Diagrama",
+    "description": "Artifact type label: diagram"
+  },
+  "artifactTypeCode": {
+    "message": "Código",
+    "description": "Artifact type label: code"
+  },
+  "artifactTypeGeneric": {
+    "message": "Artefacto",
+    "description": "Artifact type label: generic fallback"
+  },
+  "errorNoExporterForFormat": {
+    "message": "No hay ningún exportador disponible para este formato.",
+    "description": "Error shown when no exporter is registered for the requested format (should not normally be reachable from the UI)"
   }
 }

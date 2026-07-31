@@ -2,7 +2,9 @@
  * Claude API Service Tests
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { ClaudeApiService } from '../../../../src/core/services/claude-api-service';
 import type { Conversation, QAPair, Message } from '../../../../src/core/types';
 import type {
@@ -412,6 +414,45 @@ describe('ClaudeApiService', () => {
         new Date('2026-01-01T00:00:00Z')
       );
       expect(result.warning).toBeUndefined();
+    });
+  });
+
+  describe('enrichConversation() — artifact type label locale (I18N-1)', () => {
+    const originalChrome = globalThis.chrome;
+    afterEach(() => {
+      globalThis.chrome = originalChrome;
+    });
+
+    it('resolves the artifact typeLabel through the locale bundle instead of a hardcoded English word', () => {
+      const de = JSON.parse(
+        readFileSync(resolve(__dirname, '../../../../_locales/de/messages.json'), 'utf-8')
+      ) as Record<string, { message: string }>;
+      globalThis.chrome = {
+        ...originalChrome,
+        i18n: {
+          getUILanguage: () => 'de',
+          getMessage: (key: string) => de[key]?.message ?? '',
+        },
+      } as unknown as typeof chrome;
+
+      const conversation = makeConversation([makePair(0, 'Q1', 'A1')]);
+      const apiData: ClaudeApiConversationResponse = {
+        uuid: 'conv-1',
+        name: 'Test',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        chat_messages: [
+          makeApiMessage('u1', 0, 'human'),
+          makeApiMessage('a1', 1, 'assistant', [artifactContent('Doc', 'content')]),
+        ],
+      };
+
+      const { conversation: enriched } = ClaudeApiService.enrichConversation(conversation, apiData);
+
+      expect(enriched.pairs[0]?.answer.metadata?.artifacts?.[0]?.typeLabel).toBe(
+        de.artifactTypeDocument!.message
+      );
+      expect(enriched.pairs[0]?.answer.metadata?.artifacts?.[0]?.typeLabel).not.toBe('Document');
     });
   });
 

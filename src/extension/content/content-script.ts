@@ -183,7 +183,7 @@ class ContentScript {
       // Get exporter for format
       const exporter = await getExporter(format);
       if (!exporter) {
-        throw new Error(`No exporter found for format: ${format}`);
+        throw new Error(ERROR_KEYS.NO_EXPORTER);
       }
 
       // Get export options from preferences
@@ -198,7 +198,7 @@ class ContentScript {
       });
 
       if (!result.success || !result.blob) {
-        throw new Error(result.error || 'Export failed');
+        throw new Error(result.error || 'statusExportFailed');
       }
       // A format-level warning (e.g. PDF's fonts can't render this script)
       // takes priority over an enrichment one — it describes the file that's
@@ -334,7 +334,7 @@ class ContentScript {
       // Get exporter for format
       const exporter = await getExporter(format);
       if (!exporter) {
-        throw new Error(`No exporter found for format: ${format}`);
+        throw new Error(ERROR_KEYS.NO_EXPORTER);
       }
 
       // Get export options from preferences
@@ -349,7 +349,7 @@ class ContentScript {
       });
 
       if (!result.success || !result.blob) {
-        throw new Error(result.error || 'Print generation failed');
+        throw new Error(result.error || 'statusPrintFailed');
       }
       // A format-level warning (e.g. PDF's fonts can't render this script)
       // takes priority over an enrichment one — it describes the file that's

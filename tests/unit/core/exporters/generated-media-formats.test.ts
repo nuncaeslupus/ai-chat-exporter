@@ -10,7 +10,9 @@
  * "(0:08)" suffix; the audio clip has no duration and must stay bare.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import type { Conversation, ExportOptions, QAPair } from '../../../../src/core/types';
 import { StructuredMarkdownExporter } from '../../../../src/core/exporters/structured-md-exporter';
 import { TextExporter } from '../../../../src/core/exporters/txt-exporter';
@@ -157,6 +159,28 @@ const options: ExportOptions = {
   filename: 'test',
   showMetaInfo: false,
 };
+
+// I18N-1: `mediaLabel()` now resolves the "Video"/"Audio" kind word through
+// getMessage() instead of a hardcoded literal, so without a chrome.i18n mock
+// it would fall back to the raw key ('mediaKindVideo') in this test
+// environment. Install the real en bundle so the English-language
+// assertions below keep asserting real words.
+const originalChrome = globalThis.chrome;
+beforeEach(() => {
+  const en = JSON.parse(
+    readFileSync(resolve(__dirname, '../../../../_locales/en/messages.json'), 'utf-8')
+  ) as Record<string, { message: string }>;
+  globalThis.chrome = {
+    ...originalChrome,
+    i18n: {
+      getUILanguage: () => 'en',
+      getMessage: (key: string) => en[key]?.message ?? '',
+    },
+  } as unknown as typeof chrome;
+});
+afterEach(() => {
+  globalThis.chrome = originalChrome;
+});
 
 describe('generated video and audio survive export in all six formats', () => {
   it('model: media becomes video/audio blocks in the structured conversation', () => {

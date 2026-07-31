@@ -151,7 +151,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
 
         if (artifactsWithContent.length > 0) {
           lines.push('');
-          lines.push('### Artifacts');
+          lines.push(`### ${this.artifactsSectionLabel()}`);
           lines.push('');
 
           for (const artifact of artifactsWithContent) {
@@ -159,7 +159,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
             lines.push(`#### ${artifact.title}`);
 
             if (artifact.typeLabel) {
-              lines.push(`*Type: ${artifact.typeLabel}*`);
+              lines.push(`*${this.artifactTypeFieldLabel()}: ${artifact.typeLabel}*`);
             }
 
             lines.push('');
@@ -191,7 +191,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
               // Also include the SVG code in a collapsible section
               const svgFence = codeFence(artifact.content);
               lines.push('<details>');
-              lines.push('<summary>View SVG Code</summary>');
+              lines.push(`<summary>${getMessage('exportViewSvgCode')}</summary>`);
               lines.push('');
               lines.push(`${svgFence}svg`);
               lines.push(artifact.content);
@@ -221,7 +221,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
             continue;
           }
           lines.push('');
-          lines.push(`### Sources — ${search.query || 'References'}`);
+          lines.push(`### ${this.sourcesSectionLabel(search.query)}`);
           lines.push('');
           for (const result of search.results) {
             lines.push(
