@@ -171,6 +171,58 @@ describe('popup view router', () => {
   });
 });
 
+/**
+ * A11Y-1: view changes used to only flip `hidden` — the trigger that was just
+ * activated lives inside the section being hidden, so the browser blurred it
+ * and focus fell back to `<body>`. These assert focus actually lands
+ * somewhere real on every hop, forward and back.
+ */
+describe('popup focus management', () => {
+  beforeEach(() => {
+    mockTabsQuery.mockReset();
+    mockTabsSendMessage.mockReset();
+    mockChrome();
+    mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://claude.ai/chat/abc' }]);
+    mockTabsSendMessage.mockResolvedValue({ success: true, data: CONVERSATION });
+  });
+
+  it('moves focus into the new view when navigating away from main', async () => {
+    await loadPopup();
+    navigateTo('content');
+
+    expect(document.getElementById('view-content')?.contains(document.activeElement)).toBe(true);
+  });
+
+  it('restores focus to the trigger that opened a view, on the way back', async () => {
+    await loadPopup();
+    const trigger = document.getElementById('nav-content')!;
+    navigateTo('content');
+
+    pressEscape();
+
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('does not re-focus a trigger that is no longer reachable, and falls back to the heading', async () => {
+    await loadPopup();
+    const trigger = document.getElementById('nav-content')!;
+    navigateTo('content');
+    // Simulate the trigger having left the document between the forward hop
+    // and the return trip (e.g. a re-render).
+    trigger.remove();
+
+    pressEscape();
+
+    expect(document.activeElement).not.toBe(document.body);
+    expect(document.getElementById('view-main')?.contains(document.activeElement)).toBe(true);
+  });
+
+  it('sets the document language from the UI locale', async () => {
+    await loadPopup();
+    expect(document.documentElement.lang).toBe('en');
+  });
+});
+
 describe('popup fixed body box', () => {
   beforeEach(() => {
     mockTabsQuery.mockReset();
@@ -262,6 +314,21 @@ describe('popup fixed body box', () => {
     });
     expectBoxIntact();
   });
+
+  it('puts the failure detail in a visible panel, not only the header tooltip', async () => {
+    mockTabsSendMessage.mockImplementation((_tabId: number, message: { type: string }) =>
+      message.type === 'get_conversation'
+        ? Promise.resolve({ success: true, data: CONVERSATION })
+        : Promise.resolve({ success: false, error: 'boom' })
+    );
+    await loadReadyPopup();
+    document.getElementById('export-button')?.click();
+    await vi.waitFor(() => {
+      expect(bodyBox().dataset.uiState).toBe('error');
+    });
+
+    expect(document.getElementById('error-card-detail')?.textContent).toContain('boom');
+  });
 });
 
 /*
@@ -323,5 +390,27 @@ describe('popup geometry and type tokens', () => {
   it('sizes the export label off the action token, not the scale', () => {
     const block = /\.split-export\s*\{([^}]*)\}/.exec(POPUP_CSS)?.[1] ?? '';
     expect(block).toContain('font-size: var(--text-action);');
+  });
+});
+
+describe('popup CSS accessibility rules', () => {
+  it('never removes the keyboard focus outline from the free-text chip input', () => {
+    // The global `:focus-visible` rule must be the only thing governing this
+    // input's focus ring -- a per-element `outline: none` on
+    // `.filename-chip-input:focus` used to win on specificity and leave
+    // keyboard focus on that field with no visible indicator at all.
+    expect(POPUP_CSS).not.toMatch(/\.filename-chip-input:focus\s*\{[^}]*outline:\s*none/);
+  });
+
+  it('shows a focus indicator on the chip when its input is focused', () => {
+    expect(POPUP_CSS).toMatch(/\.filename-chip:focus-within\s*\{[^}]*box-shadow/);
+  });
+
+  it('honours prefers-reduced-motion', () => {
+    expect(POPUP_CSS).toMatch(/@media \(prefers-reduced-motion:\s*reduce\)/);
+  });
+
+  it('declares an error-card, shown only in the error ui-state', () => {
+    expect(POPUP_CSS).toMatch(/\.popup-body\[data-ui-state='error'\]\s*\.error-card\s*\{/);
   });
 });

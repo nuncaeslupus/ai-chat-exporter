@@ -252,12 +252,12 @@ export class HtmlExporter extends BaseExporter {
 
     return `
                         <div class="artifacts-section">
-                            <h3>Artifacts</h3>
+                            <h2>Artifacts</h2>
                             ${artifactsWithContent
                               .map(
                                 (artifact) => `
                             <div class="artifact">
-                                <h4>${this.escapeHtml(artifact.title)}</h4>
+                                <h3>${this.escapeHtml(artifact.title)}</h3>
                                 ${artifact.typeLabel ? `<p class="artifact-type"><em>Type: ${this.escapeHtml(artifact.typeLabel)}</em></p>` : ''}
                                 ${this.renderArtifactBody(artifact)}
                             </div>`
@@ -291,7 +291,7 @@ export class HtmlExporter extends BaseExporter {
       }
     }
 
-    return `<pre><code class="language-${this.escapeHtml(artifact.language || '')}">${this.renderCodeTokens(content, artifact.language)}</code></pre>`;
+    return `<pre tabindex="0"><code class="language-${this.escapeHtml(artifact.language || '')}">${this.renderCodeTokens(content, artifact.language)}</code></pre>`;
   }
 
   private renderWebSearches(webSearches?: WebSearchResult[]): string {
@@ -301,12 +301,12 @@ export class HtmlExporter extends BaseExporter {
 
     return `
                         <div class="web-searches-section">
-                            <h3>Web Search Results</h3>
+                            <h2>Web Search Results</h2>
                             ${webSearches
                               .map(
                                 (search) => `
                             <div class="web-search">
-                                <h4>${this.escapeHtml(search.query || 'References')}</h4>
+                                <h3>${this.escapeHtml(search.query || 'References')}</h3>
                                 ${search.resultCount ? `<p class="search-count"><em>${search.resultCount} results found</em></p>` : ''}
                                 ${
                                   search.results && search.results.length > 0
@@ -346,14 +346,14 @@ export class HtmlExporter extends BaseExporter {
           }
 
           case 'heading': {
-            const level = bodyHeadingLevel(block.level, levelMap); // h1 is the title, h2 the role label
+            const level = bodyHeadingLevel(block.level, levelMap); // h1 is the title; body headings start at h2
             const headingContent = this.renderInline(block.content).trim();
             return headingContent ? `<h${level}>${headingContent}</h${level}>` : '';
           }
 
           case 'code': {
             const language = this.escapeHtml(block.language);
-            return `<pre><code class="language-${language}">${this.renderCodeTokens(block.code, block.language)}</code></pre>`;
+            return `<pre tabindex="0"><code class="language-${language}">${this.renderCodeTokens(block.code, block.language)}</code></pre>`;
           }
 
           case 'list':
@@ -370,7 +370,10 @@ export class HtmlExporter extends BaseExporter {
             // this is the only scheme check it gets before becoming a live <img>.
             const safeSrc = this.safeAttr(block.url, { allowImageData: true });
             if (!safeSrc) return '';
-            const alt = this.escapeHtml(block.alt || 'image');
+            // `??`, not `||`: an explicitly empty alt (the source page marked
+            // the image decorative) must stay empty, not be renamed to
+            // "image" — only a genuinely absent alt falls back.
+            const alt = this.escapeHtml(block.alt ?? '');
             const imgTitle = block.title ? ` title="${this.escapeHtml(block.title)}"` : '';
             const imgWidth = block.width ? ` width="${block.width}"` : '';
             const imgHeight = block.height ? ` height="${block.height}"` : '';
@@ -854,7 +857,7 @@ export class HtmlExporter extends BaseExporter {
             border-top: 2px solid ${COLOR.border};
         }
 
-        .artifacts-section h3 {
+        .artifacts-section h2 {
             font-size: ${ptToPx(this.htmlSizes.headingByLevel[3])}px;
             font-weight: 600;
             margin-bottom: 1rem;
@@ -873,7 +876,7 @@ export class HtmlExporter extends BaseExporter {
             background: ${COLOR.surfaceSubtle};
         }
 
-        .artifact h4 {
+        .artifact h3 {
             font-size: ${ptToPx(this.htmlSizes.headingByLevel[4])}px;
             font-weight: 600;
             margin-bottom: 0.5rem;
@@ -896,7 +899,7 @@ export class HtmlExporter extends BaseExporter {
             border-top: 2px solid ${COLOR.border};
         }
 
-        .web-searches-section h3 {
+        .web-searches-section h2 {
             font-size: ${ptToPx(this.htmlSizes.headingByLevel[3])}px;
             font-weight: 600;
             margin-bottom: 1rem;
@@ -907,7 +910,7 @@ export class HtmlExporter extends BaseExporter {
             margin-bottom: 1.5rem;
         }
 
-        .web-search h4 {
+        .web-search h3 {
             font-size: ${ptToPx(this.htmlSizes.headingByLevel[4])}px;
             font-weight: 600;
             margin-bottom: 0.5rem;
@@ -1134,7 +1137,7 @@ export class HtmlExporter extends BaseExporter {
                 border-top-color: #30363d;
             }
 
-            .artifacts-section h3 {
+            .artifacts-section h2 {
                 color: #c9d1d9;
             }
 
@@ -1142,7 +1145,7 @@ export class HtmlExporter extends BaseExporter {
                 border-top-color: #30363d;
             }
 
-            .web-searches-section h3 {
+            .web-searches-section h2 {
                 color: #c9d1d9;
             }
 
@@ -1155,7 +1158,7 @@ export class HtmlExporter extends BaseExporter {
                 background: #1c2128;
             }
 
-            .artifact h4 {
+            .artifact h3 {
                 color: #e6edf3;
             }
 
@@ -1163,7 +1166,7 @@ export class HtmlExporter extends BaseExporter {
                 color: #9198a1;
             }
 
-            .web-search h4 {
+            .web-search h3 {
                 color: #e6edf3;
             }
 

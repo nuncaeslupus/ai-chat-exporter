@@ -1495,6 +1495,13 @@ section {
   cursor: grab;
 }
 
+/* The chip itself is a keyboard reorder target now (Ctrl+Arrow), and the
+   free-text input inside it removes its own outline below -- both need a
+   visible indicator, so this fires for either one gaining focus. */
+.filename-chip:focus-within {
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
 .filename-chip:active {
   cursor: grabbing;
 }
@@ -1509,10 +1516,6 @@ section {
   font-size: var(--text-sm);
   font-weight: inherit;
   color: inherit;
-}
-
-.filename-chip-input:focus {
-  outline: none;
 }
 
 .filename-chip-remove {
@@ -1924,6 +1927,31 @@ section {
 }
 
 /*
+ * Generic failure detail — shown only in the `error` state. Reuses the
+ * warning card's sub-parts (icon/body/title/detail) for their box model and
+ * type, then overrides just the ink to --color-danger; the spec designs no
+ * error screen, so this stays provisional like --color-danger itself.
+ */
+.error-card {
+  display: none;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--color-warning-surface);
+}
+
+.popup-body[data-ui-state='error'] .error-card {
+  display: flex;
+}
+
+.error-card .warning-card-icon,
+.error-card .warning-card-title,
+.error-card .warning-card-detail {
+  color: var(--color-danger);
+}
+
+/*
  * Nothing selected — the Content row *is* the warning, since the export
  * button next to it has just gone inert and needs to say why.
  */
@@ -2106,4 +2134,17 @@ kbd {
 
 .drift-report-secondary:hover {
   color: var(--color-accent-pressed);
+}
+
+/* Honour the OS-level reduce-motion request — the status dot's `pulse` is the
+   only animation in the popup today, but this covers whatever is added next
+   too. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

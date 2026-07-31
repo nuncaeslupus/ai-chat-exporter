@@ -126,6 +126,24 @@
               </div>
 
               <!--
+                Generic failure detail, reusing the warning card's sub-parts
+                (see `.error-card` in popup.css) so it needs no new component
+                CSS. Shown only in the `error` state; `updateStatus()`'s
+                `detail` argument fills the text here instead of being
+                reachable only through the header pill's tooltip.
+              -->
+              <div class="error-card" id="error-card" role="status">
+                <svg class="warning-card-icon" width="17" height="17" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M8 2.5 14.5 13.5H1.5L8 2.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+                  <path d="M8 6.8v2.6M8 11.4h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                <div class="warning-card-body">
+                  <p class="warning-card-title" data-i18n="statusErrorTitle">Something went wrong</p>
+                  <p class="warning-card-detail" id="error-card-detail"></p>
+                </div>
+              </div>
+
+              <!--
                 Selector drift. Non-blocking on purpose: a degraded export is
                 usually still wanted, and anything demanding attention trains
                 users to dismiss it. Hidden unless `data-drift="true"`.
@@ -144,7 +162,7 @@
 
               <!-- Conversation block: title + `platform · N pairs · date range`. -->
               <div class="conversation-block">
-                <h2 class="conversation-title" id="conversation-title">-</h2>
+                <h2 class="conversation-title" id="conversation-title" tabindex="-1">-</h2>
                 <p class="conversation-meta">
                   <img class="platform-icon" id="platform-icon" alt="" style="display: none;" />
                   <span class="conversation-meta-text" id="conversation-meta"></span>
@@ -203,6 +221,8 @@
                   id="format-menu-toggle"
                   data-format-menu-toggle
                   data-i18n-label="changeFormatButton"
+                  aria-haspopup="true"
+                  aria-expanded="false"
                 >
                   <svg class="split-toggle-chevron" width="12" height="8" viewBox="0 0 12 8" fill="none" aria-hidden="true">
                     <path d="M1 1.5 6 6.5 11 1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -232,9 +252,9 @@
             the `data-format-menu-open` attribute alone; nothing here is
             display-juggled from JS. `data-format` carries the choice.
           -->
-          <div class="format-menu" data-format-menu role="menu" aria-labelledby="format-menu-label">
+          <div class="format-menu" data-format-menu>
             <p class="format-menu-label" id="format-menu-label" data-i18n="formatMenuLabel">Format</p>
-            <div class="format-menu-list">
+            <div class="format-menu-list" role="menu" aria-labelledby="format-menu-label">
               <button type="button" class="format-row" role="menuitemradio" aria-checked="false" data-format="md">
                 <img class="format-row-icon" src="../assets/icons/md-icon.svg" alt="" />
                 <span class="format-row-name" data-i18n="formatNameMD">Markdown</span>
@@ -301,7 +321,7 @@
                 <path d="M6.5 1 1.5 6l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </button>
-            <h2 class="submenu-title" data-i18n="qaSelectionTitle">Choose pairs</h2>
+            <h2 class="submenu-title" tabindex="-1" data-i18n="qaSelectionTitle">Choose pairs</h2>
             <button type="button" class="pair-chooser-toggle-all" id="qa-selection-toggle-all"></button>
           </div>
           <ul class="qa-selection-list" id="qa-selection-list"></ul>
@@ -325,7 +345,7 @@
                 <path d="M6.5 1 1.5 6l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </button>
-            <h2 class="submenu-title" data-i18n="rowOptions">Options</h2>
+            <h2 class="submenu-title" tabindex="-1" data-i18n="rowOptions">Options</h2>
           </div>
 
           <div class="options-list">
@@ -396,7 +416,7 @@
                 <path d="M6.5 1 1.5 6l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </button>
-            <h2 class="submenu-title" data-i18n="settingsTitle">Settings</h2>
+            <h2 class="submenu-title" tabindex="-1" data-i18n="settingsTitle">Settings</h2>
           </div>
 
           <div class="options-list">
@@ -458,7 +478,7 @@
                 <path d="M6.5 1 1.5 6l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </button>
-            <h2 class="submenu-title" data-i18n="driftReportTitle">Page structure report</h2>
+            <h2 class="submenu-title" tabindex="-1" data-i18n="driftReportTitle">Page structure report</h2>
           </div>
           <div class="drift-report-body">
             <p class="drift-report-intro" data-i18n="driftReportIntro">
@@ -492,7 +512,7 @@
                 <path d="M6.5 1 1.5 6l5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </button>
-            <h2 class="submenu-title" data-i18n="optionsFilenameRow">File name</h2>
+            <h2 class="submenu-title" tabindex="-1" data-i18n="optionsFilenameRow">File name</h2>
             <button
               type="button"
               class="filename-default"

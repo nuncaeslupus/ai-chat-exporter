@@ -47,6 +47,10 @@
     "message": "Error al imprimir",
     "description": "Status message when print fails"
   },
+  "statusErrorTitle": {
+    "message": "Algo salió mal",
+    "description": "Título del panel de error visible cuando la exportación o la impresión falla por completo"
+  },
   "errorNoActiveTabFound": {
     "message": "No se encontró ninguna pestaña activa",
     "description": "Error message when no active browser tab is found during export or print"
@@ -502,6 +506,24 @@
   "filenameRemovePiece": {
     "message": "Quitar pieza",
     "description": "Accessible name of the button that removes a piece from the file name"
+  },
+  "filenameChipPosition": {
+    "message": "$1, posición $2 de $3",
+    "description": "Accessible name of a reorderable file-name chip. $1 = piece name, $2 = its position, $3 = total pieces",
+    "placeholders": {
+      "piece": {
+        "content": "$1",
+        "example": "Title"
+      },
+      "position": {
+        "content": "$2",
+        "example": "1"
+      },
+      "total": {
+        "content": "$3",
+        "example": "3"
+      }
+    }
   },
   "filenamePiecePlatform": {
     "message": "Plataforma",
