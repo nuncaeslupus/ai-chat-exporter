@@ -40,6 +40,36 @@ export function createDeepResearchFrameMessage(
   return { type: DEEP_RESEARCH_MESSAGE_TYPE, ...content };
 }
 
+/**
+ * Parent origins the sandboxed relay is allowed to deliver a report to -- the
+ * ChatGPT hosts the manifest already declares content scripts for. Posting a
+ * report to `'*'` would hand it to whatever origin happens to own
+ * `window.parent`, which the frame cannot verify from inside a cross-origin
+ * sandbox (it can't read `window.parent.location.origin` to check). Scoping
+ * the target origin is one-way hardening against that: it protects the report
+ * from an unexpected embedder, the opposite direction from the origin check
+ * `content-script.ts` already does on the *receiving* end (SEC-3).
+ */
+export const CHATGPT_PARENT_ORIGINS = ['https://chatgpt.com', 'https://chat.openai.com'] as const;
+
+/**
+ * Posts the report to the parent once per allowed origin instead of once with
+ * `'*'`. `postMessage` only ever delivers to a window whose actual origin
+ * matches the `targetOrigin` argument -- the browser silently drops the call
+ * for every origin that isn't a match -- so broadcasting one call per
+ * allowlisted origin reaches the real parent when it's ChatGPT and reaches
+ * nobody otherwise, without the sandbox ever needing to know which one it is.
+ */
+export function postDeepResearchFrameMessage(
+  target: Pick<Window, 'postMessage'>,
+  content: { html: string } | { text: string }
+): void {
+  const message = createDeepResearchFrameMessage(content);
+  for (const origin of CHATGPT_PARENT_ORIGINS) {
+    target.postMessage(message, origin);
+  }
+}
+
 export function isDeepResearchFrameMessage(data: unknown): data is DeepResearchFrameMessage {
   if (typeof data !== 'object' || data === null) {
     return false;

@@ -29,7 +29,7 @@
  * lo-f132) is what ships -- never an exception, never fabricated content.
  */
 
-import { createDeepResearchFrameMessage } from '../../shared/deep-research-relay';
+import { postDeepResearchFrameMessage } from '../../shared/deep-research-relay';
 import { sanitizeHtml } from '../../core/utils/sanitize-html';
 
 /**
@@ -190,7 +190,7 @@ function relay(): void {
           `falling back to plain text to avoid silently truncating the report`
       );
     } else {
-      window.parent.postMessage(createDeepResearchFrameMessage({ html: htmlResult.html }), '*');
+      postDeepResearchFrameMessage(window.parent, { html: htmlResult.html });
       return;
     }
   }
@@ -210,7 +210,7 @@ function relay(): void {
     );
     return;
   }
-  window.parent.postMessage(createDeepResearchFrameMessage({ text }), '*');
+  postDeepResearchFrameMessage(window.parent, { text });
 }
 
 function watch(): void {
