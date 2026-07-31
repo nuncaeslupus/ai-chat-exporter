@@ -39,6 +39,10 @@
     "message": "Falten artefactes",
     "description": "Status message when export or print completes but some content was left out"
   },
+  "statusExportIncomplete": {
+    "message": "Exportació incompleta",
+    "description": "Status message when export or print completes but the parser could not read some of the conversation's content"
+  },
   "statusExportFailed": {
     "message": "Error en exportar",
     "description": "Status message when export fails"
@@ -134,6 +138,10 @@
   "warningPdfUnsupportedScript": {
     "message": "Alguns caràcters d'aquesta conversa (xinès, japonès, coreà, àrab, hebreu, ciríl·lic o una altra escriptura no llatina) no es poden mostrar en un PDF i apareixen com a «?». Exporta a DOCX o HTML per mantenir aquest text intacte.",
     "description": "Warning shown when a PDF export contains a script the embedded fonts can't render — DOCX and HTML render it correctly instead"
+  },
+  "warningParserContentUnreadable": {
+    "message": "Algunes parts d'aquesta conversa no s'han pogut llegir de la pàgina i és possible que faltin o estiguin en blanc a l'exportació.",
+    "description": "Warning shown when a parser reports it could not fully read some turns of the conversation — the export still completes but some content may be missing"
   },
   "exportButtonAgain": {
     "message": "Exporta de nou",

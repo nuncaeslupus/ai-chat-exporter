@@ -39,6 +39,10 @@
     "message": "Faltan artefactos",
     "description": "Status message when export or print completes but some content was left out"
   },
+  "statusExportIncomplete": {
+    "message": "Exportación incompleta",
+    "description": "Status message when export or print completes but the parser could not read some of the conversation's content"
+  },
   "statusExportFailed": {
     "message": "Error al exportar",
     "description": "Status message when export fails"
@@ -134,6 +138,10 @@
   "warningPdfUnsupportedScript": {
     "message": "Algunos caracteres de esta conversación (chino, japonés, coreano, árabe, hebreo, cirílico u otra escritura no latina) no se pueden mostrar en un PDF y aparecen como «?». Exporta a DOCX o HTML para conservar ese texto intacto.",
     "description": "Warning shown when a PDF export contains a script the embedded fonts can't render — DOCX and HTML render it correctly instead"
+  },
+  "warningParserContentUnreadable": {
+    "message": "Algunas partes de esta conversación no se pudieron leer de la página y es posible que falten o estén en blanco en la exportación.",
+    "description": "Warning shown when a parser reports it could not fully read some turns of the conversation — the export still completes but some content may be missing"
   },
   "exportButtonAgain": {
     "message": "Exportar de nuevo",

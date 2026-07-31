@@ -66,13 +66,13 @@ class ContentScript {
   async initialize(): Promise<void> {
     // Always re-parse for ChatGPT since it's a dynamic SPA
     // Don't use the initialized flag to skip
-    const conversation = this.parseConversation();
-    if (!conversation) {
+    const parsed = this.parseConversation();
+    if (!parsed) {
       this.notifyPageReadyState(false);
       return;
     }
 
-    this.conversation = conversation;
+    this.conversation = parsed.conversation;
     this.notifyPageReadyState(true);
   }
 
@@ -84,9 +84,14 @@ class ContentScript {
    * snapshot rather than sharing `this.conversation` — a double-click on
    * Export, or Export firing while a Print is mid-flight, runs two of these
    * pipelines concurrently, and instance state shared between them would let
-   * one overwrite the other's in-flight conversation (lo-08b0).
+   * one overwrite the other's in-flight conversation (lo-08b0). `warnings`
+   * (D-39) rides along the same return value for the same reason — a second
+   * instance field would reintroduce that race for parser warnings instead.
    */
-  private parseConversation(): Conversation | null {
+  private parseConversation(): {
+    conversation: Conversation;
+    warnings?: string[] | undefined;
+  } | null {
     const parser = detectParser();
     if (!parser) {
       console.log(`[${EXTENSION_NAME}] No parser found for current page`);
@@ -109,7 +114,7 @@ class ContentScript {
       `[${EXTENSION_NAME}] Found ${parseResult.conversation.pairs.length} conversation pairs`
     );
     this.initialized = true;
-    return parseResult.conversation;
+    return { conversation: parseResult.conversation, warnings: parseResult.warnings };
   }
 
   /**
@@ -141,9 +146,9 @@ class ContentScript {
     // Re-parse conversation to get latest content (ChatGPT is dynamic SPA).
     // Operate on a local snapshot, not `this.conversation` — a concurrent
     // export/print call must never see or clobber this call's data (lo-08b0).
-    let conversation = this.parseConversation();
+    const parsed = this.parseConversation();
 
-    if (!conversation) {
+    if (!parsed) {
       console.error(`[${EXTENSION_NAME}] No conversation available`);
       // A locale key, not prose: the popup resolves it with getMessage() so
       // a DOM-drift parse failure is reported as a failure, not silently
@@ -152,12 +157,18 @@ class ContentScript {
       throw new Error(ERROR_KEYS.NO_CONVERSATION);
     }
 
-    conversation = applySelection(conversation, selectedIndices);
+    let conversation = applySelection(parsed.conversation, selectedIndices);
 
     console.log(
       `[${EXTENSION_NAME}] Attempting to export ${conversation.pairs.length} pairs to ${format}`
     );
-    let warning: string | undefined;
+    // D-39: a parser-reported read failure is the lowest-priority warning —
+    // enrichment and the format-level warning below describe the file more
+    // specifically and take precedence if they also fire (see the `??`
+    // fallbacks below, which preserve this instead of clobbering it).
+    let warning: string | undefined = parsed.warnings?.length
+      ? WARNING_KEYS.PARSER_CONTENT
+      : undefined;
 
     try {
       // Check if we have any pairs to export
@@ -169,7 +180,7 @@ class ContentScript {
       if (conversation.platform === 'claude') {
         const enrichment = await this.enrichClaudeConversation(conversation);
         conversation = enrichment.conversation;
-        warning = enrichment.warning;
+        warning = enrichment.warning ?? warning;
       }
 
       // Only the pairs the user left selected in the popup go into the export.
@@ -294,20 +305,24 @@ class ContentScript {
     // Re-parse conversation to get latest content. Operate on a local
     // snapshot, not `this.conversation` — a concurrent export/print call
     // must never see or clobber this call's data (lo-08b0).
-    let conversation = this.parseConversation();
+    const parsed = this.parseConversation();
 
-    if (!conversation) {
+    if (!parsed) {
       console.error(`[${EXTENSION_NAME}] No conversation available`);
       printWindow.close();
       throw new Error(ERROR_KEYS.NO_CONVERSATION);
     }
 
-    conversation = applySelection(conversation, selectedIndices);
+    let conversation = applySelection(parsed.conversation, selectedIndices);
 
     console.log(
       `[${EXTENSION_NAME}] Attempting to print ${conversation.pairs.length} pairs as ${format}`
     );
-    let warning: string | undefined;
+    // D-39: same lowest-priority parser warning as handleExport — see the
+    // comment there.
+    let warning: string | undefined = parsed.warnings?.length
+      ? WARNING_KEYS.PARSER_CONTENT
+      : undefined;
 
     try {
       // Check if we have any pairs to print
@@ -319,7 +334,7 @@ class ContentScript {
       if (conversation.platform === 'claude') {
         const enrichment = await this.enrichClaudeConversation(conversation);
         conversation = enrichment.conversation;
-        warning = enrichment.warning;
+        warning = enrichment.warning ?? warning;
       }
 
       // Freeze the final snapshot in a `const` so the closures below (which

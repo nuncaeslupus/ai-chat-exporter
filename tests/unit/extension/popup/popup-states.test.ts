@@ -56,6 +56,7 @@ const EN_MESSAGES: Record<string, string> = {
   statusReloadNeeded: 'Reload needed',
   statusPageCheckFailed: 'Check failed',
   statusArtifactsMissing: 'Artifacts missing',
+  statusExportIncomplete: 'Export incomplete',
   noConversationFoundTitle: "Couldn't find a conversation here",
   noConversationFoundMessage: 'This page is supported, but no messages could be read.',
   conversationUntitled: 'Untitled',
@@ -74,6 +75,8 @@ const EN_MESSAGES: Record<string, string> = {
     "Artifact contents and Claude's per-message timestamps were left out of this export because this page's conversation details couldn't be found. Reload the page, make sure you're signed in to claude.ai, then export again.",
   warningArtifactsFetchFailed:
     "Artifact contents and Claude's per-message timestamps were left out of this export because Claude's conversation data couldn't be fetched. This can be temporary — try exporting again.",
+  warningParserContentUnreadable:
+    "Some parts of this conversation couldn't be read from the page and may be missing or blank in the export.",
   formatNameMD: 'Markdown',
   platformLinkOpen: 'Open $1 in a new tab',
   reloadPageButton: 'Reload the page',
@@ -585,5 +588,44 @@ describe('popup secondary states — exported with warnings (transient cause, D-
     // A degraded export keeps the popup open so the card is actually read.
     expect(close).not.toHaveBeenCalled();
     expect(uiState()).toBe('warning');
+  });
+});
+
+describe('popup secondary states — exported with warnings (parser content, D-39)', () => {
+  beforeEach(() => {
+    baseChrome();
+    mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://claude.ai/chat/abc' }]);
+    mockTabsSendMessage.mockImplementation((_tabId: number, message: { type: string }) =>
+      message.type === 'get_conversation'
+        ? Promise.resolve({ success: true, data: CONVERSATION })
+        : Promise.resolve({ success: true, warning: WARNING_KEYS.PARSER_CONTENT })
+    );
+  });
+
+  afterEach(() => {
+    localStorage.removeItem('lastExportFormat');
+  });
+
+  it('shows an accurate header (not "Artifacts missing") and the resolved detail text', async () => {
+    await loadPopup();
+    await vi.waitFor(() => {
+      expect(uiState()).toBe('ready');
+    });
+
+    document.getElementById('export-button')?.click();
+
+    await vi.waitFor(() => {
+      expect(uiState()).toBe('warning');
+    });
+    // A parser read failure has nothing to do with missing artifacts — the
+    // pill used to say so anyway (hardcoded), which is the misleading
+    // warning D-39 was filed over.
+    expect(document.getElementById('status-text')?.textContent).toBe('Export incomplete');
+    const detail = document.getElementById('warning-card-detail');
+    expect(detail?.textContent).toBe(EN_MESSAGES.warningParserContentUnreadable);
+    // The cause (a DOM read failure) isn't known to clear on a second try.
+    expect((document.getElementById('warning-retry-button') as HTMLButtonElement).hidden).toBe(
+      true
+    );
   });
 });

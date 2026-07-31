@@ -27,7 +27,12 @@ import {
   type ThemePreference,
 } from '../../core/types/config';
 import { StorageService } from '../../shared/storage';
-import { DEFAULT_PREFERENCES, MESSAGE_TYPES, RETRYABLE_WARNING_KEYS } from '../../shared/constants';
+import {
+  DEFAULT_PREFERENCES,
+  MESSAGE_TYPES,
+  RETRYABLE_WARNING_KEYS,
+  WARNING_KEYS,
+} from '../../shared/constants';
 import { SelectionService } from '../../core/services/selection-service';
 import { FilenameService } from '../../core/services/filename-service';
 import { formatDriftReport } from '../../core/drift/format-report';
@@ -1456,7 +1461,12 @@ class PopupController {
   private showWarning(reason: string): void {
     this.setUiState('warning');
     const detail = getMessage(reason);
-    this.updateStatus('warning', getMessage('statusArtifactsMissing'), detail);
+    // D-39: a parser-content warning has nothing to do with missing
+    // artifacts — the header must say so, not reuse the Claude-enrichment
+    // wording for every warning regardless of cause.
+    const headerKey =
+      reason === WARNING_KEYS.PARSER_CONTENT ? 'statusExportIncomplete' : 'statusArtifactsMissing';
+    this.updateStatus('warning', getMessage(headerKey), detail);
 
     const detailEl = document.getElementById('warning-card-detail');
     if (detailEl) {
