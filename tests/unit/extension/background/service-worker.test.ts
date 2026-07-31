@@ -22,9 +22,15 @@ describe('export keyboard shortcut', () => {
   let setBadgeTextMock: ReturnType<typeof vi.fn>;
   let onCommandHandler: (command: string) => void;
   let onClickedHandler: (info: { menuItemId: string }, tab: { id: number } | undefined) => void;
+  // Controls what chrome.tabs.get(42) resolves the tab's URL to -- lets each
+  // test decide whether the active tab is a supported chat host or not,
+  // without re-importing the module. Defaults to a supported host so the
+  // pre-existing injection tests keep exercising the same recovery path.
+  let tabUrl: string | undefined;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    tabUrl = 'https://chatgpt.com/c/123';
   });
 
   beforeAll(async () => {
@@ -42,9 +48,28 @@ describe('export keyboard shortcut', () => {
             onMessageHandler = handler;
           }),
         },
+        // Mirrors manifests/manifest.base.json's real two-entry shape (SEC-2):
+        // a chat-host entry and an `all_frames` sandbox-only entry, so tests
+        // catch injectContentScripts flattening both into every tab again.
         getManifest: vi.fn(() => ({
           version: '1.0.0',
-          content_scripts: [{ js: ['content/content-script.js'], css: ['content/styles.css'] }],
+          content_scripts: [
+            {
+              matches: [
+                'https://chat.openai.com/*',
+                'https://chatgpt.com/*',
+                'https://claude.ai/*',
+                'https://gemini.google.com/*',
+              ],
+              js: ['content/content-script.js'],
+              css: ['content/styles.css'],
+            },
+            {
+              matches: ['https://*.web-sandbox.oaiusercontent.com/*'],
+              all_frames: true,
+              js: ['content/deep-research-frame.js'],
+            },
+          ],
         })),
       },
       action: {
@@ -60,6 +85,7 @@ describe('export keyboard shortcut', () => {
         query: vi.fn((_query: unknown, callback: (tabs: { id: number }[]) => void) => {
           callback([{ id: 42 }]);
         }),
+        get: vi.fn((id: number) => Promise.resolve({ id, url: tabUrl })),
         sendMessage: sendMessageMock,
       },
       contextMenus: {
@@ -204,6 +230,47 @@ describe('export keyboard shortcut', () => {
     await flush();
 
     expect(setBadgeTextMock).not.toHaveBeenCalledWith({ text: '!' });
+  });
+
+  // SEC-2 (high): chrome.commands.onCommand resolves whatever tab is active
+  // with no host check, unlike the context menus (documentUrlPatterns) and
+  // the popup (checkCurrentPage). Before the fix, the "no receiver" recovery
+  // path injected the full content-script bundle into that tab regardless of
+  // its URL -- the injection-scope fix in tab-messaging.ts's
+  // injectContentScripts (honoring each manifest entry's `matches`) is what
+  // actually closes this, since neither content_scripts entry matches an
+  // unrelated host.
+  it('does not inject anything when the keyboard shortcut fires on an unsupported site', async () => {
+    tabUrl = 'https://mail.example.com/inbox';
+    // No entry matches this host, so every attempt still finds nobody
+    // listening -- there is no injection to eventually succeed. Fake timers
+    // deterministically drain the full 5-attempt retry loop instead of
+    // racing real 100ms delays, which would otherwise keep firing into
+    // later tests.
+    sendMessageMock.mockRejectedValue(NO_RECEIVER);
+
+    vi.useFakeTimers();
+    try {
+      onCommandHandler('export-conversation');
+      await vi.runAllTimersAsync();
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(executeScriptMock).not.toHaveBeenCalled();
+    expect(insertCSSMock).not.toHaveBeenCalled();
+  });
+
+  it('still recovers via the keyboard shortcut when the tab is a supported chat host', async () => {
+    tabUrl = 'https://claude.ai/chat/1';
+    sendMessageMock.mockRejectedValueOnce(NO_RECEIVER).mockResolvedValueOnce({ success: true });
+
+    onCommandHandler('export-conversation');
+    await flush();
+
+    expect(executeScriptMock).toHaveBeenCalledTimes(1);
+    expect(sendMessageMock).toHaveBeenCalledTimes(2);
+    expect(sendMessageMock.mock.calls[1]?.[1]).toMatchObject({ type: 'export_conversation' });
   });
 });
 
