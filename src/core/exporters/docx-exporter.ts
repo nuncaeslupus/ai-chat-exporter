@@ -186,7 +186,7 @@ export class DocxExporter extends BaseExporter {
         pairs: selectedPairs,
       });
 
-      const doc = this.createDocument(structured, options);
+      const doc = this.generateDocx(structured, options);
       const blob = await Packer.toBlob(doc);
       return this.createSuccessResult(blob, options.filename);
     } catch (error) {
@@ -199,7 +199,7 @@ export class DocxExporter extends BaseExporter {
   /**
    * Create a DOCX document
    */
-  private createDocument(conversation: StructuredConversation, options: ExportOptions): Document {
+  private generateDocx(conversation: StructuredConversation, options: ExportOptions): Document {
     const sections: (Paragraph | Table)[] = [];
 
     // Title

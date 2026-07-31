@@ -50,28 +50,6 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
 export const DEFAULT_THEME: ThemePreference = 'auto';
 
 /**
- * Supported platforms
- */
-export const PLATFORMS = {
-  CHATGPT: 'chatgpt',
-  CLAUDE: 'claude',
-  GEMINI: 'gemini',
-  MISTRAL: 'mistral',
-  GROK: 'grok',
-} as const;
-
-/**
- * Export formats
- */
-export const EXPORT_FORMATS = {
-  PDF: 'pdf',
-  MARKDOWN: 'md',
-  TEXT: 'txt',
-  JSON: 'json',
-  DOCX: 'docx',
-} as const;
-
-/**
  * Toast notification duration (ms)
  */
 export const TOAST_DURATION = 3000;

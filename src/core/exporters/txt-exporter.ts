@@ -95,15 +95,12 @@ export class TextExporter extends BaseExporter {
     // Q&A pairs
     const assistantName = this.getRoleName('assistant', conversation.platform);
     const daySeparator = this.daySeparator(options.showMetaInfo);
-    for (let i = 0; i < conversation.pairs.length; i++) {
-      const pair = conversation.pairs[i];
-      if (pair) {
-        lines.push(...this.formatPair(pair, assistantName, options, daySeparator));
-        if (i < conversation.pairs.length - 1) {
-          lines.push('');
-          lines.push('-'.repeat(TXT_WIDTH));
-          lines.push('');
-        }
+    for (const [i, pair] of conversation.pairs.entries()) {
+      lines.push(...this.formatPair(pair, assistantName, options, daySeparator));
+      if (i < conversation.pairs.length - 1) {
+        lines.push('');
+        lines.push('-'.repeat(TXT_WIDTH));
+        lines.push('');
       }
     }
 
@@ -145,13 +142,8 @@ export class TextExporter extends BaseExporter {
    * three underline characters (`=` title, `-` role, `~` body heading) are what
    * carry the document's hierarchy.
    */
-  private roleLabel(
-    name: string,
-    timestamp: Date | undefined,
-    includeTimestamps: boolean
-  ): string[] {
-    const time =
-      includeTimestamps && timestamp ? ` · ${this.formatTime(timestamp).slice(0, 5)}` : '';
+  private roleLabel(name: string, timestamp: Date | undefined, showMetaInfo: boolean): string[] {
+    const time = showMetaInfo && timestamp ? ` · ${this.formatTime(timestamp).slice(0, 5)}` : '';
     const label = `${name.toUpperCase()}${time}`;
     return [label, '-'.repeat(Math.min(label.length, TXT_WIDTH))];
   }
@@ -236,7 +228,7 @@ export class TextExporter extends BaseExporter {
     for (const block of blocks) {
       switch (block.type) {
         case 'paragraph': {
-          const text = this.inlineToText(block.content);
+          const text = this.renderInline(block.content);
           if (text.trim()) {
             lines.push(...this.wrap(text, indent));
             lines.push('');
@@ -245,7 +237,7 @@ export class TextExporter extends BaseExporter {
         }
 
         case 'heading': {
-          const headingText = this.inlineToText(block.content).trim();
+          const headingText = this.renderInline(block.content).trim();
           if (headingText) {
             const wrapped = this.wrap(headingText, indent);
             lines.push('');
@@ -328,12 +320,12 @@ export class TextExporter extends BaseExporter {
 
     // Collect all cells from headers and body
     if (block.headers && block.headers.length > 0) {
-      allRows.push(block.headers.map((cell: InlineContent[]) => this.inlineToText(cell).trim()));
+      allRows.push(block.headers.map((cell: InlineContent[]) => this.renderInline(cell).trim()));
     }
 
     if (block.rows && block.rows.length > 0) {
       for (const row of block.rows) {
-        allRows.push(row.map((cell: InlineContent[]) => this.inlineToText(cell).trim()));
+        allRows.push(row.map((cell: InlineContent[]) => this.renderInline(cell).trim()));
       }
     }
 
@@ -389,7 +381,7 @@ export class TextExporter extends BaseExporter {
 
     for (const [i, item] of block.items.entries()) {
       const prefix = block.ordered ? `${i + 1}.` : '-';
-      const text = this.inlineToText(item.content).trim();
+      const text = this.renderInline(item.content).trim();
 
       if (text) {
         // Wrap the item, then hang the continuation under the text rather than
@@ -412,7 +404,7 @@ export class TextExporter extends BaseExporter {
   /**
    * Convert inline content to plain text
    */
-  private inlineToText(content: InlineContent[]): string {
+  private renderInline(content: InlineContent[]): string {
     return content
       .map((item) =>
         item.type === 'link' && item.url && item.url !== item.text

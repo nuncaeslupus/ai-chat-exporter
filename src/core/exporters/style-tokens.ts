@@ -234,6 +234,11 @@ export const FONT_SIZE_PT = {
  * background AND separated in relative luminance so they survive greyscale
  * printing — both asserted in tests/unit/accessibility/contrast.test.ts.
  *
+ * Consumed by docx and html only — pdf's code blocks render monochrome by
+ * choice (see code-highlight.ts's module doc), so this palette has no pdf
+ * consumer despite the module doc above naming pdf as a general consumer of
+ * this file's other tokens (COLOR, FONT_SIZE_PT, etc).
+ *
  * The luminance spread is deliberate. The design's original values differed
  * almost entirely in HUE, which greyscale discards: measured, `function` and
  * `number` sat 0.0024 apart — the same grey — and four of ten pairs were under

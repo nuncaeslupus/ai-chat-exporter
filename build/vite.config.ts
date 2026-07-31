@@ -2,7 +2,6 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 const rootDir = resolve(__dirname, '..');
-const srcDir = resolve(rootDir, 'src');
 
 // ponytail: vite always forces NODE_ENV to 'production' for the `build` command
 // regardless of --mode (see vite's resolveConfig), and this file is merged into
@@ -14,15 +13,6 @@ const mode = modeArgIndex !== -1 ? process.argv[modeArgIndex + 1] : 'production'
 
 export default defineConfig({
   root: rootDir,
-  resolve: {
-    alias: {
-      '@': srcDir,
-      '@core': resolve(srcDir, 'core'),
-      '@ui': resolve(srcDir, 'ui'),
-      '@extension': resolve(srcDir, 'extension'),
-      '@shared': resolve(srcDir, 'shared'),
-    },
-  },
   build: {
     emptyOutDir: false,
     sourcemap: mode !== 'production',

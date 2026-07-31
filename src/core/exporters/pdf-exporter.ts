@@ -178,7 +178,7 @@ export class PdfExporter extends BaseExporter {
       });
       this.registerFonts(doc);
 
-      this.renderContent(doc, structured, options, pdfOptions);
+      this.generatePdf(doc, structured, options, pdfOptions);
 
       const blob = doc.output('blob');
       return this.createSuccessResult(
@@ -253,7 +253,7 @@ export class PdfExporter extends BaseExporter {
   /**
    * Render content to the PDF document with improved formatting
    */
-  private renderContent(
+  private generatePdf(
     doc: jsPDF,
     conversation: StructuredConversation,
     options: ExportOptions,
@@ -993,7 +993,7 @@ export class PdfExporter extends BaseExporter {
     pageHeight: number
   ): number {
     let y = startY;
-    const text = this.inlineToPlainText(content);
+    const text = this.renderInline(content);
 
     if (text.trim()) {
       y = this.renderText(doc, text, y, margins, contentWidth, lineHeight, pageHeight, false);
@@ -1016,7 +1016,7 @@ export class PdfExporter extends BaseExporter {
     pageHeight: number
   ): number {
     let y = startY;
-    const text = this.inlineToPlainText(block.content);
+    const text = this.renderInline(block.content);
 
     if (text.trim()) {
       // Add spacing before heading
@@ -1076,7 +1076,7 @@ export class PdfExporter extends BaseExporter {
       if (!item) continue;
 
       const prefix = block.ordered ? `${i + 1}.` : '•';
-      const text = this.inlineToPlainText(item.content).trim(); // Strip emojis and trim
+      const text = this.renderInline(item.content).trim(); // Strip emojis and trim
 
       if (text.trim()) {
         // Check if we need a new page
@@ -1304,7 +1304,7 @@ export class PdfExporter extends BaseExporter {
 
       y += lineHeight * 0.3; // Spacing after image
     } catch (error) {
-      console.error('Failed to add image to PDF:', error);
+      console.error('[PDF Exporter] Failed to add image to PDF:', error);
       // Fall back to showing placeholder text
       y = this.renderText(doc, placeholder, y, margins, contentWidth, lineHeight, pageHeight, true);
     }
@@ -1334,7 +1334,7 @@ export class PdfExporter extends BaseExporter {
       for (let i = 0; i < numCols; i++) {
         const cell = row[i];
         if (!cell) continue;
-        const text = this.inlineToPlainText(cell).trim();
+        const text = this.renderInline(cell).trim();
         if (!text) continue;
         sawData[i] = true;
         if (!/^-?[\d,]+(\.\d+)?%?$/.test(text)) isNumeric[i] = false;
@@ -1371,7 +1371,7 @@ export class PdfExporter extends BaseExporter {
       let maxLines = 1;
       for (const cell of cells) {
         if (!cell) continue;
-        const cellText = this.inlineToPlainText(cell);
+        const cellText = this.renderInline(cell);
         const lines = splitLines(doc, cellText, colWidth - cellPadding * 2);
         maxLines = Math.max(maxLines, lines.length);
       }
@@ -1382,7 +1382,7 @@ export class PdfExporter extends BaseExporter {
     const drawCells = (cells: InlineContent[][], rowY: number): void => {
       cells.forEach((cell, i) => {
         if (!cell) return;
-        const cellText = this.inlineToPlainText(cell);
+        const cellText = this.renderInline(cell);
         const textY = rowY + cellPadding + lineHeight / 2;
         if (numericCols[i]) {
           doc.text(cellText, margins.left + (i + 1) * colWidth - cellPadding, textY, {
@@ -1446,7 +1446,7 @@ export class PdfExporter extends BaseExporter {
    * Convert inline content to plain text (for PDF rendering)
    * Sanitizes characters that jsPDF can't render
    */
-  private inlineToPlainText(content: InlineContent[]): string {
+  private renderInline(content: InlineContent[]): string {
     // ponytail: jsPDF text here is single flattened plain text per block (no
     // per-run styling exists anywhere in this renderer, not even bold/italic),
     // so a real link annotation would need a new run-aware wrapping engine.
@@ -1543,7 +1543,10 @@ export class PdfExporter extends BaseExporter {
     doc.setLineWidth(0.2);
     doc.roundedRect(margins.left, y - 2, contentWidth, totalCodeHeight + 6, 2, 2, 'FD');
 
-    // Render code lines
+    // Render code lines. pdf renders code monochrome by choice, unlike docx and
+    // html: it draws each wrapped line as one flattened string (see
+    // `wrappedLines` above), not per-token, so it never consumes
+    // code-highlight.ts's `highlightCode`/`tokenLines` or CODE_TOKEN_COLOR.
     y += 3;
     doc.setFont(this.fonts.code, 'normal');
     doc.setFontSize(this.sizes.code);

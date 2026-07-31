@@ -17,13 +17,6 @@
     "exactOptionalPropertyTypes": true,
     "noImplicitReturns": true,
     "noUncheckedIndexedAccess": true,
-    "paths": {
-      "@/*": ["./src/*"],
-      "@core/*": ["./src/core/*"],
-      "@ui/*": ["./src/ui/*"],
-      "@extension/*": ["./src/extension/*"],
-      "@shared/*": ["./src/shared/*"]
-    },
     "types": ["chrome", "node"]
   },
   "include": ["src/**/*", "tests/**/*", "build/**/*", "vitest.config.ts"],

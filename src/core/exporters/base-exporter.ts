@@ -142,8 +142,8 @@ export abstract class BaseExporter implements IExporter {
    * disabled or the message has no timestamp, so callers can always append the
    * result directly without a separate presence check.
    */
-  protected formatTimestampSuffix(date: Date | undefined, includeTimestamps: boolean): string {
-    if (!includeTimestamps) return '';
+  protected formatTimestampSuffix(date: Date | undefined, showMetaInfo: boolean): string {
+    if (!showMetaInfo) return '';
     const formatted = this.formatTime(date);
     return formatted ? ` (${formatted})` : '';
   }
@@ -190,10 +190,10 @@ export abstract class BaseExporter implements IExporter {
    * in render order; each exporter then only decides how to draw the line, not
    * when to draw it.
    */
-  protected daySeparator(includeTimestamps: boolean): (date?: Date) => string {
+  protected daySeparator(showMetaInfo: boolean): (date?: Date) => string {
     let lastDay: string | null = null;
     return (date?: Date): string => {
-      if (!includeTimestamps || !date) return '';
+      if (!showMetaInfo || !date) return '';
       // Local calendar day, matching `formatDay`/`formatTimestamp` below.
       const day = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
       if (day === lastDay) return '';
