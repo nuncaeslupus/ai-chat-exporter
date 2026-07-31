@@ -316,6 +316,15 @@ class PopupController {
   /** Rows showing their full question text (`more` / `less`). */
   private expandedPairIds = new Set<string>();
   private view: PopupView = 'main';
+  /**
+   * The trigger that opened each view, most recently — restored on the way
+   * back (Escape / a back-or-done button) when it is still reachable, so a
+   * keyboard user returns to where they left off instead of losing focus to
+   * `<body>`. Never written by a back/done button itself (see
+   * `handleRouterClick`), so a round trip through a nested view cannot
+   * overwrite the entry that opened its parent.
+   */
+  private viewEntryTrigger = new Map<PopupView, HTMLElement>();
   private formatMenuOpen = false;
   private uiState: UiState = 'detecting';
   private routerBound = false;
@@ -340,6 +349,11 @@ class PopupController {
   async initialize(): Promise<void> {
     // Localize all static text in the HTML
     localizeHtmlPage();
+    // WCAG 3.1.1: the popup ships 7 locales but never declared which one is
+    // rendered — the AT default-language voice mispronounces every locale
+    // but English. `html-exporter.ts` already reads `getUILanguage()` for the
+    // exported document; this mirrors it for the popup itself.
+    document.documentElement.lang = getUILanguage();
 
     // Start on the main view, in the detecting state
     this.setView('main');
@@ -424,30 +438,105 @@ class PopupController {
    * later only needs a `data-nav="<view>"` trigger — no router change.
    */
   private setView(view: PopupView): void {
+    const previousView = this.view;
     this.view = view;
     for (const name of VIEWS) {
       const container = document.getElementById(`view-${name}`);
       if (container) container.hidden = name !== view;
     }
     this.bodyBox()?.setAttribute('data-view', view);
+    if (previousView !== view) this.focusView(view, previousView);
+  }
+
+  /**
+   * Every trigger that switches views (`.setting-row`, the gear, `.submenu-back`
+   * / `.submenu-done`) lives inside the section `setView()` just hid, so the
+   * browser blurs it and drops focus to `<body>` — nothing ever placed it
+   * anywhere else. Restore it to the element that opened the view being left,
+   * when that element is still reachable in the view now showing; otherwise
+   * move it to the new view's heading, which both places focus somewhere real
+   * and gets the view name announced.
+   */
+  private focusView(view: PopupView, previousView: PopupView): void {
+    const returnTarget = this.viewEntryTrigger.get(previousView);
+    if (returnTarget && document.contains(returnTarget) && !returnTarget.closest('[hidden]')) {
+      returnTarget.focus();
+      return;
+    }
+    document
+      .getElementById(`view-${view}`)
+      ?.querySelector<HTMLElement>('.submenu-title, .conversation-title')
+      ?.focus();
   }
 
   private setFormatMenuOpen(open: boolean): void {
     this.formatMenuOpen = open;
     this.bodyBox()?.setAttribute('data-format-menu-open', String(open));
-    if (open) this.revealSelectedFormatRow();
+    const toggle = document.getElementById('format-menu-toggle');
+    toggle?.setAttribute('aria-expanded', String(open));
+    // Everything behind the floating menu steps out of the tab order and hit
+    // testing while it is open, not just visually (opacity alone left it
+    // reachable and clickable underneath the menu).
+    for (const el of this.formatMenuBackgroundElements()) {
+      if (open) {
+        el.setAttribute('inert', '');
+      } else {
+        el.removeAttribute('inert');
+      }
+    }
+    if (open) {
+      this.revealSelectedFormatRow();
+    } else {
+      toggle?.focus();
+    }
+  }
+
+  private formatMenuBackgroundElements(): HTMLElement[] {
+    return [
+      document.querySelector<HTMLElement>('.view-scroll'),
+      document.querySelector<HTMLElement>('.setting-rows'),
+      document.getElementById('print-button'),
+    ].filter((el): el is HTMLElement => el !== null);
   }
 
   /**
    * The menu scrolls; the format already in use has to be the one you see when
    * it opens, not a row you have to hunt for. jsdom ships no `scrollIntoView`,
-   * hence the guard.
+   * hence the guard. Also moves focus into the menu, onto that same row — the
+   * menu declares `role="menu"`, so AT users expect focus to land inside it.
    */
   private revealSelectedFormatRow(): void {
     const row = this.formatRow(this.selectedFormat);
     if (row && typeof row.scrollIntoView === 'function') {
       row.scrollIntoView({ block: 'nearest' });
     }
+    row?.focus();
+  }
+
+  /** Arrow/Home/End roving focus between the format rows, while the menu is open. */
+  private handleFormatMenuKeydown(event: KeyboardEvent): void {
+    const rows = [...document.querySelectorAll<HTMLElement>('[data-format-menu] [data-format]')];
+    if (rows.length === 0) return;
+    const current = rows.indexOf(document.activeElement as HTMLElement);
+    let next: number;
+    switch (event.key) {
+      case 'ArrowDown':
+        next = current < 0 ? 0 : (current + 1) % rows.length;
+        break;
+      case 'ArrowUp':
+        next = current < 0 ? rows.length - 1 : (current - 1 + rows.length) % rows.length;
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = rows.length - 1;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    rows[next]?.focus();
   }
 
   private formatRow(format: ExportFormat): HTMLElement | null {
@@ -478,8 +567,16 @@ class PopupController {
     const target = event.target instanceof Element ? event.target : null;
     if (!target) return;
 
-    const nav = target.closest('[data-nav]')?.getAttribute('data-nav');
-    if (nav && isPopupView(nav)) {
+    const trigger = target.closest<HTMLElement>('[data-nav]');
+    const nav = trigger?.getAttribute('data-nav');
+    if (nav && isPopupView(nav) && trigger) {
+      // A back/done button already carries the entry the router recorded when
+      // its own view was opened — recording it again here as the entry for
+      // the view it is returning to would overwrite that view's real trigger
+      // with a button that is not reachable there.
+      if (!trigger.matches('.submenu-back, .submenu-done')) {
+        this.viewEntryTrigger.set(nav, trigger);
+      }
       this.setView(nav);
       return;
     }
@@ -504,8 +601,17 @@ class PopupController {
     }
   }
 
-  /** Esc closes the format menu first, then backs out of any submenu. */
+  /**
+   * Esc closes the format menu first, then backs out of any submenu. While
+   * the format menu is open, Arrow/Home/End rove focus between its rows
+   * instead — `role="menu"` puts a screen reader into focus mode where those
+   * are the keys it expects to work.
+   */
   private handleRouterKeydown(event: KeyboardEvent): void {
+    if (this.formatMenuOpen && ['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
+      this.handleFormatMenuKeydown(event);
+      return;
+    }
     if (event.key !== 'Escape') return;
     if (this.formatMenuOpen) {
       this.setFormatMenuOpen(false);
@@ -770,7 +876,11 @@ class PopupController {
   /**
    * `text` goes in the header badge, which is a narrow no-wrap 10px label —
    * keep it to a word or two. Anything longer belongs in `detail`, which
-   * becomes the badge's tooltip.
+   * becomes the badge's tooltip *and*, for an `error` status, the visible
+   * `#error-card` panel (`setUiState('error')` is what makes that panel show;
+   * every caller here already calls it alongside `updateStatus('error', ...)`)
+   * — the tooltip alone is mouse/hover-only and unreachable by keyboard or
+   * touch.
    */
   private updateStatus(
     status: 'active' | 'inactive' | 'warning' | 'error',
@@ -784,6 +894,11 @@ class PopupController {
       indicator.className = `status-indicator ${status}`;
       statusText.textContent = text;
       indicator.title = detail ?? text;
+    }
+
+    if (status === 'error') {
+      const errorDetail = document.getElementById('error-card-detail');
+      if (errorDetail) errorDetail.textContent = detail ?? text;
     }
   }
 
@@ -884,12 +999,27 @@ class PopupController {
     );
   }
 
-  /** One piece: its label (or its text field), a remove button, draggable. */
+  /**
+   * One piece: its label (or its text field), a remove button, draggable —
+   * and, since dragging is not a keyboard operation (WCAG 2.1.1), also
+   * focusable and reorderable with Ctrl+ArrowLeft/Right.
+   */
   private pieceChip(piece: FilenamePiece, index: number): HTMLElement {
     const chip = el('span', 'filename-chip');
     chip.draggable = true;
     chip.dataset.pieceType = piece.type;
     chip.dataset.pieceIndex = String(index);
+    chip.tabIndex = 0;
+    chip.setAttribute('role', 'button');
+    chip.setAttribute(
+      'aria-label',
+      getMessageWithValues(
+        'filenameChipPosition',
+        getMessage(PIECE_LABEL_KEYS[piece.type]),
+        String(index + 1),
+        String(this.currentPieces().length)
+      )
+    );
     chip.addEventListener('dragstart', () => {
       this.draggedPieceIndex = index;
     });
@@ -900,6 +1030,19 @@ class PopupController {
     chip.addEventListener('drop', (event) => {
       event.preventDefault();
       this.movePiece(this.draggedPieceIndex, index);
+    });
+    // Only when the chip itself is the event target — a literal chip's text
+    // input is a descendant and bubbles keydown up here too, and Ctrl+Arrow
+    // is the standard "move by word" shortcut while editing text; letting it
+    // reorder the chip instead would break typing in the free-text piece.
+    chip.addEventListener('keydown', (event) => {
+      if (event.target !== chip) return;
+      if (!event.ctrlKey || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return;
+      const to = event.key === 'ArrowLeft' ? index - 1 : index + 1;
+      if (to < 0 || to >= this.currentPieces().length) return;
+      event.preventDefault();
+      this.movePiece(index, to);
+      document.querySelectorAll<HTMLElement>('#filename-pieces .filename-chip')[to]?.focus();
     });
 
     if (piece.type === 'literal') {

@@ -228,6 +228,48 @@ describe('file name submenu — editing the pieces', () => {
     await expectName('2026-07-29_Test-conversation.md');
   });
 
+  it('reorders a chip with Ctrl+ArrowRight and keeps focus on the moved chip (WCAG 2.1.1: dragging alone has no keyboard path)', async () => {
+    await loadPopup();
+    await expectName('Test-conversation_2026-07-29.md');
+
+    const chips = () => document.querySelectorAll<HTMLElement>('#filename-pieces .filename-chip');
+    chips()[0]!.focus();
+    chips()[0]!.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowRight', ctrlKey: true, bubbles: true })
+    );
+
+    expect(chipLabels()).toEqual(['date', 'title']);
+    await expectName('2026-07-29_Test-conversation.md');
+    expect(document.activeElement).toBe(chips()[1]);
+  });
+
+  it('does not reorder past either end of the list', async () => {
+    await loadPopup();
+    const chips = () => document.querySelectorAll<HTMLElement>('#filename-pieces .filename-chip');
+
+    chips()[0]!.focus();
+    chips()[0]!.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowLeft', ctrlKey: true, bubbles: true })
+    );
+
+    expect(chipLabels()).toEqual(['title', 'date']);
+  });
+
+  it('ignores Ctrl+Arrow typed inside a free-text chip, so word-navigation in the input still works', async () => {
+    await loadPopup();
+    addPiece('literal');
+
+    const input = document.querySelector<HTMLInputElement>('.filename-chip-input')!;
+    input.focus();
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowLeft', ctrlKey: true, bubbles: true })
+    );
+
+    // Three pieces stayed in place -- the chip-level reorder handler must not
+    // have fired for a keydown whose target was the input, not the chip.
+    expect(chipLabels()).toEqual(['title', 'date', 'literal']);
+  });
+
   it('renders free text into the name and keeps it out of the variables', async () => {
     await loadPopup();
 

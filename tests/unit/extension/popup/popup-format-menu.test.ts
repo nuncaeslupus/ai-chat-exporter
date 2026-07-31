@@ -235,3 +235,109 @@ describe('popup format menu', () => {
     expect(checkedFormats()).toEqual(['docx']);
   });
 });
+
+/**
+ * A11Y-1: the menu declared `role="menu"` but never moved focus, never
+ * announced open/closed state, and left the dimmed background behind it
+ * focusable and clickable.
+ */
+describe('popup format menu accessibility', () => {
+  beforeEach(() => {
+    mockTabsQuery.mockReset();
+    mockTabsSendMessage.mockReset();
+    Object.assign(chrome, {
+      tabs: { query: mockTabsQuery, sendMessage: mockTabsSendMessage, create: vi.fn() },
+      runtime: { getManifest: () => ({ version: '1.1.1' }) },
+      i18n: mockI18n(),
+    });
+    mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://gemini.google.com/app/abc' }]);
+  });
+
+  afterEach(() => {
+    localStorage.removeItem('lastExportFormat');
+  });
+
+  function toggle(): HTMLElement {
+    return document.getElementById('format-menu-toggle')!;
+  }
+
+  it('declares aria-haspopup and toggles aria-expanded with the menu', async () => {
+    await loadPopup();
+    expect(toggle().getAttribute('aria-haspopup')).toBe('true');
+    expect(toggle().getAttribute('aria-expanded')).toBe('false');
+
+    toggleMenu();
+    expect(toggle().getAttribute('aria-expanded')).toBe('true');
+
+    toggleMenu();
+    expect(toggle().getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('moves focus into the menu, onto the current format, when it opens', async () => {
+    localStorage.setItem('lastExportFormat', 'pdf');
+    await loadPopup();
+
+    toggleMenu();
+
+    expect(document.activeElement).toBe(rowFor('pdf'));
+  });
+
+  it('returns focus to the toggle when the menu closes', async () => {
+    await loadPopup();
+    toggleMenu();
+    rowFor('md').focus();
+
+    toggleMenu();
+
+    expect(document.activeElement).toBe(toggle());
+  });
+
+  it('moves focus between rows with ArrowDown / ArrowUp while the menu is open', async () => {
+    await loadPopup();
+    toggleMenu();
+    rowFor('md').focus();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+    expect(document.activeElement).toBe(rowFor('pdf'));
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
+    expect(document.activeElement).toBe(rowFor('md'));
+  });
+
+  it('jumps to the first/last row with Home/End while the menu is open', async () => {
+    await loadPopup();
+    toggleMenu();
+    rowFor('pdf').focus();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'End' }));
+    expect(document.activeElement).toBe(rowFor('json'));
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home' }));
+    expect(document.activeElement).toBe(rowFor('md'));
+  });
+
+  it('makes the background inert while the menu is open, and restores it on close', async () => {
+    await loadPopup();
+
+    toggleMenu();
+    expect(document.querySelector('.setting-rows')?.hasAttribute('inert')).toBe(true);
+    expect(document.querySelector('.view-scroll')?.hasAttribute('inert')).toBe(true);
+    expect(printButton().hasAttribute('inert')).toBe(true);
+
+    toggleMenu();
+    expect(document.querySelector('.setting-rows')?.hasAttribute('inert')).toBe(false);
+    expect(document.querySelector('.view-scroll')?.hasAttribute('inert')).toBe(false);
+    expect(printButton().hasAttribute('inert')).toBe(false);
+  });
+
+  it('owns the menuitemradio rows directly under role="menu"', async () => {
+    await loadPopup();
+    const menu = document.querySelector('[role="menu"]');
+    expect(menu).not.toBeNull();
+    const directChildren = [...(menu?.children ?? [])];
+    expect(directChildren.length).toBeGreaterThan(0);
+    expect(directChildren.every((child) => child.getAttribute('role') === 'menuitemradio')).toBe(
+      true
+    );
+  });
+});

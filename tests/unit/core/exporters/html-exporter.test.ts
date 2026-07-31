@@ -284,7 +284,9 @@ describe('HtmlExporter structural contract', () => {
     const { html } = await exportStructured(false);
 
     // The language still travels on the code element, as every format shares it.
-    expect(html).toContain('<pre><code class="language-js">');
+    // `tabindex="0"` (A11Y-1): a scrollable code block with no focusable
+    // content cannot be scrolled without a mouse.
+    expect(html).toContain('<pre tabindex="0"><code class="language-js">');
 
     // R-8: no script runs, so parse the static markup — the spans are already
     // there. The code text must survive verbatim through the tokenizer.
@@ -332,7 +334,7 @@ describe('HtmlExporter structural contract', () => {
     expect(idx('Section Heading')).toBeLessThan(idx('Some text')); // heading before paragraph
     // R-8 splits the code across token spans, so the literal source string is
     // no longer present verbatim in the markup; anchor on the <pre> instead.
-    expect(idx('Some text')).toBeLessThan(idx('<pre><code class="language-js">'));
+    expect(idx('Some text')).toBeLessThan(idx('<pre tabindex="0"><code class="language-js">'));
     // D-32: body headings are normalised, not offset by a flat +1. h2 is the
     // ONLY source heading level present in this conversation, so it ranks
     // first and lands on document level 2 (<h2>) -- the level right after the
@@ -643,7 +645,7 @@ describe('prose artifacts render as prose, not as source', () => {
       content: 'def f():\n    return 1\n',
     });
 
-    expect(html).toContain('<pre><code class="language-python">');
+    expect(html).toContain('<pre tabindex="0"><code class="language-python">');
     expect(html).not.toContain('class="artifact-document"');
   });
 
@@ -675,5 +677,111 @@ describe('prose artifacts render as prose, not as source', () => {
     const doc = html.slice(html.indexOf('artifact-document'));
     expect(doc).toContain('class="tok-keyword"');
     expect(doc).toContain('class="tok-string"');
+  });
+});
+
+describe('HtmlExporter accessibility (A11Y-1)', () => {
+  function conversationWithAnswer(overrides: Record<string, unknown>): Conversation {
+    return {
+      id: 'test-conversation',
+      title: 'Test',
+      platform: 'chatgpt',
+      model: 'gpt-4',
+      url: 'https://chatgpt.com/c/test',
+      createdAt: new Date('2025-01-01T12:00:00Z'),
+      pairs: [
+        {
+          id: 'pair-0',
+          index: 0,
+          selected: true,
+          question: {
+            id: 'q-0',
+            role: 'user',
+            content: 'question',
+            timestamp: new Date('2025-01-01T12:00:00Z'),
+          },
+          answer: {
+            id: 'a-0',
+            role: 'assistant',
+            content: 'answer',
+            timestamp: new Date('2025-01-01T12:00:00Z'),
+            ...overrides,
+          },
+        },
+      ],
+    } as unknown as Conversation;
+  }
+
+  async function renderHtml(overrides: Record<string, unknown>): Promise<string> {
+    const conversation = conversationWithAnswer(overrides);
+    const exporter = new HtmlExporter();
+    const result = await exporter.export(conversation, conversation.pairs, {
+      format: 'html',
+      filename: 'test',
+      showMetaInfo: false,
+    } as unknown as ExportOptions);
+    expect(result.success).toBe(true);
+    return blobToText(result.blob!);
+  }
+
+  it('promotes the Artifacts section so h1 -> h2 -> h3 has no gap when the body has no headings', async () => {
+    const html = await renderHtml({
+      metadata: {
+        artifacts: [{ type: 'code', title: 'script.py', language: 'python', content: 'x = 1' }],
+      },
+    });
+
+    // h1 is the document title; a plain-prose answer contributes no heading of
+    // its own (the role label stays a <p>, per R-1), so the Artifacts section
+    // used to land straight on <h3> here -- a level skip.
+    expect(html).not.toContain('<h3>Artifacts</h3>');
+    expect(html).toContain('<h2>Artifacts</h2>');
+    expect(html).toContain('<h3>script.py</h3>');
+  });
+
+  it('promotes the Web Search Results section the same way', async () => {
+    const html = await renderHtml({
+      metadata: { webSearches: [{ query: 'weather today', results: [] }] },
+    });
+
+    expect(html).not.toContain('<h3>Web Search Results</h3>');
+    expect(html).toContain('<h2>Web Search Results</h2>');
+    expect(html).toContain('<h3>weather today</h3>');
+  });
+
+  it('keeps the role label a <p>, not a heading (R-1) — the Artifacts fix must not revert it', async () => {
+    const html = await renderHtml({
+      metadata: {
+        artifacts: [{ type: 'code', title: 'script.py', language: 'python', content: 'x = 1' }],
+      },
+    });
+
+    expect(html).toContain('<p class="message-role">');
+    expect(html).not.toMatch(/<h[1-6] class="message-role">/);
+  });
+
+  it('preserves an explicitly empty (decorative) alt instead of relabelling it "image"', async () => {
+    const html = await renderHtml({
+      htmlContent: '<p><img src="https://example.com/spacer.png" alt=""></p>',
+    });
+
+    expect(html).toContain('<img src="https://example.com/spacer.png" alt="">');
+    expect(html).not.toContain('alt="image"');
+  });
+
+  it('falls back to an empty alt, not "image", when the source has none at all', async () => {
+    const html = await renderHtml({
+      htmlContent: '<p><img src="https://example.com/pic.png"></p>',
+    });
+
+    expect(html).not.toContain('alt="image"');
+  });
+
+  it('gives every code block a keyboard-focusable tabindex (WCAG 2.1.1: scrollable region must be reachable)', async () => {
+    const html = await renderHtml({
+      htmlContent: '<pre><code class="language-js">const x = 1;</code></pre>',
+    });
+
+    expect(html).toContain('<pre tabindex="0"><code class="language-js">');
   });
 });
