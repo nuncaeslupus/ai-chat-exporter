@@ -41,9 +41,33 @@ export interface ClaudeApiTextContent {
 }
 
 /**
- * Union type for all content types
+ * Claude's internal reasoning for a turn. Collapsed in the UI by default and
+ * not part of the turn's narration.
  */
-export type ClaudeApiContent = ClaudeApiToolUseContent | ClaudeApiTextContent;
+export interface ClaudeApiThinkingContent {
+  type: 'thinking';
+  thinking?: string;
+}
+
+/**
+ * The raw output of a tool invocation, not turn narration.
+ */
+export interface ClaudeApiToolResultContent {
+  type: 'tool_result';
+  content?: unknown;
+}
+
+/**
+ * Union type for all content types.
+ *
+ * Verified against a live conversation (2026-07-31): a real payload carries
+ * `text`, `thinking`, `tool_use` and `tool_result` blocks.
+ */
+export type ClaudeApiContent =
+  | ClaudeApiToolUseContent
+  | ClaudeApiTextContent
+  | ClaudeApiThinkingContent
+  | ClaudeApiToolResultContent;
 
 /**
  * Chat message from Claude API

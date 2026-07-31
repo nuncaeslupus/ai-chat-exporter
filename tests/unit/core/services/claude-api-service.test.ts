@@ -40,16 +40,41 @@ function makeConversation(pairs: QAPair[]): Conversation {
   };
 }
 
+/**
+ * Content-block builders shaped like the LIVE API, verified 2026-07-31 against
+ * a real 12-exchange conversation: `message.text` was `""` on all 24 messages
+ * and the real content lived in `content[]` blocks — text, thinking, tool_use
+ * and tool_result. The fixtures below must keep that shape, because a fixture
+ * that populates `text` is exactly what let PAR-2's first attempt pass CI while
+ * producing entirely blank exports against the real product.
+ */
+function textBlock(text: string): ClaudeApiChatMessage['content'][number] {
+  return { type: 'text', text };
+}
+
+function thinkingBlock(thinking: string): ClaudeApiChatMessage['content'][number] {
+  return { type: 'thinking', thinking };
+}
+
+function toolUseBlock(name: string): ClaudeApiChatMessage['content'][number] {
+  return { type: 'tool_use', name, input: {} };
+}
+
+function toolResultBlock(content: unknown): ClaudeApiChatMessage['content'][number] {
+  return { type: 'tool_result', content };
+}
+
 function makeApiMessage(
   uuid: string,
   index: number,
   sender: 'human' | 'assistant',
   content: ClaudeApiChatMessage['content'] = [],
-  createdAt = '2026-01-01T00:00:00Z'
+  createdAt = '2026-01-01T00:00:00Z',
+  text = ''
 ): ClaudeApiChatMessage {
   return {
     uuid,
-    text: '',
+    text,
     sender,
     index,
     created_at: createdAt,
@@ -368,6 +393,13 @@ describe('ClaudeApiService', () => {
       // ...and the skip must be reported back to the caller so the user can be
       // told, rather than only reaching a console.warn nobody reads (lo-872a).
       expect(result.warning).toEqual(expect.stringContaining('Artifact'));
+      // PAR-2: the warning must describe the real, measured consequence
+      // (artifacts/times missing for pairs that couldn't be matched) and
+      // must not claim a specific cause or a fix that isn't guaranteed —
+      // "edited/regenerated/deleted" and "reload and export again" were
+      // both unverifiable claims the fix removes.
+      expect(result.warning).not.toContain('edited, regenerated or deleted');
+      expect(result.warning).not.toContain('Reload the conversation');
     });
 
     it('correctly attributes two artifacts that share the same title in one message', () => {
@@ -456,6 +488,184 @@ describe('ClaudeApiService', () => {
     });
   });
 
+  describe('enrichConversation — virtual-scroll windowing (PAR-2)', () => {
+    it('rebuilds the conversation from the API when the DOM only captured a virtual-scroll window', () => {
+      // claude.ai's virtual list only ever mounts ~4 turns; a long
+      // conversation's DOM scrape can be as short as 1 pair while the API
+      // reports the true, full count. The API is authoritative here.
+      const conversation = makeConversation([makePair(0, 'Q1', 'A1')]);
+
+      // Real shape: `text` is EMPTY on every message; content is in blocks.
+      const chatMessages: ClaudeApiChatMessage[] = [];
+      for (let i = 0; i < 11; i++) {
+        chatMessages.push(
+          makeApiMessage(
+            `u${String(i)}`,
+            i * 2,
+            'human',
+            [textBlock(`Question ${String(i)}`)],
+            '2026-01-01T00:00:00Z',
+            '' // live API leaves this empty
+          )
+        );
+        chatMessages.push(
+          makeApiMessage(
+            `a${String(i)}`,
+            i * 2 + 1,
+            'assistant',
+            [
+              thinkingBlock(`SECRET REASONING ${String(i)} must not be exported`),
+              toolUseBlock('web_search'),
+              toolResultBlock({ raw: `tool output ${String(i)} must not be exported` }),
+              textBlock(`Answer ${String(i)}`),
+              ...(i === 5 ? [artifactContent('Doc', 'artifact content')] : []),
+            ],
+            '2026-01-01T00:01:00Z',
+            '' // live API leaves this empty
+          )
+        );
+      }
+
+      const apiData: ClaudeApiConversationResponse = {
+        uuid: 'conv-1',
+        name: 'Test',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        chat_messages: chatMessages,
+      };
+
+      const { conversation: enriched, warning } = ClaudeApiService.enrichConversation(
+        conversation,
+        apiData
+      );
+
+      expect(warning).toBeUndefined();
+      expect(enriched.pairs).toHaveLength(11);
+      enriched.pairs.forEach((pair, i) => {
+        expect(pair.question.content).toBe(`Question ${String(i)}`);
+        expect(pair.answer.content).toBe(`Answer ${String(i)}`);
+        // thinking and tool blocks are NOT turn narration and must never leak
+        // into an export.
+        expect(pair.answer.content).not.toContain('SECRET REASONING');
+        expect(pair.answer.content).not.toContain('tool output');
+      });
+      // Artifact recovered for the pair whose assistant message carried one.
+      expect(enriched.pairs[5]?.answer.metadata?.artifacts?.[0]?.content).toBe('artifact content');
+      expect(enriched.pairs[0]?.answer.metadata?.artifacts).toBeUndefined();
+    });
+
+    it('gives a turn with only non-text blocks empty content rather than fabricating any', () => {
+      // The live capture had exactly this: an assistant turn whose four blocks
+      // were all thinking/tool_use/tool_result, with no text at all.
+      const conversation = makeConversation([makePair(0, 'Q1', 'A1')]);
+      const chatMessages: ClaudeApiChatMessage[] = [];
+      for (let i = 0; i < 2; i++) {
+        chatMessages.push(makeApiMessage(`u${String(i)}`, i * 2, 'human', [textBlock('Q')]));
+        chatMessages.push(
+          makeApiMessage(
+            `a${String(i)}`,
+            i * 2 + 1,
+            'assistant',
+            i === 1
+              ? [thinkingBlock('only reasoning'), toolUseBlock('repl'), toolResultBlock('out')]
+              : [textBlock('A')]
+          )
+        );
+      }
+
+      const { conversation: enriched } = ClaudeApiService.enrichConversation(conversation, {
+        uuid: 'conv-1',
+        name: 'Test',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        chat_messages: chatMessages,
+      });
+
+      expect(enriched.pairs).toHaveLength(2);
+      expect(enriched.pairs[1]?.answer.content).toBe('');
+      expect(enriched.pairs[1]?.answer.content).not.toContain('only reasoning');
+    });
+
+    it('still uses message.text when a payload does populate it', () => {
+      // `text` remains the documented field; it is a fallback, not dead code.
+      const conversation = makeConversation([makePair(0, 'Q1', 'A1')]);
+      const chatMessages: ClaudeApiChatMessage[] = [];
+      for (let i = 0; i < 2; i++) {
+        chatMessages.push(
+          makeApiMessage(`u${String(i)}`, i * 2, 'human', [], '2026-01-01T00:00:00Z', 'from text')
+        );
+        chatMessages.push(
+          makeApiMessage(
+            `a${String(i)}`,
+            i * 2 + 1,
+            'assistant',
+            [],
+            '2026-01-01T00:00:00Z',
+            'answer from text'
+          )
+        );
+      }
+
+      const { conversation: enriched } = ClaudeApiService.enrichConversation(conversation, {
+        uuid: 'conv-1',
+        name: 'Test',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        chat_messages: chatMessages,
+      });
+
+      expect(enriched.pairs).toHaveLength(2);
+      expect(enriched.pairs[0]?.question.content).toBe('from text');
+      expect(enriched.pairs[0]?.answer.content).toBe('answer from text');
+    });
+
+    it('does not fabricate a timestamp for an API message with no created_at', () => {
+      const conversation = makeConversation([makePair(0, 'Q1', 'A1')]);
+      const apiData: ClaudeApiConversationResponse = {
+        uuid: 'conv-1',
+        name: 'Test',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        chat_messages: [
+          makeApiMessage('u1', 0, 'human', [], '', 'Q1'),
+          makeApiMessage('a1', 1, 'assistant', [], '2026-01-01T00:02:00Z', 'A1'),
+          makeApiMessage('u2', 2, 'human', [], '2026-01-01T00:03:00Z', 'Q2'),
+          makeApiMessage('a2', 3, 'assistant', [], '2026-01-01T00:04:00Z', 'A2'),
+        ],
+      };
+
+      const { conversation: enriched } = ClaudeApiService.enrichConversation(conversation, apiData);
+
+      expect(enriched.pairs).toHaveLength(2);
+      expect(enriched.pairs[0]?.question.timestamp).toBeUndefined();
+      expect(enriched.pairs[0]?.answer.timestamp).toEqual(new Date('2026-01-01T00:02:00Z'));
+    });
+
+    it('leaves the DOM-parsed pairs untouched when the API count does not exceed the DOM count', () => {
+      // Regression guard: rebuilding must only fire when the API genuinely
+      // has more turns than the DOM captured, never when they already agree.
+      const conversation = makeConversation([makePair(0, 'DOM question', 'DOM answer')]);
+      const apiData: ClaudeApiConversationResponse = {
+        uuid: 'conv-1',
+        name: 'Test',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        chat_messages: [
+          makeApiMessage('u1', 0, 'human', [], '2026-01-01T00:00:00Z', 'API question'),
+          makeApiMessage('a1', 1, 'assistant', [], '2026-01-01T00:01:00Z', 'API answer'),
+        ],
+      };
+
+      const { conversation: enriched } = ClaudeApiService.enrichConversation(conversation, apiData);
+
+      expect(enriched.pairs).toHaveLength(1);
+      // Content still comes from the DOM scrape — only timestamps/artifacts
+      // are merged in when counts already agree.
+      expect(enriched.pairs[0]?.question.content).toBe('DOM question');
+      expect(enriched.pairs[0]?.answer.content).toBe('DOM answer');
+    });
+  });
+
   describe('enrichConversation — timestamps', () => {
     it('stamps both messages of a pair even when the conversation has no artifacts', () => {
       const conversation = makeConversation([makePair(0, 'Q', 'A')]);
@@ -505,6 +715,8 @@ describe('ClaudeApiService', () => {
       // 2 pairs) — the message must report that, not claim both sides are equal.
       expect(warning).toContain('1 human message');
       expect(warning).toContain('2 assistant messages');
+      expect(warning).not.toContain('edited, regenerated or deleted');
+      expect(warning).not.toContain('Reload the conversation');
     });
 
     it('ignores an unparseable created_at instead of stamping an Invalid Date', () => {
