@@ -289,4 +289,105 @@ describe('drift row visibility', () => {
       });
     });
   });
+
+  describe('Copy & report', () => {
+    /** A realistic full-size skeleton, shaped like issue #220's (~12KB). */
+    function largeSkeleton(): string {
+      const turn = [
+        'div[role="article"][tabindex][aria-setsize][aria-posinset][aria-label]',
+        '  div[data-test-render-count]',
+        '    div.font-claude-response relative leading-[1.65rem] [&_pre>div]:bg-bg-000/50',
+        '      text(342)',
+      ].join('\n');
+      return Array.from({ length: 80 }, () => turn).join('\n');
+    }
+
+    it('opens an issue URL titled from the real platform and version, not blank', async () => {
+      mockContentScript({
+        drift: report,
+        skeleton: { success: true, skeleton: 'x', origin: 'https://claude.ai' },
+      });
+
+      await loadPopup();
+      await vi.waitFor(() => {
+        expect(document.getElementById('drift-row')?.hidden).toBe(false);
+      });
+
+      document.getElementById('drift-row')?.click();
+      await vi.waitFor(() => {
+        expect(document.getElementById('drift-report-preview')?.textContent).toContain('x');
+      });
+
+      document.getElementById('drift-report-copy-and-report')?.click();
+
+      await vi.waitFor(() => {
+        expect(mockTabsCreate).toHaveBeenCalled();
+      });
+      const openedUrl = (mockTabsCreate.mock.calls[0] as [{ url: string }])[0].url;
+      const title = new URL(openedUrl).searchParams.get('title');
+      expect(title).toBeTruthy();
+      expect(title).toContain(report.platform);
+      expect(title).toContain(report.extensionVersion);
+    });
+
+    it('stays under the URL length budget for a realistic large report', async () => {
+      mockContentScript({
+        drift: report,
+        skeleton: { success: true, skeleton: largeSkeleton(), origin: 'https://claude.ai' },
+      });
+
+      await loadPopup();
+      await vi.waitFor(() => {
+        expect(document.getElementById('drift-row')?.hidden).toBe(false);
+      });
+
+      document.getElementById('drift-row')?.click();
+      await vi.waitFor(() => {
+        expect(document.getElementById('drift-report-preview')?.textContent).toContain(
+          'div[role="article"]'
+        );
+      });
+
+      document.getElementById('drift-report-copy-and-report')?.click();
+
+      await vi.waitFor(() => {
+        expect(mockTabsCreate).toHaveBeenCalled();
+      });
+      const openedUrl = (mockTabsCreate.mock.calls[0] as [{ url: string }])[0].url;
+      expect(openedUrl.length).toBeLessThanOrEqual(6000);
+    });
+
+    it('still copies the full report to the clipboard, never a lossy substitute', async () => {
+      const clipboardWrite = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', {
+        value: { writeText: clipboardWrite },
+        configurable: true,
+      });
+      const skeleton = largeSkeleton();
+      mockContentScript({
+        drift: report,
+        skeleton: { success: true, skeleton, origin: 'https://claude.ai' },
+      });
+
+      await loadPopup();
+      await vi.waitFor(() => {
+        expect(document.getElementById('drift-row')?.hidden).toBe(false);
+      });
+
+      document.getElementById('drift-row')?.click();
+      await vi.waitFor(() => {
+        expect(document.getElementById('drift-report-preview')?.textContent).toContain(
+          'div[role="article"]'
+        );
+      });
+
+      document.getElementById('drift-report-copy-and-report')?.click();
+
+      await vi.waitFor(() => {
+        expect(clipboardWrite).toHaveBeenCalled();
+      });
+      const copied = (clipboardWrite.mock.calls[0] as [string])[0];
+      expect(copied).toContain(skeleton);
+    });
+  });
 });
