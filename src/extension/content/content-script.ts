@@ -287,25 +287,10 @@ class ContentScript {
    * ChatGPT's DOM exposes no timestamp at all (Claude at least renders an
    * HH:MM label), so this is the only source; every failure path below
    * returns the conversation unmodified rather than a guessed time (D-18).
-   *
-   * lo-08d3: unlike Claude's warnings, these are plain English strings, not
-   * locale keys — `getMessage()` (src/shared/i18n.ts) already falls back to
-   * returning its input verbatim when the key isn't found in messages.json,
-   * so the popup still shows a real (if untranslated) message. Chosen to
-   * avoid touching `_locales/*` while a concurrent task edits those files;
-   * follow-up: add `warningChatGPTIdsMissing`/`warningChatGPTFetchFailed`
-   * locale keys and switch these to `WARNING_KEYS` entries, same as Claude's.
    */
   private async enrichChatGPTConversation(
     conversation: Conversation
   ): Promise<ChatGPTEnrichmentResult> {
-    const idsMissingWarning =
-      "ChatGPT's real per-message timestamps were left out of this export because this " +
-      "page's conversation id couldn't be read. Reload the page and export again.";
-    const fetchFailedWarning =
-      "ChatGPT's real per-message timestamps were left out of this export because " +
-      'ChatGPT could not be reached. This can be temporary — try exporting again.';
-
     try {
       console.log('[AI Chat Exporter] Enriching ChatGPT conversation with API data...');
 
@@ -313,14 +298,14 @@ class ContentScript {
 
       if (!ids) {
         console.log('[AI Chat Exporter] Could not extract IDs for ChatGPT API enrichment');
-        return { conversation, warning: idsMissingWarning };
+        return { conversation, warning: WARNING_KEYS.CHATGPT_IDS_MISSING };
       }
 
       const apiData = await ChatGPTApiService.fetchConversationData(ids);
 
       if (!apiData) {
         console.log('[AI Chat Exporter] ChatGPT API data not available');
-        return { conversation, warning: fetchFailedWarning };
+        return { conversation, warning: WARNING_KEYS.CHATGPT_FETCH_FAILED };
       }
 
       const enriched = ChatGPTApiService.enrichConversation(conversation, apiData);
@@ -329,7 +314,7 @@ class ContentScript {
       return enriched;
     } catch (error) {
       console.warn('[AI Chat Exporter] Failed to enrich ChatGPT conversation:', error);
-      return { conversation, warning: fetchFailedWarning };
+      return { conversation, warning: WARNING_KEYS.CHATGPT_FETCH_FAILED };
     }
   }
 

@@ -78,15 +78,19 @@ export const TOAST_DURATION = 3000;
 
 /**
  * Locale keys the content script hands back (as `MessageResponse.warning`)
- * when Claude enrichment degrades an export, so the popup resolves the
- * user-facing text with `getMessage()` instead of the content script
- * hardcoding English prose.
+ * when Claude or ChatGPT enrichment degrades an export, so the popup
+ * resolves the user-facing text with `getMessage()` instead of the content
+ * script hardcoding English prose.
  */
 export const WARNING_KEYS = {
   /** The page's own conversation/organization id couldn't be read — reload/sign-in fixes it, not a retry. */
   IDS_MISSING: 'warningArtifactsIdsMissing',
   /** The Claude API call for enrichment data failed or returned nothing — can be a one-off network blip. */
   FETCH_FAILED: 'warningArtifactsFetchFailed',
+  /** lo-08d3: the page's own ChatGPT conversation id couldn't be read — reload/sign-in fixes it, not a retry. */
+  CHATGPT_IDS_MISSING: 'warningChatGPTIdsMissing',
+  /** lo-08d3: the ChatGPT backend call for per-message timestamps failed or returned nothing — can be a one-off network blip. */
+  CHATGPT_FETCH_FAILED: 'warningChatGPTFetchFailed',
   /** The PDF's embedded fonts can't render some script in the conversation (CJK/Arabic/Hebrew/Cyrillic/...) — those characters were replaced with a placeholder. Not retryable; DOCX/HTML render them correctly instead. */
   PDF_UNSUPPORTED_SCRIPT: 'warningPdfUnsupportedScript',
 } as const;
@@ -96,7 +100,10 @@ export const WARNING_KEYS = {
  * attempt. The popup only offers Retry for a key in this set — never by
  * matching on the (translated) message text.
  */
-export const RETRYABLE_WARNING_KEYS: ReadonlySet<string> = new Set([WARNING_KEYS.FETCH_FAILED]);
+export const RETRYABLE_WARNING_KEYS: ReadonlySet<string> = new Set([
+  WARNING_KEYS.FETCH_FAILED,
+  WARNING_KEYS.CHATGPT_FETCH_FAILED,
+]);
 
 /**
  * Locale keys the content script throws (as `Error.message`, carried to the

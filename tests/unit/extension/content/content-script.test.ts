@@ -310,7 +310,7 @@ describe('content-script degraded-export reporting (lo-872a)', () => {
     expect(mockFetchApiDataChatGPT).not.toHaveBeenCalled();
     expect(sendResponse).toHaveBeenCalledWith({
       success: true,
-      warning: expect.stringContaining("conversation id couldn't be read") as string,
+      warning: WARNING_KEYS.CHATGPT_IDS_MISSING,
     });
   });
 
@@ -331,7 +331,7 @@ describe('content-script degraded-export reporting (lo-872a)', () => {
     expect(mockEnrichChatGPT).not.toHaveBeenCalled();
     expect(sendResponse).toHaveBeenCalledWith({
       success: true,
-      warning: expect.stringContaining('could not be reached') as string,
+      warning: WARNING_KEYS.CHATGPT_FETCH_FAILED,
     });
   });
 

@@ -11,7 +11,9 @@
  *    capture time.
  */
 
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import type {
   ChatGPTApiConversationResponse,
   ChatGPTApiMessage,
@@ -24,9 +26,36 @@ import { ChatGPTApiService } from '../../../../src/core/services/chatgpt-api-ser
 import { blobToText } from '../../../utils/exporter-helpers';
 
 const ORIGINAL_TZ = process.env.TZ;
+const originalChrome = globalThis.chrome;
+
+// #219 (I18N-1) routed role/metadata labels through chrome.i18n.getMessage();
+// without a real chrome.i18n mock, getMessage() falls back to returning the
+// bare locale key (see src/shared/i18n.ts), and a platform-specific role name
+// like "ChatGPT" additionally falls back all the way to the generic
+// "Assistant" (no per-platform key resolves). Installing the real 'en' bundle
+// here — same pattern as tests/unit/core/exporters/section-labels-i18n.test.ts
+// and media-label-i18n.test.ts — means the assertions below check the actual
+// localized output, not a guess about the no-i18n fallback shape.
+function installEnglishLocale(): void {
+  const bundle = JSON.parse(
+    readFileSync(resolve(__dirname, '../../../../_locales/en/messages.json'), 'utf-8')
+  ) as Record<string, { message: string }>;
+  globalThis.chrome = {
+    ...originalChrome,
+    i18n: {
+      getUILanguage: () => 'en',
+      getMessage: (key: string) => bundle[key]?.message ?? '',
+    },
+  } as unknown as typeof chrome;
+}
+
+beforeEach(() => {
+  installEnglishLocale();
+});
 
 afterEach(() => {
   process.env.TZ = ORIGINAL_TZ;
+  globalThis.chrome = originalChrome;
 });
 
 function pairWithoutTimestamps(index: number): QAPair {
@@ -146,9 +175,9 @@ describe('the ChatGPT backend endpoint (lo-08d3), end to end through the exporte
 
     const text = await renderTxt(enriched);
 
-    // The metadata label itself is a locale key unresolved in this test
-    // environment (see `getMessage`'s documented fallback), so assert on the
-    // real date/time values it wraps rather than the label text.
+    // The 'en' locale is installed above, so `roleChatGPT` ("ChatGPT",
+    // upper-cased to "CHATGPT" by roleLabel()) resolves for real here rather
+    // than falling back to the generic "Assistant" (see installEnglishLocale).
     expect(text).toContain('Jun 1, 2024');
     expect(text).toContain('USER · 12:00');
     expect(text).toContain('CHATGPT · 12:01');

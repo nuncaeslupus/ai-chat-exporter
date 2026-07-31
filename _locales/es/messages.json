@@ -131,6 +131,14 @@
     "message": "El contenido de los artefactos y las horas de cada mensaje de Claude no se incluyeron en esta exportación porque no se pudieron obtener los datos de la conversación de Claude. Esto puede ser algo temporal: vuelve a intentar la exportación.",
     "description": "Warning shown when the Claude API request for enrichment data fails or returns nothing — retrying may succeed"
   },
+  "warningChatGPTIdsMissing": {
+    "message": "Las horas de cada mensaje de ChatGPT no se incluyeron en esta exportación porque no se pudieron encontrar los datos de la conversación en esta página. Recarga la página, comprueba que has iniciado sesión en chatgpt.com y vuelve a exportar.",
+    "description": "Warning shown when the ChatGPT conversation id can't be read from the page — reloading is the fix, not retrying"
+  },
+  "warningChatGPTFetchFailed": {
+    "message": "Las horas de cada mensaje de ChatGPT no se incluyeron en esta exportación porque no se pudieron obtener los datos de la conversación de ChatGPT. Esto puede ser algo temporal: vuelve a intentar la exportación.",
+    "description": "Warning shown when the ChatGPT backend request for enrichment data fails or returns nothing — retrying may succeed"
+  },
   "warningPdfUnsupportedScript": {
     "message": "Algunos caracteres de esta conversación (chino, japonés, coreano, árabe, hebreo, cirílico u otra escritura no latina) no se pueden mostrar en un PDF y aparecen como «?». Exporta a DOCX o HTML para conservar ese texto intacto.",
     "description": "Warning shown when a PDF export contains a script the embedded fonts can't render — DOCX and HTML render it correctly instead"
