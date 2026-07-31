@@ -12,6 +12,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
+import { CHATGPT_PARENT_ORIGINS } from '../../../../src/shared/deep-research-relay';
 
 /** Must match QUIET_PERIOD_MS in deep-research-frame.ts. */
 const QUIET_PERIOD_MS = 500;
@@ -25,6 +26,23 @@ const MAX_PLAUSIBLE_HTML_LENGTH = 600_000;
 async function loadFrameScript(): Promise<void> {
   vi.resetModules();
   await import('../../../../src/extension/content/deep-research-frame');
+}
+
+/**
+ * SEC-3: the relay now posts once per allowed origin instead of once with
+ * `'*'` -- asserts the message reached every entry in the allowlist (order
+ * doesn't matter -- `toHaveBeenCalledWith` searches all recorded calls, not
+ * just the last) and that no call ever used the wildcard.
+ */
+function expectRelayed(
+  postMessageSpy: MockInstance,
+  content: { html: string } | { text: string }
+): void {
+  const message = { type: 'ai-chat-exporter:deep-research-report', ...content };
+  for (const origin of CHATGPT_PARENT_ORIGINS) {
+    expect(postMessageSpy).toHaveBeenCalledWith(message, origin);
+  }
+  expect(postMessageSpy.mock.calls.some(([, origin]) => origin === '*')).toBe(false);
 }
 
 describe('deep-research-frame relay', () => {
@@ -51,13 +69,9 @@ describe('deep-research-frame relay', () => {
 
     await loadFrameScript();
 
-    expect(postMessageSpy).toHaveBeenCalledWith(
-      {
-        type: 'ai-chat-exporter:deep-research-report',
-        html: '<h1>Report Title</h1><p>The full Deep Research report.</p>',
-      },
-      '*'
-    );
+    expectRelayed(postMessageSpy, {
+      html: '<h1>Report Title</h1><p>The full Deep Research report.</p>',
+    });
   });
 
   it('sends nothing when the frame has no rendered content yet', async () => {
@@ -74,10 +88,7 @@ describe('deep-research-frame relay', () => {
 
     await loadFrameScript();
 
-    expect(postMessageSpy).toHaveBeenCalledWith(
-      { type: 'ai-chat-exporter:deep-research-report', html: '<p>Real content.</p>' },
-      '*'
-    );
+    expectRelayed(postMessageSpy, { html: '<p>Real content.</p>' });
   });
 
   it('re-relays updated content once mutations settle (progressive/virtualized rendering)', async () => {
@@ -85,7 +96,7 @@ describe('deep-research-frame relay', () => {
     document.body.innerHTML = '<p>Partial report...</p>';
 
     await loadFrameScript();
-    expect(postMessageSpy).toHaveBeenCalledTimes(1);
+    expect(postMessageSpy).toHaveBeenCalledTimes(CHATGPT_PARENT_ORIGINS.length);
 
     document.body.innerHTML = '<p>Partial report... now complete.</p>';
     // MutationObserver callbacks are queued as microtasks, not macrotasks --
@@ -94,14 +105,9 @@ describe('deep-research-frame relay', () => {
     await Promise.resolve();
     vi.advanceTimersByTime(QUIET_PERIOD_MS);
 
-    expect(postMessageSpy).toHaveBeenCalledTimes(2);
-    expect(postMessageSpy).toHaveBeenLastCalledWith(
-      {
-        type: 'ai-chat-exporter:deep-research-report',
-        html: '<p>Partial report... now complete.</p>',
-      },
-      '*'
-    );
+    // One post per relay tick per allowed origin -- two relay ticks so far.
+    expect(postMessageSpy).toHaveBeenCalledTimes(2 * CHATGPT_PARENT_ORIGINS.length);
+    expectRelayed(postMessageSpy, { html: '<p>Partial report... now complete.</p>' });
   });
 
   // lo-6333: on a live page the report doesn't render into this frame's own
@@ -122,10 +128,7 @@ describe('deep-research-frame relay', () => {
 
       await loadFrameScript();
 
-      expect(postMessageSpy).toHaveBeenCalledWith(
-        { type: 'ai-chat-exporter:deep-research-report', html: '<p>The nested report.</p>' },
-        '*'
-      );
+      expectRelayed(postMessageSpy, { html: '<p>The nested report.</p>' });
     });
 
     it('falls back to the first <iframe> when no #root id is present', async () => {
@@ -135,13 +138,7 @@ describe('deep-research-frame relay', () => {
 
       await loadFrameScript();
 
-      expect(postMessageSpy).toHaveBeenCalledWith(
-        {
-          type: 'ai-chat-exporter:deep-research-report',
-          html: '<p>Report via fallback iframe.</p>',
-        },
-        '*'
-      );
+      expectRelayed(postMessageSpy, { html: '<p>Report via fallback iframe.</p>' });
     });
 
     it('falls back to flattened text when HTML exceeds its sanity bound but the text does not', async () => {
@@ -161,10 +158,7 @@ describe('deep-research-frame relay', () => {
 
       await loadFrameScript();
 
-      expect(postMessageSpy).toHaveBeenCalledWith(
-        { type: 'ai-chat-exporter:deep-research-report', text: 'x'.repeat(repeatCount) },
-        '*'
-      );
+      expectRelayed(postMessageSpy, { text: 'x'.repeat(repeatCount) });
     });
 
     it('relays nothing when both the HTML and the flattened text exceed their sanity bounds', async () => {
@@ -192,13 +186,7 @@ describe('deep-research-frame relay', () => {
       iframe.contentDocument!.body.innerHTML = '<p>Report loaded after navigation.</p>';
       iframe.dispatchEvent(new Event('load'));
 
-      expect(postMessageSpy).toHaveBeenCalledWith(
-        {
-          type: 'ai-chat-exporter:deep-research-report',
-          html: '<p>Report loaded after navigation.</p>',
-        },
-        '*'
-      );
+      expectRelayed(postMessageSpy, { html: '<p>Report loaded after navigation.</p>' });
     });
   });
 
@@ -241,10 +229,7 @@ describe('deep-research-frame relay', () => {
 
       await loadFrameScript();
 
-      expect(postMessageSpy).toHaveBeenCalledWith(
-        { type: 'ai-chat-exporter:deep-research-report', text: REALISTIC_REPORT_TEXT.trim() },
-        '*'
-      );
+      expectRelayed(postMessageSpy, { text: REALISTIC_REPORT_TEXT.trim() });
     });
 
     it('still prefers HTML when its substance is close to the text tier (normal script/style stripping gap)', async () => {
@@ -258,13 +243,9 @@ describe('deep-research-frame relay', () => {
 
       await loadFrameScript();
 
-      expect(postMessageSpy).toHaveBeenCalledWith(
-        {
-          type: 'ai-chat-exporter:deep-research-report',
-          html: '<h1>Uso de mangueras de agua</h1><p>El agua enfria y sofoca las llamas.</p>',
-        },
-        '*'
-      );
+      expectRelayed(postMessageSpy, {
+        html: '<h1>Uso de mangueras de agua</h1><p>El agua enfria y sofoca las llamas.</p>',
+      });
     });
   });
 });
