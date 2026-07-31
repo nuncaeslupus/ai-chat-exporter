@@ -2,7 +2,7 @@
 
 A browser extension to export your AI chatbot conversations from ChatGPT, Claude, and Gemini to multiple formats.
 
-![Version](https://img.shields.io/badge/version-1.1.1-blue.svg)
+![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue.svg)
 

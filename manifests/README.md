@@ -25,11 +25,11 @@ listing metadata does **not** establish that it belongs to this project:
 | --- | --- | --- |
 | guid | `claude-chat-exporter@example.com` | `ai-chat-exporter@example.com` |
 | author | `Hamza` (AMO user 19601913) | `nuncaeslupus` |
-| version | 1.4.0 | 1.1.1 |
+| version | 1.4.0 | 1.2.0 |
 | created | 2025-11-29 | — |
 | homepage / support URL | none set | — |
 
-The version is three minor releases ahead of this repo and the author is a
+The version is two minor releases ahead of this repo and the author is a
 different account, so the more likely reading is that this is a **different
 developer's add-on** (an upstream or a sibling fork), not this project's own
 listing. Matching permissions and host patterns prove nothing here — any fork of
