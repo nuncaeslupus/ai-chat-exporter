@@ -6,7 +6,13 @@ ARSENAL_PLUGINS ?= core
 EXT_DIR         ?= dist/chrome
 CDP_PORT        ?= 9333
 
-.PHONY: help install dev build test lint typecheck validate package release-check clean chrome update-skills update-arsenal
+# Single source of truth for the release version. The tag is DERIVED from
+# package.json, never typed by hand, so `v<tag>` and the shipped manifest
+# cannot drift apart. check-release.cjs already asserts package.json and
+# manifest.base.json agree, so all three move together or the tag refuses.
+VERSION         := $(shell node -p "require('./package.json').version")
+
+.PHONY: help install dev build test lint typecheck validate package release-check tag tag-push clean chrome update-skills update-arsenal
 
 help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -45,6 +51,19 @@ package: build ## Build and zip both stores + source
 
 release-check: validate package ## Everything a release needs to be green
 	@ls -la dist/*.zip
+
+tag: ## Create the annotated git tag for the version in package.json
+	@test -z "$$(git status --porcelain)" || { echo "refusing to tag a dirty tree — commit or stash first"; exit 1; }
+	@node build/check-release.cjs version
+	@git rev-parse -q --verify refs/tags/v$(VERSION) >/dev/null \
+	  && { echo "tag v$(VERSION) already exists — bump the version or delete the tag"; exit 1; } || true
+	git tag -a v$(VERSION) -m "v$(VERSION)"
+	@echo "created v$(VERSION) — push it with: make tag-push"
+
+tag-push: ## Push the tag for the version in package.json
+	@git rev-parse -q --verify refs/tags/v$(VERSION) >/dev/null \
+	  || { echo "no tag v$(VERSION) — run 'make tag' first"; exit 1; }
+	git push origin v$(VERSION)
 
 chrome: ## Launch headless Chrome with the unpacked extension (CDP on $(CDP_PORT))
 	@test -f $(EXT_DIR)/manifest.json || { echo "no build at $(EXT_DIR) — run 'make build'"; exit 1; }
