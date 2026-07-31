@@ -382,6 +382,40 @@ describe('content-script print failure reporting (lo-f854)', () => {
     expect(printWindowStub.close).not.toHaveBeenCalled();
   });
 
+  it('gives the print-window markdown code block a keyboard-focusable tabindex (A11Y-2, WCAG 2.1.1)', async () => {
+    const pairs = [createTestQAPair(0, 'Q', 'A')];
+    mockParse.mockReturnValue({ success: true, conversation: createTestConversation(pairs) });
+    mockExport.mockResolvedValue({
+      success: true,
+      blob: new Blob(['```js\nconst x = 1;\n```']),
+      mimeType: 'text/markdown',
+    });
+
+    let printedBlob: Blob | undefined;
+    URL.createObjectURL = vi.fn((blob: Blob) => {
+      printedBlob = blob;
+      return 'blob:mock';
+    });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'print_conversation', format: 'md' }, {}, sendResponse);
+
+    // Longer timeout than the other tests in this file: this is the only one
+    // that exercises the real (unmocked) marked + highlight.js dynamic import,
+    // which is measurably slower than the default 1000ms `vi.waitFor` window.
+    await vi.waitFor(
+      () => {
+        expect(sendResponse).toHaveBeenCalled();
+      },
+      { timeout: 10_000 }
+    );
+    expect(sendResponse).toHaveBeenCalledWith({ success: true });
+
+    const html = await printedBlob!.text();
+    expect(html).toContain('<pre tabindex="0"><code class="hljs language-js">');
+  });
+
   // TYPE-1 (high): a null parseConversation() result used to `return
   // undefined` from handlePrint too, indistinguishable from a clean no-warning
   // success — the listener replied `{success: true}` for a print that never
