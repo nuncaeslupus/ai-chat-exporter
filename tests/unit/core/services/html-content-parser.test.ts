@@ -153,6 +153,122 @@ describe('HtmlContentParser', () => {
     });
   });
 
+  /**
+   * EXP-4: a two-row <thead> was flattened into one row by appending CELLS
+   * instead of rows (doubling the column count), and colspan/rowspan were
+   * ignored entirely, so a merged-cell table put values under the wrong
+   * column. Every assertion here is about which value lands under which
+   * heading -- never about styling.
+   */
+  describe('EXP-4: table fidelity — multi-row headers and spans', () => {
+    /** Flatten a cell's inline content to plain text for assertions. */
+    function text(cell: readonly { text: string }[] | undefined): string {
+      return (cell ?? []).map((c) => c.text).join('');
+    }
+
+    it('merges a two-row <thead> into one composite header instead of doubling the column count', () => {
+      const html = `
+        <table>
+          <thead>
+            <tr><th>Region</th><th>Q1</th></tr>
+            <tr><th>(EUR)</th><th>(EUR)</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>EMEA</td><td>10</td></tr>
+            <tr><td>APAC</td><td>20</td></tr>
+          </tbody>
+        </table>
+      `;
+      const [table] = HtmlContentParser.parse(html) as TableBlock[];
+
+      // RED (pre-fix): headers.push(...headerRow) appended cells from BOTH
+      // rows, reporting 4 columns for a 2-cell body -- half the table would
+      // render empty in every format.
+      expect(table?.headers).toHaveLength(2);
+      expect(table?.headers.map(text)).toEqual(['Region (EUR)', 'Q1 (EUR)']);
+      expect(table?.rows[0]?.map(text)).toEqual(['EMEA', '10']);
+      expect(table?.rows[1]?.map(text)).toEqual(['APAC', '20']);
+    });
+
+    it('expands a colspan=2 header over two data columns, keeping each value under its own heading', () => {
+      const html = `
+        <table>
+          <thead><tr><th>Name</th><th colspan="2">Score</th></tr></thead>
+          <tbody><tr><td>Alice</td><td>10</td><td>20</td></tr></tbody>
+        </table>
+      `;
+      const [table] = HtmlContentParser.parse(html) as TableBlock[];
+
+      // RED (pre-fix): headers reported only 2 columns ("Name", "Score") over
+      // a 3-cell body row -- the third value ("20") had no heading at all,
+      // and every column-count-driven renderer (pdf's numCols, e.g.) sized
+      // for 2 columns instead of 3.
+      expect(table?.headers).toHaveLength(3);
+      expect(text(table?.headers[0])).toBe('Name');
+      expect(text(table?.headers[1])).toBe('Score');
+      expect(table?.rows[0]?.map(text)).toEqual(['Alice', '10', '20']);
+    });
+
+    it('expands a rowspan=2 first column, keeping later rows blank in that column rather than shifted', () => {
+      const html = `
+        <table>
+          <tbody>
+            <tr><td rowspan="2">Total</td><td>1</td><td>2</td></tr>
+            <tr><td>3</td><td>4</td></tr>
+          </tbody>
+        </table>
+      `;
+      const [table] = HtmlContentParser.parse(html) as TableBlock[];
+
+      // RED (pre-fix): row 2 was emitted as-is (2 cells: "3","4"), so a
+      // column-index renderer would draw "3" under column A and "4" under
+      // column B -- one column left of where they belong.
+      expect(table?.rows[0]?.map(text)).toEqual(['Total', '1', '2']);
+      expect(table?.rows[1]?.map(text)).toEqual(['', '3', '4']);
+    });
+
+    it('handles a table mixing rowspan and colspan without misattributing any value', () => {
+      // The exact scenario from the review finding: a 3-column table where
+      // column A's first cell spans two rows, and the last row's first cell
+      // spans two columns.
+      const html = `
+        <table>
+          <tbody>
+            <tr><td rowspan="2">x</td><td>1</td><td>2</td></tr>
+            <tr><td>3</td><td>4</td></tr>
+            <tr><td colspan="2">merged</td><td>9</td></tr>
+          </tbody>
+        </table>
+      `;
+      const [table] = HtmlContentParser.parse(html) as TableBlock[];
+
+      // RED (pre-fix) verified parse output was:
+      // rows: [["x","1","2"],["3","4"],["merged","9"]] -- row 2's "3"/"4"
+      // land under columns A/B (belong under B/C), and row 3's "9" lands
+      // under B (belongs under C).
+      expect(table?.rows[0]?.map(text)).toEqual(['x', '1', '2']);
+      expect(table?.rows[1]?.map(text)).toEqual(['', '3', '4']);
+      expect(table?.rows[2]?.map(text)).toEqual(['merged', '', '9']);
+    });
+
+    it('pads a ragged row (fewer cells than the header) instead of leaving it column-misaligned', () => {
+      const html = `
+        <table>
+          <thead><tr><th>A</th><th>B</th><th>C</th></tr></thead>
+          <tbody>
+            <tr><td>a1</td><td>b1</td><td>c1</td></tr>
+            <tr><td>a2</td><td>b2</td></tr>
+          </tbody>
+        </table>
+      `;
+      const [table] = HtmlContentParser.parse(html) as TableBlock[];
+
+      expect(table?.headers).toHaveLength(3);
+      expect(table?.rows[1]).toHaveLength(3);
+      expect(table?.rows[1]?.map(text)).toEqual(['a2', 'b2', '']);
+    });
+  });
+
   describe('inline formatting nesting', () => {
     it('parses bold text', () => {
       const html = '<p><strong>bold</strong></p>';
