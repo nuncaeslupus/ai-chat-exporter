@@ -15,7 +15,11 @@ import type { Conversation, QAPair } from '../../../../src/core/types';
 import { PdfExporter } from '../../../../src/core/exporters/pdf-exporter';
 import { COLOR, hexToRgbTuple } from '../../../../src/core/exporters/style-tokens';
 import { DEFAULT_PDF_OPTIONS } from '../../../../src/core/types';
-import { sanitizeTextForPDF } from '../../../../src/core/utils/pdf-characters';
+import {
+  sanitizeTextForPDF,
+  UNSUPPORTED_SCRIPT_PLACEHOLDER,
+} from '../../../../src/core/utils/pdf-characters';
+import { WARNING_KEYS } from '../../../../src/shared/constants';
 
 interface Call {
   method: string;
@@ -654,5 +658,58 @@ describe('R-2b: the code-language tab', () => {
       (c) => c.method === 'text' && c.args[0] === 'function foo() {}'
     );
     expect(codeTextIdx).toBeGreaterThan(tabTextIdx);
+  });
+});
+
+describe('EXP-2: unsupported-script placeholder and warning', () => {
+  it('warns when the export contains a script the embedded fonts cannot render', async () => {
+    instances.length = 0;
+    const { conversation, pairs } = buildConversation();
+    conversation.title = '你好世界'; // CJK: not in EMBEDDED_FONT_COVERAGE
+    const result = await new PdfExporter().export(conversation, pairs, {
+      format: 'pdf',
+      filename: 'test',
+      showMetaInfo: false,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.warning).toBe(WARNING_KEYS.PDF_UNSUPPORTED_SCRIPT);
+
+    const rendered = textCallsOf(instances[0]!);
+    expect(rendered.some((t) => t.includes('你'))).toBe(false);
+    expect(rendered[0]).toBe(UNSUPPORTED_SCRIPT_PLACEHOLDER.repeat(4));
+  });
+
+  it('does not warn for a pure-Latin export (no regression)', async () => {
+    instances.length = 0;
+    const { conversation, pairs } = buildConversation();
+    const result = await new PdfExporter().export(conversation, pairs, {
+      format: 'pdf',
+      filename: 'test',
+      showMetaInfo: true,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.warning).toBeUndefined();
+  });
+
+  it('sanitizes the model and url metadata lines, not just the message body', async () => {
+    // pdf-exporter.ts used to interpolate platform/model/exported/url straight
+    // into doc.text() without ever calling sanitizeTextForPDF -- unprotected
+    // even for characters the replacement table already knows how to handle.
+    instances.length = 0;
+    const { conversation, pairs } = buildConversation();
+    conversation.model = 'Клод-3'; // Cyrillic
+    conversation.url = 'https://example.com/чат';
+    const result = await new PdfExporter().export(conversation, pairs, {
+      format: 'pdf',
+      filename: 'test',
+      showMetaInfo: true,
+    });
+
+    expect(result.warning).toBe(WARNING_KEYS.PDF_UNSUPPORTED_SCRIPT);
+    const rendered = textCallsOf(instances[0]!);
+    expect(rendered.some((t) => t.includes('Клод') || t.includes('чат'))).toBe(false);
+    expect(rendered.some((t) => t.includes(UNSUPPORTED_SCRIPT_PLACEHOLDER))).toBe(true);
   });
 });

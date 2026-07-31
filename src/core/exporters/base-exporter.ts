@@ -63,9 +63,16 @@ export abstract class BaseExporter implements IExporter {
   }
 
   /**
-   * Create a successful export result
+   * Create a successful export result. `warning` is an optional locale key
+   * (see `WARNING_KEYS`) for a degraded-but-successful export -- omitted
+   * entirely from the result rather than set to `undefined`, so callers that
+   * don't pass one see the same shape as before this parameter existed.
    */
-  protected createSuccessResult(content: string | Blob, filename: string): ExportResult {
+  protected createSuccessResult(
+    content: string | Blob,
+    filename: string,
+    warning?: string
+  ): ExportResult {
     const blob = content instanceof Blob ? content : new Blob([content], { type: this.mimeType });
 
     return {
@@ -73,6 +80,7 @@ export abstract class BaseExporter implements IExporter {
       blob,
       filename: `${filename}.${this.extension}`,
       mimeType: this.mimeType,
+      ...(warning && { warning }),
     };
   }
 

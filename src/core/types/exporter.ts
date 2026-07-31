@@ -134,6 +134,13 @@ export interface ExportResult {
   mimeType?: string;
   /** Error message (if unsuccessful) */
   error?: string;
+  /**
+   * Set when export succeeded but is degraded -- a locale key from
+   * `WARNING_KEYS`, surfaced to the popup as `MessageResponse.warning` (e.g.
+   * a PDF export that had to fall back to a placeholder for a script its
+   * embedded fonts can't render).
+   */
+  warning?: string;
 }
 
 /**

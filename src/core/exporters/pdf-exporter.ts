@@ -28,6 +28,7 @@ import { ConversationStructureService, HtmlContentParser } from '../services';
 import { getMessageWithValues } from '../../shared/i18n';
 import { sanitizeTextForPDF } from '../utils/pdf-characters';
 import { loadImagesParallel, type LoadedImage } from '../utils/image-loader';
+import { WARNING_KEYS } from '../../shared/constants';
 import {
   COLOR,
   FONT_FAMILY,
@@ -113,6 +114,27 @@ export class PdfExporter extends BaseExporter {
   private markdown: ((md: string) => string | null) | null = null;
 
   /**
+   * Set by `sanitize()` the first time any rendered text needed the
+   * unsupported-script placeholder (EXP-2) -- read once at the end of
+   * `export()` to decide whether to warn the popup that this PDF can't
+   * render some of the conversation's script. A fresh exporter is built per
+   * export (see `imageCache` above), so this never leaks between exports.
+   */
+  private hasUnsupportedScript = false;
+
+  /**
+   * Every render call site sanitizes through here rather than calling
+   * `sanitizeTextForPDF` directly, so one place tracks whether this export
+   * needed the unsupported-script placeholder, feeding the warning
+   * `export()` returns.
+   */
+  private sanitize(text: string): string {
+    return sanitizeTextForPDF(text, () => {
+      this.hasUnsupportedScript = true;
+    });
+  }
+
+  /**
    * Export selected Q&A pairs to PDF
    */
   async export(
@@ -159,7 +181,11 @@ export class PdfExporter extends BaseExporter {
       this.renderContent(doc, structured, options, pdfOptions);
 
       const blob = doc.output('blob');
-      return this.createSuccessResult(blob, options.filename);
+      return this.createSuccessResult(
+        blob,
+        options.filename,
+        this.hasUnsupportedScript ? WARNING_KEYS.PDF_UNSUPPORTED_SCRIPT : undefined
+      );
     } catch (error) {
       return this.createErrorResult(
         error instanceof Error ? error.message : 'Failed to export to PDF'
@@ -252,7 +278,7 @@ export class PdfExporter extends BaseExporter {
     doc.setFontSize(this.pdfSizes.title);
     doc.setFont(this.fonts.body, 'bold');
     doc.setTextColor(...hexToRgbTuple(COLOR.textPrimary));
-    doc.text(sanitizeTextForPDF(conversation.title), margins.left, y);
+    doc.text(this.sanitize(conversation.title), margins.left, y);
     y += lineHeight * 2.5;
 
     // Metadata
@@ -262,21 +288,27 @@ export class PdfExporter extends BaseExporter {
       doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
 
       doc.text(
-        `${this.getMetadataLabel('platform')}: ${this.formatPlatformName(conversation.platform)}`,
+        this.sanitize(
+          `${this.getMetadataLabel('platform')}: ${this.formatPlatformName(conversation.platform)}`
+        ),
         margins.left,
         y
       );
       y += lineHeight;
 
       if (conversation.model) {
-        doc.text(`${this.getMetadataLabel('model')}: ${conversation.model}`, margins.left, y);
+        doc.text(
+          this.sanitize(`${this.getMetadataLabel('model')}: ${conversation.model}`),
+          margins.left,
+          y
+        );
         y += lineHeight;
       }
 
       const dateRange = this.formatDateRange(conversation.pairs);
       if (dateRange) {
         doc.text(
-          sanitizeTextForPDF(`${this.getMetadataLabel('dateRange')}: ${dateRange}`),
+          this.sanitize(`${this.getMetadataLabel('dateRange')}: ${dateRange}`),
           margins.left,
           y
         );
@@ -285,14 +317,20 @@ export class PdfExporter extends BaseExporter {
 
       if (conversation.createdAt) {
         doc.text(
-          `${this.getMetadataLabel('exported')}: ${this.formatTimestamp(conversation.createdAt)}`,
+          this.sanitize(
+            `${this.getMetadataLabel('exported')}: ${this.formatTimestamp(conversation.createdAt)}`
+          ),
           margins.left,
           y
         );
         y += lineHeight;
       }
 
-      doc.text(`${this.getMetadataLabel('url')}: ${conversation.url}`, margins.left, y);
+      doc.text(
+        this.sanitize(`${this.getMetadataLabel('url')}: ${conversation.url}`),
+        margins.left,
+        y
+      );
       y += lineHeight;
 
       // Draw separator line
@@ -318,7 +356,7 @@ export class PdfExporter extends BaseExporter {
       doc.setFontSize(this.sizes.meta);
       doc.setFont(this.fonts.body, 'normal');
       doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
-      doc.text(sanitizeTextForPDF(separator), pageCentre, currentY + lineHeight, {
+      doc.text(this.sanitize(separator), pageCentre, currentY + lineHeight, {
         align: 'center',
       });
       doc.setFontSize(this.sizes.body);
@@ -734,7 +772,7 @@ export class PdfExporter extends BaseExporter {
       doc.setFont(this.fonts.body, 'bold');
       doc.setFontSize(this.pdfSizes.artifactTitle);
       doc.setTextColor(...hexToRgbTuple(COLOR.textPrimary));
-      const titleLines = splitLines(doc, sanitizeTextForPDF(artifact.title), contentWidth);
+      const titleLines = splitLines(doc, this.sanitize(artifact.title), contentWidth);
       for (const line of titleLines) {
         doc.text(line, margins.left, y);
         y += lineHeight;
@@ -745,7 +783,7 @@ export class PdfExporter extends BaseExporter {
         doc.setFont(this.fonts.body, 'italic');
         doc.setFontSize(this.sizes.meta);
         doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
-        doc.text(`Type: ${sanitizeTextForPDF(artifact.typeLabel)}`, margins.left, y);
+        doc.text(`Type: ${this.sanitize(artifact.typeLabel)}`, margins.left, y);
         y += lineHeight;
       }
 
@@ -782,7 +820,7 @@ export class PdfExporter extends BaseExporter {
             doc.addPage();
             y = margins.top;
           }
-          const wrappedLines = splitLines(doc, sanitizeTextForPDF(line || ' '), contentWidth);
+          const wrappedLines = splitLines(doc, this.sanitize(line || ' '), contentWidth);
           for (const wrappedLine of wrappedLines) {
             doc.text(wrappedLine, margins.left + 5, y);
             y += lineHeight * 0.8;
@@ -830,7 +868,7 @@ export class PdfExporter extends BaseExporter {
       doc.setFont(this.fonts.body, 'bold');
       doc.setFontSize(this.pdfSizes.artifactTitle);
       doc.setTextColor(...hexToRgbTuple(COLOR.textPrimary));
-      doc.text(sanitizeTextForPDF(search.query || 'References'), margins.left, y);
+      doc.text(this.sanitize(search.query || 'References'), margins.left, y);
       y += lineHeight;
 
       // Result count
@@ -854,7 +892,7 @@ export class PdfExporter extends BaseExporter {
 
           // Result title (as link)
           doc.setTextColor(...hexToRgbTuple(COLOR.link));
-          const titleLines = splitLines(doc, sanitizeTextForPDF(result.title), contentWidth - 10);
+          const titleLines = splitLines(doc, this.sanitize(result.title), contentWidth - 10);
           for (const line of titleLines) {
             doc.text('• ' + line, margins.left + 5, y);
             y += lineHeight * 0.9;
@@ -864,7 +902,7 @@ export class PdfExporter extends BaseExporter {
           // domain it contains — a PDF has no clickable citation, so the full
           // URL is the only way back to the source; the domain would just
           // repeat its prefix.
-          const url = sanitizeTextForPDF(result.url ?? '');
+          const url = this.sanitize(result.url ?? '');
           if (url) {
             doc.setFont(this.fonts.body, 'italic');
             doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
@@ -936,7 +974,7 @@ export class PdfExporter extends BaseExporter {
       doc.setFont(this.fonts.body, 'bold');
       doc.setTextColor(...hexToRgbTuple(COLOR.textStrong));
 
-      const lines = splitLines(doc, sanitizeTextForPDF(text), contentWidth);
+      const lines = splitLines(doc, this.sanitize(text), contentWidth);
       for (const line of lines) {
         if (y > pageHeight - margins.bottom) {
           doc.addPage();
@@ -1191,7 +1229,7 @@ export class PdfExporter extends BaseExporter {
         doc.setFontSize(this.sizes.meta);
         doc.setFont(this.fonts.body, 'italic');
         doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
-        const altText = sanitizeTextForPDF(block.alt);
+        const altText = this.sanitize(block.alt);
         const altLines = splitLines(doc, altText, contentWidth);
         for (const line of altLines) {
           if (y > pageHeight - margins.bottom) {
@@ -1365,7 +1403,7 @@ export class PdfExporter extends BaseExporter {
           : item.text
       )
       .join('');
-    return sanitizeTextForPDF(text);
+    return this.sanitize(text);
   }
 
   /**
@@ -1410,7 +1448,7 @@ export class PdfExporter extends BaseExporter {
     doc.setFontSize(this.sizes.code);
 
     for (const line of codeLines) {
-      const sanitized = sanitizeTextForPDF(line || ' ');
+      const sanitized = this.sanitize(line || ' ');
       const wrapped = splitLines(doc, sanitized, codeContentWidth);
       wrappedLines.push(...wrapped);
       totalCodeHeight += wrapped.length * lineHeight * 0.9;
@@ -1418,7 +1456,7 @@ export class PdfExporter extends BaseExporter {
 
     // R-2b: the language renders in a tab ABOVE the block, not inline —
     // a small chip that reads as UI chrome rather than a line of body text.
-    const tabLabel = language ? sanitizeTextForPDF(language.toUpperCase()) : '';
+    const tabLabel = language ? this.sanitize(language.toUpperCase()) : '';
     const tabHeight = tabLabel ? lineHeight * 0.9 : 0;
 
     // Check if we need a new page (tab + code block together)
@@ -1492,7 +1530,7 @@ export class PdfExporter extends BaseExporter {
     doc.setFontSize(this.sizes.body);
     doc.setTextColor(...hexToRgbTuple(COLOR.textBody));
 
-    const sanitized = sanitizeTextForPDF(text);
+    const sanitized = this.sanitize(text);
     const lines = splitLines(doc, sanitized, contentWidth);
 
     // Orphan/widow control. Lines used to be placed one at a time, so a

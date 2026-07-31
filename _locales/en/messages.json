@@ -111,6 +111,10 @@
     "message": "Artifact contents and Claude's per-message timestamps were left out of this export because Claude's conversation data couldn't be fetched. This can be temporary — try exporting again.",
     "description": "Warning shown when the Claude API request for enrichment data fails or returns nothing — retrying may succeed"
   },
+  "warningPdfUnsupportedScript": {
+    "message": "Some characters in this conversation (Chinese, Japanese, Korean, Arabic, Hebrew, Cyrillic, or other non-Latin script) can't be drawn in a PDF and show as \"?\" instead. Export as DOCX or HTML to keep that text intact.",
+    "description": "Warning shown when a PDF export contains a script the embedded fonts can't render — DOCX and HTML render it correctly instead"
+  },
   "exportButtonAgain": {
     "message": "Export again",
     "description": "Main button label after a degraded export"

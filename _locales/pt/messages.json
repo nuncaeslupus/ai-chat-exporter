@@ -111,6 +111,10 @@
     "message": "O conteúdo dos artefactos e os horários de cada mensagem do Claude foram deixados de fora desta exportação porque não foi possível obter os dados da conversa do Claude. Isto pode ser temporário: tente exportar novamente.",
     "description": "Warning shown when the Claude API request for enrichment data fails or returns nothing — retrying may succeed"
   },
+  "warningPdfUnsupportedScript": {
+    "message": "Alguns caracteres desta conversa (chinês, japonês, coreano, árabe, hebraico, cirílico ou outra escrita não latina) não podem ser desenhados num PDF e aparecem como \"?\". Exporte para DOCX ou HTML para manter esse texto intacto.",
+    "description": "Warning shown when a PDF export contains a script the embedded fonts can't render — DOCX and HTML render it correctly instead"
+  },
   "exportButtonAgain": {
     "message": "Exportar de novo",
     "description": "Main button label after a degraded export"

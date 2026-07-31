@@ -87,6 +87,8 @@ export const WARNING_KEYS = {
   IDS_MISSING: 'warningArtifactsIdsMissing',
   /** The Claude API call for enrichment data failed or returned nothing — can be a one-off network blip. */
   FETCH_FAILED: 'warningArtifactsFetchFailed',
+  /** The PDF's embedded fonts can't render some script in the conversation (CJK/Arabic/Hebrew/Cyrillic/...) — those characters were replaced with a placeholder. Not retryable; DOCX/HTML render them correctly instead. */
+  PDF_UNSUPPORTED_SCRIPT: 'warningPdfUnsupportedScript',
 } as const;
 
 /**
