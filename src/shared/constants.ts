@@ -64,6 +64,8 @@ export const WARNING_KEYS = {
   FETCH_FAILED: 'warningArtifactsFetchFailed',
   /** The PDF's embedded fonts can't render some script in the conversation (CJK/Arabic/Hebrew/Cyrillic/...) — those characters were replaced with a placeholder. Not retryable; DOCX/HTML render them correctly instead. */
   PDF_UNSUPPORTED_SCRIPT: 'warningPdfUnsupportedScript',
+  /** A parser reported it could not read some turns' content (`ParseResult.warnings`, D-39) — the export still completes but some text may be missing or blank. Not known to clear on a retry (it's a DOM read failure, not a network one). */
+  PARSER_CONTENT: 'warningParserContentUnreadable',
 } as const;
 
 /**

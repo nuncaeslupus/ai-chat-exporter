@@ -284,6 +284,62 @@ describe('content-script degraded-export reporting (lo-872a)', () => {
       warning: WARNING_KEYS.PDF_UNSUPPORTED_SCRIPT,
     });
   });
+
+  it('reports the parser-content warning key when the parser could not read some turns (D-39)', async () => {
+    // Platform isn't 'claude', so no enrichment runs — this warning can only
+    // have come from ParseResult.warnings.
+    const pairs = [createTestQAPair(0, 'Q', 'A')];
+    const conversation = createTestConversation(pairs);
+    mockParse.mockReturnValue({
+      success: true,
+      conversation,
+      warnings: ['Turn 1: the answer could not be read'],
+    });
+    mockExport.mockResolvedValue({ success: true, blob: new Blob(['# hi']) });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'export_conversation', format: 'md' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+    // Pinned so an undeclared/undefined key can't pass this assertion by
+    // matching `warning: undefined` on a response that never set it at all.
+    expect(WARNING_KEYS.PARSER_CONTENT).toBe('warningParserContentUnreadable');
+    expect(sendResponse).toHaveBeenCalledWith({
+      success: true,
+      warning: WARNING_KEYS.PARSER_CONTENT,
+    });
+  });
+
+  it('does not lose a parser-content warning when Claude enrichment succeeds cleanly', async () => {
+    // Enrichment's own (unconditional) assignment used to clobber whatever
+    // warning was already set — verify it now falls back with `??` instead.
+    const pairs = [createTestQAPair(0, 'Q', 'A')];
+    const conversation = { ...createTestConversation(pairs), platform: 'claude' as const };
+    mockParse.mockReturnValue({
+      success: true,
+      conversation,
+      warnings: ['Turn 1: the answer could not be read'],
+    });
+    mockExport.mockResolvedValue({ success: true, blob: new Blob(['# hi']) });
+    mockExtractIds.mockReturnValue({ organizationId: 'org-1', conversationId: 'conv-1' });
+    mockFetchApiData.mockResolvedValue({ chat_messages: [] });
+    mockEnrich.mockReturnValue({ conversation });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'export_conversation', format: 'md' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+    expect(sendResponse).toHaveBeenCalledWith({
+      success: true,
+      warning: WARNING_KEYS.PARSER_CONTENT,
+    });
+  });
 });
 
 describe('content-script print failure reporting (lo-f854)', () => {
