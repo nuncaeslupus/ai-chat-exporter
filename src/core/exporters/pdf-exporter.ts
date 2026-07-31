@@ -518,8 +518,12 @@ export class PdfExporter extends BaseExporter {
       pageHeight
     );
 
+    // When a question fill needs to continue onto later pages, this is set to
+    // a cleanup that un-wraps doc.addPage once the real render (below) is done.
+    let restoreAddPage: (() => void) | undefined;
+
     if (isQuestion) {
-      const measuredEndY = this.measure(doc, () =>
+      const { endY: measuredEndY, pageBreaks } = this.measure(doc, () =>
         this.renderMessageBody(
           doc,
           role,
@@ -533,34 +537,62 @@ export class PdfExporter extends BaseExporter {
         )
       );
 
-      // A question long enough to page-break mid-render measures an endY
-      // behind its own startY (the dry run "restarted" at margins.top on the
-      // simulated next page) — fall back to filling down to this page's
-      // bottom rather than drawing a negative-height rect.
       const bottomLimit = pageHeight - margins.bottom;
-      const fillBottom = measuredEndY < y ? bottomLimit : Math.min(measuredEndY, bottomLimit);
+      const drawFill = (top: number, bottom: number): void => {
+        doc.setFillColor(...hexToRgbTuple(COLOR.surfaceTurn));
+        doc.rect(
+          margins.left - QUESTION_FILL_PADDING_MM.side,
+          top - QUESTION_FILL_PADDING_MM.top,
+          contentWidth + QUESTION_FILL_PADDING_MM.side * 2,
+          bottom - top + QUESTION_FILL_PADDING_MM.top + QUESTION_FILL_PADDING_MM.bottom,
+          'F'
+        );
+      };
 
-      doc.setFillColor(...hexToRgbTuple(COLOR.surfaceTurn));
-      doc.rect(
-        margins.left - QUESTION_FILL_PADDING_MM.side,
-        y - QUESTION_FILL_PADDING_MM.top,
-        contentWidth + QUESTION_FILL_PADDING_MM.side * 2,
-        fillBottom - y + QUESTION_FILL_PADDING_MM.top + QUESTION_FILL_PADDING_MM.bottom,
-        'F'
-      );
+      if (pageBreaks === 0) {
+        drawFill(y, Math.min(measuredEndY, bottomLimit));
+      } else {
+        // The question spans pageBreaks + 1 pages. Fill this (first) page down
+        // to its bottom margin now; a page has no z-order in jsPDF, so each
+        // later page's fill must be drawn before that page's text -- done by
+        // hooking addPage for the real render right below, which draws the
+        // next page's fill (full page, or to measuredEndY on the last one)
+        // the instant the page is created.
+        drawFill(y, bottomLimit);
+
+        let pagesSeen = 1;
+        const originalAddPage = doc.addPage.bind(doc);
+        doc.addPage = (...args: Parameters<typeof originalAddPage>) => {
+          const result = originalAddPage(...args);
+          pagesSeen++;
+          const isLastPage = pagesSeen > pageBreaks;
+          drawFill(
+            margins.top,
+            isLastPage ? Math.max(margins.top, Math.min(measuredEndY, bottomLimit)) : bottomLimit
+          );
+          return result;
+        };
+        restoreAddPage = () => {
+          doc.addPage = originalAddPage;
+        };
+      }
     }
 
-    return this.renderMessageBody(
-      doc,
-      role,
-      blocks,
-      y,
-      margins,
-      contentWidth,
-      lineHeight,
-      pageHeight,
-      roleColor
-    );
+    try {
+      return this.renderMessageBody(
+        doc,
+        role,
+        blocks,
+        y,
+        margins,
+        contentWidth,
+        lineHeight,
+        pageHeight,
+        roleColor
+      );
+    } finally {
+      restoreAddPage?.();
+    }
   }
 
   /**
@@ -615,14 +647,23 @@ export class PdfExporter extends BaseExporter {
    * This is the mechanism the question turn-fill (R-2b) uses to size its
    * rect before drawing it: no second, parallel measurement path, just the
    * real renderer run once silently and once for real.
+   *
+   * `pageBreaks` counts the (stubbed) `addPage` calls seen during the dry
+   * run — how many times content paged during measurement — so a caller that
+   * needs to fill every page a block spans (not just the first) knows how
+   * many pages to expect before the real render reproduces the same breaks.
    */
-  private measure(doc: jsPDF, fn: () => number): number {
+  private measure(doc: jsPDF, fn: () => number): { endY: number; pageBreaks: number } {
     const stub = (() => doc) as unknown as jsPDF['text'] &
       jsPDF['line'] &
       jsPDF['rect'] &
       jsPDF['roundedRect'] &
-      jsPDF['addImage'] &
-      jsPDF['addPage'];
+      jsPDF['addImage'];
+    let pageBreaks = 0;
+    const addPageStub: jsPDF['addPage'] = () => {
+      pageBreaks++;
+      return doc;
+    };
     const original = {
       text: doc.text.bind(doc),
       line: doc.line.bind(doc),
@@ -637,10 +678,10 @@ export class PdfExporter extends BaseExporter {
       rect: stub,
       roundedRect: stub,
       addImage: stub,
-      addPage: stub,
+      addPage: addPageStub,
     });
     try {
-      return fn();
+      return { endY: fn(), pageBreaks };
     } finally {
       Object.assign(doc, original);
     }
