@@ -36,8 +36,21 @@ export class ChatGPTParser extends BaseParser {
   }
 
   protected override get requiredSelectorKeys(): readonly string[] {
-    return [...super.requiredSelectorKeys, 'custom.conversationTurn', 'custom.assistantTurn'];
+    // custom.userTurn (not conversationTurn) is the one that's load-bearing:
+    // it's half of the turn query in extractQAPairs and the sole role
+    // discriminator there, so a rename that breaks only userTurn previously
+    // went unguarded while conversationTurn -- read by no extraction code --
+    // was required instead.
+    return [...super.requiredSelectorKeys, 'custom.userTurn', 'custom.assistantTurn'];
   }
+
+  /**
+   * `textContent.length` of each pair's source turn element, index-aligned
+   * with the pairs `extractQAPairs` emits. Feeds `turnTextLengthsFor` so the
+   * `content-shortfall` drift rule can actually fire (it is otherwise
+   * permanently suppressed -- see base-parser.ts).
+   */
+  private turnLengths: number[] = [];
 
   /**
    * Check if this parser can handle the current page
@@ -130,6 +143,7 @@ export class ChatGPTParser extends BaseParser {
    */
   protected extractQAPairs(config: ParserConfig): QAPair[] {
     const pairs: QAPair[] = [];
+    this.turnLengths = [];
     const turns = this.document.querySelectorAll(
       `${this.selectors.custom.userTurn}, ${this.selectors.custom.assistantTurn}`
     );
@@ -150,6 +164,7 @@ export class ChatGPTParser extends BaseParser {
               this.createMessage('assistant', '')
             )
           );
+          this.turnLengths.push(-1);
         }
         pendingQuestion = this.extractUserMessageFromTurn(turn, config);
         hasPendingQuestion = true;
@@ -169,6 +184,7 @@ export class ChatGPTParser extends BaseParser {
           answer ?? this.createMessage('assistant', '')
         )
       );
+      this.turnLengths.push(turn.textContent?.length ?? -1);
       pendingQuestion = null;
       hasPendingQuestion = false;
     });
@@ -177,6 +193,10 @@ export class ChatGPTParser extends BaseParser {
     // conversation -- skip it, same as before.
 
     return pairs;
+  }
+
+  protected override turnTextLengthsFor(): number[] {
+    return this.turnLengths;
   }
 
   /**

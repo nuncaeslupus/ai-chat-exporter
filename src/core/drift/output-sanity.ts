@@ -40,6 +40,18 @@ export function checkOutputSanity(input: SanityInput): SanityFinding[] {
     return findings;
   }
 
+  // At least one pair came out, but the DOM held more turns than two per pair
+  // account for: some turn was skipped mid-walk (an orphan assistant turn, an
+  // unrecognized role, a second consecutive assistant turn) with no pair, no
+  // warning, and nothing else to notice. `no-pairs` above only ever catches
+  // the all-or-nothing case.
+  if (turnCount > 0 && pairs.length * 2 < turnCount) {
+    findings.push({
+      rule: 'turns-dropped',
+      detail: `${pairs.length} pair(s) from ${turnCount} turn container(s)`,
+    });
+  }
+
   pairs.forEach((pair, i) => {
     const answer = pair.answer?.content?.trim() ?? '';
     const question = pair.question?.content?.trim() ?? '';

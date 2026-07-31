@@ -23,6 +23,14 @@ export class GeminiParser extends BaseParser {
 
   readonly selectors = GEMINI_SELECTORS;
 
+  /**
+   * `textContent.length` of each pair's source `.conversation-container`,
+   * index-aligned with the pairs `extractQAPairs` emits. Feeds
+   * `turnTextLengthsFor` so the `content-shortfall` drift rule can fire for
+   * Gemini (it is otherwise permanently suppressed -- see base-parser.ts).
+   */
+  private turnLengths: number[] = [];
+
   canParse(): boolean {
     if (!isGeminiUrl(this.getUrl())) {
       return false;
@@ -93,17 +101,34 @@ export class GeminiParser extends BaseParser {
   protected extractQAPairs(config: ParserConfig): QAPair[] {
     const pairs: QAPair[] = [];
     const containers: Element[] = [];
+    this.turnLengths = [];
 
     this.document.querySelectorAll(this.selectors.messageElement).forEach((container) => {
       const questionElement = container.querySelector(this.selectors.userMessage);
-      const answerElement = container.querySelector(this.selectors.messageContent);
+      // A model response can render more than one message-content block (e.g.
+      // an extension/tool result alongside prose); querySelectorAll + join
+      // matches ChatGPT's and Claude's multi-block handling instead of
+      // silently keeping only the first block.
+      const answerElements = container.querySelectorAll(this.selectors.messageContent);
 
       const question = questionElement
         ? this.extractContent(questionElement, config.preserveHtml)
         : { content: '' };
-      const answer = answerElement
-        ? this.extractContent(answerElement, config.preserveHtml)
-        : { content: '' };
+      const answerParts = Array.from(answerElements).map((el) =>
+        this.extractContent(el, config.preserveHtml)
+      );
+      const answer = {
+        content: answerParts
+          .map((p) => p.content)
+          .filter(Boolean)
+          .join('\n\n'),
+        htmlContent: answerParts.some((p) => p.htmlContent)
+          ? answerParts
+              .map((p) => p.htmlContent)
+              .filter(Boolean)
+              .join('\n')
+          : undefined,
+      };
       // "Create video" / "Create music" render their player inside
       // `model-response` but outside the `.markdown` body, so the clip has to
       // be picked up separately or it never reaches the export.
@@ -127,11 +152,16 @@ export class GeminiParser extends BaseParser {
         )
       );
       containers.push(container);
+      this.turnLengths.push(container.textContent?.length ?? -1);
     });
 
     this.attachDeepResearchReport(pairs, containers, config);
 
     return pairs;
+  }
+
+  protected override turnTextLengthsFor(): number[] {
+    return this.turnLengths;
   }
 
   /**

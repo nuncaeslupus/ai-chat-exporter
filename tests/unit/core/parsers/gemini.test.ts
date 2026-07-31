@@ -185,6 +185,51 @@ describe('GeminiParser', () => {
       expect(pairs[0]?.question.htmlContent).toBeTruthy();
     });
 
+    it('keeps every message-content block in a multi-block answer (PAR-1)', () => {
+      // A model response can render more than one `message-content` block (an
+      // extension/tool result alongside prose, per the
+      // contains-extensions-response shape in the deep-research fixture).
+      // querySelector (singular) would keep only the first and silently drop
+      // the rest; this must match the first block AND the second.
+      const multiBlock = parserFor(`
+        <chat-window>
+          <div class="conversation-container">
+            <user-query-content>Multi-block question</user-query-content>
+            <model-response>
+              <message-content><div class="markdown"><p>FIRST BLOCK</p></div></message-content>
+              <message-content><div class="markdown"><p>SECOND BLOCK IS LOST</p></div></message-content>
+            </model-response>
+          </div>
+        </chat-window>
+      `);
+
+      const pairs = multiBlock.parse().conversation?.pairs ?? [];
+      expect(pairs).toHaveLength(1);
+      expect(pairs[0]?.answer.content).toContain('FIRST BLOCK');
+      expect(pairs[0]?.answer.content).toContain('SECOND BLOCK IS LOST');
+    });
+
+    it('signals content-shortfall when the answer is a sliver of the turn text (PAR-1)', () => {
+      // turnTextLengthsFor was dead code (always -1) before this fix, so
+      // content-shortfall never had a chance to fire for any platform.
+      const filler = 'A'.repeat(4000);
+      const shortfall = parserFor(`
+        <chat-window>
+          <div class="conversation-container">
+            <user-query-content>Summarize it</user-query-content>
+            <model-response>
+              <span class="filler">${filler}</span>
+              <message-content><div class="markdown"><p>ok</p></div></message-content>
+            </model-response>
+          </div>
+        </chat-window>
+      `);
+
+      const result = shortfall.parse();
+      expect(result.conversation?.pairs[0]?.answer.content).toBe('ok');
+      expect(result.drift?.sanityFindings?.map((f) => f.rule)).toContain('content-shortfall');
+    });
+
     it('returns no pairs for a document without a conversation', () => {
       const result = parserFor('<main></main>').parse();
       expect(result.conversation?.pairs).toHaveLength(0);

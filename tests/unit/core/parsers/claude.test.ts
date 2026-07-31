@@ -261,16 +261,42 @@ describe('ClaudeParser', () => {
       }
     });
 
-    it('extracts timestamps', () => {
+    it('never fabricates a timestamp from the DOM-only HH:MM label (PAR-1)', () => {
+      // claude.ai's DOM exposes only a wall-clock HH:MM, never a date.
+      // Stamping that onto today's date would fabricate history (D-18), so
+      // no per-message timestamp is emitted from DOM parsing at all.
       const result = parser.parse();
       const firstPair = result.conversation?.pairs[0];
 
-      expect(firstPair?.question.timestamp).toBeDefined();
-      expect(firstPair?.question.timestamp).toBeInstanceOf(Date);
+      expect(firstPair?.question.timestamp).toBeUndefined();
+      expect(firstPair?.answer.timestamp).toBeUndefined();
+    });
 
-      const time = firstPair?.question.timestamp;
-      expect(time?.getHours()).toBe(18);
-      expect(time?.getMinutes()).toBe(40);
+    it('signals content-shortfall when the answer is a sliver of the turn text (PAR-1)', () => {
+      // turnTextLengthsFor was dead code (always -1) before this fix, so
+      // content-shortfall never had a chance to fire for any platform.
+      const html = `
+        <html><body>
+          <div class="overflow-y-scroll overflow-x-hidden pt-6 flex-1">
+            <div data-test-render-count="1">
+              <div data-user-message-bubble="true">
+                <div data-testid="user-message"><p class="whitespace-pre-wrap">Summarize it</p></div>
+              </div>
+            </div>
+            <div data-test-render-count="2">
+              <div data-is-streaming="false">
+                <span class="filler">${'A'.repeat(4000)}</span>
+                <div class="standard-markdown">ok</div>
+              </div>
+            </div>
+          </div>
+        </body></html>
+      `;
+      const shortfallDom = new JSDOM(html, { url: 'https://claude.ai/chat/abc123' });
+      const result = new ClaudeParser(shortfallDom.window.document).parse();
+
+      expect(result.conversation?.pairs[0]?.answer.content).toBe('ok');
+      expect(result.drift?.sanityFindings?.map((f) => f.rule)).toContain('content-shortfall');
     });
 
     it('handles empty conversation', () => {
@@ -386,6 +412,23 @@ describe('ClaudeParser', () => {
       expect(result.success).toBe(true);
       expect(result.conversation?.pairs).toEqual([]);
       expect(result.warnings).toContain('No Q&A pairs found in the conversation');
+    });
+
+    it('reads the result count via the declared webSearchResultCount selector, not a stale inline copy (PAR-1)', () => {
+      // Before this fix extractWebSearches hardcoded 'p.text-text-500.font-small'
+      // inline, a different (narrower) string than the declared
+      // custom.webSearchResultCount ('p.relative.bottom-[0.5px].pl-1.text-text-500').
+      // Both happen to match the committed fixture today, so drop the
+      // `font-small` class -- a plausible redesign -- to tell them apart: only
+      // the declared selector survives it.
+      const countElement = document.querySelector('p.text-text-500.font-small');
+      expect(countElement).not.toBeNull();
+      countElement!.classList.remove('font-small');
+
+      const result = parser.parse();
+      const search = result.conversation?.pairs[0]?.answer.metadata?.webSearches?.[0];
+
+      expect(search?.resultCount).toBe(10);
     });
   });
 
