@@ -582,6 +582,90 @@ describe('R-2b: the question turn fill', () => {
     // Exactly one rect (the question's) — none for the answer.
     expect(calls.filter((c) => c.method === 'rect')).toHaveLength(1);
   });
+
+  // D-36: a question long enough to page-break mid-render used to only fill
+  // the first page (falling back to the page's bottom margin), leaving the
+  // rest of the question on white. Every page the question occupies must be
+  // filled edge-to-edge (top margin to bottom margin), except the first page
+  // (starts at the label) and the last page (ends where the text ends).
+  it('fills every page a question spans, not just the first', async () => {
+    const paragraphs = Array.from(
+      { length: 80 },
+      (_, i) => `<p>paragraph number ${i} of a very long question</p>`
+    ).join('');
+    const pair: QAPair = {
+      id: 'pair-long-question',
+      index: 0,
+      selected: true,
+      question: {
+        id: 'q-long',
+        role: 'user',
+        content: 'long question',
+        htmlContent: paragraphs,
+        timestamp: new Date('2025-01-01T12:00:00Z'),
+      },
+      answer: {
+        id: 'a-long',
+        role: 'assistant',
+        content: 'short answer',
+        timestamp: new Date('2025-01-01T12:00:00Z'),
+      },
+    };
+    const conversation: Conversation = {
+      id: 'test-conversation-long-question',
+      title: 'Long Question Test',
+      platform: 'claude',
+      model: 'claude-3',
+      pairs: [pair],
+      url: 'https://claude.ai/chat/long-question-test',
+      createdAt: new Date('2025-01-01T12:00:00Z'),
+    };
+
+    instances.length = 0;
+    await new PdfExporter().export(conversation, [pair], {
+      format: 'pdf',
+      filename: 'test',
+      showMetaInfo: false,
+    });
+
+    const instance = instances[0]!;
+    const calls = instance.calls;
+    const margins = DEFAULT_PDF_OPTIONS.margins;
+    const pageHeight = 297; // MockJsPDF's fixed page size
+    const topMargin = margins.top;
+    const bottomLimit = pageHeight - margins.bottom;
+    // Matches the exporter's private QUESTION_FILL_PADDING_MM (top/bottom: 2).
+    const fillPaddingTop = 2;
+    const fillPaddingBottom = 2;
+
+    const addPageCount = calls.filter((c) => c.method === 'addPage').length;
+    // The question must actually span multiple pages, or this test proves
+    // nothing about the page-break path.
+    expect(addPageCount).toBeGreaterThan(0);
+
+    const fillRects = calls.filter((c) => c.method === 'rect');
+    // One fill rect per page the question occupies.
+    expect(fillRects).toHaveLength(addPageCount + 1);
+
+    // Every fill rect after the first must start flush at the page's top
+    // margin (continuation pages have no role label eating into the top).
+    for (const rect of fillRects.slice(1)) {
+      const rectTop = rect.args[1] as number;
+      expect(rectTop).toBeCloseTo(topMargin - fillPaddingTop, 5);
+    }
+
+    // Every fill rect except the last must reach all the way to the page's
+    // bottom margin -- no unfilled remainder on a fully-occupied page.
+    for (const rect of fillRects.slice(0, -1)) {
+      const rectTop = rect.args[1] as number;
+      const rectHeight = rect.args[3] as number;
+      expect(rectTop + rectHeight).toBeCloseTo(bottomLimit + fillPaddingBottom, 5);
+    }
+
+    // The answer text still renders after all the question's pages/fills.
+    const answerIdx = calls.findIndex((c) => c.method === 'text' && c.args[0] === 'short answer');
+    expect(answerIdx).toBeGreaterThan(-1);
+  });
 });
 
 describe('R-2b: tables — horizontal rules and numeric right-alignment', () => {
