@@ -6,6 +6,15 @@ const NO_RECEIVER = new Error('Could not establish connection. Receiving end doe
 /** Let every pending microtask in the send/inject/retry chain settle. */
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
+// Module-scoped (not inside a describe) so the second describe block below
+// can drive the same `chrome.runtime.onMessage` listener the module
+// registers once at import time, without a second import.
+let onMessageHandler: (
+  message: unknown,
+  sender: unknown,
+  sendResponse: (response: unknown) => void
+) => boolean | void;
+
 describe('export keyboard shortcut', () => {
   let sendMessageMock: ReturnType<typeof vi.fn>;
   let executeScriptMock: ReturnType<typeof vi.fn>;
@@ -28,7 +37,11 @@ describe('export keyboard shortcut', () => {
       runtime: {
         onInstalled: { addListener: vi.fn() },
         onStartup: { addListener: vi.fn() },
-        onMessage: { addListener: vi.fn() },
+        onMessage: {
+          addListener: vi.fn((handler: typeof onMessageHandler) => {
+            onMessageHandler = handler;
+          }),
+        },
         getManifest: vi.fn(() => ({
           version: '1.0.0',
           content_scripts: [{ js: ['content/content-script.js'], css: ['content/styles.css'] }],
@@ -156,5 +169,64 @@ describe('export keyboard shortcut', () => {
     ).toBe(true);
 
     errorSpy.mockRestore();
+  });
+});
+
+// SEC-1 (low): organizationId/conversationId reach a credentialed claude.ai
+// fetch (`credentials: 'include'`) via raw interpolation. One id source
+// (claude-api-service.ts's `orgId`/`organizationId` URL param) is fully
+// page-controlled and unvalidated, unlike every other source, which is
+// UUID-shaped by regex. This is the trust boundary the message crosses, so
+// a non-UUID id must be rejected here rather than reaching `fetch`.
+describe('fetch_claude_api_data message validation', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+  const VALID_ORG = '11111111-1111-4111-8111-111111111111';
+  const VALID_CONVO = '22222222-2222-4222-8222-222222222222';
+
+  beforeEach(() => {
+    fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: () => Promise.resolve({ ok: true }),
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+  });
+
+  async function send(
+    data: unknown
+  ): Promise<{ success: boolean; error?: string; data?: unknown }> {
+    return new Promise((resolve) => {
+      // A rejected message (isClaudeApiFetchMessage returns false) falls
+      // through to the generic handler, which calls sendResponse
+      // synchronously; a valid one resolves it asynchronously after fetch.
+      onMessageHandler({ type: 'fetch_claude_api_data', data }, {}, (response) =>
+        resolve(response as { success: boolean; error?: string; data?: unknown })
+      );
+    });
+  }
+
+  it('fetches with a well-formed UUID pair', async () => {
+    const response = await send({ organizationId: VALID_ORG, conversationId: VALID_CONVO });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toContain(
+      `/organizations/${VALID_ORG}/chat_conversations/${VALID_CONVO}`
+    );
+    expect(response.success).toBe(true);
+  });
+
+  it('never calls fetch when organizationId is not a UUID (e.g. a page-controlled path escape)', async () => {
+    await send({ organizationId: '../../evil', conversationId: VALID_CONVO });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('never calls fetch when conversationId is not a UUID', async () => {
+    await send({ organizationId: VALID_ORG, conversationId: '<script>alert(1)</script>' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('never calls fetch when data is missing entirely', async () => {
+    await send(undefined);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
