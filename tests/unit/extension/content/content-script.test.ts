@@ -732,6 +732,52 @@ describe('content-script Q&A pair selection (lo-adf1)', () => {
   });
 });
 
+// BUILD-1 finding #4: htmlContent is the largest field on every Message and
+// the popup never reads it (it only shows title/meta/pair text and sends
+// `format` + `selectedIndices` back for export/print, which re-parse the page
+// themselves). Serializing it across the messaging boundary on every popup
+// open is pure waste that grows unbounded with conversation length.
+describe('content-script get_conversation response strips htmlContent', () => {
+  beforeEach(() => {
+    mockParse.mockReset();
+  });
+
+  it('does not include question/answer htmlContent in the popup response', async () => {
+    const pair = createTestQAPair(0, 'Q', 'A');
+    const pairs = [
+      {
+        ...pair,
+        question: { ...pair.question, htmlContent: '<p>Q html</p>' },
+        answer: { ...pair.answer, htmlContent: '<p>A html</p>' },
+      },
+    ];
+    mockParse.mockReturnValue({ success: true, conversation: createTestConversation(pairs) });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'get_conversation' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+
+    const response = sendResponse.mock.calls[0]?.[0] as {
+      success: boolean;
+      data: {
+        pairs: {
+          question: { htmlContent?: string; content: string };
+          answer: { htmlContent?: string };
+        }[];
+      };
+    };
+    expect(response.success).toBe(true);
+    expect(response.data.pairs[0]?.question.htmlContent).toBeUndefined();
+    expect(response.data.pairs[0]?.answer.htmlContent).toBeUndefined();
+    // The rest of the message survives -- this is a strip, not a truncation.
+    expect(response.data.pairs[0]?.question.content).toBe('Q');
+  });
+});
+
 // lo-9001: the sandboxed Deep Research frame's own content script relays its
 // rendered text out via `postMessage`; the page's content script must match
 // it to the right <iframe> element by `event.source` and stash it there, but

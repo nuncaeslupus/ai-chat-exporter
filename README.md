@@ -246,7 +246,7 @@ web font, or tracking pixel. Full details in [docs/PRIVACY.md](./docs/PRIVACY.md
 
 ### Browser Compatibility
 - Chrome/Edge: Version 88+
-- Firefox: Version 109+
+- Firefox: Version 112+
 
 ### Permissions
 The extension requires:

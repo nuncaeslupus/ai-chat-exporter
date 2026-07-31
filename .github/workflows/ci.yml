@@ -18,6 +18,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: node build/check-release.cjs version
       - run: node build/check-release.cjs node
+      - run: node build/check-release.cjs pipeline
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck

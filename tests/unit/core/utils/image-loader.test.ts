@@ -147,5 +147,30 @@ describe('image-loader', () => {
 
       expect(document.body.innerHTML).toBe('');
     });
+
+    it('loads a repeated URL only once (BUILD-1 finding #5)', async () => {
+      // A PDF export with the same image reused across turns used to pay a
+      // separate fetch/decode/canvas-encode per occurrence -- and a separate
+      // full timeout per occurrence for a dead URL. Dedupe the input before
+      // batching, not just the output map.
+      let constructed = 0;
+      class CountingImage extends SucceedingImage {
+        constructor() {
+          super();
+          constructed += 1;
+        }
+      }
+      // @ts-expect-error -- minimal test double, not a full Image implementation
+      global.Image = CountingImage;
+
+      const results = await loadImagesParallel([
+        'https://example.com/a.png',
+        'https://example.com/a.png',
+        'https://example.com/a.png',
+      ]);
+
+      expect(constructed).toBe(1);
+      expect(results.get('https://example.com/a.png')).not.toBeNull();
+    });
   });
 });
