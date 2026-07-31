@@ -2,11 +2,11 @@
 
 All notable changes to AI Chat Exporter are recorded here.
 
-## [1.2.0] — unreleased
+## [1.2.0] — 2026-07-31
 
-148 pull requests since 1.1.1. The headline is **Gemini support**, a **rebuilt
-popup**, and a **safety net that tells you when a chat site changes its page
-structure** instead of quietly exporting less.
+The headline is **Gemini support**, a **rebuilt popup**, **complete exports of long
+Claude conversations**, and a **safety net that tells you when a chat site changes
+its page structure** instead of quietly exporting less.
 
 ### Added
 
@@ -30,6 +30,16 @@ structure** instead of quietly exporting less.
 
 ### Fixed
 
+- **Long Claude conversations export completely.** claude.ai renders long chats in
+  a windowed list that only ever holds a handful of exchanges, so an export could
+  contain as little as one exchange out of twelve — and said only that "artifact
+  contents and message times were left out". Every exchange is now recovered, and
+  the warning that used to blame an edited or regenerated turn (and suggest a
+  reload, which could not help) has been corrected.
+- **Gemini tables export as tables.** Content nested inside a platform's custom
+  elements was being flattened to plain text, which destroyed every Gemini table
+  and also silently dropped code blocks and images. Fixed for every platform at
+  once, not just Gemini.
 - **Per-message timestamps are no longer invented.** No platform exposes a real
   time for every message, so the extension had been stamping the moment of
   export onto each one — and rendering it in UTC. Times now appear only where a
@@ -45,9 +55,30 @@ structure** instead of quietly exporting less.
   rendered twice; web-search titles and URLs survive markdown, text and DOCX.
 - Q&A pairs no longer mis-pair when a message is dropped.
 - The popup and exported HTML meet WCAG AA contrast; the popup has an aria-live
-  region and no hardcoded English.
+  region and no hardcoded English. Focus is no longer lost when the popup changes
+  view, and scrollable code blocks can be reached and scrolled from the keyboard
+  in both saved HTML and the print view.
+- **Exported document metadata is translated.** Platform, model, export time, URL
+  and the role labels were English regardless of your language in the text and
+  Word formats, while the same export in Markdown, HTML or PDF was translated.
+- The PDF's shaded question block now covers the whole question instead of
+  stopping at the first page break, and text-format artifacts wrap to the same
+  width as the rest of the export.
+- The "Copy & report" button now opens a pre-filled issue instead of a blank form.
+- Warnings raised while reading the page are shown instead of being discarded.
 - Exported HTML no longer fetches favicons from Google, which leaked the domains
   you had visited.
+
+### Security
+
+- The export keyboard shortcut no longer injects the content script into whatever
+  site happens to be open — injection is scoped to the platforms the extension
+  declares, matching the privacy claim in the documentation.
+- The ChatGPT Deep Research relay now posts its report to the ChatGPT origins only,
+  instead of any listener.
+- The HTML sanitizer was rebuilt as an allowlist. The previous version was a
+  five-tag denylist whose URL check could be bypassed, letting a crafted link run
+  script in the print preview.
 
 ### Changed
 
@@ -58,7 +89,7 @@ structure** instead of quietly exporting less.
 
 ### Permissions
 
-Two additions since 1.1.1, both needed for features above and both documented in
+Three additions since 1.1.1, all needed for features above and all documented in
 [`docs/PRIVACY.md`](docs/PRIVACY.md):
 
 - `gemini.google.com` — Gemini support.
