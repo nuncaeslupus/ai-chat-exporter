@@ -332,3 +332,65 @@ describe('fetch_claude_api_data message validation', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+// TEST-2: handleClaudeOrganizationsFetch (the sibling used by
+// claude-api-service.ts's resolveOrganizationId to discover the org ID via
+// the API instead of scraping the page) was reachable in production but
+// unexercised by any test. Unlike fetch_claude_api_data this message carries
+// no caller-supplied data -- the URL is hardcoded -- so there is no
+// UUID-shaped input to validate; the gap is the request/response plumbing
+// itself, most importantly that a failed fetch surfaces as failure (TYPE-1)
+// rather than a silently empty result.
+describe('fetch_claude_organizations message', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: () => Promise.resolve({ organizations: [{ uuid: 'org-1' }] }),
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+  });
+
+  async function send(
+    message: unknown
+  ): Promise<{ success: boolean; error?: string; data?: unknown }> {
+    return new Promise((resolve) => {
+      onMessageHandler(message, {}, (response) =>
+        resolve(response as { success: boolean; error?: string; data?: unknown })
+      );
+    });
+  }
+
+  it('fetches the organizations endpoint and returns the parsed response', async () => {
+    const response = await send({ type: 'fetch_claude_organizations' });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://claude.ai/api/organizations');
+    expect(response).toEqual({ success: true, data: { organizations: [{ uuid: 'org-1' }] } });
+  });
+
+  it('surfaces a non-OK response as a failure instead of a silent empty result', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      json: () => Promise.resolve(undefined),
+    });
+
+    const response = await send({ type: 'fetch_claude_organizations' });
+
+    expect(response.success).toBe(false);
+    expect(response.error).toContain('500');
+    expect(response.data).toBeUndefined();
+  });
+
+  it('does not fetch organizations for a non-object or differently-typed message', async () => {
+    await send('fetch_claude_organizations');
+    await send({ type: 'not_a_real_message' });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
