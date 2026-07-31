@@ -309,42 +309,40 @@ export class HtmlContentParser {
   }
 
   /**
-   * Parse a table
+   * Parse a table.
+   *
+   * EXP-4: every downstream exporter (md/html/docx/txt/pdf) reads a cell by
+   * its column INDEX, so the grid has to be normalised here, once, rather
+   * than have each of the six formats reinvent colspan/rowspan handling --
+   * three of them (md/txt/pdf) can't represent a real span at all. Both
+   * `expandSpannedRows` (colspan/rowspan) and the ragged-row padding below
+   * exist so a value can never be attributed to the wrong heading.
    */
   private static parseTable(el: Element): TableBlock | null {
     const thead = el.querySelector('thead');
     const tbody = el.querySelector('tbody') || el;
 
-    // Parse headers
-    const headers: InlineContent[][] = [];
-    if (thead) {
-      const headerRows = thead.querySelectorAll('tr');
-      for (const row of headerRows) {
-        const headerRow: InlineContent[][] = [];
-        const cells = row.querySelectorAll('th, td');
-        for (const cell of cells) {
-          headerRow.push(this.parseInlineContent(cell));
-        }
-        if (headerRow.length > 0) {
-          headers.push(...headerRow);
-        }
-      }
-    }
+    // Parse header rows, expanding any colspan/rowspan into real grid
+    // positions, then merge the (possibly multi-row) thead into one header
+    // row -- see mergeHeaderRows for why "merge" rather than "concatenate"
+    // (the old bug) or "keep the last row" (loses the primary label).
+    const headerRowEls = thead ? Array.from(thead.querySelectorAll('tr')) : [];
+    const headers = this.mergeHeaderRows(this.expandSpannedRows(headerRowEls));
 
-    // Parse body rows
-    const rows: InlineContent[][][] = [];
-    const bodyRows = tbody.querySelectorAll(':scope > tr');
-    for (const row of bodyRows) {
-      // Skip header rows if they're in tbody
-      if (row.closest('thead')) continue;
+    // Parse body rows with the same span expansion.
+    const bodyRowEls = Array.from(tbody.querySelectorAll(':scope > tr')).filter(
+      (row) => !row.closest('thead') // Skip header rows if they're in tbody
+    );
+    const rows = this.expandSpannedRows(bodyRowEls).filter((row) => row.length > 0);
 
-      const rowCells: InlineContent[][] = [];
-      const cells = row.querySelectorAll('th, td');
-      for (const cell of cells) {
-        rowCells.push(this.parseInlineContent(cell));
-      }
-      if (rowCells.length > 0) {
-        rows.push(rowCells);
+    // A row that's short for reasons OTHER than a span -- a malformed/ragged
+    // <tr> with fewer cells than the header -- still needs padding, or a
+    // renderer indexing by column would shift its values left into earlier
+    // headings. Pad only; never truncate a longer row.
+    const numCols = headers.length;
+    if (numCols > 0) {
+      for (const row of rows) {
+        while (row.length < numCols) row.push([]);
       }
     }
 
@@ -356,6 +354,107 @@ export class HtmlContentParser {
       headers,
       rows,
     };
+  }
+
+  /**
+   * Parse a `colspan`/`rowspan` attribute. Missing, non-numeric, and `< 1`
+   * all mean "no span" (1); clamped at 1000 (the browser's own ceiling for
+   * the attribute) so a malformed/hostile value can't blow up the grid loop
+   * below.
+   */
+  private static parseSpanAttr(value: string | null): number {
+    const n = value ? parseInt(value, 10) : 1;
+    if (!Number.isFinite(n) || n < 1) return 1;
+    return Math.min(n, 1000);
+  }
+
+  /**
+   * Expand `colspan`/`rowspan` across a set of `<tr>` rows into their real
+   * grid positions. A spanned cell's content is pushed once, at its
+   * top-left position; every other grid position it covers (to its right
+   * for colspan, below it for rowspan) gets an empty placeholder (`[]`) so
+   * a cell that comes after the span in the same row -- or a value in a
+   * later row -- keeps the column index it visually belongs to, instead of
+   * shifting left into an earlier heading.
+   */
+  private static expandSpannedRows(rowEls: Element[]): InlineContent[][][] {
+    const grid: InlineContent[][][] = [];
+    // colIndex -> rows still reserved by an earlier (unfinished) rowspan.
+    const pending = new Map<number, number>();
+
+    for (const row of rowEls) {
+      const gridRow: InlineContent[][] = [];
+      let col = 0;
+      const isReserved = (c: number): boolean => (pending.get(c) ?? 0) > 0;
+      const fillReserved = (): void => {
+        while (isReserved(col)) {
+          gridRow[col] = [];
+          col++;
+        }
+      };
+      // Only reservations that existed BEFORE this row started get
+      // decremented at the end -- a rowspan created by a cell in THIS row
+      // reserves rows starting next, not this one.
+      const reservedBeforeThisRow = new Set(pending.keys());
+
+      for (const cell of Array.from(row.querySelectorAll('th, td'))) {
+        fillReserved();
+
+        const colspan = this.parseSpanAttr(cell.getAttribute('colspan'));
+        const rowspan = this.parseSpanAttr(cell.getAttribute('rowspan'));
+
+        gridRow[col] = this.parseInlineContent(cell);
+        if (rowspan > 1) pending.set(col, rowspan - 1);
+        col++;
+
+        for (let span = 1; span < colspan; span++) {
+          fillReserved();
+          gridRow[col] = [];
+          if (rowspan > 1) pending.set(col, rowspan - 1);
+          col++;
+        }
+      }
+      fillReserved(); // trailing rowspan(s) that outlive every cell in this row
+
+      for (const c of reservedBeforeThisRow) {
+        const remaining = (pending.get(c) ?? 0) - 1;
+        if (remaining <= 0) pending.delete(c);
+        else pending.set(c, remaining);
+      }
+
+      grid.push(gridRow);
+    }
+
+    return grid;
+  }
+
+  /**
+   * Merge a normalised header grid (one row per `<thead>` `<tr>`, already
+   * colspan/rowspan-expanded) into a single header row.
+   *
+   * A multi-row `<thead>` usually layers a coarser label over a finer one
+   * (e.g. "Region"/"Q1" with a "(EUR)"/"(EUR)" units row beneath it).
+   * Concatenating every row's cells (the old bug) doubles the column count;
+   * keeping only the last row silently drops whichever row carries the
+   * primary label. Joining column-wise with a space keeps both, and no
+   * format here (md/txt included) can render a real multi-row header
+   * anyway, so a single composite row loses nothing they could have shown.
+   */
+  private static mergeHeaderRows(headerGrid: InlineContent[][][]): InlineContent[][] {
+    if (headerGrid.length <= 1) return headerGrid[0] ?? [];
+
+    const numCols = Math.max(...headerGrid.map((row) => row.length));
+    const merged: InlineContent[][] = [];
+    for (let col = 0; col < numCols; col++) {
+      let cell: InlineContent[] = [];
+      for (const row of headerGrid) {
+        const part = row[col];
+        if (!part || part.length === 0) continue;
+        cell = cell.length === 0 ? part : [...cell, { type: 'text', text: ' ' }, ...part];
+      }
+      merged.push(cell);
+    }
+    return merged;
   }
 
   /**
