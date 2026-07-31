@@ -40,7 +40,11 @@ A browser extension to export your AI chatbot conversations from ChatGPT, Claude
 
 ## Installation
 
-The extension is not published to the Chrome Web Store or Firefox Add-ons yet.
+The easiest way is to install it from the Chrome Web Store or Firefox Add-ons.
+
+- https://chromewebstore.google.com/detail/ai-chat-exporter/jnllafelflonllnhccgofcakopbpjahf
+- https://addons.mozilla.org/en-US/firefox/addon/ai-chat-exporter-and-printer/
+
 Install it from source:
 
 ### Manual Installation
