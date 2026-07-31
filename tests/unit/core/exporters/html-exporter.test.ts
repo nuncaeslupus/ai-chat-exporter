@@ -385,7 +385,10 @@ describe('HtmlExporter per-message timestamps', () => {
       showMetaInfo: true,
     });
     const html = await blobToText(result.blob!);
-    expect(html).toContain('(12:00:00)');
+    // No seconds on a per-message time (CONSIST-1): md/txt already dropped
+    // seconds as noise at this scale (R-4/R-5); pdf/docx/html now match.
+    expect(html).toContain('(12:00)');
+    expect(html).not.toContain('(12:00:00)');
     // The day is announced once by a day separator, not repeated per message.
     // The date belongs to the header (which showMetaInfo also turns on) and to
     // the day separator — never to a per-message stamp.
