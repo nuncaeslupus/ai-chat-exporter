@@ -101,8 +101,8 @@ After installation, verify the extension is working:
 2. **Test on a supported platform**
    - Navigate to [ChatGPT](https://chat.openai.com)
    - Open any conversation
-   - Look for export buttons in the conversation header
-   - If buttons appear, the extension is working correctly
+   - Click the toolbar icon; the popup should show the detected platform, the
+     conversation title, and the number of Q&A pairs found
 
 3. **Check extension permissions**
    - Chrome: `chrome://extensions/` → Click "Details" on AI Chat Exporter
@@ -179,16 +179,6 @@ This can happen with manually installed extensions:
 3. Try refreshing the page
 4. Check browser console for errors (F12 → Console tab)
 
-### Export buttons not appearing
-
-1. Refresh the page
-2. Check that JavaScript is enabled
-3. Verify the extension is enabled:
-   - Chrome: `chrome://extensions/`
-   - Firefox: `about:addons`
-4. Try disabling other extensions that might conflict
-5. Check the browser console for errors
-
 ### Firefox: "This add-on is not signed"
 
 For permanent installation in Firefox, extensions must be signed:
@@ -221,7 +211,11 @@ The extension requires the following permissions:
 - **Storage**: To save user preferences and settings
 - **Active Tab**: To access the current page and extract conversation data
 - **Context Menus**: To add right-click export options
-- **Scripting**: To inject export buttons into supported platforms
+- **Scripting**: To re-inject the content script into a chat tab that was
+  already open when the extension was installed, updated or reloaded
+- **Host permissions** for the supported chat platforms, plus
+  `*.web-sandbox.oaiusercontent.com` to read a ChatGPT Deep Research report
+  from its sandboxed frame
 
 **What we DON'T do**:
 - Collect or transmit your conversation data
@@ -235,6 +229,6 @@ All processing happens locally in your browser.
 
 ## Next Steps
 
-- Read the [Usage Guide](USAGE.md) to learn how to use the extension
+- Read the [Usage Guide](usage.md) to learn how to use the extension
 - Check the [README](README.md) for feature overview
 - Report issues on [GitHub](https://github.com/nuncaeslupus/ai-chat-exporter/issues)

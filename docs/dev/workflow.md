@@ -7,6 +7,7 @@ This document describes the workflow and conventions for working on AI Chat Expo
 ```
 docs/
 ├── README.md                    # Documentation index
+├── PRIVACY.md                   # Privacy policy
 ├── installation.md              # User installation guide
 ├── usage.md                     # User usage guide
 ├── release-notes-v{VERSION}.txt # Release notes (plain text)
@@ -19,6 +20,8 @@ docs/
 │   ├── project-structure.md
 │   ├── github-setup.md
 │   ├── development-plan.md
+│   ├── documentation-guide.md
+│   ├── parser-gotchas.md
 │   └── releasing.md
 └── store-listings/              # Store submission files
     ├── chrome-web-store-v{VERSION}.txt
@@ -53,7 +56,7 @@ See [releasing.md](releasing.md) for detailed release process.
 
 **Quick steps**:
 1. Update version in `package.json` and `manifests/manifest.base.json`
-2. Run `pnpm package:all` to build and package
+2. Run `pnpm build && pnpm package:all` to build and package
 3. Create store listing files in `docs/store-listings/`
 4. Test the packages
 5. Submit to stores
@@ -102,7 +105,7 @@ pnpm test:run         # Run tests once
 pnpm test:coverage    # Run with coverage
 
 # Validation
-pnpm validate         # Lint + typecheck + test
+pnpm validate         # lint + format:check + typecheck + coverage + build
 ```
 
 ## Working with AI Assistants

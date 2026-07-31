@@ -10,7 +10,7 @@ metadata:
 
 ## Prerequisites
 
-- **Node.js**: Version 18.0.0+
+- Node.js >= 22.0.0
 - **pnpm**: Version 10.27.0
 
 ```bash
@@ -44,7 +44,7 @@ pnpm test:coverage    # With coverage
 pnpm lint             # Check style
 pnpm lint:fix         # Fix style
 pnpm typecheck        # Check types
-pnpm validate         # Lint + typecheck + test
+pnpm validate         # lint + format:check + typecheck + coverage + build
 ```
 
 ## Makefile
@@ -54,10 +54,10 @@ A `Makefile` wraps the common commands above (`make install`, `make dev`,
 `make clean`). Two targets are not 1:1 aliases:
 
 - `make dev` runs `pnpm dev:chrome` (not the `pnpm dev` alias).
-- `make validate` runs `check-release` + `pnpm typecheck` + `pnpm test:coverage`
-  — it deliberately **excludes lint** (ESLint has ~1150 pre-existing errors
-  not yet cleaned up; see task `lo-0f01`), unlike `pnpm validate` which
-  includes it. `make validate` mirrors what CI's `validate` job actually runs.
+- `make validate` runs `pnpm lint`, `pnpm format:check`, the `check-release`
+  version/node/pipeline/permissions checks, `pnpm typecheck`,
+  `pnpm test:coverage`, and the `check-release` manifest check — it mirrors
+  what CI's `validate` job actually runs.
 
 `make release-check` runs `validate` + `package` — everything a release needs
 to be green.

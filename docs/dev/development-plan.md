@@ -11,39 +11,38 @@ metadata:
 ## Current Status
 
 Extension is fully functional with:
-- ✅ ChatGPT parser (images, canvas, deep research support)
+- ✅ ChatGPT, Claude and Gemini parsers (images, canvas, deep research,
+  artifacts, thinking panels)
 - ✅ Content script and message passing
 - ✅ Structured content architecture (HTML → JSON → Exporters)
 - ✅ All exporters using structured content (MD, PDF, DOCX, HTML, TXT, JSON)
 - ✅ Clean export output without UI artifacts
 - ✅ Context menu integration
-- ✅ Multi-language support (8 languages)
+- ✅ Q&A pair selection, export options (metadata/timestamp toggle, text
+  size), and a filename builder in the popup
+- ✅ Multi-language support (7 languages)
 
 ## Architecture
 
 ```
-ChatGPT DOM → ChatGPTParser → Conversation
+Platform DOM → <Platform>Parser → Conversation
   → ConversationStructureService → StructuredConversation
   → Exporters (MD, PDF, HTML, DOCX, TXT, JSON) → Download
 ```
 
 ### Key Files
-- **Parsers**: `src/core/parsers/chatgpt/parser.ts`
-- **Services**: `src/core/services/{html-content-parser,conversation-structure-service,filename-service}.ts`
+- **Parsers**: `src/core/parsers/{chatgpt,claude,gemini}/parser.ts`
+- **Services**: `src/core/services/{html-content-parser,conversation-structure-service,filename-service,selection-service,claude-api-service}.ts`
 - **Exporters**: `src/core/exporters/{structured-md,pdf,docx,html,txt,json}-exporter.ts`
 - **Types**: `src/core/types/{conversation,structured-content,exporter}.ts`
 
 ## Next Steps
 
-### High Priority
-1. **Export Options UI** - Checkboxes for metadata, timestamps, etc.
-2. **Selection Service** - UI for selecting specific Q&A pairs
+The live backlog is tracked in GitHub issues and the `claude-arsenal/` queue,
+not here.
 
 ### Medium Priority
-3. **Image Support** - Parse and embed images in exports
-4. **LaTeX/Math Support** - Preserve equations
-5. **Export Statistics** - Token count, character count
-6. **Multilanguage** - Translate export headers
+1. **Export Statistics** - Token count, character count
 
 ## Quality Goals
 

@@ -17,7 +17,7 @@ pnpm install          # Install dependencies
 pnpm dev:chrome       # Development mode (watch)
 pnpm build            # Build for production
 pnpm test             # Run tests
-pnpm validate         # Lint + typecheck + test
+pnpm validate         # lint + format:check + typecheck + coverage + build (mirrors CI)
 ```
 
 A `Makefile` also wraps these as `make install|dev|build|test|lint|typecheck|validate|package|release-check` — see [building.md](building.md#makefile).
@@ -66,4 +66,4 @@ docs/dev/             # Development documentation
 
 - User docs: `../installation.md`, `../usage.md`
 - Full index: `../README.md`
-- GitHub: https://github.com/ivansaul/ai-chat-exporter
+- GitHub: https://github.com/nuncaeslupus/ai-chat-exporter

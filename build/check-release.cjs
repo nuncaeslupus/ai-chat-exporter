@@ -11,16 +11,23 @@
  *              scripts array plus browser_specific_settings.gecko. Run this
  *              after `pnpm build`.
  * `node`     — package.json's engines.node floor, the CI workflow's
- *              node-version, and BUILD_INSTRUCTIONS.md's stated requirement
- *              must all agree, so the three can't quietly drift apart.
+ *              node-version, BUILD_INSTRUCTIONS.md's stated requirement,
+ *              README.md and docs/dev/building.md must all agree, so none
+ *              of the five can quietly drift apart.
  * `pipeline` — the package.json scripts a release runs must build before
  *              packaging and must clean dist/ before each target rebuilds.
+ * `permissions` — every `permissions`/`host_permissions` entry in
+ *              manifests/manifest.base.json must be justified in the store
+ *              listing file for the version currently in the manifest
+ *              (docs/store-listings/{chrome-web-store,firefox-addons}-v<version>.txt).
  */
 
 const { readFileSync } = require('fs');
 const { resolve } = require('path');
 
-const ROOT = resolve(__dirname, '..');
+const ROOT = process.env.CHECK_RELEASE_ROOT
+  ? resolve(process.env.CHECK_RELEASE_ROOT)
+  : resolve(__dirname, '..');
 
 // Firefox bug 1811443 ("Support type: 'module'") landed in the 112 branch --
 // background.type: "module" is a later feature than MV3 itself (109).
@@ -153,9 +160,27 @@ function checkNode() {
     return;
   }
 
+  for (const docPath of ['README.md', 'docs/dev/building.md']) {
+    const doc = readFileSync(resolve(ROOT, docPath), 'utf-8');
+    const docMatch = /Node\.js\s*>=\s*(\d+(?:\.\d+){0,2})/i.exec(doc);
+    if (!docMatch) {
+      console.error(`Could not find a Node.js requirement in ${docPath}.`);
+      process.exitCode = 1;
+      return;
+    }
+    if (compareVersions(parseVersion(docMatch[1]), enginesFloor) !== 0) {
+      console.error(
+        `${docPath} requires Node.js >= ${docMatch[1]}, but package.json ` +
+          `engines.node is "${engines}". Keep both in sync.`
+      );
+      process.exitCode = 1;
+      return;
+    }
+  }
+
   console.log(
     `Node floor OK: engines.node="${engines}", CI node-version=${ciMatch[1]}, ` +
-      'BUILD_INSTRUCTIONS.md agrees.'
+      'BUILD_INSTRUCTIONS.md, README.md and docs/dev/building.md agree.'
   );
 }
 
@@ -211,6 +236,48 @@ function checkPipeline() {
   );
 }
 
+function checkPermissions() {
+  const manifest = readJson('manifests/manifest.base.json');
+  const version = manifest.version;
+  const required = [...(manifest.permissions ?? []), ...(manifest.host_permissions ?? [])];
+
+  const listings = [
+    `docs/store-listings/chrome-web-store-v${version}.txt`,
+    `docs/store-listings/firefox-addons-v${version}.txt`,
+  ];
+
+  const errors = [];
+  for (const listingPath of listings) {
+    let text;
+    try {
+      text = readFileSync(resolve(ROOT, listingPath), 'utf-8');
+    } catch {
+      errors.push(`${listingPath}: no store listing for the current manifest version (${version}).`);
+      continue;
+    }
+    for (const entry of required) {
+      // Host permissions are URL match patterns (e.g. "https://*.claude.ai/*");
+      // only the bare host needs to appear in the listing prose, and a
+      // leading wildcard subdomain is dropped too -- justification text
+      // names the domain, not the glob.
+      const needle = entry
+        .replace(/^https?:\/\//, '')
+        .replace(/\/\*$/, '')
+        .replace(/^\*\./, '');
+      if (!text.includes(needle)) {
+        errors.push(`${listingPath}: missing justification for "${entry}".`);
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    console.error('Store listing permissions do not match the manifest:\n' + errors.join('\n'));
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`Permissions OK: every manifest permission is justified in the v${version} listings.`);
+}
+
 const mode = process.argv[2];
 if (mode === 'version') {
   checkVersion();
@@ -220,7 +287,9 @@ if (mode === 'version') {
   checkNode();
 } else if (mode === 'pipeline') {
   checkPipeline();
+} else if (mode === 'permissions') {
+  checkPermissions();
 } else {
-  console.error('Usage: node build/check-release.cjs <version|manifest|node|pipeline>');
+  console.error('Usage: node build/check-release.cjs <version|manifest|node|pipeline|permissions>');
   process.exitCode = 2;
 }

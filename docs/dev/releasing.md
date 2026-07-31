@@ -24,7 +24,7 @@ Follow semantic versioning (MAJOR.MINOR.PATCH):
 ### 2. Build and Package
 
 ```bash
-pnpm package:all
+pnpm build && pnpm package:all
 ```
 
 Creates in `dist/`:

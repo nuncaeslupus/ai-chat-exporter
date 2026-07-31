@@ -54,7 +54,7 @@ structure** instead of quietly exporting less.
 - The popup was rebuilt: larger type, one fixed-height body, a format menu, and
   submenus for content, options and filenames.
 - Scraped HTML is sanitized on the re-injection paths.
-- 1054 tests, up from a suite that ignored its own coverage thresholds.
+- The suite now enforces its own coverage thresholds instead of ignoring them.
 
 ### Permissions
 

@@ -75,7 +75,7 @@ export class FormatExporter extends BaseExporter {
   ): string {
     let output = '';
 
-    if (options.includeMetadata) {
+    if (options.showMetaInfo) {
       output += `${conversation.title}\n${conversation.platform}\n\n`;
     }
 
@@ -147,7 +147,7 @@ export class FormatExporter extends BaseExporter {
 
     let output = '';
 
-    if (options.includeMetadata) {
+    if (options.showMetaInfo) {
       output += `${structured.title}\n${structured.platform}\n\n`;
     }
 
@@ -244,8 +244,7 @@ describe('FormatExporter', () => {
       // 'format' as ExportFormat until Step 5 adds it to the union.
       format: 'format' as ExportFormat,
       filename: 'test',
-      includeMetadata: true,
-      includeTimestamps: false,
+      showMetaInfo: true,
     });
 
     expect(result.success).toBe(true);
@@ -290,15 +289,28 @@ up synchronously.
 
 ### 6. Add to UI
 
+The popup has no `<select>` — formats are rows in the format menu
+(`[data-format-menu]`), read by `data-format`:
+
 ```html
-<!-- src/extension/popup/popup.html -->
-<option value="format" data-i18n="formatFormat">Format Name</option>
+<!-- src/extension/popup/popup.html, inside [data-format-menu] -->
+<button type="button" class="format-row" role="menuitemradio" aria-checked="false" data-format="format">
+  <img class="format-row-icon" src="../assets/icons/format-icon.svg" alt="" />
+  <span class="format-row-name" data-i18n="formatNameFormat">Format Name</span>
+  <svg class="format-row-check" width="12" height="9" viewBox="0 0 14 11" fill="none" aria-hidden="true">
+    <path d="M1 5.5 5 9.5 13 1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+</button>
 ```
+
+Add the same format id to `EXPORT_FORMATS`, and to `PRINT_FORMATS` if it's
+printable, in `src/extension/background/service-worker.ts` (the context menus
+read from those lists).
 
 ```json
 // _locales/en/messages.json
 {
-  "formatFormat": {
+  "formatNameFormat": {
     "message": "Format Name",
     "description": "Export format description"
   }
@@ -319,7 +331,7 @@ pnpm build:chrome       # Build extension
 
 **Inherited methods:**
 ```typescript
-protected validateOptions(options: ExportOptions): boolean
+validateOptions(options: ExportOptions): boolean
 protected createSuccessResult(content: string | Blob, filename: string): ExportResult
 protected createErrorResult(error: string): ExportResult
 protected formatTimestamp(date?: Date): string
@@ -365,8 +377,9 @@ abstract export(
 interface ExportOptions {
   format: ExportFormat;
   filename: string;
-  includeMetadata: boolean;     // Include title, platform, date
-  includeTimestamps: boolean;
+  showMetaInfo: boolean;         // Header block AND per-message timestamps —
+                                  // one switch, not two (a message time IS meta-info)
+  fontScale?: FontScale;         // Type-size step; absent means 'normal'
   pdfOptions?: PDFExportOptions;
   docxOptions?: DOCXExportOptions;
 }
