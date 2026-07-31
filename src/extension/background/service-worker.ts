@@ -86,6 +86,22 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
     return true; // Keep channel open for async response
   }
 
+  // Handle ChatGPT API data fetch (per-message timestamps — see chatgpt-api-service.ts)
+  if (isChatGPTApiFetchMessage(message)) {
+    handleChatGPTApiFetch(message.data)
+      .then((data) => {
+        sendResponse({ success: true, data });
+      })
+      .catch((error) => {
+        console.error(`[${EXTENSION_NAME}] ChatGPT API fetch failed:`, error);
+        sendResponse({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      });
+    return true; // Keep channel open for async response
+  }
+
   // Handle other message types here
   sendResponse({ success: true });
   return false;
@@ -141,6 +157,30 @@ function isClaudeOrganizationsFetchMessage(
     message !== null &&
     (message as { type?: unknown }).type === 'fetch_claude_organizations'
   );
+}
+
+interface ChatGPTApiFetchMessage {
+  type: 'fetch_chatgpt_api_data';
+  data: { conversationId: string };
+}
+
+/** Same SEC-1 posture as `UUID_RE` above: the id crosses into a credentialed
+ * chatgpt.com fetch, so it is validated here rather than trusting the
+ * message shape (chatgpt.com conversation ids are uuids, e.g. `/c/<uuid>`). */
+function isChatGPTApiFetchMessage(message: unknown): message is ChatGPTApiFetchMessage {
+  if (
+    typeof message !== 'object' ||
+    message === null ||
+    (message as { type?: unknown }).type !== 'fetch_chatgpt_api_data'
+  ) {
+    return false;
+  }
+  const data = (message as { data?: unknown }).data;
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+  const { conversationId } = data as { conversationId?: unknown };
+  return typeof conversationId === 'string' && UUID_RE.test(conversationId);
 }
 
 /**
@@ -211,6 +251,41 @@ async function handleClaudeOrganizationsFetch(): Promise<unknown> {
     return data;
   } catch (error) {
     console.error(`[${EXTENSION_NAME}] Claude organizations fetch error:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch conversation data from ChatGPT's backend conversation API. Same-origin
+ * fetch on chatgpt.com; no new host permission needed — `host_permissions`
+ * already covers `https://chatgpt.com/*` for the DOM content script.
+ */
+async function handleChatGPTApiFetch(request: { conversationId: string }): Promise<unknown> {
+  const { conversationId } = request;
+
+  const apiUrl = `https://chatgpt.com/backend-api/conversation/${conversationId}`;
+
+  console.log(`[${EXTENSION_NAME}] Fetching ChatGPT API:`, apiUrl);
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      credentials: 'include', // Include cookies for authentication
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+    }
+
+    const data: unknown = await response.json();
+    console.log(`[${EXTENSION_NAME}] ChatGPT API response received`);
+
+    return data;
+  } catch (error) {
+    console.error(`[${EXTENSION_NAME}] ChatGPT API fetch error:`, error);
     throw error;
   }
 }

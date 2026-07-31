@@ -16,6 +16,9 @@ const mockExport = vi.fn();
 const mockExtractIds = vi.fn();
 const mockFetchApiData = vi.fn();
 const mockEnrich = vi.fn();
+const mockExtractIdsChatGPT = vi.fn();
+const mockFetchApiDataChatGPT = vi.fn();
+const mockEnrichChatGPT = vi.fn();
 
 vi.mock('../../../../src/core/parsers', () => ({
   detectParser: () => ({
@@ -29,6 +32,21 @@ vi.mock('../../../../src/core/services/claude-api-service', () => ({
     extractIdsFromPage: (...args: unknown[]) => mockExtractIds(...args) as unknown,
     fetchConversationData: (...args: unknown[]) => mockFetchApiData(...args) as unknown,
     enrichConversation: (...args: unknown[]) => mockEnrich(...args) as unknown,
+  },
+}));
+
+// The default fixture (`createTestConversation`) is platform: 'chatgpt', so
+// unlike the Claude mocks above (opt-in — tests explicitly override
+// `platform: 'claude'`), this one fires for nearly every test in this file.
+// Defaulted to a transparent success (echoes the conversation back, no
+// warning) in `beforeEach` so tests that aren't about ChatGPT enrichment stay
+// unaffected by it; tests exercising the enrichment path itself override
+// these per-test the same way the Claude ones do.
+vi.mock('../../../../src/core/services/chatgpt-api-service', () => ({
+  ChatGPTApiService: {
+    extractIdsFromPage: (...args: unknown[]) => mockExtractIdsChatGPT(...args) as unknown,
+    fetchConversationData: (...args: unknown[]) => mockFetchApiDataChatGPT(...args) as unknown,
+    enrichConversation: (...args: unknown[]) => mockEnrichChatGPT(...args) as unknown,
   },
 }));
 
@@ -57,6 +75,21 @@ async function loadMessageListener() {
     sendResponse: (response: unknown) => void
   ) => boolean;
 }
+
+// The default fixture (`createTestConversation`) is platform: 'chatgpt', so
+// the ChatGPT enrichment branch fires for nearly every test in this file
+// (unlike the Claude mocks, which are opt-in — tests explicitly override
+// `platform: 'claude'`). A single file-wide `beforeEach` — rather than
+// repeating this in every describe block's own `beforeEach` below — resets
+// the ChatGPT mocks to a transparent success (echoes the conversation back,
+// no warning) so tests that aren't about ChatGPT enrichment stay unaffected
+// by it; tests exercising the enrichment path itself override these per-test
+// the same way the Claude ones do.
+beforeEach(() => {
+  mockExtractIdsChatGPT.mockReset().mockReturnValue({ conversationId: 'conv-1' });
+  mockFetchApiDataChatGPT.mockReset().mockResolvedValue({ mapping: {}, current_node: 'root' });
+  mockEnrichChatGPT.mockReset().mockImplementation((conversation: unknown) => ({ conversation }));
+});
 
 describe('content-script export failure reporting', () => {
   beforeEach(() => {
@@ -260,9 +293,71 @@ describe('content-script degraded-export reporting (lo-872a)', () => {
     expect(sendResponse).toHaveBeenCalledWith({ success: true });
   });
 
+  it('reports a warning (not a fabricated timestamp) when the ChatGPT conversation id cannot be read (lo-08d3)', async () => {
+    const pairs = [createTestQAPair(0, 'Q', 'A')];
+    const conversation = createTestConversation(pairs); // platform: 'chatgpt'
+    mockParse.mockReturnValue({ success: true, conversation });
+    mockExport.mockResolvedValue({ success: true, blob: new Blob(['# hi']) });
+    mockExtractIdsChatGPT.mockReturnValue(null);
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'export_conversation', format: 'md' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+    expect(mockFetchApiDataChatGPT).not.toHaveBeenCalled();
+    expect(sendResponse).toHaveBeenCalledWith({
+      success: true,
+      warning: expect.stringContaining("conversation id couldn't be read") as string,
+    });
+  });
+
+  it('reports a warning when the ChatGPT backend endpoint returns nothing (lo-08d3)', async () => {
+    const pairs = [createTestQAPair(0, 'Q', 'A')];
+    const conversation = createTestConversation(pairs); // platform: 'chatgpt'
+    mockParse.mockReturnValue({ success: true, conversation });
+    mockExport.mockResolvedValue({ success: true, blob: new Blob(['# hi']) });
+    mockFetchApiDataChatGPT.mockResolvedValue(null);
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'export_conversation', format: 'md' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+    expect(mockEnrichChatGPT).not.toHaveBeenCalled();
+    expect(sendResponse).toHaveBeenCalledWith({
+      success: true,
+      warning: expect.stringContaining('could not be reached') as string,
+    });
+  });
+
+  it('reports no warning when ChatGPT enrichment succeeds', async () => {
+    const pairs = [createTestQAPair(0, 'Q', 'A')];
+    const conversation = createTestConversation(pairs); // platform: 'chatgpt'
+    mockParse.mockReturnValue({ success: true, conversation });
+    mockExport.mockResolvedValue({ success: true, blob: new Blob(['# hi']) });
+    mockFetchApiDataChatGPT.mockResolvedValue({ mapping: {}, current_node: 'root' });
+    mockEnrichChatGPT.mockReturnValue({ conversation });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'export_conversation', format: 'md' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+    expect(sendResponse).toHaveBeenCalledWith({ success: true });
+  });
+
   it('propagates a warning the exporter itself returns (EXP-2: PDF unsupported-script)', async () => {
-    // Platform isn't 'claude', so no enrichment runs — this warning can only
-    // have come from the exporter's own ExportResult.warning.
+    // Platform is 'chatgpt' (the default fixture), so ChatGPT enrichment does
+    // run, but the mock echoes the conversation back with no warning (see the
+    // `beforeEach` default) — this warning can only have come from the
+    // exporter's own ExportResult.warning.
     const pairs = [createTestQAPair(0, 'Q', 'A')];
     const conversation = createTestConversation(pairs);
     mockParse.mockReturnValue({ success: true, conversation });

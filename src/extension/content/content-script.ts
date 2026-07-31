@@ -7,6 +7,10 @@ import { detectParser } from '../../core/parsers';
 import { getExporter } from '../../core/exporters';
 import { FilenameService } from '../../core/services/filename-service';
 import { ClaudeApiService, type EnrichmentResult } from '../../core/services/claude-api-service';
+import {
+  ChatGPTApiService,
+  type ChatGPTEnrichmentResult,
+} from '../../core/services/chatgpt-api-service';
 import { WARNING_KEYS, ERROR_KEYS } from '../../shared/constants';
 import { SelectionService } from '../../core/services/selection-service';
 import { StorageService } from '../../shared/storage';
@@ -171,6 +175,13 @@ class ContentScript {
         warning = enrichment.warning;
       }
 
+      // Enrich ChatGPT conversations with real per-message timestamps
+      if (conversation.platform === 'chatgpt') {
+        const enrichment = await this.enrichChatGPTConversation(conversation);
+        conversation = enrichment.conversation;
+        warning = enrichment.warning ?? warning;
+      }
+
       // Only the pairs the user left selected in the popup go into the export.
       const pairsToExport = SelectionService.getSelectedPairs(conversation.pairs);
       if (pairsToExport.length === 0) {
@@ -269,6 +280,59 @@ class ContentScript {
     }
   }
 
+  /**
+   * Enrich ChatGPT conversation with real per-message timestamps from the
+   * backend conversation endpoint (mirrors `enrichClaudeConversation`).
+   *
+   * ChatGPT's DOM exposes no timestamp at all (Claude at least renders an
+   * HH:MM label), so this is the only source; every failure path below
+   * returns the conversation unmodified rather than a guessed time (D-18).
+   *
+   * lo-08d3: unlike Claude's warnings, these are plain English strings, not
+   * locale keys — `getMessage()` (src/shared/i18n.ts) already falls back to
+   * returning its input verbatim when the key isn't found in messages.json,
+   * so the popup still shows a real (if untranslated) message. Chosen to
+   * avoid touching `_locales/*` while a concurrent task edits those files;
+   * follow-up: add `warningChatGPTIdsMissing`/`warningChatGPTFetchFailed`
+   * locale keys and switch these to `WARNING_KEYS` entries, same as Claude's.
+   */
+  private async enrichChatGPTConversation(
+    conversation: Conversation
+  ): Promise<ChatGPTEnrichmentResult> {
+    const idsMissingWarning =
+      "ChatGPT's real per-message timestamps were left out of this export because this " +
+      "page's conversation id couldn't be read. Reload the page and export again.";
+    const fetchFailedWarning =
+      "ChatGPT's real per-message timestamps were left out of this export because " +
+      'ChatGPT could not be reached. This can be temporary — try exporting again.';
+
+    try {
+      console.log('[AI Chat Exporter] Enriching ChatGPT conversation with API data...');
+
+      const ids = ChatGPTApiService.extractIdsFromPage(conversation.url);
+
+      if (!ids) {
+        console.log('[AI Chat Exporter] Could not extract IDs for ChatGPT API enrichment');
+        return { conversation, warning: idsMissingWarning };
+      }
+
+      const apiData = await ChatGPTApiService.fetchConversationData(ids);
+
+      if (!apiData) {
+        console.log('[AI Chat Exporter] ChatGPT API data not available');
+        return { conversation, warning: fetchFailedWarning };
+      }
+
+      const enriched = ChatGPTApiService.enrichConversation(conversation, apiData);
+      console.log('[AI Chat Exporter] ChatGPT conversation enriched successfully');
+
+      return enriched;
+    } catch (error) {
+      console.warn('[AI Chat Exporter] Failed to enrich ChatGPT conversation:', error);
+      return { conversation, warning: fetchFailedWarning };
+    }
+  }
+
   private downloadFile(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -319,6 +383,13 @@ class ContentScript {
         const enrichment = await this.enrichClaudeConversation(conversation);
         conversation = enrichment.conversation;
         warning = enrichment.warning;
+      }
+
+      // Enrich ChatGPT conversations with real per-message timestamps
+      if (conversation.platform === 'chatgpt') {
+        const enrichment = await this.enrichChatGPTConversation(conversation);
+        conversation = enrichment.conversation;
+        warning = enrichment.warning ?? warning;
       }
 
       // Freeze the final snapshot in a `const` so the closures below (which

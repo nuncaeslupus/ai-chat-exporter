@@ -93,3 +93,13 @@ export type {
   ClaudeApiRequest,
 } from './claude-api';
 export { isToolUseContent, isArtifactContent } from './claude-api';
+
+// ChatGPT API types
+export type {
+  ChatGPTApiMessageAuthor,
+  ChatGPTApiMessageContent,
+  ChatGPTApiMessage,
+  ChatGPTApiNode,
+  ChatGPTApiConversationResponse,
+  ChatGPTApiRequest,
+} from './chatgpt-api';

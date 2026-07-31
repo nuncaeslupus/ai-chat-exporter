@@ -12,8 +12,15 @@
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
-import type { Conversation, ExportOptions, QAPair } from '../../../../src/core/types';
+import type {
+  ChatGPTApiConversationResponse,
+  ChatGPTApiMessage,
+  Conversation,
+  ExportOptions,
+  QAPair,
+} from '../../../../src/core/types';
 import { TextExporter } from '../../../../src/core/exporters/txt-exporter';
+import { ChatGPTApiService } from '../../../../src/core/services/chatgpt-api-service';
 import { blobToText } from '../../../utils/exporter-helpers';
 
 const ORIGINAL_TZ = process.env.TZ;
@@ -74,6 +81,12 @@ describe('the export moment renders in local time, not UTC', () => {
 });
 
 describe('no fabricated per-message time is ever shown', () => {
+  // `conversationOf` builds a `platform: 'chatgpt'` conversation, so this is
+  // already the ChatGPT case: no DOM timestamp exists, and (lo-08d3) every
+  // failure path of ChatGPTApiService's backend-endpoint enrichment --
+  // endpoint unreachable, id unreadable, response fetched but empty --
+  // resolves to exactly this shape (pairs with `timestamp` left unset), never
+  // a guessed date.
   it('a conversation with no real per-message timestamps gets no date range and no day separator', async () => {
     process.env.TZ = 'UTC';
     const conversation = conversationOf([pairWithoutTimestamps(0), pairWithoutTimestamps(1)]);
@@ -84,5 +97,71 @@ describe('no fabricated per-message time is ever shown', () => {
     expect(text).not.toContain('—');
     // The only timestamp anywhere is the real export moment.
     expect(text).toContain('Exported: 2025-06-01');
+  });
+});
+
+describe('the ChatGPT backend endpoint (lo-08d3), end to end through the exporter', () => {
+  function apiMessage(
+    id: string,
+    role: 'user' | 'assistant',
+    createTime: number | null
+  ): ChatGPTApiMessage {
+    return { id, author: { role }, create_time: createTime, content: { content_type: 'text' } };
+  }
+
+  /** A straight-line mapping root -> user -> assistant, `current_node` at the leaf. */
+  function mappingOf(
+    userCreateTime: number | null,
+    assistantCreateTime: number | null
+  ): ChatGPTApiConversationResponse {
+    return {
+      mapping: {
+        n0: {
+          id: 'n0',
+          message: apiMessage('u0', 'user', userCreateTime),
+          parent: null,
+          children: ['n1'],
+        },
+        n1: {
+          id: 'n1',
+          message: apiMessage('a0', 'assistant', assistantCreateTime),
+          parent: 'n0',
+          children: [],
+        },
+      },
+      current_node: 'n1',
+    };
+  }
+
+  it('when the endpoint returns real create_time values, the export shows a real date range instead of none', async () => {
+    process.env.TZ = 'UTC';
+    const conversation = conversationOf([pairWithoutTimestamps(0)]);
+    const apiData = mappingOf(1717243200, 1717243260); // 2024-06-01T12:00:00Z / 12:01:00Z
+
+    const { conversation: enriched, warning } = ChatGPTApiService.enrichConversation(
+      conversation,
+      apiData
+    );
+    expect(warning).toBeUndefined();
+
+    const text = await renderTxt(enriched);
+
+    // The metadata label itself is a locale key unresolved in this test
+    // environment (see `getMessage`'s documented fallback), so assert on the
+    // real date/time values it wraps rather than the label text.
+    expect(text).toContain('Jun 1, 2024');
+    expect(text).toContain('USER · 12:00');
+    expect(text).toContain('CHATGPT · 12:01');
+  });
+
+  it('when the endpoint has no create_time for a turn, that turn still gets no fabricated time', async () => {
+    process.env.TZ = 'UTC';
+    const conversation = conversationOf([pairWithoutTimestamps(0)]);
+    const apiData = mappingOf(null, 1717243260);
+
+    const { conversation: enriched } = ChatGPTApiService.enrichConversation(conversation, apiData);
+
+    expect(enriched.pairs[0]?.question.timestamp).toBeUndefined();
+    expect(enriched.pairs[0]?.answer.timestamp).toEqual(new Date(1717243260 * 1000));
   });
 });
