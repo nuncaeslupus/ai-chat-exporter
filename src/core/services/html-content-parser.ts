@@ -17,6 +17,9 @@ import type {
 } from '../types/structured-content';
 import { flattenElementText, boundaryLevelForTag } from '../utils/dom-text';
 
+/** Block-level tags that force a wrapper to be recursed into rather than flattened to inline text. */
+const NESTED_BLOCK_SELECTOR = 'table, pre, h1, h2, h3, h4, h5, h6, ul, ol, blockquote, hr, img';
+
 /**
  * Parse HTML content into structured blocks
  */
@@ -159,9 +162,7 @@ export class HtmlContentParser {
           // If so, recursively parse its children rather than treating as inline
           // 'img' belongs here: parseInlineContent has no image case, so an image
           // left to the inline path is read as textContent ('') and silently dropped.
-          const hasNestedBlocks = el.querySelector(
-            'table, pre, h1, h2, h3, h4, h5, h6, ul, ol, blockquote, hr, img'
-          );
+          const hasNestedBlocks = el.querySelector(NESTED_BLOCK_SELECTOR);
           if (hasNestedBlocks) {
             // Recursively parse children as blocks
             const nestedBlocks = this.parseElement(el);
@@ -176,7 +177,15 @@ export class HtmlContentParser {
           break;
         }
         default: {
-          // For other elements, try to extract inline content
+          // Same nested-block check as 'div' above. Platforms wrap content in
+          // custom elements (Gemini nests every table under
+          // `response-element > table-block`), and flattening those to inline
+          // text silently destroys the table. Unknown tag with block children
+          // => recurse; only a genuinely inline-only subtree is flattened.
+          if (el.querySelector(NESTED_BLOCK_SELECTOR)) {
+            blocks.push(...this.parseElement(el));
+            break;
+          }
           const inline = this.parseInlineContent(el);
           if (inline.length > 0) {
             blocks.push(this.createParagraph(inline));
