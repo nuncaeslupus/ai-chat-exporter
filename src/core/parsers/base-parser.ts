@@ -21,6 +21,7 @@ import {
   fingerprint,
   type DriftReport,
 } from '../drift';
+import { flattenElementText } from '../utils/dom-text';
 
 /**
  * Abstract base class for platform-specific parsers
@@ -185,7 +186,10 @@ export abstract class BaseParser implements IParser {
     // Remove UI elements that shouldn't be in the export
     this.cleanupElement(clone);
 
-    const content = clone.textContent?.trim() ?? '';
+    // D-35: plain textContent joins every descendant with no separator, so a
+    // real table (or any other block structure) collapses into one run --
+    // see flattenElementText for the boundary rules.
+    const content = flattenElementText(clone).trim();
 
     if (preserveHtml) {
       return { content, htmlContent: clone.innerHTML };
