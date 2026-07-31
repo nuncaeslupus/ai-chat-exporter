@@ -21,6 +21,7 @@ import type {
 } from '../types';
 import { BaseExporter } from './base-exporter';
 import { isProseArtifact } from './artifact-content';
+import { safeUrl } from '../utils/sanitize-html';
 import {
   highlightCode,
   loadHighlighter,
@@ -312,15 +313,19 @@ export class HtmlExporter extends BaseExporter {
                                     ? `
                                 <ul class="search-results">
                                     ${search.results
-                                      .map(
-                                        (result) => `
+                                      .map((result) => {
+                                        const safeHref = this.safeAttr(result.url);
+                                        const titleLink = safeHref
+                                          ? `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="result-title">${this.escapeHtml(result.title)}</a>`
+                                          : `<span class="result-title">${this.escapeHtml(result.title)}</span>`;
+                                        return `
                                     <li class="search-result">
                                         <div class="result-content">
-                                            <a href="${this.escapeHtml(result.url)}" target="_blank" rel="noopener noreferrer" class="result-title">${this.escapeHtml(result.title)}</a>
+                                            ${titleLink}
                                             ${result.domain ? `<span class="result-domain">${this.escapeHtml(result.domain)}</span>` : ''}
                                         </div>
-                                    </li>`
-                                      )
+                                    </li>`;
+                                      })
                                       .join('\n')}
                                 </ul>`
                                     : ''
@@ -361,27 +366,33 @@ export class HtmlExporter extends BaseExporter {
             return '<hr>';
 
           case 'image': {
+            // SEC-1: block.url is a scraped `img.src`, not sanitizer output --
+            // this is the only scheme check it gets before becoming a live <img>.
+            const safeSrc = this.safeAttr(block.url, { allowImageData: true });
+            if (!safeSrc) return '';
             const alt = this.escapeHtml(block.alt || 'image');
-            const imgUrl = this.escapeHtml(block.url);
             const imgTitle = block.title ? ` title="${this.escapeHtml(block.title)}"` : '';
             const imgWidth = block.width ? ` width="${block.width}"` : '';
             const imgHeight = block.height ? ` height="${block.height}"` : '';
-            const img = `<img src="${imgUrl}" alt="${alt}"${imgTitle}${imgWidth}${imgHeight}>`;
+            const img = `<img src="${safeSrc}" alt="${alt}"${imgTitle}${imgWidth}${imgHeight}>`;
             // A linked thumbnail/citation: HTML is the only format that can put
             // the image back inside its anchor, so this is where linkUrl is read.
-            if (!block.linkUrl) return img;
-            const href = this.escapeHtml(block.linkUrl);
-            return `<a href="${href}" target="_blank" rel="noopener noreferrer">${img}</a>`;
+            const safeHref = block.linkUrl ? this.safeAttr(block.linkUrl) : null;
+            if (!safeHref) return img;
+            return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${img}</a>`;
           }
 
           // HTML is the only format that can actually play the clip. The inner
           // link doubles as the fallback for a browser that can't.
           case 'media': {
-            const mediaUrl = this.escapeHtml(block.url);
             const mediaLabel = this.escapeHtml(this.mediaLabel(block));
+            // SEC-1: block.url is a scraped `<audio|video>.src`, not sanitizer
+            // output -- this is the only scheme check it gets.
+            const safeSrc = this.safeAttr(block.url);
+            if (!safeSrc) return `<p>${mediaLabel}</p>`;
             const mediaType = block.mimeType ? ` type="${this.escapeHtml(block.mimeType)}"` : '';
             const tag = block.kind === 'video' ? 'video' : 'audio';
-            return `<${tag} controls src="${mediaUrl}"${mediaType}><a href="${mediaUrl}">${mediaLabel}</a></${tag}>`;
+            return `<${tag} controls src="${safeSrc}"${mediaType}><a href="${safeSrc}">${mediaLabel}</a></${tag}>`;
           }
 
           case 'table':
@@ -414,8 +425,17 @@ export class HtmlExporter extends BaseExporter {
             return `<code class="inline-code">${text}</code>`;
 
           case 'link': {
-            const linkUrl = this.escapeHtml(item.url || '#');
-            return `<a href="${linkUrl}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+            // SEC-1: item.url is a scraped `a.href`, not sanitizer output --
+            // no url at all keeps the pre-existing `#` placeholder, but a
+            // present-and-unsafe scheme (javascript:, non-image data:, …)
+            // falls back to plain text instead of a live anchor.
+            if (!item.url) {
+              return `<a href="#" target="_blank" rel="noopener noreferrer">${text}</a>`;
+            }
+            const safeHref = this.safeAttr(item.url);
+            return safeHref
+              ? `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${text}</a>`
+              : text;
           }
 
           case 'strikethrough':
@@ -488,6 +508,19 @@ export class HtmlExporter extends BaseExporter {
       "'": '&#039;',
     };
     return text.replace(/[&<>"']/g, (char) => map[char] || char);
+  }
+
+  /**
+   * Validate-then-escape a URL for an href/src sink. These blocks come from
+   * scraped DOM (html-content-parser.ts's `.href`/`.src` reads), not from
+   * marked/sanitizeHtml, so this exporter is the only line of defense against
+   * a `javascript:`/non-image `data:` URL reaching a live `<a>`/`<img>`/
+   * media element in the exported file (SEC-1). Returns null when the scheme
+   * is not allowlisted -- callers fall back to plain text instead of a link.
+   */
+  private safeAttr(url: string | undefined, options?: { allowImageData?: boolean }): string | null {
+    const safe = safeUrl(url, options);
+    return safe === null ? null : this.escapeHtml(safe);
   }
 
   private generateCSS(): string {

@@ -93,6 +93,112 @@ describe('HtmlExporter security', () => {
   });
 });
 
+// SEC-1 (medium): the structured-block path (metadata.images/media, and
+// htmlContent anchors parsed by html-content-parser.ts) writes scraped URLs
+// straight into href/src with only escapeHtml -- no scheme check at all,
+// unlike the prose-artifact path which goes through sanitizeHtml. Each case
+// here must fail before routing block.url/item.url through safeUrl.
+describe('HtmlExporter structured-block URL validation (SEC-1)', () => {
+  function conversationWithAnswer(overrides: Record<string, unknown>): Conversation {
+    return {
+      id: 'test-conversation',
+      title: 'Test',
+      platform: 'chatgpt',
+      model: 'gpt-4',
+      url: 'https://chatgpt.com/c/test',
+      createdAt: new Date('2025-01-01T12:00:00Z'),
+      pairs: [
+        {
+          id: 'pair-0',
+          index: 0,
+          selected: true,
+          question: {
+            id: 'q-0',
+            role: 'user',
+            content: 'question',
+            timestamp: new Date('2025-01-01T12:00:00Z'),
+          },
+          answer: {
+            id: 'a-0',
+            role: 'assistant',
+            content: 'answer',
+            timestamp: new Date('2025-01-01T12:00:00Z'),
+            ...overrides,
+          },
+        },
+      ],
+    } as unknown as Conversation;
+  }
+
+  async function renderHtml(overrides: Record<string, unknown>): Promise<string> {
+    const conversation = conversationWithAnswer(overrides);
+    const exporter = new HtmlExporter();
+    const result = await exporter.export(conversation, conversation.pairs, {
+      format: 'html',
+      filename: 'test',
+      showMetaInfo: false,
+    } as unknown as ExportOptions);
+    expect(result.success).toBe(true);
+    return blobToText(result.blob!);
+  }
+
+  it('does not carry a javascript: URL from metadata.images into a live <img src>', async () => {
+    const html = await renderHtml({
+      metadata: { images: [{ src: 'javascript:alert(1)', alt: 'evil' }] },
+    });
+    expect(html).not.toContain('javascript:alert');
+  });
+
+  it('still renders a real http(s) image from metadata.images', async () => {
+    const html = await renderHtml({
+      metadata: { images: [{ src: 'https://example.com/pic.png', alt: 'a real image' }] },
+    });
+    expect(html).toContain('<img src="https://example.com/pic.png" alt="a real image">');
+  });
+
+  it('does not carry a javascript: URL from metadata.media into a live <audio src>', async () => {
+    const html = await renderHtml({
+      metadata: { media: [{ kind: 'audio', src: 'javascript:alert(1)' }] },
+    });
+    expect(html).not.toContain('javascript:alert');
+    expect(html).not.toContain('<audio controls src="javascript');
+  });
+
+  it('does not carry a javascript: URL from a scraped <a href> into a live anchor', async () => {
+    const html = await renderHtml({
+      htmlContent: '<p><a href="javascript:alert(1)">click me</a></p>',
+    });
+    expect(html).not.toContain('javascript:alert');
+    expect(html).not.toContain('<a href="javascript');
+    // The link text still reaches the reader, just not as a live link.
+    expect(html).toContain('click me');
+  });
+
+  it('still renders a real https link from scraped content', async () => {
+    const html = await renderHtml({
+      htmlContent: '<p><a href="https://example.com/report">report</a></p>',
+    });
+    expect(html).toContain(
+      '<a href="https://example.com/report" target="_blank" rel="noopener noreferrer">report</a>'
+    );
+  });
+
+  it('does not carry a javascript: URL from a web-search result into a live anchor', async () => {
+    const html = await renderHtml({
+      metadata: {
+        webSearches: [
+          {
+            query: 'q',
+            results: [{ title: 'evil result', url: 'javascript:alert(1)', domain: 'evil.example' }],
+          },
+        ],
+      },
+    });
+    expect(html).not.toContain('javascript:alert');
+    expect(html).toContain('evil result'); // title still shown, just not as a link
+  });
+});
+
 describe('HtmlExporter structural contract', () => {
   function buildStructuredConversation(): Conversation {
     return {

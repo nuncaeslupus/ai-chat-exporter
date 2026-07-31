@@ -95,11 +95,36 @@ interface ClaudeApiFetchMessage {
   data: { organizationId: string; conversationId: string };
 }
 
+/**
+ * SEC-1 (low): `organizationId` can come straight off `window.location.search`
+ * (claude-api-service.ts's `orgIdParam`) with no UUID check, unlike every
+ * other source. This is the trust boundary the value crosses into a
+ * credentialed `claude.ai` fetch (`handleClaudeApiFetch` below), so both ids
+ * are validated here rather than trusting the message shape.
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function isClaudeApiFetchMessage(message: unknown): message is ClaudeApiFetchMessage {
+  if (
+    typeof message !== 'object' ||
+    message === null ||
+    (message as { type?: unknown }).type !== 'fetch_claude_api_data'
+  ) {
+    return false;
+  }
+  const data = (message as { data?: unknown }).data;
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+  const { organizationId, conversationId } = data as {
+    organizationId?: unknown;
+    conversationId?: unknown;
+  };
   return (
-    typeof message === 'object' &&
-    message !== null &&
-    (message as { type?: unknown }).type === 'fetch_claude_api_data'
+    typeof organizationId === 'string' &&
+    UUID_RE.test(organizationId) &&
+    typeof conversationId === 'string' &&
+    UUID_RE.test(conversationId)
   );
 }
 
