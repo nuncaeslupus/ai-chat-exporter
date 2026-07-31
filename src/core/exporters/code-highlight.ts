@@ -1,5 +1,5 @@
 /**
- * Five-token syntax highlighting, shared by pdf, docx and html (R-8).
+ * Five-token syntax highlighting, shared by docx and html (R-8).
  *
  * `highlight.js` is already a dependency (it was previously loaded only on the
  * print path). It emits ~20 scope classes; the design asks for **five**, dark
@@ -7,7 +7,9 @@
  * stays distinguishable printed in greyscale. This module is that mapping.
  *
  * md and txt deliberately do not use it: the fence's language tag already tells
- * a Markdown renderer how to paint the block, and plain text has no colour.
+ * a Markdown renderer how to paint the block, and plain text has no colour. pdf
+ * also does not use it: its code blocks render monochrome by choice (see
+ * `escapeHtmlText` below, and `renderCodeBlock` in pdf-exporter.ts).
  *
  * Loading is dynamic and happens once per export, so hljs stays out of the eager
  * content-script bundle (see `src/core/exporters/index.ts` for why that matters).
@@ -221,8 +223,8 @@ export function highlightCode(
 }
 
 /**
- * Split a token list at newlines, so a consumer that draws line by line (pdf) or
- * needs an explicit break per line (docx) can walk lines without re-tokenizing.
+ * Split a token list at newlines, so a consumer that needs an explicit break
+ * per line (docx) can walk lines without re-tokenizing.
  *
  * A token spanning a newline becomes one token per line, each keeping its class.
  * Empty lines survive as empty arrays, so line numbering stays faithful to the

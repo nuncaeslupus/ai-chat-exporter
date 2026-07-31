@@ -235,8 +235,8 @@ export class HtmlExporter extends BaseExporter {
     return separator ? `<div class="day-separator">${this.escapeHtml(separator)}</div>` : '';
   }
 
-  private renderTimestampSpan(date: Date | undefined, includeTimestamps: boolean): string {
-    const suffix = this.formatTimestampSuffix(date, includeTimestamps).trim();
+  private renderTimestampSpan(date: Date | undefined, showMetaInfo: boolean): string {
+    const suffix = this.formatTimestampSuffix(date, showMetaInfo).trim();
     return suffix ? `<span class="message-timestamp">${this.escapeHtml(suffix)}</span>` : '';
   }
 

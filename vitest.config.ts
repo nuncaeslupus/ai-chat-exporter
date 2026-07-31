@@ -1,5 +1,4 @@
 import { defineConfig } from 'vitest/config';
-import { resolve } from 'path';
 
 export default defineConfig({
   test: {
@@ -52,15 +51,6 @@ export default defineConfig({
         functions: 89,
         lines: 83,
       },
-    },
-  },
-  resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src'),
-      '@core': resolve(__dirname, 'src/core'),
-      '@ui': resolve(__dirname, 'src/ui'),
-      '@extension': resolve(__dirname, 'src/extension'),
-      '@shared': resolve(__dirname, 'src/shared'),
     },
   },
 });
