@@ -474,7 +474,14 @@ describe('ClaudeApiService', () => {
       const chatMessages: ClaudeApiChatMessage[] = [];
       for (let i = 0; i < 11; i++) {
         chatMessages.push(
-          makeApiMessage(`u${String(i)}`, i * 2, 'human', [], '2026-01-01T00:00:00Z', `Question ${String(i)}`)
+          makeApiMessage(
+            `u${String(i)}`,
+            i * 2,
+            'human',
+            [],
+            '2026-01-01T00:00:00Z',
+            `Question ${String(i)}`
+          )
         );
         chatMessages.push(
           makeApiMessage(
