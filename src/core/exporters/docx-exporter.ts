@@ -68,6 +68,42 @@ import {
 } from './style-tokens';
 import type { HeadingLevelMap } from './style-tokens';
 
+/**
+ * Codepoints illegal in XML 1.0 (word/document.xml is plain XML). The `docx`
+ * library only escapes `& < >` — it does not strip these — so a raw control
+ * character from scraped chat text (e.g. an ANSI escape U+001B in pasted
+ * terminal output) makes the produced file malformed and unopenable in Word,
+ * even though `export()` reports success.
+ *
+ * U+0009 (tab), U+000A (LF) and U+000D (CR) are explicitly legal in XML 1.0
+ * and are excluded here — stripping them would destroy code block formatting.
+ */
+// eslint-disable-next-line no-control-regex -- intentionally matching control chars
+const XML_ILLEGAL_CHARS = /[\x00-\x08\x0B\x0C\x0E-\x1F￾￿]/g;
+
+/**
+ * Replace (not strip) XML-1.0-illegal codepoints with U+FFFD.
+ *
+ * Substitution over stripping: none of these codepoints carry legitimate
+ * meaning in prose or code (real whitespace is already excluded above), so
+ * there is no content to preserve — but silently deleting bytes from a user's
+ * pasted text is exactly the kind of silent loss this bug already causes one
+ * layer up. Leaving a visible replacement marker makes the loss visible
+ * instead, at the cost of nothing a reader would have wanted to keep.
+ */
+function xmlSafe(text: string): string {
+  return text.replace(XML_ILLEGAL_CHARS, '�');
+}
+
+/** `new TextRun`, but with any `text` field sanitized for XML validity first. */
+function safeTextRun(options: IRunOptions): TextRun {
+  const opts = options as Mutable<IRunOptions>;
+  if (typeof opts.text === 'string') {
+    opts.text = xmlSafe(opts.text);
+  }
+  return new TextRun(opts);
+}
+
 /** Document heading level 1-6 -> docx HeadingLevel, index 0 = level 1. */
 const DOCX_HEADING_BY_LEVEL: (typeof HeadingLevel)[keyof typeof HeadingLevel][] = [
   HeadingLevel.HEADING_1,
@@ -170,7 +206,7 @@ export class DocxExporter extends BaseExporter {
     sections.push(
       new Paragraph({
         children: [
-          new TextRun({
+          safeTextRun({
             text: conversation.title,
             bold: true,
             size: ptToHalfPt(this.docxSizes.title),
@@ -186,7 +222,7 @@ export class DocxExporter extends BaseExporter {
       sections.push(
         new Paragraph({
           children: [
-            new TextRun({
+            safeTextRun({
               text: `Platform: ${this.formatPlatformName(conversation.platform)}`,
               size: ptToHalfPt(this.sizes.meta),
               color: hexToDocxColor(COLOR.textMuted),
@@ -200,7 +236,7 @@ export class DocxExporter extends BaseExporter {
         sections.push(
           new Paragraph({
             children: [
-              new TextRun({
+              safeTextRun({
                 text: `Model: ${conversation.model}`,
                 size: ptToHalfPt(this.sizes.meta),
                 color: hexToDocxColor(COLOR.textMuted),
@@ -216,7 +252,7 @@ export class DocxExporter extends BaseExporter {
         sections.push(
           new Paragraph({
             children: [
-              new TextRun({
+              safeTextRun({
                 text: `${this.getMetadataLabel('dateRange')}: ${dateRange}`,
                 size: ptToHalfPt(this.sizes.meta),
                 color: hexToDocxColor(COLOR.textMuted),
@@ -231,7 +267,7 @@ export class DocxExporter extends BaseExporter {
         sections.push(
           new Paragraph({
             children: [
-              new TextRun({
+              safeTextRun({
                 text: `Exported: ${this.formatTimestamp(conversation.createdAt)}`,
                 size: ptToHalfPt(this.sizes.meta),
                 color: hexToDocxColor(COLOR.textMuted),
@@ -245,7 +281,7 @@ export class DocxExporter extends BaseExporter {
       sections.push(
         new Paragraph({
           children: [
-            new TextRun({
+            safeTextRun({
               text: `URL: ${conversation.url}`,
               size: ptToHalfPt(this.sizes.meta),
               color: hexToDocxColor(COLOR.textMuted),
@@ -343,7 +379,7 @@ export class DocxExporter extends BaseExporter {
         new Paragraph({
           alignment: AlignmentType.RIGHT,
           children: [
-            new TextRun({
+            safeTextRun({
               children: [PageNumber.CURRENT],
               size: ptToHalfPt(this.sizes.meta),
               color: hexToDocxColor(COLOR.textFaint),
@@ -402,7 +438,7 @@ export class DocxExporter extends BaseExporter {
    */
   private renderRoleLabel(label: string, timestampSuffix: string, labelColor: string): Paragraph {
     const children: TextRun[] = [
-      new TextRun({
+      safeTextRun({
         text: label,
         bold: true,
         size: ptToHalfPt(this.sizes.roleLabel),
@@ -411,7 +447,7 @@ export class DocxExporter extends BaseExporter {
     ];
     if (timestampSuffix) {
       children.push(
-        new TextRun({
+        safeTextRun({
           text: timestampSuffix,
           size: ptToHalfPt(this.sizes.meta),
           color: hexToDocxColor(COLOR.textMuted),
@@ -432,7 +468,7 @@ export class DocxExporter extends BaseExporter {
   private renderDaySeparator(separator: string): Paragraph {
     return new Paragraph({
       children: [
-        new TextRun({
+        safeTextRun({
           text: separator,
           size: ptToHalfPt(this.sizes.meta),
           color: hexToDocxColor(COLOR.textMuted),
@@ -507,7 +543,7 @@ export class DocxExporter extends BaseExporter {
           paragraphs.push(
             new Paragraph({
               children: [
-                new TextRun({
+                safeTextRun({
                   text: artifact.title,
                   bold: true,
                   size: ptToHalfPt(this.docxSizes.artifactTitle),
@@ -522,7 +558,7 @@ export class DocxExporter extends BaseExporter {
             paragraphs.push(
               new Paragraph({
                 children: [
-                  new TextRun({
+                  safeTextRun({
                     text: `Type: ${artifact.typeLabel}`,
                     italics: true,
                     size: ptToHalfPt(this.sizes.meta),
@@ -550,7 +586,7 @@ export class DocxExporter extends BaseExporter {
               paragraphs.push(
                 new Paragraph({
                   children: [
-                    new TextRun({
+                    safeTextRun({
                       text: line,
                       font: FONT_FAMILY.code.docx,
                       size: ptToHalfPt(this.sizes.code),
@@ -583,8 +619,8 @@ export class DocxExporter extends BaseExporter {
           paragraphs.push(
             new Paragraph({
               children: [
-                new TextRun({ text: result.title, size: ptToHalfPt(this.sizes.body) }),
-                new TextRun({
+                safeTextRun({ text: result.title, size: ptToHalfPt(this.sizes.body) }),
+                safeTextRun({
                   text: ` — ${result.url}`,
                   size: ptToHalfPt(this.sizes.meta),
                   italics: true,
@@ -661,7 +697,7 @@ export class DocxExporter extends BaseExporter {
           elements.push(
             new Paragraph({
               children: [
-                new TextRun({
+                safeTextRun({
                   text: `[Image: ${block.alt || 'image'}] ${block.url}`,
                   italics: true,
                 }),
@@ -676,7 +712,7 @@ export class DocxExporter extends BaseExporter {
           elements.push(
             new Paragraph({
               children: [
-                new TextRun({
+                safeTextRun({
                   text: `[${this.mediaLabel(block)}] ${block.url}`,
                   italics: true,
                 }),
@@ -749,7 +785,7 @@ export class DocxExporter extends BaseExporter {
       paragraphs.push(
         new Paragraph({
           children: [
-            new TextRun({
+            safeTextRun({
               text: language.toUpperCase(),
               size: ptToHalfPt(this.sizes.codeLabel),
               bold: true,
@@ -774,7 +810,7 @@ export class DocxExporter extends BaseExporter {
       const lineTokens: CodeToken[] = tokens.length > 0 ? tokens : [{ text: '', cls: null }];
       lineTokens.forEach((token, tokenIndex) => {
         runs.push(
-          new TextRun({
+          safeTextRun({
             text: token.text,
             font: FONT_FAMILY.code.docx,
             size: ptToHalfPt(this.sizes.code),
@@ -807,7 +843,7 @@ export class DocxExporter extends BaseExporter {
 
       if (textRuns.length > 0) {
         const prefix = block.ordered ? `${i + 1}.` : '•';
-        const bulletRun = new TextRun({ text: `${prefix} ` });
+        const bulletRun = safeTextRun({ text: `${prefix} ` });
 
         paragraphs.push(
           new Paragraph({
@@ -875,7 +911,7 @@ export class DocxExporter extends BaseExporter {
    */
   private renderHorizontalRule(): Paragraph {
     return new Paragraph({
-      children: [new TextRun({ text: '' })],
+      children: [safeTextRun({ text: '' })],
       spacing: { before: 100, after: 100 },
       border: {
         bottom: { style: BorderStyle.SINGLE, size: 6, color: hexToDocxColor(COLOR.border) },
@@ -987,7 +1023,7 @@ export class DocxExporter extends BaseExporter {
         Object.assign(options, overrides);
       }
 
-      return new TextRun(options);
+      return safeTextRun(options);
     });
   }
 

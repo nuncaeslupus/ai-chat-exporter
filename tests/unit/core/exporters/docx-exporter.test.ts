@@ -431,3 +431,129 @@ describe('R-3: DOCX renders the same in anyone Word', () => {
     expect(styles).toMatch(/w:styleId="Heading1"/);
   });
 });
+
+describe('EXP-1: XML-1.0-illegal control characters are sanitized', () => {
+  /**
+   * Proves well-formedness, not mere character absence: a real XML parser
+   * (jsdom's DOMParser, available under the `environment: 'jsdom'` test
+   * setup) reports a `parsererror` node when it can't parse the document —
+   * exactly the failure Word/LibreOffice hit on an unescaped control char.
+   */
+  function assertWellFormedXml(xml: string): void {
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    const errors = doc.getElementsByTagName('parsererror');
+    expect(errors.length, `document.xml is not well-formed XML:\n${xml.slice(0, 500)}`).toBe(0);
+  }
+
+  function pairWithPlainContent(content: string): QAPair {
+    return {
+      id: 'p0',
+      index: 0,
+      selected: true,
+      question: { id: 'q0', role: 'user', content: 'asked' },
+      answer: { id: 'a0', role: 'assistant', content },
+    } as unknown as QAPair;
+  }
+
+  async function exportPair(pair: QAPair, title = 'Title'): Promise<string> {
+    const conversation: Conversation = {
+      id: 'c1',
+      title,
+      platform: 'chatgpt',
+      url: 'https://chatgpt.com/c/test',
+      createdAt: new Date('2026-07-30T12:00:00Z'),
+      pairs: [pair],
+    } as unknown as Conversation;
+    const result = await new DocxExporter().export(conversation, [pair], {
+      format: 'docx',
+      filename: 'test',
+      showMetaInfo: false,
+    });
+    expect(result.success).toBe(true);
+    return extractDocxEntry(result.blob!, 'word/document.xml');
+  }
+
+  // U+0000 never reaches `renderInline` through htmlContent: the HTML parser
+  // (jsdom, same one `HtmlContentParser` uses) already drops raw NUL bytes
+  // during tokenization. Plain `content` (no htmlContent) skips HTML parsing
+  // entirely and lands in `renderInline` untouched — the path that exercises
+  // the fix at `docx-exporter.ts`'s `renderInline` (the site the review named).
+  it('produces well-formed XML for a message containing U+0000 (NUL)', async () => {
+    const xml = await exportPair(pairWithPlainContent('before\x00after'));
+    assertWellFormedXml(xml);
+    expect(docxRunText(xml)).not.toContain('\x00');
+    expect(docxRunText(xml)).toContain('before�after');
+  });
+
+  it('produces well-formed XML for a message containing U+001B (ESC)', async () => {
+    // The reproduction from the review: ANSI-coloured terminal output pasted
+    // into a chat, exported as plain (non-code) text.
+    const xml = await exportPair(pairWithPlainContent('\x1b[31mERROR\x1b[0m exit 1'));
+    assertWellFormedXml(xml);
+    expect(docxRunText(xml)).not.toContain('\x1b');
+  });
+
+  it('produces well-formed XML for a message containing U+000C (form feed)', async () => {
+    const xml = await exportPair(pairWithPlainContent('page one\x0cpage two'));
+    assertWellFormedXml(xml);
+    expect(docxRunText(xml)).not.toContain('\x0c');
+    expect(docxRunText(xml)).toContain('page one�page two');
+  });
+
+  it('produces well-formed XML for a conversation title containing U+FFFE', async () => {
+    const xml = await exportPair(pairWithPlainContent('plain'), 'Chat ￾ Title');
+    assertWellFormedXml(xml);
+    expect(docxRunText(xml)).not.toContain('￾');
+    expect(docxRunText(xml)).toContain('Chat � Title');
+  });
+
+  it('sanitizes control characters inside a code block while keeping it well-formed', async () => {
+    // ESC and form feed survive jsdom's HTML tokenization (unlike NUL), so a
+    // code block is a real end-to-end path for the review's reproduction:
+    // pasting ANSI-coloured terminal output as a fenced code block.
+    const code = 'line one\x1b[31mERROR\x1b[0m\nline\x0ctwo';
+    const pair: QAPair = {
+      id: 'p0',
+      index: 0,
+      selected: true,
+      question: { id: 'q0', role: 'user', content: 'asked' },
+      answer: {
+        id: 'a0',
+        role: 'assistant',
+        content: 'answered',
+        htmlContent: `<pre><code class="language-bash">${code}</code></pre>`,
+      },
+    } as unknown as QAPair;
+
+    const xml = await exportPair(pair);
+    assertWellFormedXml(xml);
+    const text = docxRunText(xml);
+    expect(text).not.toContain('\x1b');
+    expect(text).not.toContain('\x0c');
+    expect(text).toContain('�');
+  });
+
+  it('keeps tab and newline intact inside a code block (both are legal XML 1.0 chars)', async () => {
+    const code = 'function foo() {\n\treturn 1;\n}';
+    const pair: QAPair = {
+      id: 'p0',
+      index: 0,
+      selected: true,
+      question: { id: 'q0', role: 'user', content: 'asked' },
+      answer: {
+        id: 'a0',
+        role: 'assistant',
+        content: 'answered',
+        htmlContent: `<pre><code class="language-js">${code}</code></pre>`,
+      },
+    } as unknown as QAPair;
+
+    const xml = await exportPair(pair);
+    assertWellFormedXml(xml);
+    // Newlines become explicit <w:br/> breaks rather than literal '\n' runs
+    // (R-8); the tab is real content within a line and must survive as a
+    // literal tab character in the run text.
+    expect(xml).toContain('<w:br/>');
+    expect(docxRunText(xml)).toContain('\treturn 1;');
+  });
+});
