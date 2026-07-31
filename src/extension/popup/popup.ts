@@ -320,6 +320,8 @@ class PopupController {
   private uiState: UiState = 'detecting';
   private routerBound = false;
   private pageReady = false;
+  /** Whether `selectedFormat` is one of the formats Print supports at all. */
+  private printableFormat = false;
   /**
    * Exactly what storage holds, `undefined` included: an install that never
    * opened this screen keeps rendering the legacy template string, so its
@@ -571,7 +573,19 @@ class PopupController {
       input.addEventListener('change', () => {
         const theme = input.value as ThemePreference;
         this.applyTheme(theme);
-        void StorageService.setThemePreference(theme);
+        void this.trySavePreference(
+          () => StorageService.setThemePreference(theme),
+          async () => {
+            // Resnap the applied theme and the checked radio to what's
+            // actually in storage -- the optimistic apply above must not be
+            // left standing for a write that never landed.
+            const stored = await StorageService.getThemePreference();
+            this.applyTheme(stored);
+            for (const themeInput of this.themeInputs()) {
+              themeInput.checked = themeInput.value === stored;
+            }
+          }
+        );
       });
     }
 
@@ -607,9 +621,37 @@ class PopupController {
   private async persistPreference(
     patch: Parameters<typeof StorageService.setUserPreferences>[0]
   ): Promise<void> {
-    await StorageService.setUserPreferences(patch);
+    const saved = await this.trySavePreference(
+      () => StorageService.setUserPreferences(patch),
+      () => this.loadPreferences()
+    );
+    if (!saved) return;
     await this.updateOptionsDot();
     await this.updateFilenamePreview();
+  }
+
+  /**
+   * Write a preference and report `false` on failure instead of letting the
+   * caller assume it landed. `StorageService`'s setters rethrow on failure
+   * (signed out of sync, an enterprise policy, or a quota limit are all real
+   * ways this can happen), but the checkbox/radio has already flipped in the
+   * DOM by the time a `change` handler runs this — without `resnap`, the UI
+   * keeps showing a value that was never actually saved. `resnap` re-reads
+   * storage and puts the control back to what's really there.
+   */
+  private async trySavePreference(
+    write: () => Promise<void>,
+    resnap: () => Promise<void>
+  ): Promise<boolean> {
+    try {
+      await write();
+      return true;
+    } catch (error) {
+      console.error('Failed to save preference:', error);
+      this.updateStatus('error', getMessage('statusPreferenceSaveFailed'));
+      await resnap();
+      return false;
+    }
   }
 
   private handleFormatChange(format: ExportFormat): void {
@@ -620,20 +662,32 @@ class PopupController {
     // The preview carries the extension, so it moves with the format.
     void this.updateFilenamePreview();
 
-    // Disable print button for formats that can't be printed nicely
+    const printableFormats: ExportFormat[] = ['html', 'pdf', 'txt', 'md', 'json'];
+    this.printableFormat = printableFormats.includes(format);
+
     const printButton = document.getElementById('print-button') as HTMLButtonElement;
     if (printButton) {
-      // Only allow print for HTML, PDF, TXT, MD, and JSON
-      const printableFormats: ExportFormat[] = ['html', 'pdf', 'txt', 'md', 'json'];
-      const canPrint = printableFormats.includes(format);
       const formatName = getFormatName(format);
-      printButton.disabled = !canPrint;
+      // Recomputed inline rather than via a call to `syncExportEnabled()`
+      // here: with the single-controller-instance test harness in
+      // popup-router.test.ts (one `PopupController` handles every
+      // synthetic DOMContentLoaded dispatch across the whole file), calling
+      // `syncExportEnabled()` from this method reintroduces a flaky
+      // cross-test interaction that drops the export-button click listener
+      // on a later test. `syncExportEnabled()` still covers the
+      // selection/page-ready cases (see its own call sites).
+      printButton.disabled = !this.pageReady || this.nothingSelected() || !this.printableFormat;
       printButton.title = getMessageWithValues(
-        canPrint ? 'printButtonFormat' : 'printUnavailableFormat',
+        this.printableFormat ? 'printButtonFormat' : 'printUnavailableFormat',
         formatName
       );
       printButton.setAttribute('aria-label', printButton.title);
     }
+  }
+
+  /** No parser output at all is not a deselection — only an actual empty selection counts. */
+  private nothingSelected(): boolean {
+    return this.pairs.length > 0 && SelectionService.getSelectionCount(this.pairs) === 0;
   }
 
   private async checkCurrentPage(): Promise<void> {
@@ -1112,14 +1166,22 @@ class PopupController {
   /**
    * Export is possible on a ready page that still has something selected.
    * A conversation with no pairs at all is not a deselection — it exports.
+   * Print shares the same gate, plus its own format restriction — it used to
+   * be governed by the format alone, so deselecting every pair left it
+   * enabled and printing produced a metadata-only document.
    */
   private syncExportEnabled(): void {
-    const button = document.getElementById('export-button') as HTMLButtonElement | null;
-    if (!button) return;
+    const nothingSelected = this.nothingSelected();
 
-    const nothingSelected =
-      this.pairs.length > 0 && SelectionService.getSelectionCount(this.pairs) === 0;
-    button.disabled = !this.pageReady || nothingSelected;
+    const button = document.getElementById('export-button') as HTMLButtonElement | null;
+    if (button) {
+      button.disabled = !this.pageReady || nothingSelected;
+    }
+
+    const printButton = document.getElementById('print-button') as HTMLButtonElement | null;
+    if (printButton) {
+      printButton.disabled = !this.pageReady || nothingSelected || !this.printableFormat;
+    }
   }
 
   /** Green dot on the Options row: some preference is off its default. */
@@ -1153,7 +1215,9 @@ class PopupController {
   private enableButtons(): void {
     this.pageReady = true;
     this.syncExportEnabled();
-    // Print stays governed by the format gate, not by page readiness.
+    // Re-syncs the format-specific print title/aria-label/disabled state
+    // now that the page is ready (handleFormatChange computes print's
+    // disabled state itself; see the comment there for why).
     this.handleFormatChange(this.selectedFormat);
   }
 
@@ -1161,7 +1225,7 @@ class PopupController {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id) {
-        throw new Error(getMessage('errorNoActiveTabFound'));
+        throw new Error('errorNoActiveTabFound');
       }
 
       const message = createMessage<ExportConversationMessage>('export_conversation', {
@@ -1171,7 +1235,7 @@ class PopupController {
 
       const response: MessageResponse | undefined = await chrome.tabs.sendMessage(tab.id, message);
       if (!response?.success) {
-        throw new Error(response?.error ?? getMessage('statusExportFailed'));
+        throw new Error(response?.error ?? 'statusExportFailed');
       }
       if (response.warning) {
         // Degraded export (e.g. artifact contents missing) — keep the popup
@@ -1181,12 +1245,7 @@ class PopupController {
       }
       window.close(); // Close popup after triggering export
     } catch (error) {
-      console.error('Export failed:', error);
-      this.setUiState('error');
-      this.updateStatus(
-        'error',
-        error instanceof Error ? error.message : getMessage('statusExportFailed')
-      );
+      this.reportActionFailure('Export failed:', 'statusExportFailed', error);
     }
   }
 
@@ -1194,7 +1253,7 @@ class PopupController {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id) {
-        throw new Error(getMessage('errorNoActiveTabFound'));
+        throw new Error('errorNoActiveTabFound');
       }
 
       const message = createMessage<PrintConversationMessage>('print_conversation', {
@@ -1203,16 +1262,36 @@ class PopupController {
       });
 
       const response: MessageResponse | undefined = await chrome.tabs.sendMessage(tab.id, message);
-      if (response?.warning) {
+      if (!response?.success) {
+        // Mirrors handleExport: a failure reported by the content script
+        // (blocked print popup, zero pairs, exporter throw, an unreadable
+        // blob) must not be read as success — it was previously discarded
+        // here, so the popup closed on a failed print with no explanation.
+        throw new Error(response?.error ?? 'statusPrintFailed');
+      }
+      if (response.warning) {
         this.showWarning(response.warning);
         return;
       }
       window.close(); // Close popup after triggering print
     } catch (error) {
-      console.error('Print failed:', error);
-      this.setUiState('error');
-      this.updateStatus('error', getMessage('statusPrintFailed'));
+      this.reportActionFailure('Print failed:', 'statusPrintFailed', error);
     }
+  }
+
+  /**
+   * `error.message` may be a locale key from the content script (or the
+   * fallback key passed above) — `getMessage()` resolves it, or returns it
+   * unchanged when it isn't a declared key (an older literal string). The
+   * header pill is a narrow no-wrap label (see `updateStatus`), so it always
+   * gets the short generic text; the specific reason goes in `detail`, which
+   * becomes the pill's tooltip instead of overflowing the fixed popup box.
+   */
+  private reportActionFailure(logPrefix: string, fallbackKey: string, error: unknown): void {
+    console.error(logPrefix, error);
+    this.setUiState('error');
+    const detail = error instanceof Error ? getMessage(error.message) : undefined;
+    this.updateStatus('error', getMessage(fallbackKey), detail);
   }
 
   /**

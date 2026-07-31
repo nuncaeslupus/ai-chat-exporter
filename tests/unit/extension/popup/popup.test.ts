@@ -30,6 +30,7 @@ const EN_MESSAGES: Record<string, string> = {
   statusArtifactsMissing: 'Artifacts missing',
   statusExportFailed: 'Export failed',
   statusPrintFailed: 'Print failed',
+  statusPreferenceSaveFailed: 'Save failed',
   errorNoActiveTabFound: 'No active tab found',
   conversationUntitled: 'Untitled',
   qaSelectionSelectAll: 'Select all',
@@ -198,6 +199,31 @@ describe('popup degraded-export reporting', () => {
       expect(document.getElementById('status-text')?.textContent).toBe(translatedMarker);
     });
   });
+
+  // TYPE-1 (high): handlePrint only checked `response?.warning`, never
+  // `response?.success` — a content-script failure (`{success: false,
+  // error}`, e.g. a blocked print popup) was read as a clean print and the
+  // popup closed on it with no explanation.
+  it('does not close the popup on a failed print, and shows the error', async () => {
+    const close = vi.spyOn(window, 'close').mockImplementation(() => undefined);
+    mockTabsSendMessage.mockImplementation((_tabId: number, message: { type: string }) => {
+      if (message.type === 'get_conversation') {
+        return Promise.resolve({ success: true, data: CONVERSATION });
+      }
+      if (message.type === 'print_conversation') {
+        return Promise.resolve({ success: false, error: 'errorPrintPopupBlocked' });
+      }
+      return Promise.resolve({ success: true });
+    });
+
+    await loadPopup();
+    document.getElementById('print-button')?.click();
+
+    await vi.waitFor(() => {
+      expect(document.getElementById('status-text')?.textContent).toBe('Print failed');
+    });
+    expect(close).not.toHaveBeenCalled();
+  });
 });
 
 describe('popup export options', () => {
@@ -262,6 +288,30 @@ describe('popup export options', () => {
       const stored = await chrome.storage.sync.get('user_preferences');
       expect((stored.user_preferences as { fontScale: string }).fontScale).toBe('large');
     });
+  });
+
+  // TYPE-1 (medium/low): a rejected preference write left the checkbox
+  // showing the new value forever — the DOM flip happens before the (now
+  // failing) write, and nothing put it back. `chrome.storage.sync` rethrows
+  // on failure (signed out of sync, an enterprise policy, a quota limit).
+  it('reports a failure and resnaps the toggle when the preference write fails', async () => {
+    await loadPopup();
+
+    const realSet = chrome.storage.sync.set.bind(chrome.storage.sync);
+    chrome.storage.sync.set = vi.fn().mockRejectedValueOnce(new Error('quota exceeded'));
+
+    const toggle = document.getElementById('option-show-meta-info') as HTMLInputElement;
+    expect(toggle.checked).toBe(true); // default before the failed flip below
+    toggle.checked = false;
+    toggle.dispatchEvent(new Event('change'));
+
+    await vi.waitFor(() => {
+      expect(document.getElementById('status-text')?.textContent).toBe('Save failed');
+    });
+    // The toggle must not keep showing a value that was never actually saved.
+    expect(toggle.checked).toBe(true);
+
+    chrome.storage.sync.set = realSet;
   });
 });
 
@@ -382,6 +432,36 @@ describe('popup Q&A pair selection (lo-adf1)', () => {
       expect(checkboxes()).toHaveLength(3);
     });
     expect(checkboxes().every((cb) => cb.checked)).toBe(true);
+  });
+
+  // TYPE-1 (medium): Print used to be governed only by the format gate, so
+  // deselecting every pair left it enabled and printing produced a
+  // metadata-only document with the print dialog opening on nothing.
+  it('disables print (like export) when every pair is deselected', async () => {
+    await loadPopup();
+    await vi.waitFor(() => {
+      expect(checkboxes()).toHaveLength(3);
+    });
+
+    const printButton = document.getElementById('print-button') as HTMLButtonElement;
+    const exportButton = document.getElementById('export-button') as HTMLButtonElement;
+    await vi.waitFor(() => {
+      expect(printButton.disabled).toBe(false);
+    });
+
+    const toggleAll = document.getElementById('qa-selection-toggle-all') as HTMLButtonElement;
+    toggleAll.click(); // deselect all
+    await vi.waitFor(() => {
+      expect(checkboxes().every((cb) => !cb.checked)).toBe(true);
+    });
+    expect(printButton.disabled).toBe(true);
+    expect(exportButton.disabled).toBe(true);
+
+    toggleAll.click(); // reselect all
+    await vi.waitFor(() => {
+      expect(checkboxes().every((cb) => cb.checked)).toBe(true);
+    });
+    expect(printButton.disabled).toBe(false);
   });
 
   it('select-all / select-none toggle every pair', async () => {

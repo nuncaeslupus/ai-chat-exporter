@@ -7,7 +7,7 @@ import { detectParser } from '../../core/parsers';
 import { getExporter } from '../../core/exporters';
 import { FilenameService } from '../../core/services/filename-service';
 import { ClaudeApiService, type EnrichmentResult } from '../../core/services/claude-api-service';
-import { WARNING_KEYS } from '../../shared/constants';
+import { WARNING_KEYS, ERROR_KEYS } from '../../shared/constants';
 import { SelectionService } from '../../core/services/selection-service';
 import { StorageService } from '../../shared/storage';
 import type { Conversation, ExportFormat } from '../../core/types';
@@ -144,7 +144,11 @@ class ContentScript {
 
     if (!conversation) {
       console.error('[AI Chat Exporter] No conversation available');
-      return undefined;
+      // A locale key, not prose: the popup resolves it with getMessage() so
+      // a DOM-drift parse failure is reported as a failure, not silently
+      // as `{success: true}` (the caller's catch turns this throw into
+      // `{success: false, error}`).
+      throw new Error(ERROR_KEYS.NO_CONVERSATION);
     }
 
     conversation = applySelection(conversation, selectedIndices);
@@ -157,7 +161,7 @@ class ContentScript {
     try {
       // Check if we have any pairs to export
       if (conversation.pairs.length === 0) {
-        throw new Error('No conversation pairs found to export');
+        throw new Error(ERROR_KEYS.NOTHING_TO_EXPORT);
       }
 
       // Enrich Claude conversations with API data (artifacts content)
@@ -169,6 +173,12 @@ class ContentScript {
 
       // Only the pairs the user left selected in the popup go into the export.
       const pairsToExport = SelectionService.getSelectedPairs(conversation.pairs);
+      if (pairsToExport.length === 0) {
+        // The popup's selection matched nothing on this fresh re-parse (pairs
+        // shifted, or the page changed) — an empty file is a failure, not a
+        // degraded success.
+        throw new Error(ERROR_KEYS.NOTHING_TO_EXPORT);
+      }
 
       // Get exporter for format
       const exporter = await getExporter(format);
@@ -276,9 +286,7 @@ class ContentScript {
     // context and gets popup-blocked.
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      throw new Error(
-        'Could not open the print window. Your browser blocked the popup — allow popups for this site and try again.'
-      );
+      throw new Error(ERROR_KEYS.PRINT_POPUP_BLOCKED);
     }
     printWindow.document.write('<p>Preparing document for printing…</p>');
 
@@ -290,7 +298,7 @@ class ContentScript {
     if (!conversation) {
       console.error('[AI Chat Exporter] No conversation available');
       printWindow.close();
-      return undefined;
+      throw new Error(ERROR_KEYS.NO_CONVERSATION);
     }
 
     conversation = applySelection(conversation, selectedIndices);
@@ -303,7 +311,7 @@ class ContentScript {
     try {
       // Check if we have any pairs to print
       if (conversation.pairs.length === 0) {
-        throw new Error('No conversation pairs found to print');
+        throw new Error(ERROR_KEYS.NOTHING_TO_EXPORT);
       }
 
       // Enrich Claude conversations with API data (artifacts content)
@@ -317,6 +325,11 @@ class ContentScript {
       // outlive this function's execution) keep a stable, non-null reference.
       const finalConversation = conversation;
       const pairsToExport = SelectionService.getSelectedPairs(finalConversation.pairs);
+      if (pairsToExport.length === 0) {
+        // Same guard as handleExport: a selection that matches nothing left
+        // on this re-parse must fail, not print an empty document.
+        throw new Error(ERROR_KEYS.NOTHING_TO_EXPORT);
+      }
 
       // Get exporter for format
       const exporter = await getExporter(format);
@@ -343,19 +356,18 @@ class ContentScript {
       // actually about to be printed.
       warning = result.warning ?? warning;
 
-      // For MD format, convert to clean GitHub-style HTML for printing
+      // For MD format, convert to clean GitHub-style HTML for printing.
+      // Awaited (not a fire-and-forget FileReader callback) so a failure here
+      // — a bad blob, or `renderMarkdownToCleanHtml`'s dynamic import/render
+      // throwing — propagates to the catch below instead of becoming an
+      // unhandled rejection after `{success: true}` has already been sent.
       if (format === 'md') {
-        const reader = new FileReader();
-        reader.onload = async () => {
-          const markdown = reader.result as string;
-          const cleanHtml = await this.renderMarkdownToCleanHtml(markdown, finalConversation.title);
-          const htmlBlob = new Blob([cleanHtml], { type: 'text/html' });
-          this.printBlob(printWindow, htmlBlob, 'html');
-        };
-        reader.readAsText(result.blob);
+        const markdown = await result.blob.text();
+        const cleanHtml = await this.renderMarkdownToCleanHtml(markdown, finalConversation.title);
+        await this.printBlob(printWindow, new Blob([cleanHtml], { type: 'text/html' }), 'html');
       } else {
         // Fill the already-open window and trigger print
-        this.printBlob(printWindow, result.blob, format);
+        await this.printBlob(printWindow, result.blob, format);
       }
 
       console.log(`[AI Chat Exporter] Successfully opened ${format.toUpperCase()} for printing`);
@@ -367,19 +379,16 @@ class ContentScript {
     }
   }
 
-  private printBlob(printWindow: Window, blob: Blob, format: ExportFormat): void {
+  private async printBlob(printWindow: Window, blob: Blob, format: ExportFormat): Promise<void> {
     // HTML and PDF are already printable documents; text formats (MD, TXT,
     // JSON) get wrapped in a minimal one first.
     if (format === 'html' || format === 'pdf') {
       this.navigateAndPrint(printWindow, blob);
-    } else {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const printHtml = this.wrapInPrintHtml(reader.result as string, format);
-        this.navigateAndPrint(printWindow, new Blob([printHtml], { type: 'text/html' }));
-      };
-      reader.readAsText(blob);
+      return;
     }
+    const text = await blob.text();
+    const printHtml = this.wrapInPrintHtml(text, format);
+    this.navigateAndPrint(printWindow, new Blob([printHtml], { type: 'text/html' }));
   }
 
   /**

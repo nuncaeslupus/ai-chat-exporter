@@ -9,6 +9,7 @@ import {
   createMessage,
   type ExportConversationMessage,
   type PrintConversationMessage,
+  type MessageResponse,
 } from '../../shared/messages';
 import type { ExportFormat } from '../../core/types';
 import { sendTabMessage } from '../../shared/tab-messaging';
@@ -396,8 +397,17 @@ function setErrorBadge(failed: boolean): void {
 function sendMessageToTab(tabId: number, message: unknown): void {
   setErrorBadge(false);
 
-  void sendTabMessage(tabId, message).then((result) => {
+  void sendTabMessage<MessageResponse>(tabId, message).then((result) => {
     if (result.ok) {
+      // `result.ok` only means a reply arrived — the content script answers
+      // `{success: false, error}` for a real export/print failure (zero
+      // pairs, no exporter, an exporter throw, a blocked print window) just
+      // as readily as it answers `{success: true}`. Reading only `ok` here
+      // discarded every one of those failures: no badge, no log, nothing.
+      if (result.response?.success === false) {
+        console.error(`[${EXTENSION_NAME}] Export failed in tab ${tabId}:`, result.response.error);
+        setErrorBadge(true);
+      }
       return;
     }
     if (result.reason === 'failed') {

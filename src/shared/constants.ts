@@ -99,6 +99,22 @@ export const WARNING_KEYS = {
 export const RETRYABLE_WARNING_KEYS: ReadonlySet<string> = new Set([WARNING_KEYS.FETCH_FAILED]);
 
 /**
+ * Locale keys the content script throws (as `Error.message`, carried to the
+ * popup as `MessageResponse.error`) for a genuine export/print failure —
+ * same idea as `WARNING_KEYS`, but for "nothing usable came out" instead of
+ * "it worked, but degraded". The popup resolves these with `getMessage()`
+ * instead of showing the content script's raw (English) exception text.
+ */
+export const ERROR_KEYS = {
+  /** No parser matched the page, or the one that did failed to produce a conversation. */
+  NO_CONVERSATION: 'errorNoConversationParsed',
+  /** Zero pairs survive to export/print — nothing was parsed, or the popup's selection matched nothing left on a fresh re-parse. */
+  NOTHING_TO_EXPORT: 'errorNothingToExport',
+  /** `window.open()` for the print preview was blocked by the browser's popup blocker. */
+  PRINT_POPUP_BLOCKED: 'errorPrintPopupBlocked',
+} as const;
+
+/**
  * Button injection retry settings
  */
 export const INJECTION_CONFIG = {

@@ -51,6 +51,22 @@
     "message": "No active tab found",
     "description": "Error message when no active browser tab is found during export or print"
   },
+  "statusPreferenceSaveFailed": {
+    "message": "Save failed",
+    "description": "Status message when writing a preference to storage fails, so the toggle that changed does not look saved"
+  },
+  "errorNoConversationParsed": {
+    "message": "No conversation could be parsed from this page. Reload the page and try again.",
+    "description": "Error shown when the parser found nothing on an otherwise-supported page (DOM drift, or the page changed mid-parse)"
+  },
+  "errorNothingToExport": {
+    "message": "There's nothing to export or print — either no messages were found, or none are still selected.",
+    "description": "Error shown when the parsed conversation has zero pairs, or the popup's selection matches none of them after a fresh re-parse"
+  },
+  "errorPrintPopupBlocked": {
+    "message": "Could not open the print window. Your browser blocked the popup — allow popups for this site and try again.",
+    "description": "Error shown when window.open() for the print preview is blocked by the browser's popup blocker"
+  },
   "conversationUntitled": {
     "message": "Untitled",
     "description": "Fallback conversation title when none is available"

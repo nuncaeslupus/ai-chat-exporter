@@ -170,6 +170,41 @@ describe('export keyboard shortcut', () => {
 
     errorSpy.mockRestore();
   });
+
+  // TYPE-1 (high): `sendMessageToTab` treated a delivered reply (`result.ok`)
+  // as the export having worked, without ever reading `result.response`. A
+  // content script that correctly answers `{success: false, error}` — zero
+  // pairs, no exporter for the format, an exporter throw, a blocked print
+  // window — used to leave the badge cleared and log nothing.
+  it('flags the badge when the content script replies with success: false', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    sendMessageMock.mockResolvedValueOnce({
+      success: false,
+      error: 'No conversation pairs found to export',
+    });
+
+    onClickedHandler({ menuItemId: 'export-pdf' }, { id: 42 });
+    await flush();
+
+    expect(sendMessageMock).toHaveBeenCalledTimes(1);
+    expect(setBadgeTextMock).toHaveBeenCalledWith({ text: '!' });
+    expect(
+      errorSpy.mock.calls.some((call) =>
+        call.some((arg) => typeof arg === 'string' && arg.includes('No conversation pairs found'))
+      )
+    ).toBe(true);
+
+    errorSpy.mockRestore();
+  });
+
+  it('does not flag the badge when the content script replies with success: true', async () => {
+    sendMessageMock.mockResolvedValueOnce({ success: true });
+
+    onClickedHandler({ menuItemId: 'export-pdf' }, { id: 42 });
+    await flush();
+
+    expect(setBadgeTextMock).not.toHaveBeenCalledWith({ text: '!' });
+  });
 });
 
 // SEC-1 (low): organizationId/conversationId reach a credentialed claude.ai
