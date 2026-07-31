@@ -71,6 +71,10 @@ const ALLOWED_ATTRS: Record<string, Set<string>> = {
   a: new Set(['href', 'title']),
   img: new Set(['src', 'alt', 'title']),
   svg: new Set(['width', 'height', 'viewbox', 'aria-label']),
+  // A11Y-2: keeps a scrollable code block reachable by keyboard (WCAG 2.1.1) —
+  // mirrors the `tabindex="0"` the html-exporter's own <pre> already carries
+  // (A11Y-1/#216); this is the sanitizer both paths share.
+  pre: new Set(['tabindex']),
 };
 
 /** Attributes validated with `safeUrl` rather than kept verbatim. */

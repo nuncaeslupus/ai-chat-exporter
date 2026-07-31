@@ -484,7 +484,9 @@ class ContentScript {
           const highlighted = language
             ? hljs.highlight(text, { language }).value
             : hljs.highlightAuto(text).value;
-          return `<pre><code class="hljs language-${language ?? 'plaintext'}">${highlighted}</code></pre>`;
+          // `tabindex="0"` (A11Y-1/#216): a scrollable code block with no
+          // focusable target is unreachable by keyboard (WCAG 2.1.1).
+          return `<pre tabindex="0"><code class="hljs language-${language ?? 'plaintext'}">${highlighted}</code></pre>`;
         },
       },
     });
