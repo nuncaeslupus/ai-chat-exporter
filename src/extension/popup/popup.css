@@ -779,6 +779,16 @@ body {
   background: var(--color-on-accent-hover);
 }
 
+/* `.split-button`'s `overflow: hidden` (it clips the two halves to the
+   button's own radius) also clips the global `:focus-visible` outline below,
+   which paints outside the child's border box. An inset box-shadow survives
+   the clip instead. */
+.split-export:focus-visible,
+.split-toggle:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--color-on-accent);
+}
+
 /* Menu open: the half stays marked and the chevron points back at the button. */
 .popup-body[data-format-menu-open='true'] .split-toggle {
   background: var(--color-on-accent-active);
@@ -796,8 +806,10 @@ body {
  *
  * `left`/`right` track the action bar's own horizontal padding — `--pad-x` as
  * of P-6, up from R11's own 14px — so the menu's edges stay flush with the
- * split/print buttons below it. `bottom` tracks the action bar's total
- * height, which grows with `--space-loose` in the P-5 pass.
+ * split/print buttons below it. `bottom` is a literal, not a calc() off the
+ * action bar's own parts (12 + 50 + 16 + ~18 + 16 = ~112px) — it does not
+ * itself grow with `--space-loose`, it was just re-measured by hand the last
+ * time that token changed.
  */
 .format-menu {
   display: none;
@@ -817,11 +829,15 @@ body {
   display: flex;
 }
 
-/* Everything behind the menu steps back. The action bar keeps its colour —
-   the button it belongs to is what opened the menu. */
+/* Everything behind the menu steps back and stops taking clicks — without
+   `pointer-events: none` a click through the dimmed area still hit whatever
+   was under it (e.g. the Content row), navigating away with the menu left
+   open. The action bar keeps its colour and stays clickable — the button it
+   belongs to is what opened the menu. */
 .popup-body[data-format-menu-open='true'] .view-scroll,
 .popup-body[data-format-menu-open='true'] .setting-rows {
   opacity: 0.35;
+  pointer-events: none;
 }
 
 .format-menu-label {
@@ -1352,6 +1368,10 @@ section {
   padding: var(--space-loose) 0;
 }
 
+.option-row--nav:hover {
+  background: var(--color-surface-sunken);
+}
+
 /* Keeps the label on the same left edge as the two checkbox rows above. */
 .option-row-gutter {
   flex: none;
@@ -1717,7 +1737,7 @@ section {
 .skeleton--row {
   height: 14px;
   width: 56%;
-  border-radius: 6px;
+  border-radius: var(--radius-key);
   background: var(--color-skeleton-soft);
 }
 
@@ -1926,6 +1946,10 @@ section {
   cursor: pointer;
 }
 
+.warning-card-retry:hover {
+  color: var(--color-warning-action);
+}
+
 /*
  * Generic failure detail — shown only in the `error` state. Reuses the
  * warning card's sub-parts (icon/body/title/detail) for their box model and
@@ -1952,11 +1976,27 @@ section {
 }
 
 /*
+ * Error: there is no conversation to show, nothing to configure, and nothing
+ * to export -- only `.error-card` above paints. Without this, `#main-content`
+ * stayed visible and the ready screen painted underneath the card: an empty
+ * `-` title, blank meta line, and a live-looking (but `disabled`) Export
+ * button.
+ */
+.popup-body[data-ui-state='error'] .conversation-block,
+.popup-body[data-ui-state='error'] .setting-rows,
+.popup-body[data-ui-state='error'] .action-bar {
+  display: none;
+}
+
+/*
  * Nothing selected — the Content row *is* the warning, since the export
  * button next to it has just gone inert and needs to say why.
  */
 .popup-body[data-ui-state='noSelection'] .setting-row[data-nav='content'] {
-  padding: 0 10px;
+  /* No horizontal padding change here — the tinted background already reads
+     as a group without moving the label/chevron off `.setting-row`'s own
+     `--content-column` / `--chevron-inset` columns, which the Options row
+     right below it is aligned to. */
   border-radius: var(--radius-link);
   background: var(--color-warning-surface);
 }
@@ -2029,19 +2069,26 @@ kbd {
    Amber, not red: the export still happened and is usually still wanted.
    -------------------------------------------------------------------------- */
 
+/* Padding and radius match `.warning-card` — the other amber block built the
+   same way (icon + title + detail) — instead of inventing its own literals;
+   `margin-bottom` is dropped in favour of `#main-content`'s own `gap: 14px`,
+   which already spaces every block in that column. */
 .drift-row {
   display: flex;
   align-items: flex-start;
   gap: 8px;
   width: 100%;
-  padding: 10px 12px;
-  margin-bottom: 10px;
+  padding: 13px 14px;
   text-align: left;
   border: 1px solid var(--color-warning-stroke);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--color-warning-surface);
   color: var(--color-warning-text);
   cursor: pointer;
+}
+
+.drift-row:hover {
+  filter: brightness(0.97);
 }
 
 .drift-row[hidden] {
@@ -2062,16 +2109,19 @@ kbd {
 }
 
 .drift-row-title {
+  font-size: var(--text-base);
   font-weight: 600;
 }
 
 .drift-row-detail {
+  font-size: var(--text-sm);
   opacity: 0.85;
 }
 
 .drift-row-action {
   flex: none;
   align-self: center;
+  font-size: var(--text-sm);
   text-decoration: underline;
 }
 
@@ -2079,11 +2129,12 @@ kbd {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 12px;
+  padding: 0 var(--pad-x);
 }
 
 .drift-report-intro {
-  margin: 0 0 10px;
+  margin: 12px 0 10px;
+  font-size: var(--text-sm);
   color: var(--color-text-secondary);
 }
 
@@ -2091,7 +2142,7 @@ kbd {
   margin: 0;
   padding: 10px;
   border: 1px solid var(--color-border-hairline);
-  border-radius: 6px;
+  border-radius: var(--radius-key);
   background: var(--color-surface-sunken);
   color: var(--color-text-primary);
   font-family: var(--font-mono);
@@ -2109,6 +2160,7 @@ kbd {
 .drift-report-status {
   flex: 1;
   min-width: 0;
+  font-size: var(--text-sm);
   color: var(--color-text-secondary);
 }
 

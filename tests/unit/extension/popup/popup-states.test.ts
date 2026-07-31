@@ -176,6 +176,20 @@ describe('popup secondary states — the state switch', () => {
     expect(POPUP_CSS).toContain('.state-block {\n  display: none;');
     expect(POPUP_CSS).toContain("[data-ui-state='warning'] .warning-card");
   });
+
+  it('hides the conversation block, setting rows, and action bar for the error state, leaving only the error card', () => {
+    // Without this, `#main-content` stayed visible under `.error-card`: an
+    // empty `-` conversation title, a blank meta line, navigable-looking
+    // setting rows, and a live-looking (but `disabled`) Export button.
+    for (const cls of ['.conversation-block', '.setting-rows', '.action-bar']) {
+      const escaped = cls.replace('.', '\\.');
+      expect(POPUP_CSS).toMatch(
+        new RegExp(
+          `\\.popup-body\\[data-ui-state='error'\\][^{]*${escaped}[^{]*\\{[^}]*display:\\s*none`
+        )
+      );
+    }
+  });
 });
 
 describe('popup secondary states — unsupported page', () => {

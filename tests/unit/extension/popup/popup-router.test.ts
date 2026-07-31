@@ -413,4 +413,85 @@ describe('popup CSS accessibility rules', () => {
   it('declares an error-card, shown only in the error ui-state', () => {
     expect(POPUP_CSS).toMatch(/\.popup-body\[data-ui-state='error'\]\s*\.error-card\s*\{/);
   });
+
+  it('gives the split button halves their own focus ring, since .split-button clips the global outline', () => {
+    // `.split-button` sets `overflow: hidden` to clip its two halves to its
+    // own radius, which also clips 3 of the 4 sides of the global
+    // `:focus-visible` outline (it paints outside the child's border box).
+    // An inset box-shadow survives the clip.
+    expect(POPUP_CSS).toMatch(
+      /\.split-export:focus-visible,\s*\n\.split-toggle:focus-visible\s*\{[^}]*box-shadow:\s*inset/
+    );
+  });
+
+  it('makes the dimmed backdrop behind the open format menu inert to clicks', () => {
+    // Without `pointer-events: none`, a click through the dimmed
+    // `.view-scroll` / `.setting-rows` still hit whatever was under it (e.g.
+    // the Content row), navigating away while leaving the menu open.
+    const block =
+      /\.popup-body\[data-format-menu-open='true'\] \.view-scroll,\s*\n\.popup-body\[data-format-menu-open='true'\] \.setting-rows\s*\{([^}]*)\}/.exec(
+        POPUP_CSS
+      )?.[1] ?? '';
+    expect(block).toContain('pointer-events: none');
+  });
+});
+
+describe('popup layout comment stays honest about the box size', () => {
+  it('documents the body box at its real 340px/396px size, not the pre-P5 320px/378px', () => {
+    expect(POPUP_HTML).not.toMatch(/320px body/);
+    expect(POPUP_HTML).not.toMatch(/378px tall/);
+    expect(POPUP_HTML).toMatch(/340px body/);
+    expect(POPUP_HTML).toMatch(/396px tall/);
+  });
+});
+
+describe('popup CSS style consistency (POPUP-1)', () => {
+  it('keeps the noSelection Content row on --content-column instead of a flat 10px inset that breaks alignment with the Options row below it', () => {
+    const block =
+      /\.popup-body\[data-ui-state='noSelection'\] \.setting-row\[data-nav='content'\]\s*\{([^}]*)\}/.exec(
+        POPUP_CSS
+      )?.[1] ?? '';
+    expect(block).not.toMatch(/padding:\s*0\s*10px/);
+  });
+
+  it('puts the drift row and drift report on the type scale instead of the inherited 16px body size', () => {
+    const titleBlock = /\.drift-row-title\s*\{([^}]*)\}/.exec(POPUP_CSS)?.[1] ?? '';
+    const detailBlock = /\.drift-row-detail\s*\{([^}]*)\}/.exec(POPUP_CSS)?.[1] ?? '';
+    const actionBlock = /\.drift-row-action\s*\{([^}]*)\}/.exec(POPUP_CSS)?.[1] ?? '';
+    const introBlock = /\.drift-report-intro\s*\{([^}]*)\}/.exec(POPUP_CSS)?.[1] ?? '';
+    const statusBlock = /\.drift-report-status\s*\{([^}]*)\}/.exec(POPUP_CSS)?.[1] ?? '';
+
+    expect(titleBlock).toContain('font-size: var(--text-base)');
+    for (const block of [detailBlock, actionBlock, introBlock, statusBlock]) {
+      expect(block).toContain('font-size: var(--text-sm)');
+    }
+  });
+
+  it('insets the drift report body from --pad-x, matching the header/footer of the same view', () => {
+    // `.drift-report-body` also appears in the scrollbar-styling selector
+    // list further up the file, so this checks its own rule's declarations
+    // by exact text rather than a regex that could match the wrong block.
+    expect(POPUP_CSS).toContain(
+      '.drift-report-body {\n  flex: 1;\n  min-height: 0;\n  overflow-y: auto;\n  padding: 0 var(--pad-x);\n}'
+    );
+  });
+
+  it('gives the drift row, the retry link, and the file-name nav row a hover state like their siblings', () => {
+    expect(POPUP_CSS).toMatch(/\.drift-row:hover\s*\{/);
+    expect(POPUP_CSS).toMatch(
+      /\.warning-card-retry:hover\s*\{[^}]*color:\s*var\(--color-warning-action\)/
+    );
+    expect(POPUP_CSS).toMatch(
+      /\.option-row--nav:hover\s*\{[^}]*background:\s*var\(--color-surface-sunken\)/
+    );
+  });
+
+  it('tokenizes the drift row / skeleton radii instead of hardcoded literals', () => {
+    expect(POPUP_CSS).not.toMatch(/\.drift-row\s*\{[^}]*border-radius:\s*8px/);
+    expect(POPUP_CSS).not.toMatch(/\.drift-report-preview\s*\{[^}]*border-radius:\s*6px/);
+    expect(POPUP_CSS).not.toMatch(/\.skeleton--row\s*\{[^}]*border-radius:\s*6px/);
+    // Aligned with `.warning-card`, the sibling amber block built the same
+    // way, instead of its own one-off 8px.
+    expect(POPUP_CSS).toMatch(/\.drift-row\s*\{[^}]*border-radius:\s*var\(--radius-lg\)/);
+  });
 });
