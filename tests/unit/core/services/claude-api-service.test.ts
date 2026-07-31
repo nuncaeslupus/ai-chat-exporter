@@ -40,6 +40,30 @@ function makeConversation(pairs: QAPair[]): Conversation {
   };
 }
 
+/**
+ * Content-block builders shaped like the LIVE API, verified 2026-07-31 against
+ * a real 12-exchange conversation: `message.text` was `""` on all 24 messages
+ * and the real content lived in `content[]` blocks — text, thinking, tool_use
+ * and tool_result. The fixtures below must keep that shape, because a fixture
+ * that populates `text` is exactly what let PAR-2's first attempt pass CI while
+ * producing entirely blank exports against the real product.
+ */
+function textBlock(text: string): ClaudeApiChatMessage['content'][number] {
+  return { type: 'text', text };
+}
+
+function thinkingBlock(thinking: string): ClaudeApiChatMessage['content'][number] {
+  return { type: 'thinking', thinking };
+}
+
+function toolUseBlock(name: string): ClaudeApiChatMessage['content'][number] {
+  return { type: 'tool_use', name, input: {} };
+}
+
+function toolResultBlock(content: unknown): ClaudeApiChatMessage['content'][number] {
+  return { type: 'tool_result', content };
+}
+
 function makeApiMessage(
   uuid: string,
   index: number,
@@ -471,6 +495,7 @@ describe('ClaudeApiService', () => {
       // reports the true, full count. The API is authoritative here.
       const conversation = makeConversation([makePair(0, 'Q1', 'A1')]);
 
+      // Real shape: `text` is EMPTY on every message; content is in blocks.
       const chatMessages: ClaudeApiChatMessage[] = [];
       for (let i = 0; i < 11; i++) {
         chatMessages.push(
@@ -478,9 +503,9 @@ describe('ClaudeApiService', () => {
             `u${String(i)}`,
             i * 2,
             'human',
-            [],
+            [textBlock(`Question ${String(i)}`)],
             '2026-01-01T00:00:00Z',
-            `Question ${String(i)}`
+            '' // live API leaves this empty
           )
         );
         chatMessages.push(
@@ -488,9 +513,15 @@ describe('ClaudeApiService', () => {
             `a${String(i)}`,
             i * 2 + 1,
             'assistant',
-            i === 5 ? [artifactContent('Doc', 'artifact content')] : [],
+            [
+              thinkingBlock(`SECRET REASONING ${String(i)} must not be exported`),
+              toolUseBlock('web_search'),
+              toolResultBlock({ raw: `tool output ${String(i)} must not be exported` }),
+              textBlock(`Answer ${String(i)}`),
+              ...(i === 5 ? [artifactContent('Doc', 'artifact content')] : []),
+            ],
             '2026-01-01T00:01:00Z',
-            `Answer ${String(i)}`
+            '' // live API leaves this empty
           )
         );
       }
@@ -513,10 +544,79 @@ describe('ClaudeApiService', () => {
       enriched.pairs.forEach((pair, i) => {
         expect(pair.question.content).toBe(`Question ${String(i)}`);
         expect(pair.answer.content).toBe(`Answer ${String(i)}`);
+        // thinking and tool blocks are NOT turn narration and must never leak
+        // into an export.
+        expect(pair.answer.content).not.toContain('SECRET REASONING');
+        expect(pair.answer.content).not.toContain('tool output');
       });
       // Artifact recovered for the pair whose assistant message carried one.
       expect(enriched.pairs[5]?.answer.metadata?.artifacts?.[0]?.content).toBe('artifact content');
       expect(enriched.pairs[0]?.answer.metadata?.artifacts).toBeUndefined();
+    });
+
+    it('gives a turn with only non-text blocks empty content rather than fabricating any', () => {
+      // The live capture had exactly this: an assistant turn whose four blocks
+      // were all thinking/tool_use/tool_result, with no text at all.
+      const conversation = makeConversation([makePair(0, 'Q1', 'A1')]);
+      const chatMessages: ClaudeApiChatMessage[] = [];
+      for (let i = 0; i < 2; i++) {
+        chatMessages.push(makeApiMessage(`u${String(i)}`, i * 2, 'human', [textBlock('Q')]));
+        chatMessages.push(
+          makeApiMessage(
+            `a${String(i)}`,
+            i * 2 + 1,
+            'assistant',
+            i === 1
+              ? [thinkingBlock('only reasoning'), toolUseBlock('repl'), toolResultBlock('out')]
+              : [textBlock('A')]
+          )
+        );
+      }
+
+      const { conversation: enriched } = ClaudeApiService.enrichConversation(conversation, {
+        uuid: 'conv-1',
+        name: 'Test',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        chat_messages: chatMessages,
+      });
+
+      expect(enriched.pairs).toHaveLength(2);
+      expect(enriched.pairs[1]?.answer.content).toBe('');
+      expect(enriched.pairs[1]?.answer.content).not.toContain('only reasoning');
+    });
+
+    it('still uses message.text when a payload does populate it', () => {
+      // `text` remains the documented field; it is a fallback, not dead code.
+      const conversation = makeConversation([makePair(0, 'Q1', 'A1')]);
+      const chatMessages: ClaudeApiChatMessage[] = [];
+      for (let i = 0; i < 2; i++) {
+        chatMessages.push(
+          makeApiMessage(`u${String(i)}`, i * 2, 'human', [], '2026-01-01T00:00:00Z', 'from text')
+        );
+        chatMessages.push(
+          makeApiMessage(
+            `a${String(i)}`,
+            i * 2 + 1,
+            'assistant',
+            [],
+            '2026-01-01T00:00:00Z',
+            'answer from text'
+          )
+        );
+      }
+
+      const { conversation: enriched } = ClaudeApiService.enrichConversation(conversation, {
+        uuid: 'conv-1',
+        name: 'Test',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        chat_messages: chatMessages,
+      });
+
+      expect(enriched.pairs).toHaveLength(2);
+      expect(enriched.pairs[0]?.question.content).toBe('from text');
+      expect(enriched.pairs[0]?.answer.content).toBe('answer from text');
     });
 
     it('does not fabricate a timestamp for an API message with no created_at', () => {

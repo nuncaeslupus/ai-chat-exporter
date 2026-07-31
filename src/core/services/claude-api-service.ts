@@ -7,6 +7,7 @@ import type {
   ClaudeApiConversationResponse,
   ClaudeApiRequest,
   ClaudeApiChatMessage,
+  ClaudeApiTextContent,
   Artifact,
   Conversation,
   Message,
@@ -530,9 +531,37 @@ export class ClaudeApiService {
     return {
       id: apiMessage.uuid,
       role,
-      content: apiMessage.text,
+      content: this.extractApiMessageText(apiMessage),
       ...(timestamp && { timestamp }),
     };
+  }
+
+  /**
+   * Plain text for an API chat message.
+   *
+   * `message.text` is the documented field, but a live capture (2026-07-31,
+   * a real 12-exchange conversation) showed it empty on **all 24** messages,
+   * with the real content in `content[]` blocks instead — so `text` is only a
+   * fallback for a payload that does populate it, never the primary source.
+   *
+   * Block types are handled deliberately, not by default:
+   *  - `text` — the turn's actual narration. Included.
+   *  - `thinking` — Claude's internal reasoning, collapsed in the UI by
+   *    default. Excluded; an export is the conversation, not the reasoning.
+   *  - `tool_use` / `tool_result` — a tool invocation and its raw output, not
+   *    turn narration. Excluded here; artifact `tool_use` blocks are already
+   *    recovered separately via `extractArtifacts`.
+   *
+   * A turn made entirely of non-text blocks (the live capture had one) has no
+   * text, and this returns `''` rather than fabricating placeholder content
+   * (the D-18 rule that also governs timestamps).
+   */
+  private static extractApiMessageText(apiMessage: ClaudeApiChatMessage): string {
+    if (apiMessage.text) return apiMessage.text;
+    return apiMessage.content
+      .filter((block): block is ClaudeApiTextContent => block.type === 'text')
+      .map((block) => block.text)
+      .join('\n\n');
   }
 
   /**
