@@ -78,6 +78,21 @@ describe('R-1: the redesigned type system', () => {
     expect(COLOR.surfaceTurn).toBe('#F6F7F6');
   });
 
+  // TEST-1 (low): moved here from docx-exporter.test.ts — this is a pin on
+  // the shared token table, not DOCX coverage. It never called the exporter,
+  // so it belonged with the other COLOR pins in this file rather than reading
+  // as DOCX-specific proof (docx-exporter.test.ts's own it.each cases already
+  // assert the rendered <w:color> per platform).
+  it('gives each platform a distinct brand-on-light role-label colour', () => {
+    const hexes = [
+      COLOR.brandTextOnLight.chatgpt,
+      COLOR.brandTextOnLight.claude,
+      COLOR.brandTextOnLight.gemini,
+      COLOR.brandTextOnLight.default,
+    ];
+    expect(new Set(hexes).size).toBe(hexes.length);
+  });
+
   it('declares exactly five code-token colours', () => {
     // Retuned from the design's values, which differed by hue alone and so
     // collapsed in greyscale. See CODE_TOKEN_COLOR for the two constraints.

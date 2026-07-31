@@ -324,14 +324,46 @@ describe('DocxExporter', () => {
       expect(xml).not.toMatch(/<w:color w:val="(?:|undefined)"\s*\/>/);
     });
 
-    it('gives each platform a distinct role-label colour', async () => {
-      const hexes = [
-        COLOR.brandTextOnLight.chatgpt,
-        COLOR.brandTextOnLight.claude,
-        COLOR.brandTextOnLight.gemini,
-        COLOR.brandTextOnLight.default,
+    /**
+     * The colour on the run carrying the given role-label text specifically
+     * (`>Claude<`, `>Assistant<`, ...) rather than the first `<w:color>` in the
+     * document, which would just as happily match the User label's fixed
+     * COLOR.link run, or a syntax-highlighted code token's colour.
+     */
+    function colorForLabel(xml: string, label: string): string | undefined {
+      for (const run of xml.match(/<w:r>[\s\S]*?<\/w:r>/g) ?? []) {
+        if (run.includes(`>${label}<`)) {
+          const match = /<w:color w:val="([0-9A-Fa-f]{6})"\/>/.exec(run);
+          if (match) return match[1];
+        }
+      }
+      return undefined;
+    }
+
+    // TEST-1 (low): the original version of this test asserted only on the
+    // COLOR constant table and never called the exporter -- it would still
+    // pass with DocxExporter deleted. The constant-uniqueness pin now lives in
+    // style-tokens.test.ts; this replacement renders all four platforms and
+    // collects the colour actually written into each one's role-label run, so
+    // a regression that hardcoded one brand colour for every platform (the
+    // it.each cases above wouldn't catch that on their own, since each only
+    // checks its own platform in isolation) would fail here.
+    it('renders a distinct <w:color> on the role label for each of the four platforms', async () => {
+      const platformsAndLabels: [string, string][] = [
+        ['chatgpt', 'ChatGPT'],
+        ['claude', 'Claude'],
+        ['gemini', 'Gemini'],
+        ['some-new-bot', 'Assistant'],
       ];
-      expect(new Set(hexes).size).toBe(hexes.length);
+      const colours = await Promise.all(
+        platformsAndLabels.map(async ([platform, label]) => {
+          const xml = await roleHeadingXml(platform);
+          const colour = colorForLabel(xml, label);
+          expect(colour).toBeDefined();
+          return colour;
+        })
+      );
+      expect(new Set(colours).size).toBe(platformsAndLabels.length);
     });
   });
 });

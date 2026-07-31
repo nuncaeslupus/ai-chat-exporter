@@ -69,7 +69,11 @@ describe('StructuredMarkdownExporter timestamps', () => {
       showMetaInfo: false,
     });
     const text = await blobToText(result.blob!);
-    expect(text).not.toContain('12:00:00');
+    // R-4 moved the per-message stamp to `**Role** · HH:MM` — this format never
+    // emits seconds, so a '12:00:00' assertion could never fail even with the
+    // preference honoured. '· 12:00' is the string the positive test above
+    // actually asserts on, negated.
+    expect(text).not.toContain('· 12:00');
   });
 
   it('emits no stray label or "undefined" when a message has no timestamp', async () => {
@@ -82,7 +86,10 @@ describe('StructuredMarkdownExporter timestamps', () => {
     });
     const text = await blobToText(result.blob!);
     expect(text).not.toContain('undefined');
-    expect(text).not.toMatch(/\(\s*\)/); // no empty "()" left behind
+    // R-4's role label has no parens left to leave empty ('**Role** · HH:MM');
+    // a timestamp-less message's own failure mode is a stray middot with
+    // nothing after it, e.g. '**User** · ' if the `!timestamp` guard were lost.
+    expect(text).not.toMatch(/\*\*\w+\*\*\s*·\s*$/m);
   });
 });
 
@@ -162,6 +169,52 @@ describe('R-4: Markdown composition', () => {
 
     expect(text).toMatch(/^\|---\|---\|$/m);
     expect(text).toContain('https://chatgpt.com/c/test');
+  });
+});
+
+/**
+ * TEST-1 (high): `renderTable` and its inner callbacks (the separator-row
+ * push in particular) had zero coverage — the only `|---|` assertion in the
+ * suite was against the hand-assembled metadata table, not this renderer.
+ * Without the GFM separator row, a "table" is just pipe-separated text lines
+ * in GitHub/Obsidian/pandoc. Adjacency (index comparison), not a bare
+ * toContain, is what actually pins the separator immediately after the
+ * header row rather than matching the metadata table elsewhere in the doc.
+ */
+describe('R-4: markdown table rendering (renderTable)', () => {
+  it('renders the header row, the GFM separator row directly after it, then data', async () => {
+    const pair = {
+      id: 'p0',
+      index: 0,
+      selected: true,
+      question: { id: 'q0', role: 'user', content: 'q', timestamp: undefined },
+      answer: {
+        id: 'a0',
+        role: 'assistant',
+        content: 'a',
+        htmlContent:
+          '<table><thead><tr><th>Fold</th><th>Train</th></tr></thead>' +
+          '<tbody><tr><td>1</td><td>2017-2019</td></tr></tbody></table>',
+        timestamp: undefined,
+      },
+    } as unknown as QAPair;
+    const conversation = buildConversation(pair);
+    const result = await new StructuredMarkdownExporter().export(conversation, [pair], {
+      format: 'md',
+      filename: 't',
+      showMetaInfo: false,
+    });
+    const text = await blobToText(result.blob!);
+    const lines = text.split('\n');
+
+    const headerIdx = lines.indexOf('| Fold | Train |');
+    expect(headerIdx).toBeGreaterThan(-1);
+    // RED (pre-fix / regression check): dropping the separator-row push, or
+    // inverting the headers guard, leaves this either absent or not adjacent
+    // to the header — a bare toContain('|---|') would still pass because the
+    // hand-assembled metadata table separator is a different literal.
+    expect(lines[headerIdx + 1]).toBe('| --- | --- |');
+    expect(lines[headerIdx + 2]).toBe('| 1 | 2017-2019 |');
   });
 });
 
