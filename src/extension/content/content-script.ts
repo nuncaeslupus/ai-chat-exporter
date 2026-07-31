@@ -190,6 +190,10 @@ class ContentScript {
       if (!result.success || !result.blob) {
         throw new Error(result.error || 'Export failed');
       }
+      // A format-level warning (e.g. PDF's fonts can't render this script)
+      // takes priority over an enrichment one — it describes the file that's
+      // actually about to land on disk.
+      warning = result.warning ?? warning;
 
       // Generate filename — the same call the popup's preview makes, so the
       // name it showed is the name that lands on disk.
@@ -334,6 +338,10 @@ class ContentScript {
       if (!result.success || !result.blob) {
         throw new Error(result.error || 'Print generation failed');
       }
+      // A format-level warning (e.g. PDF's fonts can't render this script)
+      // takes priority over an enrichment one — it describes the file that's
+      // actually about to be printed.
+      warning = result.warning ?? warning;
 
       // For MD format, convert to clean GitHub-style HTML for printing
       if (format === 'md') {

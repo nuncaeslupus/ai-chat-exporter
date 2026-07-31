@@ -218,6 +218,31 @@ describe('content-script degraded-export reporting (lo-872a)', () => {
     });
     expect(sendResponse).toHaveBeenCalledWith({ success: true });
   });
+
+  it('propagates a warning the exporter itself returns (EXP-2: PDF unsupported-script)', async () => {
+    // Platform isn't 'claude', so no enrichment runs — this warning can only
+    // have come from the exporter's own ExportResult.warning.
+    const pairs = [createTestQAPair(0, 'Q', 'A')];
+    const conversation = createTestConversation(pairs);
+    mockParse.mockReturnValue({ success: true, conversation });
+    mockExport.mockResolvedValue({
+      success: true,
+      blob: new Blob(['%PDF-mock']),
+      warning: WARNING_KEYS.PDF_UNSUPPORTED_SCRIPT,
+    });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'export_conversation', format: 'pdf' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+    expect(sendResponse).toHaveBeenCalledWith({
+      success: true,
+      warning: WARNING_KEYS.PDF_UNSUPPORTED_SCRIPT,
+    });
+  });
 });
 
 describe('content-script print failure reporting (lo-f854)', () => {

@@ -111,6 +111,10 @@
     "message": "El contingut dels artefactes i les hores de cada missatge de Claude no s'han inclòs en aquesta exportació perquè no s'han pogut obtenir les dades de la conversa de Claude. Això pot ser temporal: torna a intentar l'exportació.",
     "description": "Warning shown when the Claude API request for enrichment data fails or returns nothing — retrying may succeed"
   },
+  "warningPdfUnsupportedScript": {
+    "message": "Alguns caràcters d'aquesta conversa (xinès, japonès, coreà, àrab, hebreu, ciríl·lic o una altra escriptura no llatina) no es poden mostrar en un PDF i apareixen com a «?». Exporta a DOCX o HTML per mantenir aquest text intacte.",
+    "description": "Warning shown when a PDF export contains a script the embedded fonts can't render — DOCX and HTML render it correctly instead"
+  },
   "exportButtonAgain": {
     "message": "Exporta de nou",
     "description": "Main button label after a degraded export"

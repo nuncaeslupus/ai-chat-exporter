@@ -231,7 +231,18 @@ function embeddedFontRenders(char: string): boolean {
   return EMBEDDED_FONT_COVERAGE.some(([start, end]) => cp >= start && cp <= end);
 }
 
-export function sanitizeTextForPDF(text: string): string {
+/**
+ * Visible stand-in for a codepoint the embedded faces have no glyph for at
+ * all (CJK, Arabic, Hebrew, Cyrillic, ...). U+FFFD would be the conventional
+ * choice, but it is not itself in `EMBEDDED_FONT_COVERAGE` — using it would
+ * just swap one glyph-less codepoint for another, and jsPDF would drop it
+ * from the content stream exactly like the character it replaced. '?' is
+ * ASCII, always covered by the embedded faces, and unmistakably reads as
+ * "something was lost here" instead of a blank page.
+ */
+export const UNSUPPORTED_SCRIPT_PLACEHOLDER = '?';
+
+export function sanitizeTextForPDF(text: string, onUnsupportedScript?: () => void): string {
   // First apply character replacements (including emojis with text equivalents)
   // Sort by length (longest first) to handle multi-character sequences properly
   const sortedReplacements = Object.entries(PDF_CHARACTER_REPLACEMENTS).sort(
@@ -254,6 +265,26 @@ export function sanitizeTextForPDF(text: string): string {
 
   // Then strip any remaining emojis that weren't in our replacement map
   sanitized = stripRemainingEmojis(sanitized);
+
+  // EXP-2: anything still uncovered by the embedded faces (CJK, Arabic,
+  // Hebrew, Cyrillic, ...) would otherwise reach jsPDF as a codepoint with no
+  // cmap entry and vanish from the content stream — no glyph, no error, no
+  // trace, an entire non-Latin conversation exporting as blank pages while
+  // reporting success. Map it to a visible placeholder instead, one codepoint
+  // at a time, reusing the same `embeddedFontRenders()` check the replacement
+  // loop above uses rather than a second coverage table. Control characters
+  // (tab, newline, ...) are left alone — they carry no glyph to lose and this
+  // function otherwise only ever sees them pre-split onto their own lines.
+  let sawUnsupported = false;
+  sanitized = [...sanitized]
+    .map((char) => {
+      const cp = char.codePointAt(0) ?? 0;
+      if (cp < 0x20 || embeddedFontRenders(char)) return char;
+      sawUnsupported = true;
+      return UNSUPPORTED_SCRIPT_PLACEHOLDER;
+    })
+    .join('');
+  if (sawUnsupported) onUnsupportedScript?.();
 
   return sanitized;
 }
