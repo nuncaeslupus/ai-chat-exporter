@@ -21,7 +21,7 @@ import type {
 } from '../types';
 import { BaseExporter } from './base-exporter';
 import { isProseArtifact } from './artifact-content';
-import { safeUrl } from '../utils/sanitize-html';
+import { escapeHtml, safeUrl } from '../utils/sanitize-html';
 import {
   highlightCode,
   loadHighlighter,
@@ -112,15 +112,15 @@ export class HtmlExporter extends BaseExporter {
   }
 
   private generateHTML(conversation: StructuredConversation, options: ExportOptions): string {
-    const title = this.escapeHtml(conversation.title);
-    const platform = this.escapeHtml(this.formatPlatformName(conversation.platform));
-    const model = conversation.model ? this.escapeHtml(conversation.model) : '';
+    const title = escapeHtml(conversation.title);
+    const platform = escapeHtml(this.formatPlatformName(conversation.platform));
+    const model = conversation.model ? escapeHtml(conversation.model) : '';
     const date = this.formatTimestamp(conversation.createdAt);
-    const dateRange = this.escapeHtml(this.formatDateRange(conversation.pairs));
-    const url = this.escapeHtml(conversation.url);
+    const dateRange = escapeHtml(this.formatDateRange(conversation.pairs));
+    const url = escapeHtml(conversation.url);
 
     return `<!DOCTYPE html>
-<html lang="${this.escapeHtml(getUILanguage())}">
+<html lang="${escapeHtml(getUILanguage())}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -232,12 +232,12 @@ export class HtmlExporter extends BaseExporter {
   }
 
   private renderDaySeparator(separator: string): string {
-    return separator ? `<div class="day-separator">${this.escapeHtml(separator)}</div>` : '';
+    return separator ? `<div class="day-separator">${escapeHtml(separator)}</div>` : '';
   }
 
   private renderTimestampSpan(date: Date | undefined, showMetaInfo: boolean): string {
     const suffix = this.formatTimestampSuffix(date, showMetaInfo).trim();
-    return suffix ? `<span class="message-timestamp">${this.escapeHtml(suffix)}</span>` : '';
+    return suffix ? `<span class="message-timestamp">${escapeHtml(suffix)}</span>` : '';
   }
 
   private renderArtifacts(artifacts?: Artifact[]): string {
@@ -252,13 +252,13 @@ export class HtmlExporter extends BaseExporter {
 
     return `
                         <div class="artifacts-section">
-                            <h2>${this.escapeHtml(this.artifactsSectionLabel())}</h2>
+                            <h2>${escapeHtml(this.artifactsSectionLabel())}</h2>
                             ${artifactsWithContent
                               .map(
                                 (artifact) => `
                             <div class="artifact">
-                                <h3>${this.escapeHtml(artifact.title)}</h3>
-                                ${artifact.typeLabel ? `<p class="artifact-type"><em>${this.escapeHtml(this.artifactTypeFieldLabel())}: ${this.escapeHtml(artifact.typeLabel)}</em></p>` : ''}
+                                <h3>${escapeHtml(artifact.title)}</h3>
+                                ${artifact.typeLabel ? `<p class="artifact-type"><em>${escapeHtml(this.artifactTypeFieldLabel())}: ${escapeHtml(artifact.typeLabel)}</em></p>` : ''}
                                 ${this.renderArtifactBody(artifact)}
                             </div>`
                               )
@@ -291,7 +291,7 @@ export class HtmlExporter extends BaseExporter {
       }
     }
 
-    return `<pre tabindex="0"><code class="language-${this.escapeHtml(artifact.language || '')}">${this.renderCodeTokens(content, artifact.language)}</code></pre>`;
+    return `<pre tabindex="0"><code class="language-${escapeHtml(artifact.language || '')}">${this.renderCodeTokens(content, artifact.language)}</code></pre>`;
   }
 
   private renderWebSearches(webSearches?: WebSearchResult[]): string {
@@ -301,13 +301,13 @@ export class HtmlExporter extends BaseExporter {
 
     return `
                         <div class="web-searches-section">
-                            <h2>${this.escapeHtml(this.webSearchSectionLabel())}</h2>
+                            <h2>${escapeHtml(this.webSearchSectionLabel())}</h2>
                             ${webSearches
                               .map(
                                 (search) => `
                             <div class="web-search">
-                                <h3>${this.escapeHtml(search.query || this.sourcesFallbackLabel())}</h3>
-                                ${search.resultCount ? `<p class="search-count"><em>${this.escapeHtml(this.searchResultCountLabel(search.resultCount))}</em></p>` : ''}
+                                <h3>${escapeHtml(search.query || this.sourcesFallbackLabel())}</h3>
+                                ${search.resultCount ? `<p class="search-count"><em>${escapeHtml(this.searchResultCountLabel(search.resultCount))}</em></p>` : ''}
                                 ${
                                   search.results && search.results.length > 0
                                     ? `
@@ -316,13 +316,13 @@ export class HtmlExporter extends BaseExporter {
                                       .map((result) => {
                                         const safeHref = this.safeAttr(result.url);
                                         const titleLink = safeHref
-                                          ? `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="result-title">${this.escapeHtml(result.title)}</a>`
-                                          : `<span class="result-title">${this.escapeHtml(result.title)}</span>`;
+                                          ? `<a href="${safeHref}" target="_blank" rel="noopener noreferrer" class="result-title">${escapeHtml(result.title)}</a>`
+                                          : `<span class="result-title">${escapeHtml(result.title)}</span>`;
                                         return `
                                     <li class="search-result">
                                         <div class="result-content">
                                             ${titleLink}
-                                            ${result.domain ? `<span class="result-domain">${this.escapeHtml(result.domain)}</span>` : ''}
+                                            ${result.domain ? `<span class="result-domain">${escapeHtml(result.domain)}</span>` : ''}
                                         </div>
                                     </li>`;
                                       })
@@ -352,7 +352,7 @@ export class HtmlExporter extends BaseExporter {
           }
 
           case 'code': {
-            const language = this.escapeHtml(block.language);
+            const language = escapeHtml(block.language);
             return `<pre tabindex="0"><code class="language-${language}">${this.renderCodeTokens(block.code, block.language)}</code></pre>`;
           }
 
@@ -373,8 +373,8 @@ export class HtmlExporter extends BaseExporter {
             // `??`, not `||`: an explicitly empty alt (the source page marked
             // the image decorative) must stay empty, not be renamed to
             // "image" — only a genuinely absent alt falls back.
-            const alt = this.escapeHtml(block.alt ?? '');
-            const imgTitle = block.title ? ` title="${this.escapeHtml(block.title)}"` : '';
+            const alt = escapeHtml(block.alt ?? '');
+            const imgTitle = block.title ? ` title="${escapeHtml(block.title)}"` : '';
             const imgWidth = block.width ? ` width="${block.width}"` : '';
             const imgHeight = block.height ? ` height="${block.height}"` : '';
             const img = `<img src="${safeSrc}" alt="${alt}"${imgTitle}${imgWidth}${imgHeight}>`;
@@ -388,12 +388,12 @@ export class HtmlExporter extends BaseExporter {
           // HTML is the only format that can actually play the clip. The inner
           // link doubles as the fallback for a browser that can't.
           case 'media': {
-            const mediaLabel = this.escapeHtml(this.mediaLabel(block));
+            const mediaLabel = escapeHtml(this.mediaLabel(block));
             // SEC-1: block.url is a scraped `<audio|video>.src`, not sanitizer
             // output -- this is the only scheme check it gets.
             const safeSrc = this.safeAttr(block.url);
             if (!safeSrc) return `<p>${mediaLabel}</p>`;
-            const mediaType = block.mimeType ? ` type="${this.escapeHtml(block.mimeType)}"` : '';
+            const mediaType = block.mimeType ? ` type="${escapeHtml(block.mimeType)}"` : '';
             const tag = block.kind === 'video' ? 'video' : 'audio';
             return `<${tag} controls src="${safeSrc}"${mediaType}><a href="${safeSrc}">${mediaLabel}</a></${tag}>`;
           }
@@ -412,7 +412,7 @@ export class HtmlExporter extends BaseExporter {
   private renderInline(content: InlineContent[]): string {
     return content
       .map((item) => {
-        const text = this.escapeHtml(item.text);
+        const text = escapeHtml(item.text);
 
         switch (item.type) {
           case 'text':
@@ -502,17 +502,6 @@ export class HtmlExporter extends BaseExporter {
     return html;
   }
 
-  private escapeHtml(text: string): string {
-    const map: Record<string, string> = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#039;',
-    };
-    return text.replace(/[&<>"']/g, (char) => map[char] || char);
-  }
-
   /**
    * Validate-then-escape a URL for an href/src sink. These blocks come from
    * scraped DOM (html-content-parser.ts's `.href`/`.src` reads), not from
@@ -523,7 +512,7 @@ export class HtmlExporter extends BaseExporter {
    */
   private safeAttr(url: string | undefined, options?: { allowImageData?: boolean }): string | null {
     const safe = safeUrl(url, options);
-    return safe === null ? null : this.escapeHtml(safe);
+    return safe === null ? null : escapeHtml(safe);
   }
 
   private generateCSS(): string {
@@ -1328,8 +1317,8 @@ export class HtmlExporter extends BaseExporter {
     return highlightCode(code, language, this.highlighter, this.document)
       .map((token) =>
         token.cls
-          ? `<span class="tok-${token.cls}">${this.escapeHtml(token.text)}</span>`
-          : this.escapeHtml(token.text)
+          ? `<span class="tok-${token.cls}">${escapeHtml(token.text)}</span>`
+          : escapeHtml(token.text)
       )
       .join('');
   }

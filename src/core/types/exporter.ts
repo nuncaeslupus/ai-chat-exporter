@@ -110,17 +110,6 @@ export interface ExportOptions {
 }
 
 /**
- * Default export options
- */
-export const DEFAULT_EXPORT_OPTIONS: Omit<ExportOptions, 'filename'> = {
-  format: 'md',
-  showMetaInfo: true,
-  fontScale: 'normal',
-  pdfOptions: DEFAULT_PDF_OPTIONS,
-  docxOptions: DEFAULT_DOCX_OPTIONS,
-};
-
-/**
  * Export result
  */
 export interface ExportResult {
@@ -183,61 +172,3 @@ export type ExporterFactory = () => Promise<IExporter>;
  * Exporter registry type
  */
 export type ExporterRegistry = Map<ExportFormat, ExporterFactory>;
-
-/**
- * Export format display information
- */
-export interface FormatInfo {
-  /** Format identifier */
-  format: ExportFormat;
-  /** Human-readable label */
-  label: string;
-  /** File extension */
-  extension: string;
-  /** MIME type */
-  mimeType: string;
-  /** Optional icon identifier */
-  icon?: string;
-}
-
-/**
- * Format information for all export types
- */
-export const FORMAT_INFO: Record<ExportFormat, FormatInfo> = {
-  pdf: {
-    format: 'pdf',
-    label: 'PDF Document',
-    extension: 'pdf',
-    mimeType: 'application/pdf',
-  },
-  md: {
-    format: 'md',
-    label: 'Markdown',
-    extension: 'md',
-    mimeType: 'text/markdown',
-  },
-  txt: {
-    format: 'txt',
-    label: 'Plain Text',
-    extension: 'txt',
-    mimeType: 'text/plain',
-  },
-  json: {
-    format: 'json',
-    label: 'JSON',
-    extension: 'json',
-    mimeType: 'application/json',
-  },
-  docx: {
-    format: 'docx',
-    label: 'Word Document',
-    extension: 'docx',
-    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  },
-  html: {
-    format: 'html',
-    label: 'HTML Document',
-    extension: 'html',
-    mimeType: 'text/html',
-  },
-};

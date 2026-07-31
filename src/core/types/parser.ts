@@ -96,22 +96,12 @@ export interface IParser {
    * Get the model name if detectable
    */
   getModel(): string | null;
-
-  /**
-   * Find the best injection point for UI buttons
-   */
-  getButtonInjectionPoint(): HTMLElement | null;
-
-  /**
-   * Get platform-specific theme name
-   */
-  getTheme(): string;
 }
 
 /**
  * Parser factory function type
  */
-export type ParserFactory = () => IParser;
+export type ParserFactory = (doc: Document) => IParser;
 
 /**
  * Parser registry type

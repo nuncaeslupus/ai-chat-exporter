@@ -958,19 +958,10 @@ body {
   flex-shrink: 0;
 }
 
-/* Remove old section styles */
-.section-title {
-  display: none;
-}
-
 section {
   margin-bottom: 0;
   padding-bottom: 0;
   border-bottom: none;
-}
-
-.info-section {
-  margin-bottom: 0;
 }
 
 /*

@@ -35,7 +35,6 @@
         "https://gemini.google.com/*"
       ],
       "js": ["content/content-script.js"],
-      "css": ["content/styles.css"],
       "run_at": "document_idle"
     },
     {

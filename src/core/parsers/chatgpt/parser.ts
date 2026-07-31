@@ -115,22 +115,6 @@ export class ChatGPTParser extends BaseParser {
   }
 
   /**
-   * Find the best injection point for UI buttons
-   */
-  getButtonInjectionPoint(): HTMLElement | null {
-    // Try each selector in the buttonArea (comma-separated)
-    const selectors = this.selectors.custom.buttonArea.split(',').map((s) => s.trim());
-    for (const selector of selectors) {
-      const element = this.document.querySelector(selector);
-      if (element instanceof HTMLElement) {
-        return element;
-      }
-    }
-
-    return null;
-  }
-
-  /**
    * Extract Q&A pairs from the ChatGPT DOM.
    *
    * Pairs structurally: turns are walked in document order (one combined,

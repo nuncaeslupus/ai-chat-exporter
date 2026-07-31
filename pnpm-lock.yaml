@@ -14,9 +14,6 @@ importers:
       highlight.js:
         specifier: ^11.11.1
         version: 11.11.1
-      html2canvas:
-        specifier: ^1.4.1
-        version: 1.4.1
       jspdf:
         specifier: ^4.2.1
         version: 4.2.1
@@ -1719,7 +1716,8 @@ snapshots:
 
   balanced-match@4.0.4: {}
 
-  base64-arraybuffer@1.0.2: {}
+  base64-arraybuffer@1.0.2:
+    optional: true
 
   bidi-js@1.0.3:
     dependencies:
@@ -1759,6 +1757,7 @@ snapshots:
   css-line-break@2.1.0:
     dependencies:
       utrie: 1.0.2
+    optional: true
 
   css-tree@3.2.1:
     dependencies:
@@ -1940,6 +1939,7 @@ snapshots:
     dependencies:
       css-line-break: 2.1.0
       text-segmentation: 1.0.3
+    optional: true
 
   ignore@5.3.2: {}
 
@@ -2277,6 +2277,7 @@ snapshots:
   text-segmentation@1.0.3:
     dependencies:
       utrie: 1.0.2
+    optional: true
 
   tinybench@2.9.0: {}
 
@@ -2342,6 +2343,7 @@ snapshots:
   utrie@1.0.2:
     dependencies:
       base64-arraybuffer: 1.0.2
+    optional: true
 
   vite@8.2.0(@types/node@22.19.3):
     dependencies:

@@ -565,22 +565,4 @@ describe('ClaudeParser', () => {
       expect(answer).toContain('[Document · MD: Reading a tide table]');
     });
   });
-
-  describe('getButtonInjectionPoint', () => {
-    it('returns a valid HTML element', () => {
-      const point = parser.getButtonInjectionPoint();
-
-      expect(point).not.toBeNull();
-      expect(point).toBeTruthy();
-      expect(point).toHaveProperty('tagName');
-    });
-
-    it('returns element in header', () => {
-      const point = parser.getButtonInjectionPoint();
-
-      expect(point).not.toBeNull();
-      const header = document.querySelector('header[data-testid="page-header"]');
-      expect(header?.contains(point)).toBe(true);
-    });
-  });
 });

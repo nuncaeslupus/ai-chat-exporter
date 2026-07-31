@@ -63,11 +63,9 @@ export function isGetDriftSkeletonMessage(message: unknown): message is GetDrift
  */
 export interface UserPreferences extends FilenamePreferences {
   showMetaInfo: boolean;
-  includeCodeBlocks: boolean;
   /** Type-size step applied to pdf/docx/html exports. */
   fontScale: FontScale;
   defaultFormat: ExportFormat;
-  autoSelectAll: boolean;
 }
 
 /**

@@ -36,9 +36,6 @@ export const GEMINI_SELECTORS: SelectorSet = {
   // GeminiParser.getModel for why that is reported as a mode rather than
   // asserted as a model name.
   modelIndicator: '[data-test-id="bard-mode-menu-button"] .picker-primary-text',
-  custom: {
-    buttonArea: '.top-bar-actions .right-section, .top-bar-actions',
-  },
 };
 
 /**

@@ -62,7 +62,7 @@ describe('export keyboard shortcut', () => {
                 'https://gemini.google.com/*',
               ],
               js: ['content/content-script.js'],
-              css: ['content/styles.css'],
+              css: ['content/example.css'],
             },
             {
               matches: ['https://*.web-sandbox.oaiusercontent.com/*'],
@@ -81,7 +81,6 @@ describe('export keyboard shortcut', () => {
         insertCSS: insertCSSMock,
       },
       tabs: {
-        onUpdated: { addListener: vi.fn() },
         query: vi.fn((_query: unknown, callback: (tabs: { id: number }[]) => void) => {
           callback([{ id: 42 }]);
         }),

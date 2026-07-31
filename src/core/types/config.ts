@@ -60,15 +60,9 @@ export interface FilenamePreferences {
 
 /**
  * The piece list the builder starts from and `Default` restores. Renders to
- * `{title}_{date}` — the same name the legacy default template produces.
+ * `{title}_{date}`.
  */
 export const DEFAULT_FILENAME_PIECES: FilenamePiece[] = [{ type: 'title' }, { type: 'date' }];
-
-/**
- * Default filename template
- * Example: "{platform}_{title}_{datetime}" -> "ChatGPT_My-Conversation_2025-01-01_14-30"
- */
-export const DEFAULT_FILENAME_TEMPLATE = '{platform}_{title}_{datetime}';
 
 /**
  * Popup-only theme preference. `auto` follows the OS via
@@ -78,24 +72,3 @@ export const DEFAULT_FILENAME_TEMPLATE = '{platform}_{title}_{datetime}';
  * `prefers-color-scheme` block and adapts to whoever opens the file.
  */
 export type ThemePreference = 'light' | 'dark' | 'auto';
-
-/**
- * Print options
- */
-export interface PrintOptions {
-  /** Whether to include meta-information: header block and per-message times. */
-  showMetaInfo: boolean;
-  /** Paper size */
-  paperSize: 'a4' | 'letter' | 'legal';
-  /** Orientation */
-  orientation: 'portrait' | 'landscape';
-}
-
-/**
- * Default print options
- */
-export const DEFAULT_PRINT_OPTIONS: PrintOptions = {
-  showMetaInfo: true,
-  paperSize: 'a4',
-  orientation: 'portrait',
-};

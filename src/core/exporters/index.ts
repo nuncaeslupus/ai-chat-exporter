@@ -34,10 +34,3 @@ export async function getExporter(format: ExportFormat): Promise<IExporter | nul
   const factory = exporterRegistry.get(format);
   return factory ? await factory() : null;
 }
-
-/**
- * Get all available export formats
- */
-export function getAvailableFormats(): ExportFormat[] {
-  return Array.from(exporterRegistry.keys());
-}

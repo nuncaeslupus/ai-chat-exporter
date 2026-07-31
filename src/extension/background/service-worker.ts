@@ -27,9 +27,6 @@ chrome.runtime.onInstalled.addListener((details) => {
   if (reason === 'install') {
     // First time installation
     console.log(`[${EXTENSION_NAME}] First time installation`);
-
-    // You could open a welcome page here if desired
-    // chrome.tabs.create({ url: 'pages/welcome.html' });
   } else if (reason === 'update') {
     // Extension updated
     console.log(
@@ -214,24 +211,6 @@ async function handleClaudeOrganizationsFetch(): Promise<unknown> {
     throw error;
   }
 }
-
-/**
- * Tab update handler - inject content script into supported pages
- */
-chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
-  // Only inject when page is fully loaded
-  if (changeInfo.status !== 'complete' || !tab.url) {
-    return;
-  }
-
-  // Check if URL matches supported platforms
-  const supportedDomains = ['chat.openai.com', 'chatgpt.com', 'claude.ai', 'gemini.google.com'];
-
-  const url = new URL(tab.url);
-  if (supportedDomains.some((domain) => url.hostname.includes(domain))) {
-    console.log(`[${EXTENSION_NAME}] Detected supported platform: ${url.hostname}`);
-  }
-});
 
 /**
  * Format information for context menus

@@ -57,15 +57,8 @@ export type {
   IExporter,
   ExporterFactory,
   ExporterRegistry,
-  FormatInfo,
 } from './exporter';
-export {
-  EXPORT_FORMATS,
-  DEFAULT_PDF_OPTIONS,
-  DEFAULT_DOCX_OPTIONS,
-  DEFAULT_EXPORT_OPTIONS,
-  FORMAT_INFO,
-} from './exporter';
+export { EXPORT_FORMATS, DEFAULT_PDF_OPTIONS, DEFAULT_DOCX_OPTIONS } from './exporter';
 
 // Config types
 export type {
@@ -73,14 +66,9 @@ export type {
   FilenamePiece,
   FilenamePieceType,
   FilenamePreferences,
-  PrintOptions,
   ThemePreference,
 } from './config';
-export {
-  DEFAULT_FILENAME_TEMPLATE,
-  DEFAULT_FILENAME_PIECES,
-  DEFAULT_PRINT_OPTIONS,
-} from './config';
+export { DEFAULT_FILENAME_PIECES } from './config';
 
 // Claude API types
 export type {
@@ -92,4 +80,4 @@ export type {
   ClaudeApiConversationResponse,
   ClaudeApiRequest,
 } from './claude-api';
-export { isToolUseContent, isArtifactContent } from './claude-api';
+export { isArtifactContent } from './claude-api';

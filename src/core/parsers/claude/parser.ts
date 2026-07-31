@@ -186,36 +186,6 @@ export class ClaudeParser extends BaseParser {
   }
 
   /**
-   * Find the best injection point for UI buttons
-   */
-  getButtonInjectionPoint(): HTMLElement | null {
-    // Try to find the container with the model selector button
-    const modelButton = this.document.querySelector(
-      'button[data-testid="model-selector-dropdown"]'
-    );
-    if (modelButton?.parentElement) {
-      return modelButton.parentElement;
-    }
-
-    // Fallback: try the buttonArea selector
-    const buttonArea = this.selectors.custom?.buttonArea;
-    if (buttonArea) {
-      const element = this.document.querySelector(buttonArea);
-      if (element) {
-        return element as HTMLElement;
-      }
-    }
-
-    // Last fallback: header itself
-    const header = this.document.querySelector('header[data-testid="page-header"]');
-    if (header) {
-      return header as HTMLElement;
-    }
-
-    return null;
-  }
-
-  /**
    * Extract Q&A pairs from the Claude DOM.
    *
    * Pairs structurally: turns are walked in document order (one query over

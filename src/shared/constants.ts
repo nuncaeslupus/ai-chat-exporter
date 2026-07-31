@@ -13,7 +13,6 @@ export const EXTENSION_NAME = 'AI Chat Exporter';
 export const STORAGE_KEYS = {
   USER_PREFERENCES: 'user_preferences',
   LAST_EXPORT_FORMAT: 'last_export_format',
-  SELECTION_STATE: 'selection_state',
   THEME_PREFERENCE: 'theme_preference',
 } as const;
 
@@ -34,11 +33,9 @@ export const MESSAGE_TYPES = {
  */
 export const DEFAULT_PREFERENCES: UserPreferences = {
   showMetaInfo: true,
-  includeCodeBlocks: true,
   fontScale: 'normal',
   filenameTemplate: '{title}_{date}',
   defaultFormat: 'pdf' as const,
-  autoSelectAll: true,
 };
 
 /**
@@ -93,12 +90,3 @@ export const ERROR_KEYS = {
   /** `getExporter(format)` returned nothing — should be unreachable from the popup's format list, kept as a defensive guard. */
   NO_EXPORTER: 'errorNoExporterForFormat',
 } as const;
-
-/**
- * Button injection retry settings
- */
-export const INJECTION_CONFIG = {
-  MAX_RETRIES: 10,
-  RETRY_DELAY: 500,
-  OBSERVER_TIMEOUT: 30000,
-};

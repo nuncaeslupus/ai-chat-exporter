@@ -134,18 +134,6 @@ describe('GeminiParser', () => {
     });
   });
 
-  describe('getButtonInjectionPoint', () => {
-    it('returns the top bar actions area', () => {
-      const point = parser.getButtonInjectionPoint();
-      expect(point).not.toBeNull();
-      expect(point?.className).toContain('right-section');
-    });
-
-    it('returns null when the top bar is missing', () => {
-      expect(parserFor('<main></main>').getButtonInjectionPoint()).toBeNull();
-    });
-  });
-
   describe('extractQAPairs', () => {
     it('pairs every question with the answer from the same container', () => {
       const result = parser.parse();

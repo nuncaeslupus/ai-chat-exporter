@@ -100,7 +100,7 @@ export interface ClaudeApiRequest {
 /**
  * Type guard to check if content is tool use
  */
-export function isToolUseContent(content: ClaudeApiContent): content is ClaudeApiToolUseContent {
+function isToolUseContent(content: ClaudeApiContent): content is ClaudeApiToolUseContent {
   return content.type === 'tool_use';
 }
 

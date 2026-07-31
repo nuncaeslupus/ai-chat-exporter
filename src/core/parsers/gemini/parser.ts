@@ -71,22 +71,6 @@ export class GeminiParser extends BaseParser {
     return text === undefined || text === '' ? null : text;
   }
 
-  getButtonInjectionPoint(): HTMLElement | null {
-    const buttonArea = this.selectors.custom?.buttonArea;
-    if (!buttonArea) {
-      return null;
-    }
-
-    for (const selector of buttonArea.split(',')) {
-      const element = this.document.querySelector(selector.trim());
-      if (element) {
-        return element as HTMLElement;
-      }
-    }
-
-    return null;
-  }
-
   /**
    * Extract Q&A pairs from the Gemini DOM.
    *
