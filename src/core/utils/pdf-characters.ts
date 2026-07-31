@@ -242,14 +242,48 @@ function embeddedFontRenders(char: string): boolean {
  */
 export const UNSUPPORTED_SCRIPT_PLACEHOLDER = '?';
 
+/**
+ * Greek and Coptic block (U+0370-U+03FF): covers the letters
+ * `PDF_CHARACTER_REPLACEMENTS` transliterates (as math symbols) plus every
+ * other Greek letter the map doesn't cover.
+ */
+const GREEK_LETTER = /[Ͱ-Ͽ]/;
+
+/**
+ * Transliterate a Greek letter to its English name ONLY when it is isolated
+ * -- a stray math/physics symbol (`α` in a formula) with no other Greek
+ * letter next to it. A letter adjacent to another Greek letter is part of a
+ * word, i.e. Greek prose, and must be left alone: `sanitizeTextForPDF`'s
+ * generic uncovered-codepoint pass (below) then degrades the whole word to
+ * the visible unsupported-script placeholder instead of this function
+ * silently rewriting it into unreadable English fragments
+ * (`'Καλημέρα'` -> `'Κalphalambdaetamuέrhoalpha'` was the bug this fixes).
+ * Letters the replacement map doesn't cover (κ, ά, most capitals, ...) were
+ * never touched by the old blind loop either -- they already fell through to
+ * the placeholder pass, so this only changes behavior for the mapped subset.
+ */
+function transliterateIsolatedGreekLetters(text: string): string {
+  return text.replace(/[Ͱ-Ͽ]/g, (match: string, offset: number, str: string) => {
+    const prev = str[offset - 1];
+    const next = str[offset + 1];
+    const prevIsGreek = prev !== undefined && GREEK_LETTER.test(prev);
+    const nextIsGreek = next !== undefined && GREEK_LETTER.test(next);
+    const isolated = !prevIsGreek && !nextIsGreek;
+    if (!isolated) return match;
+    return PDF_CHARACTER_REPLACEMENTS[match] ?? match;
+  });
+}
+
 export function sanitizeTextForPDF(text: string, onUnsupportedScript?: () => void): string {
   // First apply character replacements (including emojis with text equivalents)
   // Sort by length (longest first) to handle multi-character sequences properly
-  const sortedReplacements = Object.entries(PDF_CHARACTER_REPLACEMENTS).sort(
-    ([a], [b]) => b.length - a.length
-  );
+  // Greek letters are excluded here -- they go through
+  // transliterateIsolatedGreekLetters() below instead, which is context-aware.
+  const sortedReplacements = Object.entries(PDF_CHARACTER_REPLACEMENTS)
+    .filter(([char]) => !GREEK_LETTER.test(char))
+    .sort(([a], [b]) => b.length - a.length);
 
-  let sanitized = text;
+  let sanitized = transliterateIsolatedGreekLetters(text);
   for (const [char, replacement] of sortedReplacements) {
     // R-2b: skip anything the embedded fonts actually render. This map exists
     // because jsPDF's built-in fonts are WinAnsi-only; with Source Sans 3 and

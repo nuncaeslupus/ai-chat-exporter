@@ -92,4 +92,38 @@ describe('sanitizeTextForPDF()', () => {
     sanitizeTextForPDF('α ≈ β', onUnsupportedScript);
     expect(onUnsupportedScript).not.toHaveBeenCalled();
   });
+
+  // EXP-3: PDF_CHARACTER_REPLACEMENTS transliterates Greek letters to their
+  // English names, which is right for a stray math symbol (`α` in a formula,
+  // covered by the test above) but wrong for Greek PROSE, where the letters
+  // are letters, not symbols -- and the letters the map doesn't cover (κ, ά,
+  // most capitals, ...) were already dropped by the font, producing an
+  // unreadable hybrid.
+  describe('Greek prose (isolated-letter rule)', () => {
+    it('does not rewrite a Greek word into English fragments', () => {
+      // RED (pre-fix): sanitizeTextForPDF('Καλημέρα, γάτα') returned
+      // 'Κalphalambdaetamuέrhoalpha, gammaάtaualpha'.
+      const result = sanitizeTextForPDF('Καλημέρα, γάτα');
+      expect(result).not.toMatch(
+        /alpha|beta|gamma|delta|epsilon|eta|theta|lambda|mu|pi|rho|sigma|tau/i
+      );
+    });
+
+    it('degrades a Greek word to the unsupported-script placeholder instead', () => {
+      const result = sanitizeTextForPDF('Καλημέρα');
+      expect(result).toBe(UNSUPPORTED_SCRIPT_PLACEHOLDER.repeat('Καλημέρα'.length));
+    });
+
+    it('calls onUnsupportedScript for Greek prose', () => {
+      const onUnsupportedScript = vi.fn();
+      sanitizeTextForPDF('Καλημέρα', onUnsupportedScript);
+      expect(onUnsupportedScript).toHaveBeenCalledTimes(1);
+    });
+
+    it('still transliterates a single isolated Greek letter used as a math symbol', () => {
+      // Non-regression: the case the map exists for in the first place.
+      const result = sanitizeTextForPDF('the value of α is 0.5');
+      expect(result).toContain('alpha');
+    });
+  });
 });
