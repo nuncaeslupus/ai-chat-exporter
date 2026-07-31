@@ -32,6 +32,7 @@ import { SelectionService } from '../../core/services/selection-service';
 import { FilenameService } from '../../core/services/filename-service';
 import { formatDriftReport } from '../../core/drift/format-report';
 import { isDriftSuppressed, suppressDrift } from '../../core/drift/suppression';
+import { buildDriftIssueUrl } from '../../core/drift/issue-url';
 import type { DriftReport } from '../../core/drift/types';
 
 /**
@@ -233,6 +234,8 @@ const CLAMP_CHARS = 120;
  * Where "Copy & report" sends the user. The report is already on their
  * clipboard by then — they paste it wherever they prefer, so this is a
  * convenience, not a submission endpoint. The extension posts nothing.
+ * `buildDriftIssueUrl` prefills title/body/labels query params on top of
+ * this base URL; it never carries them itself.
  */
 const ISSUE_TRACKER_URL = 'https://github.com/nuncaeslupus/ai-chat-exporter/issues/new';
 
@@ -712,8 +715,13 @@ class PopupController {
       void (async () => {
         await this.copyReport();
         // The popup closes when the tab opens. Acceptable: this is the final
-        // step, and the payload is already on the clipboard.
-        await chrome.tabs.create({ url: ISSUE_TRACKER_URL });
+        // step, and the full report is already on the clipboard regardless of
+        // whether it fit into the URL below.
+        const url =
+          this.drift && this.reportText
+            ? buildDriftIssueUrl(this.drift, this.reportText, ISSUE_TRACKER_URL)
+            : ISSUE_TRACKER_URL;
+        await chrome.tabs.create({ url });
       })();
     });
   }
