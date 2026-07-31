@@ -13,6 +13,7 @@ import type {
 } from '../types';
 import { isArtifactContent } from '../types';
 import type { MessageResponse } from '../../shared/messages';
+import { getMessage } from '../../shared/i18n';
 
 /** The slice of Claude's `__NEXT_DATA__` blob this service reads. */
 interface NextData {
@@ -451,15 +452,15 @@ export class ClaudeApiService {
    * Get a human-readable type label from artifact type
    */
   private static getTypeLabelFromType(type: string): string {
-    const typeLabels: Record<string, string> = {
-      image: 'Image',
-      react: 'Interactive Artifact',
-      document: 'Document',
-      diagram: 'Diagram',
-      code: 'Code',
+    const keyMap: Record<string, string> = {
+      image: 'artifactTypeImage',
+      react: 'artifactTypeReact',
+      document: 'artifactTypeDocument',
+      diagram: 'artifactTypeDiagram',
+      code: 'artifactTypeCode',
     };
 
-    return typeLabels[type] || 'Artifact';
+    return getMessage(keyMap[type] ?? 'artifactTypeGeneric');
   }
 
   /**

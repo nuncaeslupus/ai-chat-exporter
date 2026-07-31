@@ -75,7 +75,7 @@ export interface HorizontalRuleBlock extends ContentBlock {
 export interface ImageBlock extends ContentBlock {
   type: 'image';
   url: string;
-  alt: string;
+  alt?: string;
   title?: string;
   width?: number;
   height?: number;
@@ -93,7 +93,7 @@ export interface MediaBlock extends ContentBlock {
   type: 'media';
   kind: 'video' | 'audio';
   url: string;
-  alt: string;
+  alt?: string;
   mimeType?: string;
   /** Duration in seconds, when the source exposes one */
   duration?: number;

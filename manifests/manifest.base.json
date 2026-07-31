@@ -51,7 +51,7 @@
         "default": "Ctrl+Shift+E",
         "mac": "Command+Shift+E"
       },
-      "description": "Export current conversation"
+      "description": "__MSG_commandExportConversation__"
     }
   }
 }

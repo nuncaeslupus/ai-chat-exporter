@@ -112,6 +112,8 @@ export const ERROR_KEYS = {
   NOTHING_TO_EXPORT: 'errorNothingToExport',
   /** `window.open()` for the print preview was blocked by the browser's popup blocker. */
   PRINT_POPUP_BLOCKED: 'errorPrintPopupBlocked',
+  /** `getExporter(format)` returned nothing — should be unreachable from the popup's format list, kept as a defensive guard. */
+  NO_EXPORTER: 'errorNoExporterForFormat',
 } as const;
 
 /**

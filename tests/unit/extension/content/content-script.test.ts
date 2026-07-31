@@ -118,6 +118,24 @@ describe('content-script export failure reporting', () => {
     });
     expect(mockExport).not.toHaveBeenCalled();
   });
+
+  // I18N-1: the exporter can return `{success: false}` with no `error` set
+  // (rather than throwing) -- the fallback text used to be a raw English
+  // literal instead of a locale key, so it reached the popup untranslated.
+  it('falls back to a locale key, not an English literal, when the exporter reports failure without an error message', async () => {
+    const pairs = [createTestQAPair(0, 'Q', 'A')];
+    mockParse.mockReturnValue({ success: true, conversation: createTestConversation(pairs) });
+    mockExport.mockResolvedValue({ success: false });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'export_conversation', format: 'md' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+    expect(sendResponse).toHaveBeenCalledWith({ success: false, error: 'statusExportFailed' });
+  });
 });
 
 describe('content-script degraded-export reporting (lo-872a)', () => {

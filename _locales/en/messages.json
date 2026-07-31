@@ -592,5 +592,79 @@
   "driftReportLoading": {
     "message": "Reading the page structure…",
     "description": "Shown while the content script builds the drift report skeleton"
+  },
+  "exportSectionArtifacts": {
+    "message": "Artifacts",
+    "description": "Section heading for artifacts in exported documents"
+  },
+  "exportArtifactType": {
+    "message": "Type",
+    "description": "Field label for an artifact's type, e.g. 'Type: Document'"
+  },
+  "exportSectionSources": {
+    "message": "Sources",
+    "description": "Section heading for cited web-search sources, e.g. 'Sources — query'"
+  },
+  "exportSectionWebSearchResults": {
+    "message": "Web Search Results",
+    "description": "Section heading for web search results in exported documents"
+  },
+  "exportSearchResultCount": {
+    "message": "$1 results found",
+    "description": "Count of web search results found. $1 = number of results",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "exportSourcesFallback": {
+    "message": "References",
+    "description": "Fallback heading for a web search with no query text"
+  },
+  "exportViewSvgCode": {
+    "message": "View SVG Code",
+    "description": "Collapsible-section label for viewing raw SVG source in a Markdown export"
+  },
+  "mediaKindVideo": {
+    "message": "Video",
+    "description": "Label for a video media block"
+  },
+  "mediaKindAudio": {
+    "message": "Audio",
+    "description": "Label for an audio media block"
+  },
+  "commandExportConversation": {
+    "message": "Export current conversation",
+    "description": "Keyboard-shortcut description for the export-conversation command"
+  },
+  "artifactTypeImage": {
+    "message": "Image",
+    "description": "Artifact type label: image"
+  },
+  "artifactTypeReact": {
+    "message": "Interactive Artifact",
+    "description": "Artifact type label: interactive (React) artifact"
+  },
+  "artifactTypeDocument": {
+    "message": "Document",
+    "description": "Artifact type label: document"
+  },
+  "artifactTypeDiagram": {
+    "message": "Diagram",
+    "description": "Artifact type label: diagram"
+  },
+  "artifactTypeCode": {
+    "message": "Code",
+    "description": "Artifact type label: code"
+  },
+  "artifactTypeGeneric": {
+    "message": "Artifact",
+    "description": "Artifact type label: generic fallback"
+  },
+  "errorNoExporterForFormat": {
+    "message": "No exporter is available for this format.",
+    "description": "Error shown when no exporter is registered for the requested format (should not normally be reachable from the UI)"
   }
 }

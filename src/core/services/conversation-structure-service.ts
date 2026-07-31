@@ -169,7 +169,7 @@ export class ConversationStructureService {
         const imageBlock: ImageBlock = {
           type: 'image',
           url: item.src,
-          alt: item.alt ?? 'Image',
+          ...(item.alt && { alt: item.alt }),
         };
         if (item.width) {
           imageBlock.width = item.width;
@@ -185,7 +185,7 @@ export class ConversationStructureService {
         type: 'media',
         kind: item.kind,
         url: item.src,
-        alt: item.alt ?? (item.kind === 'video' ? 'Video' : 'Audio'),
+        ...(item.alt && { alt: item.alt }),
       };
       if (item.mimeType) {
         mediaBlock.mimeType = item.mimeType;

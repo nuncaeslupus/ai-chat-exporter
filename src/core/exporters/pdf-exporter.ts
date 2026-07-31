@@ -801,7 +801,7 @@ export class PdfExporter extends BaseExporter {
     doc.setFont(this.fonts.body, 'bold');
     doc.setFontSize(this.pdfSizes.sectionLabel);
     doc.setTextColor(...hexToRgbTuple(COLOR.textBody));
-    doc.text('Artifacts:', margins.left, y);
+    doc.text(`${this.artifactsSectionLabel()}:`, margins.left, y);
     y += lineHeight * 1.2;
 
     // Render each artifact
@@ -824,7 +824,11 @@ export class PdfExporter extends BaseExporter {
         doc.setFont(this.fonts.body, 'italic');
         doc.setFontSize(this.sizes.meta);
         doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
-        doc.text(`Type: ${this.sanitize(artifact.typeLabel)}`, margins.left, y);
+        doc.text(
+          `${this.artifactTypeFieldLabel()}: ${this.sanitize(artifact.typeLabel)}`,
+          margins.left,
+          y
+        );
         y += lineHeight;
       }
 
@@ -897,7 +901,7 @@ export class PdfExporter extends BaseExporter {
     doc.setFont(this.fonts.body, 'bold');
     doc.setFontSize(this.pdfSizes.sectionLabel);
     doc.setTextColor(...hexToRgbTuple(COLOR.textBody));
-    doc.text('Web Search Results:', margins.left, y);
+    doc.text(`${this.webSearchSectionLabel()}:`, margins.left, y);
     y += lineHeight * 1.2;
 
     // Render each search
@@ -909,7 +913,7 @@ export class PdfExporter extends BaseExporter {
       doc.setFont(this.fonts.body, 'bold');
       doc.setFontSize(this.pdfSizes.artifactTitle);
       doc.setTextColor(...hexToRgbTuple(COLOR.textPrimary));
-      doc.text(this.sanitize(search.query || 'References'), margins.left, y);
+      doc.text(this.sanitize(search.query || this.sourcesFallbackLabel()), margins.left, y);
       y += lineHeight;
 
       // Result count
@@ -917,7 +921,7 @@ export class PdfExporter extends BaseExporter {
         doc.setFont(this.fonts.body, 'italic');
         doc.setFontSize(this.sizes.meta);
         doc.setTextColor(...hexToRgbTuple(COLOR.textMuted));
-        doc.text(`${search.resultCount} results found`, margins.left, y);
+        doc.text(this.searchResultCountLabel(search.resultCount), margins.left, y);
         y += lineHeight;
       }
 

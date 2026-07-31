@@ -9,7 +9,9 @@
  * message content stays inert instead of just inspecting the HTML string.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { JSDOM } from 'jsdom';
 import type { Conversation, ExportOptions, QAPair } from '../../../../src/core/types';
 import { HtmlExporter } from '../../../../src/core/exporters/html-exporter';
@@ -681,6 +683,26 @@ describe('prose artifacts render as prose, not as source', () => {
 });
 
 describe('HtmlExporter accessibility (A11Y-1)', () => {
+  // I18N-1: the "Artifacts"/"Web Search Results" section headings now
+  // resolve through getMessage() instead of a hardcoded literal, so without
+  // a chrome.i18n mock they'd render the raw key in this test environment.
+  const originalChrome = globalThis.chrome;
+  beforeEach(() => {
+    const en = JSON.parse(
+      readFileSync(resolve(__dirname, '../../../../_locales/en/messages.json'), 'utf-8')
+    ) as Record<string, { message: string }>;
+    globalThis.chrome = {
+      ...originalChrome,
+      i18n: {
+        getUILanguage: () => 'en',
+        getMessage: (key: string) => en[key]?.message ?? '',
+      },
+    } as unknown as typeof chrome;
+  });
+  afterEach(() => {
+    globalThis.chrome = originalChrome;
+  });
+
   function conversationWithAnswer(overrides: Record<string, unknown>): Conversation {
     return {
       id: 'test-conversation',

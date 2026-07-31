@@ -71,25 +71,29 @@ export class TextExporter extends BaseExporter {
 
     // Metadata section
     if (options.showMetaInfo) {
-      lines.push(`Platform: ${this.formatPlatformName(conversation.platform)}`);
+      lines.push(
+        `${this.getMetadataLabel('platform')}: ${this.formatPlatformName(conversation.platform)}`
+      );
       if (conversation.model) {
-        lines.push(`Model: ${conversation.model}`);
+        lines.push(`${this.getMetadataLabel('model')}: ${conversation.model}`);
       }
       const dateRange = this.formatDateRange(conversation.pairs);
       if (dateRange) {
         lines.push(`${this.getMetadataLabel('dateRange')}: ${dateRange}`);
       }
       if (conversation.createdAt) {
-        lines.push(`Exported: ${this.formatTimestamp(conversation.createdAt)}`);
+        lines.push(
+          `${this.getMetadataLabel('exported')}: ${this.formatTimestamp(conversation.createdAt)}`
+        );
       }
-      lines.push(`URL: ${conversation.url}`);
+      lines.push(`${this.getMetadataLabel('url')}: ${conversation.url}`);
       lines.push('');
       lines.push('-'.repeat(TXT_WIDTH));
       lines.push('');
     }
 
     // Q&A pairs
-    const assistantName = this.getAssistantName(conversation.platform);
+    const assistantName = this.getRoleName('assistant', conversation.platform);
     const daySeparator = this.daySeparator(options.showMetaInfo);
     for (let i = 0; i < conversation.pairs.length; i++) {
       const pair = conversation.pairs[i];
@@ -172,7 +176,9 @@ export class TextExporter extends BaseExporter {
     // User message — indented two spaces, the plain-text equivalent of the
     // pdf's turn fill: it is what marks who is asking.
     pushDaySeparator(pair.question.timestamp);
-    lines.push(...this.roleLabel('User', pair.question.timestamp, options.showMetaInfo));
+    lines.push(
+      ...this.roleLabel(this.getRoleName('user'), pair.question.timestamp, options.showMetaInfo)
+    );
     lines.push(...this.renderBlocks(pair.question.blocks, '  '));
     lines.push('');
 
@@ -187,13 +193,13 @@ export class TextExporter extends BaseExporter {
 
       if (artifactsWithContent.length > 0) {
         lines.push('');
-        lines.push('Artifacts:');
+        lines.push(`${this.artifactsSectionLabel()}:`);
         lines.push('');
 
         for (const artifact of artifactsWithContent) {
           lines.push(`--- ${artifact.title} ---`);
           if (artifact.typeLabel) {
-            lines.push(`Type: ${artifact.typeLabel}`);
+            lines.push(`${this.artifactTypeFieldLabel()}: ${artifact.typeLabel}`);
           }
           lines.push('');
           lines.push(artifact.content || '');
@@ -209,7 +215,7 @@ export class TextExporter extends BaseExporter {
           continue;
         }
         lines.push('');
-        lines.push(`Sources — ${search.query || 'References'}:`);
+        lines.push(`${this.sourcesSectionLabel(search.query)}:`);
         lines.push('');
         for (const result of search.results) {
           lines.push(`- ${result.title}${result.domain ? ` (${result.domain})` : ''}`);
@@ -414,18 +420,5 @@ export class TextExporter extends BaseExporter {
           : item.text
       )
       .join('');
-  }
-
-  /**
-   * Get assistant name based on platform
-   */
-  private getAssistantName(platform: string): string {
-    const platformNames: Record<string, string> = {
-      chatgpt: 'ChatGPT',
-      claude: 'Claude',
-      gemini: 'Gemini',
-    };
-
-    return platformNames[platform] || 'Assistant';
   }
 }

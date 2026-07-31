@@ -10,7 +10,9 @@
  * keep working if the visual styling changes.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import type { Conversation, QAPair } from '../../../../src/core/types';
 import { PdfExporter } from '../../../../src/core/exporters/pdf-exporter';
 import { COLOR, hexToRgbTuple } from '../../../../src/core/exporters/style-tokens';
@@ -806,5 +808,59 @@ describe('EXP-2: unsupported-script placeholder and warning', () => {
     const rendered = textCallsOf(instances[0]!);
     expect(rendered.some((t) => t.includes('Клод') || t.includes('чат'))).toBe(false);
     expect(rendered.some((t) => t.includes(UNSUPPORTED_SCRIPT_PLACEHOLDER))).toBe(true);
+  });
+});
+
+describe('I18N-1: Artifacts/Type/Web Search Results section labels (German locale)', () => {
+  const originalChrome = globalThis.chrome;
+
+  afterEach(() => {
+    globalThis.chrome = originalChrome;
+  });
+
+  it('localises the section labels and drops the English literals', async () => {
+    const de = JSON.parse(
+      readFileSync(resolve(__dirname, '../../../../_locales/de/messages.json'), 'utf-8')
+    ) as Record<string, { message: string }>;
+    globalThis.chrome = {
+      ...originalChrome,
+      i18n: {
+        getUILanguage: () => 'de',
+        getMessage: (key: string, substitutions?: string | string[]) => {
+          const message = de[key]?.message ?? '';
+          const values = substitutions === undefined ? [] : ([] as string[]).concat(substitutions);
+          return values.reduce((acc, value, i) => acc.replaceAll(`$${i + 1}`, value), message);
+        },
+      },
+    } as unknown as typeof chrome;
+
+    instances.length = 0;
+    const { conversation, pairs } = buildConversation();
+    conversation.pairs[0]!.answer.metadata = {
+      artifacts: [{ type: 'code', title: 'my-script.js', typeLabel: 'Code', content: 'x' }],
+      webSearches: [
+        {
+          query: 'weather today',
+          resultCount: 2,
+          results: [{ title: 'Result one', url: 'https://example.com/1', domain: 'example.com' }],
+        },
+      ],
+    };
+
+    await new PdfExporter().export(conversation, pairs, {
+      format: 'pdf',
+      filename: 'test',
+      showMetaInfo: true,
+    });
+
+    const rendered = textCallsOf(instances[0]!);
+    expect(rendered).toContain(`${de.exportSectionArtifacts!.message}:`);
+    expect(rendered).toContain(`${de.exportArtifactType!.message}: Code`);
+    expect(rendered).toContain(`${de.exportSectionWebSearchResults!.message}:`);
+    expect(rendered).toContain(de.exportSearchResultCount!.message.replace('$1', '2'));
+    expect(rendered).not.toContain('Artifacts:');
+    expect(rendered).not.toContain('Type: Code');
+    expect(rendered).not.toContain('Web Search Results:');
+    expect(rendered).not.toContain('2 results found');
   });
 });

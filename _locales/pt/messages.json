@@ -80,7 +80,7 @@
     "description": "Title for no chatbot detected message"
   },
   "noChatbotDetectedMessage": {
-    "message": "Abra um chat numa destas páginas: abrirá num novo separador.",
+    "message": "Abre um chat numa destas páginas: abrirá num novo separador.",
     "description": "Message when no chatbot is detected"
   },
   "noConversationFoundTitle": {
@@ -92,7 +92,7 @@
     "description": "Message shown when the page is a supported chatbot but its parser found no conversation"
   },
   "reloadRequiredTitle": {
-    "message": "Recarregue a página para exportar esta conversa",
+    "message": "Recarrega a página para exportar esta conversa",
     "description": "Title for reload required message"
   },
   "reloadRequiredMessage": {
@@ -124,11 +124,11 @@
     "description": "Link that runs the degraded export again"
   },
   "warningArtifactsIdsMissing": {
-    "message": "O conteúdo dos artefactos e os horários de cada mensagem do Claude foram deixados de fora desta exportação porque não foi possível encontrar os dados da conversa nesta página. Recarregue a página, confirme que tem sessão iniciada em claude.ai e exporte novamente.",
+    "message": "O conteúdo dos artefactos e os horários de cada mensagem do Claude foram deixados de fora desta exportação porque não foi possível encontrar os dados da conversa nesta página. Recarrega a página, confirma que tens sessão iniciada em claude.ai e exporta novamente.",
     "description": "Warning shown when the Claude conversation or organization id can't be read from the page — reloading is the fix, not retrying"
   },
   "warningArtifactsFetchFailed": {
-    "message": "O conteúdo dos artefactos e os horários de cada mensagem do Claude foram deixados de fora desta exportação porque não foi possível obter os dados da conversa do Claude. Isto pode ser temporário: tente exportar novamente.",
+    "message": "O conteúdo dos artefactos e os horários de cada mensagem do Claude foram deixados de fora desta exportação porque não foi possível obter os dados da conversa do Claude. Isto pode ser temporário: tenta exportar novamente.",
     "description": "Warning shown when the Claude API request for enrichment data fails or returns nothing — retrying may succeed"
   },
   "warningPdfUnsupportedScript": {
@@ -558,7 +558,7 @@
     "description": "Title of the amber row shown on the main view when selector drift is detected"
   },
   "driftRowDetail": {
-    "message": "A sua exportação pode estar incompleta.",
+    "message": "A tua exportação pode estar incompleta.",
     "description": "Detail line under the drift row title"
   },
   "driftRowAction": {
@@ -570,7 +570,7 @@
     "description": "Title of the drift report submenu"
   },
   "driftReportIntro": {
-    "message": "Este é o relatório completo. Não contém nenhuma parte da sua conversa — cada trecho de texto é substituído pelo número de caracteres que tinha. Nada é enviado a lugar nenhum, a menos que escolha partilhá-lo.",
+    "message": "Este é o relatório completo. Não contém nenhuma parte da tua conversa — cada trecho de texto é substituído pelo número de caracteres que tinha. Nada é enviado a lugar nenhum, a menos que escolhas partilhá-lo.",
     "description": "Privacy guarantee text shown above the drift report preview"
   },
   "driftReportCopy": {
@@ -592,5 +592,79 @@
   "driftReportLoading": {
     "message": "A ler a estrutura da página…",
     "description": "Shown while the content script builds the drift report skeleton"
+  },
+  "exportSectionArtifacts": {
+    "message": "Artefatos",
+    "description": "Section heading for artifacts in exported documents"
+  },
+  "exportArtifactType": {
+    "message": "Tipo",
+    "description": "Field label for an artifact's type, e.g. 'Type: Document'"
+  },
+  "exportSectionSources": {
+    "message": "Fontes",
+    "description": "Section heading for cited web-search sources, e.g. 'Sources — query'"
+  },
+  "exportSectionWebSearchResults": {
+    "message": "Resultados da pesquisa na web",
+    "description": "Section heading for web search results in exported documents"
+  },
+  "exportSearchResultCount": {
+    "message": "$1 resultados encontrados",
+    "description": "Count of web search results found. $1 = number of results",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "exportSourcesFallback": {
+    "message": "Referências",
+    "description": "Fallback heading for a web search with no query text"
+  },
+  "exportViewSvgCode": {
+    "message": "Ver código SVG",
+    "description": "Collapsible-section label for viewing raw SVG source in a Markdown export"
+  },
+  "mediaKindVideo": {
+    "message": "Vídeo",
+    "description": "Label for a video media block"
+  },
+  "mediaKindAudio": {
+    "message": "Áudio",
+    "description": "Label for an audio media block"
+  },
+  "commandExportConversation": {
+    "message": "Exportar conversa atual",
+    "description": "Keyboard-shortcut description for the export-conversation command"
+  },
+  "artifactTypeImage": {
+    "message": "Imagem",
+    "description": "Artifact type label: image"
+  },
+  "artifactTypeReact": {
+    "message": "Artefato interativo",
+    "description": "Artifact type label: interactive (React) artifact"
+  },
+  "artifactTypeDocument": {
+    "message": "Documento",
+    "description": "Artifact type label: document"
+  },
+  "artifactTypeDiagram": {
+    "message": "Diagrama",
+    "description": "Artifact type label: diagram"
+  },
+  "artifactTypeCode": {
+    "message": "Código",
+    "description": "Artifact type label: code"
+  },
+  "artifactTypeGeneric": {
+    "message": "Artefato",
+    "description": "Artifact type label: generic fallback"
+  },
+  "errorNoExporterForFormat": {
+    "message": "Não há nenhum exportador disponível para este formato.",
+    "description": "Error shown when no exporter is registered for the requested format (should not normally be reachable from the UI)"
   }
 }

@@ -1,6 +1,6 @@
 {
   "extensionName": {
-    "message": "Exportateur de Chats IA",
+    "message": "AI Chat Exporter",
     "description": "Nom de l'extension"
   },
   "extensionDescription": {
@@ -92,7 +92,7 @@
     "description": "Message affiché quand la page est un chatbot pris en charge mais que l'analyseur n'a trouvé aucune conversation"
   },
   "reloadRequiredTitle": {
-    "message": "Rechargez la page pour exporter cette conversation",
+    "message": "Recharge la page pour exporter cette conversation",
     "description": "Titre du message rechargement requis"
   },
   "reloadRequiredMessage": {
@@ -124,11 +124,11 @@
     "description": "Link that runs the degraded export again"
   },
   "warningArtifactsIdsMissing": {
-    "message": "Le contenu des artefacts et les horodatages de chaque message de Claude ont été omis de cet export, car les données de la conversation n'ont pas pu être trouvées sur cette page. Rechargez la page, vérifiez que vous êtes connecté à claude.ai, puis réexportez.",
+    "message": "Le contenu des artefacts et les horodatages de chaque message de Claude ont été omis de cet export, car les données de la conversation n'ont pas pu être trouvées sur cette page. Recharge la page, vérifie que tu es connecté à claude.ai, puis réexporte.",
     "description": "Warning shown when the Claude conversation or organization id can't be read from the page — reloading is the fix, not retrying"
   },
   "warningArtifactsFetchFailed": {
-    "message": "Le contenu des artefacts et les horodatages de chaque message de Claude ont été omis de cet export, car les données de la conversation Claude n'ont pas pu être récupérées. Cela peut être temporaire : réessayez l'export.",
+    "message": "Le contenu des artefacts et les horodatages de chaque message de Claude ont été omis de cet export, car les données de la conversation Claude n'ont pas pu être récupérées. Cela peut être temporaire : réessaie l'export.",
     "description": "Warning shown when the Claude API request for enrichment data fails or returns nothing — retrying may succeed"
   },
   "warningPdfUnsupportedScript": {
@@ -300,7 +300,7 @@
     }
   },
   "exportedWithChatExporter": {
-    "message": "Exporté avec Exportateur de Chats IA",
+    "message": "Exporté avec AI Chat Exporter",
     "description": "Message de pied de page dans les exports HTML"
   },
   "footerPrivacy": {
@@ -420,7 +420,7 @@
     }
   },
   "privacyNotice": {
-    "message": "Généré dans votre navigateur. Rien n'est envoyé à un serveur.",
+    "message": "Généré dans ton navigateur. Rien n'est envoyé à un serveur.",
     "description": "Privacy line under the action bar"
   },
   "formatMenuLabel": {
@@ -558,7 +558,7 @@
     "description": "Title of the amber row shown on the main view when selector drift is detected"
   },
   "driftRowDetail": {
-    "message": "Votre export est peut-être incomplet.",
+    "message": "Ton export est peut-être incomplet.",
     "description": "Detail line under the drift row title"
   },
   "driftRowAction": {
@@ -570,7 +570,7 @@
     "description": "Title of the drift report submenu"
   },
   "driftReportIntro": {
-    "message": "Voici le rapport complet. Il ne contient aucune partie de votre conversation — chaque texte est remplacé par le nombre de caractères qu'il contenait. Rien n'est envoyé nulle part, sauf si vous choisissez de le partager.",
+    "message": "Voici le rapport complet. Il ne contient aucune partie de ta conversation — chaque texte est remplacé par le nombre de caractères qu'il contenait. Rien n'est envoyé nulle part, sauf si tu choisis de le partager.",
     "description": "Privacy guarantee text shown above the drift report preview"
   },
   "driftReportCopy": {
@@ -592,5 +592,79 @@
   "driftReportLoading": {
     "message": "Lecture de la structure de la page…",
     "description": "Shown while the content script builds the drift report skeleton"
+  },
+  "exportSectionArtifacts": {
+    "message": "Artefacts",
+    "description": "Section heading for artifacts in exported documents"
+  },
+  "exportArtifactType": {
+    "message": "Type",
+    "description": "Field label for an artifact's type, e.g. 'Type: Document'"
+  },
+  "exportSectionSources": {
+    "message": "Sources",
+    "description": "Section heading for cited web-search sources, e.g. 'Sources — query'"
+  },
+  "exportSectionWebSearchResults": {
+    "message": "Résultats de la recherche web",
+    "description": "Section heading for web search results in exported documents"
+  },
+  "exportSearchResultCount": {
+    "message": "$1 résultats trouvés",
+    "description": "Count of web search results found. $1 = number of results",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "exportSourcesFallback": {
+    "message": "Références",
+    "description": "Fallback heading for a web search with no query text"
+  },
+  "exportViewSvgCode": {
+    "message": "Voir le code SVG",
+    "description": "Collapsible-section label for viewing raw SVG source in a Markdown export"
+  },
+  "mediaKindVideo": {
+    "message": "Vidéo",
+    "description": "Label for a video media block"
+  },
+  "mediaKindAudio": {
+    "message": "Audio",
+    "description": "Label for an audio media block"
+  },
+  "commandExportConversation": {
+    "message": "Exporter la conversation actuelle",
+    "description": "Keyboard-shortcut description for the export-conversation command"
+  },
+  "artifactTypeImage": {
+    "message": "Image",
+    "description": "Artifact type label: image"
+  },
+  "artifactTypeReact": {
+    "message": "Artefact interactif",
+    "description": "Artifact type label: interactive (React) artifact"
+  },
+  "artifactTypeDocument": {
+    "message": "Document",
+    "description": "Artifact type label: document"
+  },
+  "artifactTypeDiagram": {
+    "message": "Diagramme",
+    "description": "Artifact type label: diagram"
+  },
+  "artifactTypeCode": {
+    "message": "Code",
+    "description": "Artifact type label: code"
+  },
+  "artifactTypeGeneric": {
+    "message": "Artefact",
+    "description": "Artifact type label: generic fallback"
+  },
+  "errorNoExporterForFormat": {
+    "message": "Aucun exportateur n'est disponible pour ce format.",
+    "description": "Error shown when no exporter is registered for the requested format (should not normally be reachable from the UI)"
   }
 }

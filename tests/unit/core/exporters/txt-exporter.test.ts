@@ -67,7 +67,10 @@ describe('TextExporter', () => {
       expect(text).not.toContain('**'); // No bold
       expect(text).toContain('USER');
       // R-5: the role label is uppercase and underlined, not `Name:`.
-      expect(text).toContain('CHATGPT'); // Platform-specific assistant name
+      // The platform-specific name comes from i18n (`roleChatGPT`), absent
+      // in this harness, so it falls back to the generic role name here --
+      // same as the other exporters' tests already do.
+      expect(text).toContain('ASSISTANT');
     });
 
     it('separates messages with separators', async () => {

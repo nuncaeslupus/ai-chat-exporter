@@ -80,7 +80,7 @@
     "description": "Title for no chatbot detected message"
   },
   "noChatbotDetectedMessage": {
-    "message": "Öffnen Sie einen Chat auf einer dieser Seiten – er wird in einem neuen Tab geöffnet.",
+    "message": "Öffne einen Chat auf einer dieser Seiten – er wird in einem neuen Tab geöffnet.",
     "description": "Message when no chatbot is detected"
   },
   "noConversationFoundTitle": {
@@ -92,7 +92,7 @@
     "description": "Message shown when the page is a supported chatbot but its parser found no conversation"
   },
   "reloadRequiredTitle": {
-    "message": "Laden Sie die Seite neu, um diese Unterhaltung zu exportieren",
+    "message": "Lade die Seite neu, um diese Unterhaltung zu exportieren",
     "description": "Title for reload required message"
   },
   "reloadRequiredMessage": {
@@ -558,7 +558,7 @@
     "description": "Title of the amber row shown on the main view when selector drift is detected"
   },
   "driftRowDetail": {
-    "message": "Ihr Export ist möglicherweise unvollständig.",
+    "message": "Dein Export ist möglicherweise unvollständig.",
     "description": "Detail line under the drift row title"
   },
   "driftRowAction": {
@@ -570,7 +570,7 @@
     "description": "Title of the drift report submenu"
   },
   "driftReportIntro": {
-    "message": "Dies ist der vollständige Bericht. Er enthält keinen Teil Ihrer Unterhaltung – jeder Textabschnitt wird durch die Anzahl seiner Zeichen ersetzt. Es wird nichts gesendet, es sei denn, Sie entscheiden sich, ihn zu teilen.",
+    "message": "Dies ist der vollständige Bericht. Er enthält keinen Teil deiner Unterhaltung – jeder Textabschnitt wird durch die Anzahl seiner Zeichen ersetzt. Es wird nichts gesendet, es sei denn, du entscheidest dich, ihn zu teilen.",
     "description": "Privacy guarantee text shown above the drift report preview"
   },
   "driftReportCopy": {
@@ -586,11 +586,85 @@
     "description": "Inline confirmation shown after a successful drift report copy"
   },
   "driftReportCopyFailed": {
-    "message": "Kopieren fehlgeschlagen — markieren Sie den Text oben",
+    "message": "Kopieren fehlgeschlagen — markiere den Text oben",
     "description": "Shown when writing the drift report to the clipboard fails"
   },
   "driftReportLoading": {
     "message": "Seitenstruktur wird gelesen…",
     "description": "Shown while the content script builds the drift report skeleton"
+  },
+  "exportSectionArtifacts": {
+    "message": "Artefakte",
+    "description": "Section heading for artifacts in exported documents"
+  },
+  "exportArtifactType": {
+    "message": "Typ",
+    "description": "Field label for an artifact's type, e.g. 'Type: Document'"
+  },
+  "exportSectionSources": {
+    "message": "Quellen",
+    "description": "Section heading for cited web-search sources, e.g. 'Sources — query'"
+  },
+  "exportSectionWebSearchResults": {
+    "message": "Ergebnisse der Websuche",
+    "description": "Section heading for web search results in exported documents"
+  },
+  "exportSearchResultCount": {
+    "message": "$1 Ergebnisse gefunden",
+    "description": "Count of web search results found. $1 = number of results",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "exportSourcesFallback": {
+    "message": "Referenzen",
+    "description": "Fallback heading for a web search with no query text"
+  },
+  "exportViewSvgCode": {
+    "message": "SVG-Code anzeigen",
+    "description": "Collapsible-section label for viewing raw SVG source in a Markdown export"
+  },
+  "mediaKindVideo": {
+    "message": "Video",
+    "description": "Label for a video media block"
+  },
+  "mediaKindAudio": {
+    "message": "Audio",
+    "description": "Label for an audio media block"
+  },
+  "commandExportConversation": {
+    "message": "Aktuelle Unterhaltung exportieren",
+    "description": "Keyboard-shortcut description for the export-conversation command"
+  },
+  "artifactTypeImage": {
+    "message": "Bild",
+    "description": "Artifact type label: image"
+  },
+  "artifactTypeReact": {
+    "message": "Interaktives Artefakt",
+    "description": "Artifact type label: interactive (React) artifact"
+  },
+  "artifactTypeDocument": {
+    "message": "Dokument",
+    "description": "Artifact type label: document"
+  },
+  "artifactTypeDiagram": {
+    "message": "Diagramm",
+    "description": "Artifact type label: diagram"
+  },
+  "artifactTypeCode": {
+    "message": "Code",
+    "description": "Artifact type label: code"
+  },
+  "artifactTypeGeneric": {
+    "message": "Artefakt",
+    "description": "Artifact type label: generic fallback"
+  },
+  "errorNoExporterForFormat": {
+    "message": "Für dieses Format ist kein Exporteur verfügbar.",
+    "description": "Error shown when no exporter is registered for the requested format (should not normally be reachable from the UI)"
   }
 }

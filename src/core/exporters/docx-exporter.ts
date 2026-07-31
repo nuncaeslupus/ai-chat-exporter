@@ -223,7 +223,7 @@ export class DocxExporter extends BaseExporter {
         new Paragraph({
           children: [
             safeTextRun({
-              text: `Platform: ${this.formatPlatformName(conversation.platform)}`,
+              text: `${this.getMetadataLabel('platform')}: ${this.formatPlatformName(conversation.platform)}`,
               size: ptToHalfPt(this.sizes.meta),
               color: hexToDocxColor(COLOR.textMuted),
             }),
@@ -237,7 +237,7 @@ export class DocxExporter extends BaseExporter {
           new Paragraph({
             children: [
               safeTextRun({
-                text: `Model: ${conversation.model}`,
+                text: `${this.getMetadataLabel('model')}: ${conversation.model}`,
                 size: ptToHalfPt(this.sizes.meta),
                 color: hexToDocxColor(COLOR.textMuted),
               }),
@@ -268,7 +268,7 @@ export class DocxExporter extends BaseExporter {
           new Paragraph({
             children: [
               safeTextRun({
-                text: `Exported: ${this.formatTimestamp(conversation.createdAt)}`,
+                text: `${this.getMetadataLabel('exported')}: ${this.formatTimestamp(conversation.createdAt)}`,
                 size: ptToHalfPt(this.sizes.meta),
                 color: hexToDocxColor(COLOR.textMuted),
               }),
@@ -282,7 +282,7 @@ export class DocxExporter extends BaseExporter {
         new Paragraph({
           children: [
             safeTextRun({
-              text: `URL: ${conversation.url}`,
+              text: `${this.getMetadataLabel('url')}: ${conversation.url}`,
               size: ptToHalfPt(this.sizes.meta),
               color: hexToDocxColor(COLOR.textMuted),
             }),
@@ -293,7 +293,7 @@ export class DocxExporter extends BaseExporter {
     }
 
     // Q&A pairs
-    const assistantName = this.getAssistantName(conversation.platform);
+    const assistantName = this.getRoleName('assistant', conversation.platform);
     // The role label is text on a white page, so take the darkened
     // on-light variant — the same token html's role label uses.
     const assistantColor = brandColorFor(COLOR.brandTextOnLight, conversation.platform);
@@ -503,7 +503,7 @@ export class DocxExporter extends BaseExporter {
     pushDaySeparator(pair.question.timestamp);
     paragraphs.push(
       this.renderRoleLabel(
-        'User',
+        this.getRoleName('user'),
         this.formatTimestampSuffix(pair.question.timestamp, options.showMetaInfo),
         COLOR.link
       )
@@ -532,7 +532,7 @@ export class DocxExporter extends BaseExporter {
       if (artifactsWithContent.length > 0) {
         paragraphs.push(
           new Paragraph({
-            text: 'Artifacts',
+            text: this.artifactsSectionLabel(),
             heading: HeadingLevel.HEADING_3,
             spacing: { before: 200, after: 100 },
           })
@@ -559,7 +559,7 @@ export class DocxExporter extends BaseExporter {
               new Paragraph({
                 children: [
                   safeTextRun({
-                    text: `Type: ${artifact.typeLabel}`,
+                    text: `${this.artifactTypeFieldLabel()}: ${artifact.typeLabel}`,
                     italics: true,
                     size: ptToHalfPt(this.sizes.meta),
                   }),
@@ -610,7 +610,7 @@ export class DocxExporter extends BaseExporter {
         }
         paragraphs.push(
           new Paragraph({
-            text: `Sources — ${search.query || 'References'}`,
+            text: this.sourcesSectionLabel(search.query),
             heading: HeadingLevel.HEADING_3,
             spacing: { before: 200, after: 100 },
           })
@@ -1025,18 +1025,5 @@ export class DocxExporter extends BaseExporter {
 
       return safeTextRun(options);
     });
-  }
-
-  /**
-   * Get assistant name based on platform
-   */
-  private getAssistantName(platform: string): string {
-    const platformNames: Record<string, string> = {
-      chatgpt: 'ChatGPT',
-      claude: 'Claude',
-      gemini: 'Gemini',
-    };
-
-    return platformNames[platform] || 'Assistant';
   }
 }

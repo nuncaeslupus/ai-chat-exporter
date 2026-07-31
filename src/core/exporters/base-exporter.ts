@@ -14,6 +14,7 @@ import type {
 import {
   displayName,
   getMessage,
+  getMessageWithValues,
   getPlatformName,
   getRoleName as localizedRoleName,
   getUILanguage,
@@ -208,7 +209,7 @@ export abstract class BaseExporter implements IExporter {
    * the duration here is what puts it in every format at once.
    */
   protected mediaLabel(block: MediaBlock): string {
-    const kind = block.kind === 'video' ? 'Video' : 'Audio';
+    const kind = getMessage(block.kind === 'video' ? 'mediaKindVideo' : 'mediaKindAudio');
     const label = block.alt ? `${kind}: ${block.alt}` : kind;
     // A 0/absent duration says nothing; only render a real one.
     return block.duration ? `${label} (${formatDuration(block.duration)})` : label;
@@ -250,5 +251,49 @@ export abstract class BaseExporter implements IExporter {
 
     // Fallback to generic role name
     return localizedRoleName(role);
+  }
+
+  /**
+   * "Artifacts" section heading, shared by every human-readable exporter.
+   */
+  protected artifactsSectionLabel(): string {
+    return getMessage('exportSectionArtifacts');
+  }
+
+  /**
+   * "Type" field label used next to an artifact's `typeLabel`.
+   */
+  protected artifactTypeFieldLabel(): string {
+    return getMessage('exportArtifactType');
+  }
+
+  /**
+   * "Web Search Results" section heading (html/pdf, which render it separately
+   * from the per-search query heading).
+   */
+  protected webSearchSectionLabel(): string {
+    return getMessage('exportSectionWebSearchResults');
+  }
+
+  /**
+   * Fallback heading text for a web search with no query, e.g. "References".
+   */
+  protected sourcesFallbackLabel(): string {
+    return getMessage('exportSourcesFallback');
+  }
+
+  /**
+   * "Sources — <query>" heading (md/txt/docx, which combine the section label
+   * and the query into one line).
+   */
+  protected sourcesSectionLabel(query?: string): string {
+    return `${getMessage('exportSectionSources')} — ${query || this.sourcesFallbackLabel()}`;
+  }
+
+  /**
+   * "$1 results found" for a web search result count.
+   */
+  protected searchResultCountLabel(count: number): string {
+    return getMessageWithValues('exportSearchResultCount', count);
   }
 }
