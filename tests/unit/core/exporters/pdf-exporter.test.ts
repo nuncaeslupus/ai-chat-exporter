@@ -495,10 +495,21 @@ describe('R-2b: embedded fonts and what they mean for transliteration', () => {
     } as never);
     const instance = instances[0]!;
 
-    const added = instance.calls.filter((c) => c.method === 'addFont').map((c) => c.args[1]);
-    expect(added).toEqual(
-      expect.arrayContaining(['SourceSans3', 'SourceSans3', 'SourceSans3', 'IBMPlexMono'])
-    );
+    // Keyed on family/style, not just family: three of the four faces share
+    // the family 'SourceSans3' (regular/bold/italic) and only `style`
+    // distinguishes them. `arrayContaining` against a family-only array would
+    // pass with just 2 of the 4 faces registered, since ArrayContaining's
+    // `every`/`some` check ignores duplicate expected entries — a sorted
+    // `toEqual` catches a missing, duplicated, or extra face.
+    const added = instance.calls
+      .filter((c) => c.method === 'addFont')
+      .map((c) => `${String(c.args[1])}/${String(c.args[2])}`);
+    expect(added.sort()).toEqual([
+      'IBMPlexMono/normal',
+      'SourceSans3/bold',
+      'SourceSans3/italic',
+      'SourceSans3/normal',
+    ]);
 
     // Registration must precede every setFont, or jsPDF falls back silently.
     const firstSetFont = instance.calls.findIndex((c) => c.method === 'setFont');

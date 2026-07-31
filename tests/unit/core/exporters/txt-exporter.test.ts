@@ -138,7 +138,12 @@ describe('TextExporter', () => {
         showMetaInfo: false,
       });
       const text = await blobToText(result.blob!);
-      expect(text).not.toContain('12:00:00');
+      // R-5's per-message stamp is '· HH:MM' on the role-label line — never
+      // 'HH:MM:SS' — so a '12:00:00' assertion could never fail even with the
+      // preference honoured. Scope to the role-label line the positive test
+      // (above) actually asserts on, negated: no such line should exist at all.
+      const roleLines = text.split('\n').filter((l) => /^[A-Z]+ ·/.test(l));
+      expect(roleLines).toEqual([]);
     });
 
     it('emits no stray label or "undefined" when a message has no timestamp', async () => {
@@ -164,7 +169,9 @@ describe('TextExporter', () => {
       });
       const text = await blobToText(result.blob!);
       expect(text).not.toContain('undefined');
-      expect(text).not.toMatch(/\(\s*\)/);
+      // R-5's role label has no parens to leave empty ('USER · HH:MM'); the
+      // timestamp-less failure mode is a stray middot with nothing after it.
+      expect(text).not.toMatch(/^[A-Z]+\s*·\s*$/m);
     });
   });
 
