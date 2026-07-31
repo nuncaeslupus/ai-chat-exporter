@@ -9,6 +9,7 @@ import type {
   ClaudeApiChatMessage,
   Artifact,
   Conversation,
+  Message,
   QAPair,
 } from '../types';
 import { isArtifactContent } from '../types';
@@ -492,14 +493,14 @@ export class ClaudeApiService {
       // Always state the actual measured counts for both sides (never just
       // the one the brief's original wording assumed was the culprit) so the
       // message can never claim two equal counts while reporting a mismatch.
+      // Does not claim a specific cause (edited/regenerated/deleted) or that
+      // reloading fixes it — neither is reliably true (PAR-2).
       const plural = (n: number, noun: string): string =>
         `${String(n)} ${noun}${n === 1 ? '' : 's'}`;
       const warning =
-        `Artifact contents and message times were left out of this export: the page shows ${String(pairCount)} ` +
-        `Q&A pairs, but Claude reports ${plural(humanMessages.length, 'human message')} and ` +
-        `${plural(assistantMessages.length, 'assistant message')}, so they could not be matched to the right ` +
-        'turn (this happens when a turn was edited, regenerated or deleted). Reload the conversation and ' +
-        'export again.';
+        `Artifact contents and message times were left out of this export: the page shows ${plural(pairCount, 'Q&A pair')}, ` +
+        `but Claude reports ${plural(humanMessages.length, 'human message')} and ` +
+        `${plural(assistantMessages.length, 'assistant message')}, so they could not be matched to the right turn.`;
       console.warn(`[Claude API Service] ${warning}`);
       return { warning };
     }
@@ -518,6 +519,58 @@ export class ClaudeApiService {
     if (!iso) return undefined;
     const date = new Date(iso);
     return Number.isNaN(date.getTime()) ? undefined : date;
+  }
+
+  /** Build a `Message` straight from an API chat message — no DOM involved. */
+  private static buildMessageFromApi(
+    apiMessage: ClaudeApiChatMessage,
+    role: 'user' | 'assistant'
+  ): Message {
+    const timestamp = this.parseApiTime(apiMessage.created_at);
+    return {
+      id: apiMessage.uuid,
+      role,
+      content: apiMessage.text,
+      ...(timestamp && { timestamp }),
+    };
+  }
+
+  /**
+   * Build the conversation's pairs directly from the API response, bypassing
+   * the DOM scrape entirely (PAR-2).
+   *
+   * claude.ai renders messages in a windowed virtual list that never holds
+   * more than a handful of turns at once, so a long conversation's DOM-scraped
+   * pair count can be far short of the true count. When that happens the API
+   * — which returns every turn in one response — is the source of truth, not
+   * an enrichment layer bolted onto a truncated scrape.
+   */
+  private static buildPairsFromApiMessages(
+    apiData: ClaudeApiConversationResponse,
+    artifactsByMessageUuid: Map<string, Artifact[]>
+  ): QAPair[] {
+    const humanMessages = apiData.chat_messages.filter((m) => m.sender === 'human');
+    const assistantMessages = apiData.chat_messages.filter((m) => m.sender === 'assistant');
+    const pairCount = Math.min(humanMessages.length, assistantMessages.length);
+
+    const pairs: QAPair[] = [];
+    for (let index = 0; index < pairCount; index++) {
+      const human = humanMessages[index];
+      const assistant = assistantMessages[index];
+      if (!human || !assistant) continue;
+
+      const apiArtifacts = artifactsByMessageUuid.get(assistant.uuid);
+      const answer = this.buildMessageFromApi(assistant, 'assistant');
+
+      pairs.push({
+        id: assistant.uuid,
+        index,
+        question: this.buildMessageFromApi(human, 'user'),
+        answer: apiArtifacts ? { ...answer, metadata: { artifacts: apiArtifacts } } : answer,
+        selected: true,
+      });
+    }
+    return pairs;
   }
 
   /**
@@ -548,6 +601,22 @@ export class ClaudeApiService {
     apiData: ClaudeApiConversationResponse
   ): EnrichmentResult {
     const artifactsByMessageUuid = this.extractArtifacts(apiData);
+
+    // PAR-2: claude.ai's virtual-scroll DOM can capture far fewer turns than
+    // the conversation actually has. When the API's own human/assistant
+    // messages line up 1:1 and outnumber what the DOM scrape found, the DOM
+    // count is the truncated one — rebuild every pair from the API instead of
+    // discarding the turns the DOM never saw.
+    const humanMessages = apiData.chat_messages.filter((m) => m.sender === 'human');
+    const assistantMessages = apiData.chat_messages.filter((m) => m.sender === 'assistant');
+    if (
+      humanMessages.length === assistantMessages.length &&
+      humanMessages.length > conversation.pairs.length
+    ) {
+      const pairs = this.buildPairsFromApiMessages(apiData, artifactsByMessageUuid);
+      return { conversation: { ...conversation, pairs } };
+    }
+
     const match = this.matchPairsToApiMessages(conversation, apiData);
 
     if ('warning' in match) {
