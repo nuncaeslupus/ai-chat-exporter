@@ -43,9 +43,6 @@ export const CLAUDE_SELECTORS: SelectorSet = {
 
   // Custom selectors for Claude-specific elements
   custom: {
-    // Button injection area (page header)
-    buttonArea: 'header[data-testid="page-header"] div.right-3.flex.gap-2',
-
     // Per-turn wrapper: every turn (user or assistant) gets one of these;
     // it survives even when a redesign guts the turn's inner content.
     turnContainer: 'div[data-test-render-count]',
@@ -65,7 +62,6 @@ export const CLAUDE_SELECTORS: SelectorSet = {
 
     // Assistant message specific selectors
     assistantMessageContent: 'div.standard-markdown, div.progressive-markdown',
-    assistantResponseBody: 'p.font-claude-response-body',
 
     // Artifacts/Canvases selectors.
     // The cell is matched on its own, NOT via a wrapper class: claude.ai's
@@ -94,9 +90,6 @@ export const CLAUDE_SELECTORS: SelectorSet = {
     webSearchResults: 'div.flex.flex-nowrap.p-2.pt-0.flex-col a',
     webSearchResultTitle: 'p.relative.text-\\[0\\.875rem\\]',
     webSearchResultDomain: 'p.relative.bottom-\\[1px\\].text-\\[0\\.75rem\\].text-text-500',
-
-    // Message actions (to exclude)
-    messageActions: 'div[role="group"][aria-label="Message actions"]',
   },
 };
 

@@ -11,7 +11,8 @@ import { WARNING_KEYS, ERROR_KEYS } from '../../shared/constants';
 import { SelectionService } from '../../core/services/selection-service';
 import { StorageService } from '../../shared/storage';
 import type { Conversation, ExportFormat } from '../../core/types';
-import { sanitizeHtml } from '../../core/utils/sanitize-html';
+import { escapeHtml, sanitizeHtml } from '../../core/utils/sanitize-html';
+import { escapeHtmlText } from '../../core/exporters/code-highlight';
 import { buildSkeleton, type DriftReport } from '../../core/drift';
 import {
   isExportConversationMessage,
@@ -431,10 +432,7 @@ class ContentScript {
   }
 
   private wrapInPrintHtml(content: string, format: ExportFormat): string {
-    const escapedContent = content
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+    const escapedContent = escapeHtmlText(content);
 
     return `<!DOCTYPE html>
 <html>
@@ -466,42 +464,32 @@ class ContentScript {
    * Uses marked.js library for proper markdown parsing
    */
   private async renderMarkdownToCleanHtml(markdown: string, title: string): Promise<string> {
-    // Loaded on demand: this is the print-only path, and full highlight.js is
-    // ~950 KB (194 languages) that every page load would otherwise pay for.
-    const [{ marked }, { default: hljs }, { requireDoubleTildeStrikethrough }] = await Promise.all([
+    // DEAD-1: this used to also dynamically import all of highlight.js
+    // (~950 KB / 194 languages) to emit `hljs-*` spans, but the style block
+    // below never defined any `.hljs` rule, so every highlighted token
+    // rendered identically to plain escaped text anyway. Escaping the code
+    // text directly produces the same visible output for a fraction of the
+    // weight.
+    const [{ marked }, { requireDoubleTildeStrikethrough }] = await Promise.all([
       import('marked'),
-      import('highlight.js'),
       import('../../core/utils/markdown-options'),
     ]);
 
-    // Configure marked for GitHub Flavored Markdown with syntax highlighting
+    // Configure marked for GitHub Flavored Markdown
     marked.setOptions({ gfm: true, breaks: false });
     requireDoubleTildeStrikethrough(marked);
     marked.use({
       renderer: {
         code({ text, lang }) {
-          const language = lang && hljs.getLanguage(lang) ? lang : null;
-          const highlighted = language
-            ? hljs.highlight(text, { language }).value
-            : hljs.highlightAuto(text).value;
           // `tabindex="0"` (A11Y-1/#216): a scrollable code block with no
           // focusable target is unreachable by keyboard (WCAG 2.1.1).
-          return `<pre tabindex="0"><code class="hljs language-${language ?? 'plaintext'}">${highlighted}</code></pre>`;
+          return `<pre tabindex="0"><code class="language-${lang ?? 'plaintext'}">${escapeHtmlText(text)}</code></pre>`;
         },
       },
     });
 
     // Parse markdown to HTML
     const htmlContent = await marked.parse(markdown);
-
-    const escapeHtml = (text: string) => {
-      return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    };
 
     return `<!DOCTYPE html>
 <html lang="en">

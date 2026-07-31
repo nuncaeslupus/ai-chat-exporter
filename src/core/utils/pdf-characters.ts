@@ -14,17 +14,10 @@ import { EMBEDDED_FONT_COVERAGE } from '../exporters/pdf-fonts.generated';
  * - jsPDF Font Encoding: https://github.com/parallax/jsPDF/issues/2677
  */
 
-export interface CharacterReplacement {
-  char: string;
-  replacement: string;
-  unicode: string;
-  reason: string;
-}
-
 /**
  * Characters that are not in Windows-1252 or cause rendering issues
  */
-export const PDF_CHARACTER_REPLACEMENTS: Record<string, string> = {
+const PDF_CHARACTER_REPLACEMENTS: Record<string, string> = {
   // Currency symbols not in Windows-1252
   '฿': 'THB', // Thai Baht (U+0E3F)
   '₹': 'INR', // Indian Rupee (U+20B9)
@@ -212,11 +205,6 @@ export const PDF_CHARACTER_REPLACEMENTS: Record<string, string> = {
 };
 
 /**
- * Apply character replacements to text for PDF compatibility
- * First replaces known characters (including emojis) with safe equivalents,
- * then strips any remaining emojis that don't have a good replacement
- */
-/**
  * Does every embedded face render this string?
  *
  * A single-character replacement is pointless once the font has the glyph — and
@@ -274,6 +262,11 @@ function transliterateIsolatedGreekLetters(text: string): string {
   });
 }
 
+/**
+ * Apply character replacements to text for PDF compatibility
+ * First replaces known characters (including emojis) with safe equivalents,
+ * then strips any remaining emojis that don't have a good replacement
+ */
 export function sanitizeTextForPDF(text: string, onUnsupportedScript?: () => void): string {
   // First apply character replacements (including emojis with text equivalents)
   // Sort by length (longest first) to handle multi-character sequences properly
@@ -334,23 +327,4 @@ function stripRemainingEmojis(text: string): string {
     /[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F700}-\u{1F77F}]|[\u{1F780}-\u{1F7FF}]|[\u{1F800}-\u{1F8FF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{231A}-\u{231B}]|[\u{23E9}-\u{23EC}]|[\u{23F0}]|[\u{23F3}]|[\u{25FD}-\u{25FE}]|[\u{2614}-\u{2615}]|[\u{2648}-\u{2653}]|[\u{267F}]|[\u{2693}]|[\u{26A1}]|[\u{26AA}-\u{26AB}]|[\u{26BD}-\u{26BE}]|[\u{26C4}-\u{26C5}]|[\u{26CE}]|[\u{26D4}]|[\u{26EA}]|[\u{26F2}-\u{26F3}]|[\u{26F5}]|[\u{26FA}]|[\u{26FD}]|[\u{2705}]|[\u{270A}-\u{270B}]|[\u{2728}]|[\u{274C}]|[\u{274E}]|[\u{2753}-\u{2755}]|[\u{2757}]|[\u{2795}-\u{2797}]|[\u{27B0}]|[\u{27BF}]|[\u{2B1B}-\u{2B1C}]|[\u{2B50}]|[\u{2B55}]/gu,
     ''
   );
-}
-
-/**
- * Get a description of why a character needs replacement
- */
-export function getReplacementReason(char: string): string {
-  const unicode = char.codePointAt(0)?.toString(16).toUpperCase().padStart(4, '0');
-
-  if (!unicode) return 'Unknown character';
-
-  const codePoint = parseInt(unicode, 16);
-
-  if (codePoint > 0xff) {
-    return `Not in Windows-1252 (U+${unicode})`;
-  } else if (codePoint < 0x20) {
-    return `Control character (U+${unicode})`;
-  } else {
-    return `May cause rendering issues in some PDF viewers (U+${unicode})`;
-  }
 }

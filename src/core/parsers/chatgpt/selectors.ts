@@ -52,8 +52,6 @@ export const CHATGPT_SELECTORS = {
     messageIdAttr: 'data-message-id',
     // Model slug attribute
     modelSlugAttr: 'data-message-model-slug',
-    // Button injection area (near header)
-    buttonArea: 'main header, main > div:first-child',
     // Code artifact container (escape ! in class name)
     codeArtifactContainer: 'pre.overflow-visible\\!',
     // Code artifact language label (legacy markup, pre-CodeMirror)

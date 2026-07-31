@@ -17,53 +17,26 @@ export { GeminiParser } from './gemini';
 export { GEMINI_SELECTORS, isGeminiUrl } from './gemini';
 
 /**
- * Registry of available parsers
+ * Registry of available parsers. Each factory takes the `Document` to parse,
+ * so the same map serves both the live page (`detectParser()`) and an
+ * arbitrary document (tests, drift tooling).
  */
 export const parserRegistry: ParserRegistry = new Map<Platform, ParserFactory>([
-  ['chatgpt', () => new ChatGPTParser(document)],
-  ['claude', () => new ClaudeParser(document)],
-  ['gemini', () => new GeminiParser(document)],
+  ['chatgpt', (doc) => new ChatGPTParser(doc)],
+  ['claude', (doc) => new ClaudeParser(doc)],
+  ['gemini', (doc) => new GeminiParser(doc)],
 ]);
-
-/**
- * Get a parser for the specified platform
- */
-export function getParser(platform: Platform): ReturnType<ParserFactory> | null {
-  const factory = parserRegistry.get(platform);
-  return factory ? factory() : null;
-}
 
 /**
  * Detect the current platform and return the appropriate parser
  */
 export function detectParser(doc: Document = document): ReturnType<ParserFactory> | null {
-  // Try each registered parser
-  for (const [platform] of parserRegistry) {
-    // Create parser with the provided document
-    const parser = createParserForDocument(platform, doc);
-    if (parser?.canParse()) {
+  for (const [, factory] of parserRegistry) {
+    const parser = factory(doc);
+    if (parser.canParse()) {
       return parser;
     }
   }
 
   return null;
-}
-
-/**
- * Create a parser for a specific platform using a specific document
- */
-export function createParserForDocument(
-  platform: Platform,
-  doc: Document
-): ReturnType<ParserFactory> | null {
-  switch (platform) {
-    case 'chatgpt':
-      return new ChatGPTParser(doc);
-    case 'claude':
-      return new ClaudeParser(doc);
-    case 'gemini':
-      return new GeminiParser(doc);
-    default:
-      return null;
-  }
 }

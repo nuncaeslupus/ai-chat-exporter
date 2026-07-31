@@ -80,6 +80,24 @@ const ALLOWED_ATTRS: Record<string, Set<string>> = {
 /** Attributes validated with `safeUrl` rather than kept verbatim. */
 const URL_ATTRS = new Set(['href', 'src']);
 
+const HTML_ESCAPES: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#039;',
+};
+
+/**
+ * Escape text for embedding in an HTML text node or a quoted attribute value.
+ *
+ * The single shared five-entity escaper (html-exporter.ts and
+ * content-script.ts previously each carried their own copy of this).
+ */
+export function escapeHtml(text: string): string {
+  return text.replace(/[&<>"']/g, (char) => HTML_ESCAPES[char] ?? char);
+}
+
 const SAFE_URL_SCHEMES = new Set(['http:', 'https:', 'mailto:']);
 const SAFE_IMAGE_DATA_URL = /^data:image\/(?:png|jpe?g|gif|webp|svg\+xml);base64,/i;
 

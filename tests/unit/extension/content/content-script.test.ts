@@ -402,8 +402,8 @@ describe('content-script print failure reporting (lo-f854)', () => {
     listener({ type: 'print_conversation', format: 'md' }, {}, sendResponse);
 
     // Longer timeout than the other tests in this file: this is the only one
-    // that exercises the real (unmocked) marked + highlight.js dynamic import,
-    // which is measurably slower than the default 1000ms `vi.waitFor` window.
+    // that exercises the real (unmocked) marked dynamic import, which is
+    // measurably slower than the default 1000ms `vi.waitFor` window.
     await vi.waitFor(
       () => {
         expect(sendResponse).toHaveBeenCalled();
@@ -413,7 +413,11 @@ describe('content-script print failure reporting (lo-f854)', () => {
     expect(sendResponse).toHaveBeenCalledWith({ success: true });
 
     const html = await printedBlob!.text();
-    expect(html).toContain('<pre tabindex="0"><code class="hljs language-js">');
+    // DEAD-1: no more highlight.js / hljs-* spans (the style block never
+    // defined any `.hljs` rule, so they rendered as plain text anyway) —
+    // the code block is just escaped text now.
+    expect(html).toContain('<pre tabindex="0"><code class="language-js">const x = 1;');
+    expect(html).not.toContain('hljs');
   });
 
   // TYPE-1 (high): a null parseConversation() result used to `return

@@ -54,18 +54,6 @@ export abstract class BaseParser implements IParser {
   abstract getModel(): string | null;
 
   /**
-   * Find the best injection point for UI buttons
-   */
-  abstract getButtonInjectionPoint(): HTMLElement | null;
-
-  /**
-   * Get platform-specific theme name
-   */
-  getTheme(): string {
-    return this.platformInfo.id;
-  }
-
-  /**
    * Parse the current page into a Conversation
    */
   parse(config?: Partial<ParserConfig>): ParseResult {

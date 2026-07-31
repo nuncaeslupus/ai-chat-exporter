@@ -75,18 +75,6 @@ export function manifestPlugin(browser: 'chrome' | 'firefox'): Plugin {
         console.warn('Failed to copy popup files:', error);
       }
 
-      // Copy content script CSS
-      try {
-        const contentDir = resolve(outDir, 'content');
-        mkdirSync(contentDir, { recursive: true });
-        cpSync(
-          resolve(srcDir, 'extension/content/styles.css'),
-          resolve(contentDir, 'styles.css')
-        );
-      } catch (error) {
-        console.warn('Failed to copy content styles:', error);
-      }
-
       // Copy locales folder
       try {
         cpSync(resolve(rootDir, '_locales'), resolve(outDir, '_locales'), { recursive: true });

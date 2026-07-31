@@ -15,7 +15,13 @@
 import { describe, it, expect, vi } from 'vitest';
 import { sendTabMessage } from '../../../src/shared/tab-messaging';
 
-/** Mirrors manifests/manifest.base.json's real two-entry content_scripts shape. */
+/**
+ * Mirrors manifests/manifest.base.json's real two-entry content_scripts
+ * shape, plus a `css` entry the real manifest does not currently declare
+ * (DEAD-1 removed its only css file, which had no rules) -- kept here so the
+ * generic matches/all_frames-aware `insertCSS` branch stays covered against
+ * regression the day a content script does ship real CSS again.
+ */
 const TWO_ENTRY_MANIFEST = {
   content_scripts: [
     {
@@ -26,7 +32,7 @@ const TWO_ENTRY_MANIFEST = {
         'https://gemini.google.com/*',
       ],
       js: ['content/content-script.js'],
-      css: ['content/styles.css'],
+      css: ['content/example.css'],
     },
     {
       matches: ['https://*.web-sandbox.oaiusercontent.com/*'],
@@ -70,7 +76,7 @@ describe('injectContentScripts honors manifest matches/all_frames', () => {
     });
     expect(insertCSSMock).toHaveBeenCalledWith({
       target: { tabId: 1, allFrames: false },
-      files: ['content/styles.css'],
+      files: ['content/example.css'],
     });
   });
 

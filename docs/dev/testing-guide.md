@@ -273,9 +273,9 @@ it('exports asynchronously', async () => {
 
 **DOM Manipulation:**
 ```typescript
-it('injects button correctly', () => {
-  const injectionPoint = parser.getButtonInjectionPoint();
-  expect(injectionPoint).toBeInstanceOf(HTMLElement);
+it('reads the model name from the page', () => {
+  const model = parser.getModel();
+  expect(model).toBe('Claude Sonnet 4.5');
 });
 ```
 

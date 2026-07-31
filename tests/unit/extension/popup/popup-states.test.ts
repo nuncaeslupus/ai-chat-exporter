@@ -41,7 +41,7 @@ const MANIFEST = {
         'https://gemini.google.com/*',
       ],
       js: ['content/content-script.js'],
-      css: ['content/styles.css'],
+      css: ['content/example.css'],
     },
   ],
 };
@@ -338,7 +338,7 @@ describe('popup secondary states — no content script in the tab', () => {
     // Files come off the manifest, not a second hardcoded list.
     expect(mockInsertCSS).toHaveBeenCalledWith({
       target: { tabId: 1, allFrames: false },
-      files: ['content/styles.css'],
+      files: ['content/example.css'],
     });
     expect(mockExecuteScript).toHaveBeenCalledWith({
       target: { tabId: 1, allFrames: false },

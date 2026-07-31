@@ -62,23 +62,4 @@ export class SelectionService {
   static isNoneSelected(pairs: QAPair[]): boolean {
     return pairs.every((pair) => !pair.selected);
   }
-
-  /**
-   * Select a range of pairs (inclusive)
-   */
-  static selectRange(pairs: QAPair[], start: number, end: number): QAPair[] {
-    const min = Math.min(start, end);
-    const max = Math.max(start, end);
-
-    return pairs.map((pair, index) =>
-      index >= min && index <= max ? { ...pair, selected: true } : { ...pair }
-    );
-  }
-
-  /**
-   * Invert selection (selected becomes unselected and vice versa)
-   */
-  static invertSelection(pairs: QAPair[]): QAPair[] {
-    return pairs.map((pair) => ({ ...pair, selected: !pair.selected }));
-  }
 }

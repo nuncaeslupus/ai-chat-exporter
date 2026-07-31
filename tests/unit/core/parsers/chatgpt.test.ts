@@ -354,22 +354,6 @@ describe('ChatGPTParser implementation', () => {
     });
   });
 
-  describe('getButtonInjectionPoint()', () => {
-    it('returns a valid HTML element or null', () => {
-      const element = parser.getButtonInjectionPoint();
-      // May be null if the injection point selector doesn't match the fixture
-      if (element !== null) {
-        expect(element).toBeInstanceOf(dom.window.HTMLElement);
-      }
-    });
-  });
-
-  describe('getTheme()', () => {
-    it('returns chatgpt theme name', () => {
-      expect(parser.getTheme()).toBe('chatgpt');
-    });
-  });
-
   describe('edge cases', () => {
     it('handles empty conversation gracefully', () => {
       const emptyHtml = '<html><body><main></main></body></html>';

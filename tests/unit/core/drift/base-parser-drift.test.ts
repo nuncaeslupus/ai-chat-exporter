@@ -41,9 +41,6 @@ class TestParser extends BaseParser {
   getModel(): string | null {
     return null;
   }
-  getButtonInjectionPoint(): HTMLElement | null {
-    return null;
-  }
   protected extractQAPairs(_config: ParserConfig): QAPair[] {
     return this.pairsToReturn;
   }

@@ -70,9 +70,8 @@ export const CLAUDE_SELECTORS: SelectorSet = {
   conversationTitle: 'header h1',
   modelIndicator: '.model-badge',
   // Anything that isn't one of the fixed SelectorSet fields above
-  // (button injection point, timestamps, etc.) goes in `custom`.
+  // (timestamps, etc.) goes in `custom`.
   custom: {
-    buttonArea: 'header .actions',
     timestamp: '.message-timestamp',
   },
 };
@@ -171,17 +170,12 @@ export class ClaudeParser extends BaseParser {
     return match ? match[0].toLowerCase().replace(/\s+/g, '-') : null;
   }
 
-  getButtonInjectionPoint(): HTMLElement | null {
-    const selector = this.selectors.custom?.buttonArea;
-    return selector ? this.document.querySelector(selector) : null;
-  }
-
   /**
    * Extract Q&A pairs from the DOM. `platformInfo`, `canParse()`,
-   * `getTitle()`/`getModel()`/`getButtonInjectionPoint()`, and `parse()` are
-   * either abstract members BaseParser requires or public API it already
-   * implements for you (`getTheme()`, `getUrl()`, `parse()`) — the one piece
-   * every parser must supply itself is `extractQAPairs()`.
+   * `getTitle()`/`getModel()`, and `parse()` are either abstract members
+   * BaseParser requires or public API it already implements for you
+   * (`getUrl()`, `parse()`) — the one piece every parser must supply itself
+   * is `extractQAPairs()`.
    */
   protected extractQAPairs(config: ParserConfig): QAPair[] {
     const container = this.document.querySelector(this.selectors.conversationContainer);
@@ -240,8 +234,7 @@ export { CLAUDE_SELECTORS } from './selectors';
 
 ### Step 7: Register Parser
 
-Update `src/core/parsers/index.ts` in two places — the registry map and the
-`createParserForDocument()` switch:
+Update `src/core/parsers/index.ts` — add one entry to the registry map:
 
 ```typescript
 import type { Platform, ParserFactory, ParserRegistry } from '../types';
@@ -250,49 +243,26 @@ import { ClaudeParser } from './claude'; // Add
 import { GeminiParser } from './gemini';
 
 export const parserRegistry: ParserRegistry = new Map<Platform, ParserFactory>([
-  ['chatgpt', () => new ChatGPTParser(document)],
-  ['claude', () => new ClaudeParser(document)], // Add
-  ['gemini', () => new GeminiParser(document)],
+  ['chatgpt', (doc) => new ChatGPTParser(doc)],
+  ['claude', (doc) => new ClaudeParser(doc)], // Add
+  ['gemini', (doc) => new GeminiParser(doc)],
 ]);
 
-export function getParser(platform: Platform): ReturnType<ParserFactory> | null {
-  const factory = parserRegistry.get(platform);
-  return factory ? factory() : null;
-}
-
 export function detectParser(doc: Document = document): ReturnType<ParserFactory> | null {
-  for (const [platform] of parserRegistry) {
-    const parser = createParserForDocument(platform, doc);
-    if (parser?.canParse()) {
+  for (const [, factory] of parserRegistry) {
+    const parser = factory(doc);
+    if (parser.canParse()) {
       return parser;
     }
   }
   return null;
 }
-
-export function createParserForDocument(
-  platform: Platform,
-  doc: Document
-): ReturnType<ParserFactory> | null {
-  switch (platform) {
-    case 'chatgpt':
-      return new ChatGPTParser(doc);
-    case 'claude':
-      return new ClaudeParser(doc); // Add
-    case 'gemini':
-      return new GeminiParser(doc);
-    default:
-      return null;
-  }
-}
 ```
 
 There is no `PARSERS` array and no `getParserByPlatform()` — the registry is a
-`Map<Platform, ParserFactory>` (`parserRegistry`), platform detection goes
-through `detectParser(doc?)`, and a specific platform's parser is fetched with
-`getParser(platform)` (bound to the live `document`) or
-`createParserForDocument(platform, doc)` (for an arbitrary `Document`, e.g. in
-tests).
+`Map<Platform, ParserFactory>` (`parserRegistry`) whose factories each take the
+`Document` to parse, so `detectParser(doc?)` (the live page) and tests (an
+arbitrary `Document`) share the exact same map instead of a second switch.
 
 ### Step 8: Create Theme (Optional)
 
@@ -544,7 +514,7 @@ private getContainer(): HTMLElement | null {
 5. Reload extension and refresh page
 
 **Extension not in popup:**
-1. Verify parser registered in `src/core/parsers/index.ts` (`parserRegistry` + `createParserForDocument()`)
+1. Verify parser registered in `src/core/parsers/index.ts` (`parserRegistry`)
 2. Check `getUrlsForPlatform` in popup.ts
 3. Rebuild and reload
 
@@ -560,7 +530,7 @@ private getContainer(): HTMLElement | null {
 - [ ] Selectors file created
 - [ ] Parser class implemented
 - [ ] Tests written and passing
-- [ ] Parser registered in `src/core/parsers/index.ts` (registry map + `createParserForDocument()` switch)
+- [ ] Parser registered in `src/core/parsers/index.ts` (registry map)
 - [ ] URLs updated in ALL 5 locations:
   - [ ] `manifests/manifest.base.json` (host_permissions)
   - [ ] `manifests/manifest.base.json` (content_scripts matches)

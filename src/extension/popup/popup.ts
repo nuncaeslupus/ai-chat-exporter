@@ -801,7 +801,7 @@ class PopupController {
 
   /** No parser output at all is not a deselection — only an actual empty selection counts. */
   private nothingSelected(): boolean {
-    return this.pairs.length > 0 && SelectionService.getSelectionCount(this.pairs) === 0;
+    return this.pairs.length > 0 && SelectionService.isNoneSelected(this.pairs);
   }
 
   private async checkCurrentPage(): Promise<void> {
@@ -1251,9 +1251,7 @@ class PopupController {
     // Only the ready/no-selection pair swaps here; a warning or error state
     // must not be cleared by a checkbox.
     if (this.uiState === 'ready' || this.uiState === 'noSelection') {
-      const nothingSelected =
-        this.pairs.length > 0 && SelectionService.getSelectionCount(this.pairs) === 0;
-      this.setUiState(nothingSelected ? 'noSelection' : 'ready');
+      this.setUiState(this.nothingSelected() ? 'noSelection' : 'ready');
     }
 
     this.syncExportEnabled();
