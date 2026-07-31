@@ -164,6 +164,14 @@ No subscriptions, no hidden costs, no feature limitations, no ads. All features 
 📝 Version History
 
 v1.2.0 (Current)
+• Google Gemini is now a fully supported platform
+• Long Claude conversations export every exchange, not just the visible ones
+• Rebuilt popup: format menu, per-exchange selection, dark mode, better keyboard and screen-reader support
+• Notice when a chat site changes its page structure, instead of a quietly incomplete export
+• Exported document metadata translated in all seven languages, in every format
+• Security hardening of the export shortcut, the Deep Research relay and the HTML sanitizer
+
+v1.1.1
 • Added right-click context menus for quick export and print access
 • Hierarchical menu structure with format submenus
 • Improved user workflow with instant export/print options
