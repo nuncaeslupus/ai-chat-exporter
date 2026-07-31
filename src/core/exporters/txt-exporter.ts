@@ -17,6 +17,7 @@ import type {
 } from '../types';
 import { BaseExporter } from './base-exporter';
 import { ConversationStructureService } from '../services';
+import { isProseArtifact } from './artifact-content';
 
 /**
  * Fixed line width for the plain-text export (R-5).
@@ -135,6 +136,34 @@ export class TextExporter extends BaseExporter {
   }
 
   /**
+   * Wrap a prose artifact's markdown source to `TXT_WIDTH` (D-30).
+   *
+   * txt does not render artifact markdown (see claude-artifact-types-formats
+   * tests) -- markers like `##` and `-` stay literal -- but its prose still
+   * needs to fit the 72-column layout the rest of the export uses. Fenced
+   * code, table rows and indented code stay byte-exact, same as message code
+   * blocks; everything else is word-wrapped line by line.
+   */
+  private wrapArtifactProse(content: string): string[] {
+    const out: string[] = [];
+    let inFence = false;
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('```') || trimmed.startsWith('~~~')) {
+        inFence = !inFence;
+        out.push(line);
+        continue;
+      }
+      if (inFence || trimmed.startsWith('|') || line.startsWith('    ') || line.startsWith('\t')) {
+        out.push(line);
+        continue;
+      }
+      out.push(...this.wrap(line));
+    }
+    return out;
+  }
+
+  /**
    * `USER · 12:04` over a rule of its own exact width (R-5).
    *
    * Uppercase and underlined rather than `User (12:00:00):` — plain text has no
@@ -194,7 +223,11 @@ export class TextExporter extends BaseExporter {
             lines.push(`${this.artifactTypeFieldLabel()}: ${artifact.typeLabel}`);
           }
           lines.push('');
-          lines.push(artifact.content || '');
+          lines.push(
+            ...(isProseArtifact(artifact)
+              ? this.wrapArtifactProse(artifact.content || '')
+              : [artifact.content || ''])
+          );
           lines.push('');
         }
       }
