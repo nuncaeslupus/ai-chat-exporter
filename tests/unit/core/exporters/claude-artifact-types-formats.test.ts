@@ -400,3 +400,89 @@ describe('markdown-language code artifact stays code, document artifact renders 
     expectDocumentArtifactIsRendered(drawn);
   });
 });
+
+/**
+ * D-30: txt wraps a `document` artifact's prose to the same 72-column width
+ * as the rest of the export, but a `code` artifact's content must survive
+ * byte-identical -- hard-wrapping source would corrupt it.
+ */
+describe('D-30: txt wraps prose artifact content, leaves code artifacts byte-exact', () => {
+  const longSentence =
+    'This deep research report walks through every finding in enough detail that the paragraph runs well past seventy two columns on its own.';
+  const longCodeLine =
+    'x = "a very very very very very very very very very long line of source code"';
+
+  function pairWithArtifact(artifact: Artifact): QAPair {
+    return {
+      id: 'p3',
+      index: 0,
+      selected: true,
+      question: {
+        id: 'q3',
+        role: 'user',
+        content: 'Give me the artifact.',
+        timestamp: new Date('2025-01-01T00:00:00Z'),
+      },
+      answer: {
+        id: 'a3',
+        role: 'assistant',
+        content: 'Here it is.',
+        timestamp: new Date('2025-01-01T00:00:01Z'),
+        metadata: { artifacts: [artifact] },
+      },
+    } as unknown as QAPair;
+  }
+
+  function conversationWithPair(pair: QAPair): Conversation {
+    return {
+      id: 'c3',
+      title: 'Artifact wrapping',
+      platform: 'claude',
+      url: 'https://claude.ai/chat/3',
+      createdAt: new Date('2025-01-01T00:00:00Z'),
+      pairs: [pair],
+    } as unknown as Conversation;
+  }
+
+  it('wraps a document artifact prose to 72 columns but leaves its fenced code untouched', async () => {
+    const proseArtifact: Artifact = {
+      type: 'document',
+      typeLabel: 'Document · MD',
+      title: 'Long report',
+      content: `${longSentence}\n\n` + '```python\n' + `${longCodeLine}\n` + '```\n',
+    };
+    const pair = pairWithArtifact(proseArtifact);
+    const result = await new TextExporter().export(conversationWithPair(pair), [pair], {
+      ...options,
+      format: 'txt',
+    });
+    const text = await blobToText(result.blob!);
+
+    // The fenced code line inside the prose artifact survives byte-exact.
+    expect(text).toContain(longCodeLine);
+
+    // No line outside that fence exceeds 72 columns.
+    const tooLong = text
+      .split('\n')
+      .filter((l) => l !== longCodeLine)
+      .filter((l) => l.length > 72);
+    expect(tooLong).toEqual([]);
+  });
+
+  it('leaves a code artifact byte-identical to its input', async () => {
+    const codeArtifact: Artifact = {
+      type: 'code',
+      typeLabel: 'Code · Python',
+      language: 'python',
+      title: 'Long script',
+      content: `${longCodeLine}\n${longSentence}`,
+    };
+    const pair = pairWithArtifact(codeArtifact);
+    const result = await new TextExporter().export(conversationWithPair(pair), [pair], {
+      ...options,
+      format: 'txt',
+    });
+    const text = await blobToText(result.blob!);
+    expect(text).toContain(codeArtifact.content!);
+  });
+});
