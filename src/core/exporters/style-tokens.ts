@@ -153,15 +153,22 @@ export const COLOR = {
   link: '#1F5FBF', // also the "user" role accent colour
 
   /**
-   * Canonical platform brand colours. pdf's original values are canonical —
-   * html's border-left accent already matched them; only html's small-caps
-   * role-LABEL text used a separately-darkened variant for contrast on a
-   * light background, kept below as `brandTextOnLight` (still centralised,
-   * just intentionally distinct from the accent colour).
+   * Canonical platform brand colours, sourced from each vendor's official
+   * logo mark (the committed `*-logo.svg` assets), never approximated or
+   * hand-picked. html's border-left accent and each SVG's fill are asserted
+   * to agree (see contrast.test.ts's per-platform "logo file stays wired to
+   * the brand token" checks); html's small-caps role-LABEL text uses a
+   * separately-darkened variant for contrast on a light background, kept
+   * below as `brandTextOnLight` (still centralised, just intentionally
+   * distinct from the accent colour).
+   *
+   * D-34: `claude` used to be `#cc7b58`, a value that predated
+   * `claude-logo.svg` and was never reconciled with it — corrected to the
+   * logo's own `#D97757`.
    */
   brand: {
     chatgpt: '#10a37f',
-    claude: '#cc7b58',
+    claude: '#D97757',
     gemini: '#4285f4',
     default: GRAY[500],
   },
@@ -171,10 +178,16 @@ export const COLOR = {
    * 4.35-4.38:1 on the new, slightly darker `#EDEFEE` code surface. Each is
    * darkened the minimum needed to clear 4.5:1 there (2-3%), which keeps the
    * hue and still reads as the brand.
+   *
+   * D-34: `claude` re-derived from the corrected `brand.claude` base, using
+   * the same hue/saturation-preserving lightness drop as the original
+   * `#cc7b58` -> `#A65532` derivation (-14.9pp lightness), which clears
+   * 4.5:1 against every surface it actually renders on (html's `#F6F7F6`
+   * message-role background, docx's white page).
    */
   brandTextOnLight: {
     chatgpt: '#0C7B60',
-    claude: '#A65532',
+    claude: '#BA4D2A',
     gemini: '#1163EC',
     default: TEXT_MUTED_ON_SURFACE_MUTED,
   },

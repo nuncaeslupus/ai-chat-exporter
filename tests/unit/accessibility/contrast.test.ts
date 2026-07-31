@@ -1075,3 +1075,24 @@ describe('P-8: ChatGPT logo file stays wired to the brand token', () => {
     expect(match?.[1]?.toLowerCase()).toBe(COLOR.brand.chatgpt.toLowerCase());
   });
 });
+
+/**
+ * D-34: same guard as P-8 above, for Claude. `claude-logo.svg` is the vendor
+ * asset — the brand token must match it, not the other way round. This is
+ * what caught the drift: the logo's fill was `#D97757` while
+ * `COLOR.brand.claude` was a stale `#cc7b58` that predated the logo asset and
+ * was never reconciled.
+ */
+describe('D-34: Claude logo file stays wired to the brand token', () => {
+  const svgSource = readFileSync(
+    resolve(__dirname, '../../../src/assets/icons/claude-logo.svg'),
+    'utf-8'
+  );
+
+  it('fills its path with COLOR.brand.claude, not a hardcoded or drifted colour', () => {
+    // The root <svg> declares fill="none" (viewBox wrapper only) — the brand
+    // colour lives on the <path>, so match that element specifically.
+    const match = /<path[^>]*\bfill\s*=\s*["']([^"']+)["']/.exec(svgSource);
+    expect(match?.[1]?.toLowerCase()).toBe(COLOR.brand.claude.toLowerCase());
+  });
+});
