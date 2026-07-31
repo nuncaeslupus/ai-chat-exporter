@@ -22,6 +22,25 @@ import { getMessage } from '../../shared/i18n';
 import { DOC_HEADING_LEVEL, bodyHeadingLevel, buildHeadingLevelMap } from './style-tokens';
 import type { HeadingLevelMap } from './style-tokens';
 
+/**
+ * Longest run of consecutive backticks anywhere in `text`, 0 if none.
+ */
+function longestBacktickRun(text: string): number {
+  const runs = text.match(/`+/g);
+  return runs ? Math.max(...runs.map((run) => run.length)) : 0;
+}
+
+/**
+ * Fence long enough that a backtick run inside `content` can never close it
+ * early. CommonMark only requires the closing fence to be at least as long as
+ * the opening one, so one run longer than the longest run *inside* the
+ * content is always safe; 3 is the floor for an ordinary block with no
+ * backticks at all.
+ */
+function codeFence(content: string): string {
+  return '`'.repeat(Math.max(3, longestBacktickRun(content) + 1));
+}
+
 export class StructuredMarkdownExporter extends BaseExporter {
   readonly format: ExportFormat = 'md';
   readonly extension = 'md';
@@ -147,20 +166,36 @@ export class StructuredMarkdownExporter extends BaseExporter {
 
             // Handle different artifact types appropriately
             if (artifact.type === 'image' && artifact.language === 'svg' && artifact.content) {
-              // SVG artifacts: embed as data URL image
-              const svgDataUrl = `data:image/svg+xml;base64,${btoa(artifact.content)}`;
-              lines.push(
-                `<img src="${svgDataUrl}" alt="${artifact.title}" style="max-width: 100%; height: auto;">`
-              );
-              lines.push('');
+              // SVG artifacts: embed as data URL image.
+              //
+              // `btoa` throws for any codepoint above U+00FF (Latin-1 only),
+              // so a single non-Latin-1 character anywhere in the SVG (an en
+              // dash, a curly quote, CJK/Cyrillic text, an emoji) used to
+              // fail the WHOLE export with no file produced at all. A
+              // percent-encoded data URL has no such ceiling and needs no
+              // encoding table. Still guarded -- `encodeURIComponent` throws
+              // on a lone unpaired surrogate -- because losing just the
+              // preview image is a far smaller failure than losing the
+              // entire export; the `<details>` block below still carries the
+              // raw source either way.
+              try {
+                const svgDataUrl = `data:image/svg+xml,${encodeURIComponent(artifact.content)}`;
+                lines.push(
+                  `<img src="${svgDataUrl}" alt="${artifact.title}" style="max-width: 100%; height: auto;">`
+                );
+                lines.push('');
+              } catch {
+                // Degrade to the source-only block below rather than failing the export.
+              }
 
               // Also include the SVG code in a collapsible section
+              const svgFence = codeFence(artifact.content);
               lines.push('<details>');
               lines.push('<summary>View SVG Code</summary>');
               lines.push('');
-              lines.push('```svg');
+              lines.push(`${svgFence}svg`);
               lines.push(artifact.content);
-              lines.push('```');
+              lines.push(svgFence);
               lines.push('</details>');
             } else if (isProseArtifact(artifact)) {
               // Markdown documents: render directly as markdown
@@ -168,9 +203,10 @@ export class StructuredMarkdownExporter extends BaseExporter {
             } else {
               // For code artifacts (HTML, React, SVG, etc.), use code blocks
               const language = artifact.language || this.inferLanguageFromType(artifact.type);
-              lines.push(`\`\`\`${language}`);
+              const fence = codeFence(artifact.content || '');
+              lines.push(`${fence}${language}`);
               lines.push(artifact.content || '');
-              lines.push('```');
+              lines.push(fence);
             }
 
             lines.push('');
@@ -230,7 +266,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
     for (const block of blocks) {
       switch (block.type) {
         case 'paragraph': {
-          const paraText = this.renderInline(block.content).trim();
+          const paraText = this.escapeLeadingMarker(this.renderInline(block.content).trim());
           if (paraText) {
             lines.push(paraText);
             lines.push('');
@@ -248,15 +284,17 @@ export class StructuredMarkdownExporter extends BaseExporter {
           break;
         }
 
-        case 'code':
-          lines.push(`\`\`\`${block.language}`);
+        case 'code': {
+          const fence = codeFence(block.code);
+          lines.push(`${fence}${block.language}`);
           lines.push(block.code);
-          lines.push('```');
+          lines.push(fence);
           lines.push('');
           break;
+        }
 
         case 'list':
-          lines.push(...this.renderList(block, 0));
+          lines.push(...this.renderList(block, ''));
           lines.push('');
           break;
 
@@ -304,6 +342,18 @@ export class StructuredMarkdownExporter extends BaseExporter {
   }
 
   /**
+   * Render one table cell: escape `|` (the only character a table cell can't
+   * hold literally -- it shifts or drops columns) and collapse a raw newline
+   * to a space. A newline can reach here unchanged because `HtmlContentParser`
+   * doesn't whitespace-collapse inline `code`/`math` text, and a literal
+   * newline in a cell splits the row across two physical lines.
+   */
+  private renderTableCell(cell: InlineContent[]): string {
+    const text = this.renderInline(cell).trim().replace(/\r?\n/g, ' ');
+    return text ? text.replace(/\|/g, '\\|') : ' ';
+  }
+
+  /**
    * Render a table to markdown
    */
   private renderTable(block: TableBlock): string[] {
@@ -311,9 +361,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
 
     // Render headers if present
     if (block.headers && block.headers.length > 0) {
-      const headerCells = block.headers.map(
-        (cell: InlineContent[]) => this.renderInline(cell).trim() || ' '
-      );
+      const headerCells = block.headers.map((cell: InlineContent[]) => this.renderTableCell(cell));
       lines.push(`| ${headerCells.join(' | ')} |`);
 
       // Separator row
@@ -324,7 +372,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
     // Render body rows
     if (block.rows && block.rows.length > 0) {
       for (const row of block.rows) {
-        const rowCells = row.map((cell: InlineContent[]) => this.renderInline(cell).trim() || ' ');
+        const rowCells = row.map((cell: InlineContent[]) => this.renderTableCell(cell));
         lines.push(`| ${rowCells.join(' | ')} |`);
       }
     }
@@ -333,11 +381,44 @@ export class StructuredMarkdownExporter extends BaseExporter {
   }
 
   /**
-   * Render a list to markdown
+   * Escape a marker that would start new block structure if it opened the
+   * rendered line: an ATX heading (`#`), a blockquote (`>`), a bullet
+   * (`-`/`+`), or an ordered marker (`1.`/`1)`). Markdown only reads these at
+   * the very start of a line, so this only ever touches position 0 -- `*`
+   * mid-sentence or `_` inside `my_var_name` are untouched. Only a marker
+   * genuinely followed by whitespace/end-of-line qualifies, so `3.14` and
+   * `-5` (no space after the punctuation) are left alone too.
+   *
+   * The ordered-marker case escapes the delimiter (`.`/`)`), not the digits:
+   * CommonMark can't backslash-escape a digit (it isn't ASCII punctuation),
+   * so `\1.` would render with a literal, visible backslash instead of
+   * disappearing into `1.`.
    */
-  private renderList(block: ListBlock, depth: number): string[] {
+  private escapeLeadingMarker(text: string): string {
+    if (/^#{1,6}(?=\s|$)/.test(text)) return `\\${text}`;
+    if (text.startsWith('>')) return `\\${text}`;
+    if (/^[-+](?=\s|$)/.test(text)) return `\\${text}`;
+
+    const ordered = /^(\d{1,9})([.)])(?=\s|$)/.exec(text);
+    if (ordered) {
+      return `${ordered[1]}\\${ordered[2]}${text.slice(ordered[0].length)}`;
+    }
+
+    return text;
+  }
+
+  /**
+   * Render a list to markdown.
+   *
+   * `indent` is the literal string prefixed to every line at this level, not
+   * a depth count: CommonMark requires a nested list to be indented to the
+   * parent item's *content* column, which is the parent marker's width plus
+   * one space -- 2 for a bullet (`- `), but 3 for `1. ` and 4 for `10. `. A
+   * fixed 2-space step under an ordered ancestor falls short of that column,
+   * so the nested list is read as a sibling instead of a child.
+   */
+  private renderList(block: ListBlock, indent: string): string[] {
     const lines: string[] = [];
-    const indent = '  '.repeat(depth);
 
     block.items.forEach((item, index) => {
       const prefix = block.ordered ? `${index + 1}.` : '-';
@@ -349,7 +430,7 @@ export class StructuredMarkdownExporter extends BaseExporter {
       }
 
       if (item.nested) {
-        lines.push(...this.renderList(item.nested, depth + 1));
+        lines.push(...this.renderList(item.nested, indent + ' '.repeat(prefix.length + 1)));
       }
     });
 

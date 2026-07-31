@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { marked, type Tokens } from 'marked';
 import type { Conversation, QAPair } from '../../../../src/core/types';
 import { StructuredMarkdownExporter } from '../../../../src/core/exporters/structured-md-exporter';
 import { blobToText } from '../../../utils/exporter-helpers';
@@ -184,5 +185,213 @@ describe('R-4: the question quote is a closed block', () => {
     // assistant's label into the user's question.
     expect(text).not.toMatch(/^>\n\*\*/m);
     expect(text).toMatch(/^> asked\n\n\*\*/m);
+  });
+});
+
+/**
+ * EXP-3: the exporter emits Markdown structure (fences, tables, block
+ * markers) without inspecting content that collides with it. Every test here
+ * proves the failure by re-parsing the exported .md with the repo's own
+ * `marked` dependency -- the same tool a reader would open the file with --
+ * rather than asserting on a raw substring.
+ */
+describe('EXP-3: Markdown structural escaping', () => {
+  function pair(question: Partial<QAPair['question']>, answer: Partial<QAPair['answer']>): QAPair {
+    return {
+      id: 'p',
+      index: 0,
+      selected: true,
+      question: { id: 'q', role: 'user', content: 'q', timestamp: undefined, ...question },
+      answer: { id: 'a', role: 'assistant', content: 'a', timestamp: undefined, ...answer },
+    } as unknown as QAPair;
+  }
+
+  function twoPairConversation(firstAnswerHtml: string): {
+    conversation: Conversation;
+    pairs: QAPair[];
+  } {
+    const first = pair(
+      { content: 'first question' },
+      { content: 'first answer', htmlContent: firstAnswerHtml }
+    );
+    const second = pair(
+      { content: 'second question UNIQUE_MARKER' },
+      { content: 'second answer UNIQUE_MARKER' }
+    );
+    const conversation = {
+      id: 'c',
+      title: 'T',
+      platform: 'chatgpt',
+      model: 'gpt-4',
+      pairs: [first, second],
+      url: 'https://chatgpt.com/c/test',
+      createdAt: new Date('2025-01-01T00:00:00Z'),
+    } as unknown as Conversation;
+    return { conversation, pairs: [first, second] };
+  }
+
+  async function renderTwoPairs(firstAnswerHtml: string): Promise<string> {
+    const { conversation, pairs } = twoPairConversation(firstAnswerHtml);
+    const result = await new StructuredMarkdownExporter().export(conversation, pairs, {
+      format: 'md',
+      filename: 't',
+      showMetaInfo: false,
+    });
+    return blobToText(result.blob!);
+  }
+
+  async function renderSinglePair(qa: QAPair): Promise<string> {
+    const conversation = buildConversation(qa);
+    const result = await new StructuredMarkdownExporter().export(conversation, [qa], {
+      format: 'md',
+      filename: 't',
+      showMetaInfo: false,
+    });
+    return blobToText(result.blob!);
+  }
+
+  describe('code-fence breakout', () => {
+    it('keeps the rest of the conversation intact when a code block contains a ``` fence', async () => {
+      const html =
+        '<pre><code class="language-markdown">Example:\n```js\nlet a = 1;\n```\ndone</code></pre>';
+      const text = await renderTwoPairs(html);
+
+      const tokens = marked.lexer(text);
+      // RED (pre-fix): the fixed 3-backtick fence closes early on the nested
+      // ``` and a later stray ``` opens a new, never-closed code block that
+      // swallows the rest of the document -- so the marker below would only
+      // be found inside a 'code' token instead of ordinary prose.
+      const markerToken = tokens.find(
+        (t) => 'raw' in t && typeof t.raw === 'string' && t.raw.includes('UNIQUE_MARKER')
+      );
+      expect(markerToken).toBeDefined();
+      expect(markerToken?.type).not.toBe('code');
+    });
+
+    it('widens the fence past 3 backticks when the code itself contains 4+', async () => {
+      const html = '<pre><code class="language-text">before\n````\nafter</code></pre>';
+      const text = await renderTwoPairs(html);
+
+      // A 4-backtick run inside the content needs (at least) a 5-backtick fence.
+      expect(text).toMatch(/^`{5,}text$/m);
+
+      const tokens = marked.lexer(text);
+      const codeToken = tokens.find((t) => t.type === 'code') as Tokens.Code | undefined;
+      expect(codeToken?.text).toContain('````');
+      const markerToken = tokens.find(
+        (t) => 'raw' in t && typeof t.raw === 'string' && t.raw.includes('UNIQUE_MARKER')
+      );
+      expect(markerToken).toBeDefined();
+      expect(markerToken?.type).not.toBe('code');
+    });
+  });
+
+  describe('unescaped metacharacters', () => {
+    it('escapes a pipe inside a table cell so no column is shifted or dropped', async () => {
+      const html =
+        '<table><thead><tr><th>Cmd</th><th>Desc</th></tr></thead>' +
+        '<tbody><tr><td><code>ls | wc -l</code></td><td>counts</td></tr></tbody></table>';
+      const text = await renderSinglePair(pair({}, { htmlContent: html }));
+
+      const tokens = marked.lexer(text);
+      const table = tokens.find((t) => t.type === 'table') as Tokens.Table | undefined;
+      expect(table).toBeDefined();
+      // RED (pre-fix): the unescaped pipe inside the code span splits into a
+      // phantom extra column, and GFM then drops the declared 'counts' cell
+      // because the row has more cells than the header.
+      expect(table?.rows[0]?.[1]?.text).toBe('counts');
+      expect(table?.rows[0]?.[0]?.tokens?.[0]?.type).toBe('codespan');
+    });
+
+    it('does not turn a quoted checklist into a heading and a list inside the user blockquote', async () => {
+      const html = '<div># Deploy checklist</div><div>1. drain traffic</div>';
+      const text = await renderSinglePair(pair({ htmlContent: html }, {}));
+
+      const tokens = marked.lexer(text);
+      const bq = tokens.find((t) => t.type === 'blockquote') as Tokens.Blockquote | undefined;
+      expect(bq).toBeDefined();
+      const nestedTypes = bq?.tokens.map((t) => t.type) ?? [];
+      // RED (pre-fix): '> # Deploy checklist' and '> 1. drain traffic' parse
+      // as a real H1 and a real <ol> nested inside the blockquote.
+      expect(nestedTypes).not.toContain('heading');
+      expect(nestedTypes).not.toContain('list');
+      expect(bq?.text).toContain('Deploy checklist');
+      expect(bq?.text).toContain('drain traffic');
+    });
+
+    it('does not escape emphasis characters mid-sentence or mid-word (no over-escaping)', async () => {
+      const html =
+        '<p>The cost is 5 * 2 and my_var_name should stay untouched. Also 3.14 and -5.</p>';
+      const text = await renderSinglePair(pair({}, { htmlContent: html }));
+
+      expect(text).toContain(
+        'The cost is 5 * 2 and my_var_name should stay untouched. Also 3.14 and -5.'
+      );
+      expect(text).not.toContain('\\*');
+      expect(text).not.toContain('\\_');
+      expect(text).not.toContain('\\.');
+      expect(text).not.toContain('\\-');
+    });
+  });
+
+  describe('non-Latin-1 SVG artifact', () => {
+    it('exports successfully when an SVG artifact contains a non-Latin-1 character', async () => {
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg"><text>Ventas – 2026</text></svg>';
+      const qa = pair(
+        {},
+        {
+          metadata: {
+            artifacts: [{ type: 'image', language: 'svg', title: 'Chart', content: svg }],
+          },
+        }
+      );
+      const conversation = buildConversation(qa);
+      const result = await new StructuredMarkdownExporter().export(conversation, [qa], {
+        format: 'md',
+        filename: 't',
+        showMetaInfo: false,
+      });
+
+      // RED (pre-fix): `btoa()` throws on the en dash (U+2013), the export's
+      // try/catch converts that into an error result, and NO FILE is produced
+      // at all -- not a degraded one.
+      expect(result.success).toBe(true);
+      expect(result.blob).toBeDefined();
+
+      const text = await blobToText(result.blob!);
+      expect(text).toContain('data:image/svg+xml,');
+      expect(text).toContain('Ventas');
+    });
+  });
+
+  describe('nested ordered lists', () => {
+    it('re-parses a 3-deep nested ordered list into 3 properly nested lists', async () => {
+      const html = '<ol><li>L1<ol><li>L2<ol><li>L3</li></ol></li></ol></li></ol>';
+      const text = await renderSinglePair(pair({}, { htmlContent: html }));
+
+      const tokens = marked.lexer(text);
+      const outer = tokens.find((t) => t.type === 'list') as Tokens.List | undefined;
+      expect(outer).toBeDefined();
+      // RED (pre-fix): a fixed 2-space indent step is too narrow for an
+      // ordered parent (`1. ` needs 3), so L2 becomes a sibling of L1 with
+      // '1. L3' embedded as literal text instead of a real nested list.
+      expect(outer?.items).toHaveLength(1);
+      expect(
+        outer?.items[0]?.tokens.some((t) => t.type === 'text' && t.raw.includes('1. L3'))
+      ).toBe(false);
+
+      const middle = outer?.items[0]?.tokens.find((t) => t.type === 'list') as
+        | Tokens.List
+        | undefined;
+      expect(middle).toBeDefined();
+      expect(middle?.items).toHaveLength(1);
+
+      const inner = middle?.items[0]?.tokens.find((t) => t.type === 'list') as
+        | Tokens.List
+        | undefined;
+      expect(inner).toBeDefined();
+      expect(inner?.items).toHaveLength(1);
+      expect(inner?.items[0]?.text).toBe('L3');
+    });
   });
 });
