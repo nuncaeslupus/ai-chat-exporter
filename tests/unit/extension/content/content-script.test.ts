@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createTestQAPair, createTestConversation } from '../../../utils/exporter-helpers';
 import { EMBEDDED_FRAME_REPORT_ATTR } from '../../../../src/core/parsers/chatgpt/selectors';
-import { WARNING_KEYS } from '../../../../src/shared/constants';
+import { WARNING_KEYS, ERROR_KEYS } from '../../../../src/shared/constants';
 
 const mockParse = vi.fn();
 const mockExport = vi.fn();
@@ -89,9 +89,32 @@ describe('content-script export failure reporting', () => {
     await vi.waitFor(() => {
       expect(sendResponse).toHaveBeenCalled();
     });
+    // `error` is a locale key (not English prose) so the popup can resolve
+    // it with getMessage() instead of leaking untranslated text.
     expect(sendResponse).toHaveBeenCalledWith({
       success: false,
-      error: expect.stringContaining('No conversation pairs found') as string,
+      error: ERROR_KEYS.NOTHING_TO_EXPORT,
+    });
+    expect(mockExport).not.toHaveBeenCalled();
+  });
+
+  // TYPE-1 (high): detectParser() returning null (DOM drift, or every parser's
+  // canParse() false) used to fall into the exact same `undefined` return as
+  // "completed with nothing to warn about", so the listener replied
+  // `{success: true}` for a page nothing was ever read from.
+  it('reports failure, not success, when the page cannot be parsed at all', async () => {
+    mockParse.mockReturnValue({ success: false, error: 'no container' });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'export_conversation', format: 'md' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+    expect(sendResponse).toHaveBeenCalledWith({
+      success: false,
+      error: ERROR_KEYS.NO_CONVERSATION,
     });
     expect(mockExport).not.toHaveBeenCalled();
   });
@@ -288,7 +311,7 @@ describe('content-script print failure reporting (lo-f854)', () => {
     });
     expect(sendResponse).toHaveBeenCalledWith({
       success: false,
-      error: expect.stringContaining('No conversation pairs found') as string,
+      error: ERROR_KEYS.NOTHING_TO_EXPORT,
     });
     // The pre-opened print window must not be left dangling on failure.
     expect(printWindowStub.close).toHaveBeenCalled();
@@ -310,7 +333,7 @@ describe('content-script print failure reporting (lo-f854)', () => {
     });
     expect(sendResponse).toHaveBeenCalledWith({
       success: false,
-      error: expect.stringContaining('popup') as string,
+      error: ERROR_KEYS.PRINT_POPUP_BLOCKED,
     });
     // window.open() must be the very first thing handlePrint does, before any
     // `await` — mockParse's only call is content-script's own module-load
@@ -339,6 +362,75 @@ describe('content-script print failure reporting (lo-f854)', () => {
     expect(openSpy).toHaveBeenCalledWith('', '_blank');
     expect(printWindowStub.location.href).toBe('blob:mock');
     expect(printWindowStub.close).not.toHaveBeenCalled();
+  });
+
+  // TYPE-1 (high): a null parseConversation() result used to `return
+  // undefined` from handlePrint too, indistinguishable from a clean no-warning
+  // success — the listener replied `{success: true}` for a print that never
+  // read the page.
+  it('reports failure, not success, when the page cannot be parsed at all', async () => {
+    mockParse.mockReturnValue({ success: false, error: 'no container' });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'print_conversation', format: 'md' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+    expect(sendResponse).toHaveBeenCalledWith({
+      success: false,
+      error: ERROR_KEYS.NO_CONVERSATION,
+    });
+    // The pre-opened print window must not be left dangling.
+    expect(printWindowStub.close).toHaveBeenCalled();
+  });
+
+  // TYPE-1 (medium): a selection that matches nothing after a fresh re-parse
+  // used to sail past the `conversation.pairs.length === 0` guard (that check
+  // ran before the selection filter) and print a metadata-only document,
+  // reported as success.
+  it('fails rather than printing an empty document when the selection matches nothing', async () => {
+    const pairs = [createTestQAPair(0, 'Q', 'A')];
+    mockParse.mockReturnValue({ success: true, conversation: createTestConversation(pairs) });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'print_conversation', format: 'md', selectedIndices: [] }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+    expect(sendResponse).toHaveBeenCalledWith({
+      success: false,
+      error: ERROR_KEYS.NOTHING_TO_EXPORT,
+    });
+    expect(mockExport).not.toHaveBeenCalled();
+    expect(printWindowStub.close).toHaveBeenCalled();
+  });
+
+  // TYPE-1 (medium): both print branches used to hand the rest of the work to
+  // an unawaited FileReader callback and return immediately, so `{success:
+  // true}` was already sent by the time a render failure happened — the
+  // failure had nowhere to go. Reading the blob with `await blob.text()`
+  // keeps the failure inside handlePrint's own try/catch.
+  it('reports success:false when the export blob cannot be read for printing', async () => {
+    const pairs = [createTestQAPair(0, 'Q', 'A')];
+    mockParse.mockReturnValue({ success: true, conversation: createTestConversation(pairs) });
+    mockExport.mockResolvedValue({
+      success: true,
+      blob: { text: () => Promise.reject(new Error('blob unreadable')) } as unknown as Blob,
+    });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'print_conversation', format: 'md' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+    expect(sendResponse).toHaveBeenCalledWith({ success: false, error: 'blob unreadable' });
+    expect(printWindowStub.close).toHaveBeenCalled();
   });
 });
 
@@ -616,7 +708,10 @@ describe('content-script Q&A pair selection (lo-adf1)', () => {
     expect(exportedPairs.map((p) => p.index)).toEqual([0, 2]);
   });
 
-  it('exports nothing (but still succeeds) when selectedIndices deselects every pair', async () => {
+  // TYPE-1 (medium): this used to export nothing but still report success —
+  // a header/metadata-only file with `{success: true}`. An empty selection is
+  // a failure now, not a degraded success (D-19 in the payload).
+  it('fails rather than exporting an empty document when selectedIndices deselects every pair', async () => {
     const pairs = [createTestQAPair(0, 'Q1', 'A1', true)];
     mockParse.mockReturnValue({ success: true, conversation: createTestConversation(pairs) });
     mockExport.mockResolvedValue({ success: true, blob: new Blob(['x']) });
@@ -629,8 +724,11 @@ describe('content-script Q&A pair selection (lo-adf1)', () => {
       expect(sendResponse).toHaveBeenCalled();
     });
 
-    const exportedPairs = mockExport.mock.calls[0]?.[1] as typeof pairs;
-    expect(exportedPairs).toEqual([]);
+    expect(sendResponse).toHaveBeenCalledWith({
+      success: false,
+      error: ERROR_KEYS.NOTHING_TO_EXPORT,
+    });
+    expect(mockExport).not.toHaveBeenCalled();
   });
 });
 

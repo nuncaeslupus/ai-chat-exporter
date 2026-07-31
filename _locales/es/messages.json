@@ -51,6 +51,22 @@
     "message": "No se encontró ninguna pestaña activa",
     "description": "Error message when no active browser tab is found during export or print"
   },
+  "statusPreferenceSaveFailed": {
+    "message": "Error al guardar",
+    "description": "Status message when writing a preference to storage fails, so the toggle that changed does not look saved"
+  },
+  "errorNoConversationParsed": {
+    "message": "No se pudo analizar ninguna conversación en esta página. Recarga la página e inténtalo de nuevo.",
+    "description": "Error shown when the parser found nothing on an otherwise-supported page (DOM drift, or the page changed mid-parse)"
+  },
+  "errorNothingToExport": {
+    "message": "No hay nada que exportar ni imprimir: no se encontraron mensajes, o ninguno sigue seleccionado.",
+    "description": "Error shown when the parsed conversation has zero pairs, or the popup's selection matches none of them after a fresh re-parse"
+  },
+  "errorPrintPopupBlocked": {
+    "message": "No se pudo abrir la ventana de impresión. Tu navegador bloqueó la ventana emergente: permite las ventanas emergentes para este sitio e inténtalo de nuevo.",
+    "description": "Error shown when window.open() for the print preview is blocked by the browser's popup blocker"
+  },
   "conversationUntitled": {
     "message": "Sin título",
     "description": "Fallback conversation title when none is available"

@@ -51,6 +51,22 @@
     "message": "No s'ha trobat cap pestanya activa",
     "description": "Error message when no active browser tab is found during export or print"
   },
+  "statusPreferenceSaveFailed": {
+    "message": "Error en desar",
+    "description": "Status message when writing a preference to storage fails, so the toggle that changed does not look saved"
+  },
+  "errorNoConversationParsed": {
+    "message": "No s'ha pogut analitzar cap conversa en aquesta pàgina. Torna a carregar la pàgina i torna-ho a provar.",
+    "description": "Error shown when the parser found nothing on an otherwise-supported page (DOM drift, or the page changed mid-parse)"
+  },
+  "errorNothingToExport": {
+    "message": "No hi ha res per exportar ni imprimir: no s'ha trobat cap missatge, o cap continua seleccionat.",
+    "description": "Error shown when the parsed conversation has zero pairs, or the popup's selection matches none of them after a fresh re-parse"
+  },
+  "errorPrintPopupBlocked": {
+    "message": "No s'ha pogut obrir la finestra d'impressió. El navegador ha bloquejat la finestra emergent: permet les finestres emergents per a aquest lloc i torna-ho a provar.",
+    "description": "Error shown when window.open() for the print preview is blocked by the browser's popup blocker"
+  },
   "conversationUntitled": {
     "message": "Sense títol",
     "description": "Fallback conversation title when none is available"

@@ -51,6 +51,22 @@
     "message": "Nessuna scheda attiva trovata",
     "description": "Error message when no active browser tab is found during export or print"
   },
+  "statusPreferenceSaveFailed": {
+    "message": "Salvataggio non riuscito",
+    "description": "Status message when writing a preference to storage fails, so the toggle that changed does not look saved"
+  },
+  "errorNoConversationParsed": {
+    "message": "Impossibile analizzare una conversazione in questa pagina. Ricarica la pagina e riprova.",
+    "description": "Error shown when the parser found nothing on an otherwise-supported page (DOM drift, or the page changed mid-parse)"
+  },
+  "errorNothingToExport": {
+    "message": "Non c'è nulla da esportare o stampare: non è stato trovato alcun messaggio, oppure nessuno è più selezionato.",
+    "description": "Error shown when the parsed conversation has zero pairs, or the popup's selection matches none of them after a fresh re-parse"
+  },
+  "errorPrintPopupBlocked": {
+    "message": "Impossibile aprire la finestra di stampa. Il browser ha bloccato il popup: consenti i popup per questo sito e riprova.",
+    "description": "Error shown when window.open() for the print preview is blocked by the browser's popup blocker"
+  },
   "conversationUntitled": {
     "message": "Senza titolo",
     "description": "Fallback conversation title when none is available"

@@ -51,6 +51,22 @@
     "message": "Não foi encontrado nenhum separador ativo",
     "description": "Error message when no active browser tab is found during export or print"
   },
+  "statusPreferenceSaveFailed": {
+    "message": "Falha ao guardar",
+    "description": "Status message when writing a preference to storage fails, so the toggle that changed does not look saved"
+  },
+  "errorNoConversationParsed": {
+    "message": "Não foi possível analisar nenhuma conversa nesta página. Recarregue a página e tente novamente.",
+    "description": "Error shown when the parser found nothing on an otherwise-supported page (DOM drift, or the page changed mid-parse)"
+  },
+  "errorNothingToExport": {
+    "message": "Não há nada para exportar ou imprimir: não foram encontradas mensagens, ou nenhuma está selecionada.",
+    "description": "Error shown when the parsed conversation has zero pairs, or the popup's selection matches none of them after a fresh re-parse"
+  },
+  "errorPrintPopupBlocked": {
+    "message": "Não foi possível abrir a janela de impressão. O seu navegador bloqueou a janela pop-up; permita pop-ups para este site e tente novamente.",
+    "description": "Error shown when window.open() for the print preview is blocked by the browser's popup blocker"
+  },
   "conversationUntitled": {
     "message": "Sem título",
     "description": "Fallback conversation title when none is available"

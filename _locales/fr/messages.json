@@ -51,6 +51,22 @@
     "message": "Aucun onglet actif trouvé",
     "description": "Error message when no active browser tab is found during export or print"
   },
+  "statusPreferenceSaveFailed": {
+    "message": "Échec de l'enregistrement",
+    "description": "Status message when writing a preference to storage fails, so the toggle that changed does not look saved"
+  },
+  "errorNoConversationParsed": {
+    "message": "Impossible d'analyser une conversation sur cette page. Rechargez la page et réessayez.",
+    "description": "Error shown when the parser found nothing on an otherwise-supported page (DOM drift, or the page changed mid-parse)"
+  },
+  "errorNothingToExport": {
+    "message": "Il n'y a rien à exporter ni à imprimer : aucun message n'a été trouvé, ou aucun n'est encore sélectionné.",
+    "description": "Error shown when the parsed conversation has zero pairs, or the popup's selection matches none of them after a fresh re-parse"
+  },
+  "errorPrintPopupBlocked": {
+    "message": "Impossible d'ouvrir la fenêtre d'impression. Votre navigateur a bloqué la fenêtre pop-up : autorisez les pop-ups pour ce site et réessayez.",
+    "description": "Error shown when window.open() for the print preview is blocked by the browser's popup blocker"
+  },
   "conversationUntitled": {
     "message": "Sans titre",
     "description": "Fallback conversation title when none is available"
