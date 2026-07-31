@@ -779,7 +779,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         const drift = contentScript.getDrift();
         sendResponse({
           success: true,
-          data: conversation,
+          // The popup only reads title/meta/pair text and never sends this
+          // conversation back (export/print re-parse the page for their own
+          // snapshot) -- htmlContent is the largest field per message and
+          // pure dead weight across the messaging boundary here.
+          data: conversation && {
+            ...conversation,
+            pairs: conversation.pairs.map((pair) => ({
+              ...pair,
+              question: { ...pair.question, htmlContent: undefined },
+              answer: { ...pair.answer, htmlContent: undefined },
+            })),
+          },
           ...(drift && { drift }),
         });
       } else if (isGetDriftSkeletonMessage(message)) {

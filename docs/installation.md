@@ -208,7 +208,7 @@ If you see permission-related errors:
 ## System Requirements
 
 - **Chrome**: Version 88 or higher (Manifest V3 support)
-- **Firefox**: Version 109 or higher (Manifest V3 support)
+- **Firefox**: Version 112 or higher (background script ES modules)
 - **Disk Space**: ~5MB for extension files
 - **Internet**: Required only for visiting AI chat platforms
 

@@ -15,7 +15,12 @@
 const { readFileSync, statSync, existsSync, readdirSync } = require('fs');
 const { resolve, dirname, join } = require('path');
 
-const LIMIT_BYTES = 300 * 1024;
+// Ratcheted from 300 KB (BUILD-1 finding #7): the real eager graph is
+// ~62 KB, so 300 KB left 5x headroom -- a regression that statically
+// imports a whole exporter (e.g. ~111 KB for the HTML exporter path) still
+// reported `ok`. Bump this deliberately when a genuine increase is
+// accepted; that is what turns the log line into a gate.
+const LIMIT_BYTES = 80 * 1024;
 const ROOT = resolve(__dirname, '..');
 const TARGETS = ['dist/chrome', 'dist/firefox'];
 

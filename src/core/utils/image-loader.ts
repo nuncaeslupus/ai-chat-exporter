@@ -151,10 +151,14 @@ export async function loadImagesParallel(
   concurrency = 3
 ): Promise<Map<string, LoadedImage | null>> {
   const results = new Map<string, LoadedImage | null>();
+  // Dedupe before batching -- a repeated URL (e.g. the same image reused
+  // across turns) must be fetched/decoded/encoded once, not once per
+  // occurrence, and a dead URL must pay one timeout, not one per occurrence.
+  const uniqueUrls = [...new Set(urls)];
 
   // Process URLs in batches
-  for (let i = 0; i < urls.length; i += concurrency) {
-    const batch = urls.slice(i, i + concurrency);
+  for (let i = 0; i < uniqueUrls.length; i += concurrency) {
+    const batch = uniqueUrls.slice(i, i + concurrency);
     const batchResults = await Promise.all(
       batch.map(async (url) => {
         const image = await loadImageAsDataUrl(url, maxWidth);

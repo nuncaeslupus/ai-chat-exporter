@@ -37,6 +37,7 @@ validate: build ## lint + format + typecheck + tests + release-config checks (mi
 	pnpm format:check
 	node build/check-release.cjs version
 	node build/check-release.cjs node
+	node build/check-release.cjs pipeline
 	pnpm typecheck
 	pnpm test:coverage
 	node build/check-release.cjs manifest
