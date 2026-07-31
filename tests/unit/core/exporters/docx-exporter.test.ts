@@ -239,7 +239,10 @@ describe('DocxExporter', () => {
         showMetaInfo: true,
       });
       const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
-      expect(xml).toContain('(12:00:00)');
+      // No seconds on a per-message time (CONSIST-1): md/txt already dropped
+      // seconds as noise at this scale (R-4/R-5); pdf/docx/html now match.
+      expect(xml).toContain('(12:00)');
+      expect(xml).not.toContain('(12:00:00)');
       // The day is announced once by a day separator, not repeated per message.
       // The date belongs to the header (which showMetaInfo also turns on) and to
       // the day separator — never to a per-message stamp.
@@ -247,7 +250,7 @@ describe('DocxExporter', () => {
       // A per-message stamp is a run containing ONLY a time. The metadata block's
       // "Exported: <date> <time>" run is a different thing and legitimately has
       // the date, so match the whole run rather than searching inside it.
-      const stampRuns = [...xml.matchAll(/<w:t[^>]*>\s*\(?\d{2}:\d{2}:\d{2}\)?\s*<\/w:t>/g)];
+      const stampRuns = [...xml.matchAll(/<w:t[^>]*>\s*\(?\d{2}:\d{2}\)?\s*<\/w:t>/g)];
       expect(stampRuns.length).toBeGreaterThan(0);
     });
 

@@ -119,10 +119,10 @@ export class StructuredMarkdownExporter extends BaseExporter {
      * `**User** · 12:04` — bold text with a middot, not a heading (R-4).
      *
      * Markdown formats the time itself rather than reusing
-     * `formatTimestampSuffix`'s ` (12:04:37)`: the design's per-message time is
-     * hours and minutes, and the seconds are noise at this scale. pdf, docx,
-     * html and txt each restyle the same instant in their own idiom, which is
-     * why this is local rather than a change to the shared helper.
+     * `formatTimestampSuffix`'s ` (12:04)` (CONSIST-1: now hours-and-minutes
+     * there too, matching this design's original reasoning that seconds are
+     * noise at this scale): only the wrapper glyph — bold text and a middot
+     * instead of parens — stays local to md.
      */
     const roleLabel = (name: string, timestamp?: Date): string => {
       if (!options.showMetaInfo || !timestamp) return `**${name}**`;

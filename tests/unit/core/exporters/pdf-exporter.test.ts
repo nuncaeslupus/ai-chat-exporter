@@ -379,12 +379,15 @@ describe('PdfExporter', () => {
       });
 
       const rendered = textCallsOf(instances[0]!);
-      expect(rendered.some((t) => t.includes('(12:00:00)'))).toBe(true);
+      // No seconds on a per-message time (CONSIST-1): md/txt already dropped
+      // seconds as noise at this scale (R-4/R-5); pdf/docx/html now match.
+      expect(rendered.some((t) => t.includes('(12:00)'))).toBe(true);
+      expect(rendered.some((t) => t.includes('(12:00:00)'))).toBe(false);
       // The date belongs to the header (which showMetaInfo also turns on) and to
       // the day separator — never to a per-message stamp. Assert on the ROLE
       // LABEL line rather than the whole document, which now legitimately
       // contains a full "Exported: <date> <time>" too.
-      const roleLines = rendered.filter((t) => /^\w+.*\(\d{2}:\d{2}:\d{2}\)/.test(t));
+      const roleLines = rendered.filter((t) => /^\w+.*\(\d{2}:\d{2}\)/.test(t));
       expect(roleLines.length).toBeGreaterThan(0);
       expect(roleLines.every((t) => !t.includes('2025-01-01'))).toBe(true);
     });
@@ -462,9 +465,9 @@ describe('R-2: page chrome and the R2 role label', () => {
     const calls = instance.calls;
     // The assistant's name comes from i18n, absent in this harness, so match the
     // label's shape rather than the resolved word.
-    // showMetaInfo turns times on too, so the label may carry a "(HH:MM:SS)".
+    // showMetaInfo turns times on too, so the label may carry a "(HH:MM)".
     const labelIndex = calls.findIndex(
-      (c) => c.method === 'text' && /^[A-Za-z]+( \(\d{2}:\d{2}:\d{2}\))?:$/.test(String(c.args[0]))
+      (c) => c.method === 'text' && /^[A-Za-z]+( \(\d{2}:\d{2}\))?:$/.test(String(c.args[0]))
     );
     expect(labelIndex).toBeGreaterThan(-1);
 

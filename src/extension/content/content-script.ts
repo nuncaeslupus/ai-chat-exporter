@@ -7,7 +7,7 @@ import { detectParser } from '../../core/parsers';
 import { getExporter } from '../../core/exporters';
 import { FilenameService } from '../../core/services/filename-service';
 import { ClaudeApiService, type EnrichmentResult } from '../../core/services/claude-api-service';
-import { WARNING_KEYS, ERROR_KEYS } from '../../shared/constants';
+import { EXTENSION_NAME, WARNING_KEYS, ERROR_KEYS } from '../../shared/constants';
 import { SelectionService } from '../../core/services/selection-service';
 import { StorageService } from '../../shared/storage';
 import type { Conversation, ExportFormat } from '../../core/types';
@@ -89,24 +89,24 @@ class ContentScript {
   private parseConversation(): Conversation | null {
     const parser = detectParser();
     if (!parser) {
-      console.log('[AI Chat Exporter] No parser found for current page');
+      console.log(`[${EXTENSION_NAME}] No parser found for current page`);
       return null;
     }
 
     if (!this.initialized) {
-      console.log(`[AI Chat Exporter] Detected platform: ${parser.platformInfo.name}`);
+      console.log(`[${EXTENSION_NAME}] Detected platform: ${parser.platformInfo.name}`);
     }
 
     const parseResult = parser.parse();
     this.drift = parseResult.drift;
     if (!parseResult.success || !parseResult.conversation) {
-      console.error('[AI Chat Exporter] Failed to parse conversation:', parseResult.error);
+      console.error(`[${EXTENSION_NAME}] Failed to parse conversation:`, parseResult.error);
       return null;
     }
 
-    console.log('[AI Chat Exporter] Successfully initialized');
+    console.log(`[${EXTENSION_NAME}] Successfully initialized`);
     console.log(
-      `[AI Chat Exporter] Found ${parseResult.conversation.pairs.length} conversation pairs`
+      `[${EXTENSION_NAME}] Found ${parseResult.conversation.pairs.length} conversation pairs`
     );
     this.initialized = true;
     return parseResult.conversation;
@@ -123,7 +123,7 @@ class ContentScript {
       })
       .catch((error) => {
         // Ignore errors if background script is not available
-        console.log('[AI Chat Exporter] Could not notify background script:', error);
+        console.log(`[${EXTENSION_NAME}] Could not notify background script:`, error);
       });
   }
 
@@ -144,7 +144,7 @@ class ContentScript {
     let conversation = this.parseConversation();
 
     if (!conversation) {
-      console.error('[AI Chat Exporter] No conversation available');
+      console.error(`[${EXTENSION_NAME}] No conversation available`);
       // A locale key, not prose: the popup resolves it with getMessage() so
       // a DOM-drift parse failure is reported as a failure, not silently
       // as `{success: true}` (the caller's catch turns this throw into
@@ -155,7 +155,7 @@ class ContentScript {
     conversation = applySelection(conversation, selectedIndices);
 
     console.log(
-      `[AI Chat Exporter] Attempting to export ${conversation.pairs.length} pairs to ${format}`
+      `[${EXTENSION_NAME}] Attempting to export ${conversation.pairs.length} pairs to ${format}`
     );
     let warning: string | undefined;
 
@@ -220,10 +220,10 @@ class ContentScript {
       // Save last used format
       await StorageService.setLastExportFormat(format);
 
-      console.log(`[AI Chat Exporter] Successfully exported to ${format.toUpperCase()}`);
+      console.log(`[${EXTENSION_NAME}] Successfully exported to ${format.toUpperCase()}`);
       return warning;
     } catch (error) {
-      console.error('[AI Chat Exporter] Export failed:', error);
+      console.error(`[${EXTENSION_NAME}] Export failed:`, error);
       throw error;
     }
   }
@@ -240,14 +240,14 @@ class ContentScript {
    */
   private async enrichClaudeConversation(conversation: Conversation): Promise<EnrichmentResult> {
     try {
-      console.log('[AI Chat Exporter] Enriching Claude conversation with API data...');
+      console.log(`[${EXTENSION_NAME}] Enriching Claude conversation with API data...`);
 
       const ids = await ClaudeApiService.extractIdsFromPage(conversation.url, document);
 
       if (!ids) {
         // The page itself is missing what enrichment needs (e.g. no
         // organization id) — retrying the same export won't change that.
-        console.log('[AI Chat Exporter] Could not extract IDs for API enrichment');
+        console.log(`[${EXTENSION_NAME}] Could not extract IDs for API enrichment`);
         return { conversation, warning: WARNING_KEYS.IDS_MISSING };
       }
 
@@ -255,16 +255,16 @@ class ContentScript {
 
       if (!apiData) {
         // The API call itself failed — plausibly a one-off network issue.
-        console.log('[AI Chat Exporter] API data not available');
+        console.log(`[${EXTENSION_NAME}] API data not available`);
         return { conversation, warning: WARNING_KEYS.FETCH_FAILED };
       }
 
       const enriched = ClaudeApiService.enrichConversation(conversation, apiData);
-      console.log('[AI Chat Exporter] Claude conversation enriched successfully');
+      console.log(`[${EXTENSION_NAME}] Claude conversation enriched successfully`);
 
       return enriched;
     } catch (error) {
-      console.warn('[AI Chat Exporter] Failed to enrich Claude conversation:', error);
+      console.warn(`[${EXTENSION_NAME}] Failed to enrich Claude conversation:`, error);
       // Export the un-enriched conversation, but say so.
       return { conversation, warning: WARNING_KEYS.FETCH_FAILED };
     }
@@ -297,7 +297,7 @@ class ContentScript {
     let conversation = this.parseConversation();
 
     if (!conversation) {
-      console.error('[AI Chat Exporter] No conversation available');
+      console.error(`[${EXTENSION_NAME}] No conversation available`);
       printWindow.close();
       throw new Error(ERROR_KEYS.NO_CONVERSATION);
     }
@@ -305,7 +305,7 @@ class ContentScript {
     conversation = applySelection(conversation, selectedIndices);
 
     console.log(
-      `[AI Chat Exporter] Attempting to print ${conversation.pairs.length} pairs as ${format}`
+      `[${EXTENSION_NAME}] Attempting to print ${conversation.pairs.length} pairs as ${format}`
     );
     let warning: string | undefined;
 
@@ -371,10 +371,10 @@ class ContentScript {
         await this.printBlob(printWindow, result.blob, format);
       }
 
-      console.log(`[AI Chat Exporter] Successfully opened ${format.toUpperCase()} for printing`);
+      console.log(`[${EXTENSION_NAME}] Successfully opened ${format.toUpperCase()} for printing`);
       return warning;
     } catch (error) {
-      console.error('[AI Chat Exporter] Print failed:', error);
+      console.error(`[${EXTENSION_NAME}] Print failed:`, error);
       printWindow.close();
       throw error;
     }

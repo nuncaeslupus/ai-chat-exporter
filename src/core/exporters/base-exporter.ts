@@ -136,15 +136,17 @@ export abstract class BaseExporter implements IExporter {
 
   /**
    * Format a per-message timestamp suffix to append after a role label,
-   * e.g. " (12:00:00)". The date is deliberately absent: with timestamps on,
+   * e.g. " (12:00)". The date is deliberately absent: with timestamps on,
    * the day is announced once by a day separator (see `daySeparator`) instead
-   * of being repeated on every message. Returns '' when timestamps are
-   * disabled or the message has no timestamp, so callers can always append the
-   * result directly without a separate presence check.
+   * of being repeated on every message. No seconds either (CONSIST-1): they
+   * are noise at this scale, per the same reasoning md (R-4) and txt (R-5)
+   * already applied to their own per-message stamps. Returns '' when
+   * timestamps are disabled or the message has no timestamp, so callers can
+   * always append the result directly without a separate presence check.
    */
   protected formatTimestampSuffix(date: Date | undefined, showMetaInfo: boolean): string {
     if (!showMetaInfo) return '';
-    const formatted = this.formatTime(date);
+    const formatted = this.formatTime(date).slice(0, 5);
     return formatted ? ` (${formatted})` : '';
   }
 
