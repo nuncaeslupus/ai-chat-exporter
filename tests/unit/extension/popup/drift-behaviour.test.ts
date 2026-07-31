@@ -303,7 +303,10 @@ describe('drift row visibility', () => {
     }
 
     it('opens an issue URL titled from the real platform and version, not blank', async () => {
-      mockContentScript({ drift: report, skeleton: { success: true, skeleton: 'x', origin: 'https://claude.ai' } });
+      mockContentScript({
+        drift: report,
+        skeleton: { success: true, skeleton: 'x', origin: 'https://claude.ai' },
+      });
 
       await loadPopup();
       await vi.waitFor(() => {
