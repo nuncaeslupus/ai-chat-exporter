@@ -154,6 +154,53 @@ describe('HtmlContentParser', () => {
   });
 
   /**
+   * D-38: `parseElement`'s `switch (tagName)` only recurses into nested
+   * block content for the `p`/`div` branch. A CUSTOM element (any tag the
+   * switch doesn't name, e.g. a platform's own component name) fell through
+   * to `default:`, which had no such check and sent the whole subtree straight
+   * to `parseInlineContent` -- flattening a wrapped table to a blank paragraph
+   * (parseInlineContent has no table case, so its text comes back empty).
+   * Root cause: Gemini nests every table under
+   * `response-element > table-block > ...`, and `response-element` is exactly
+   * this custom-element case. This test isolates that mechanism from the
+   * Gemini fixture itself.
+   */
+  describe('D-38: custom elements wrapping block content', () => {
+    it('recurses into an unknown custom element to find a nested table, instead of flattening it', () => {
+      // Wrapped in a plain <div> so `parse()`'s top-level block-element check
+      // (which doesn't know about custom tags either) routes into
+      // `parseElement` at all -- that's how the real Gemini markup arrives:
+      // `.markdown > div... > response-element > table-block > ... > table`.
+      const html = `
+        <div>
+          <response-element>
+            <table>
+              <thead><tr><th>Fund</th><th>Rate</th></tr></thead>
+              <tbody><tr><td>Aetherius Capital Alpha</td><td>3.50%</td></tr></tbody>
+            </table>
+          </response-element>
+        </div>
+      `;
+      const blocks = HtmlContentParser.parse(html);
+
+      expect(blocks).toHaveLength(1);
+      expect(blocks[0]?.type).toBe('table');
+      const table = blocks[0] as TableBlock;
+      expect(table.headers.map((h) => h.map((c) => c.text).join(''))).toEqual(['Fund', 'Rate']);
+      expect(table.rows[0]?.map((c) => c.map((t) => t.text).join(''))).toEqual([
+        'Aetherius Capital Alpha',
+        '3.50%',
+      ]);
+    });
+
+    it('still flattens a custom element with no nested block content to inline text', () => {
+      const blocks = HtmlContentParser.parse('<div><my-widget>just text</my-widget></div>');
+      expect(blocks).toHaveLength(1);
+      expect(blocks[0]?.type).toBe('paragraph');
+    });
+  });
+
+  /**
    * EXP-4: a two-row <thead> was flattened into one row by appending CELLS
    * instead of rows (doubling the column count), and colspan/rowspan were
    * ignored entirely, so a merged-cell table put values under the wrong
