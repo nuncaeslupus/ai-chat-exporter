@@ -20,7 +20,7 @@ metadata:
 - ✅ Repository preparation (README, LICENSE)
 - ✅ Documentation structure
 - ✅ GitHub links updated in extension
-- ✅ Multi-language support (8 languages)
+- ✅ Multi-language support (7 languages)
 
 ## Next Steps
 

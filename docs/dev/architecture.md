@@ -25,7 +25,8 @@ Platform-agnostic business logic:
 - **Types**: Conversation, Message, QAPair, Parser/Exporter interfaces
 - **Parsers**: BaseParser + platform implementations (ChatGPT, Claude, Gemini)
 - **Exporters**: BaseExporter + format implementations (PDF, MD, TXT, JSON, DOCX, HTML)
-- **Services**: FilenameService, SelectionService, ConversationStructureService
+- **Services**: FilenameService, SelectionService, ConversationStructureService,
+  ClaudeApiService, HtmlContentParser
 
 ### Extension (`src/extension/`)
 - **Content**: Platform detection, parser initialization, export handling
@@ -50,13 +51,13 @@ HTML DOM → Parser → Conversation → StructuredConversation → Exporters �
 
 **Export**: UI → SelectionService → FilenameService → Parser → Exporter → Download
 
-**Parse**: Content script loads → Detect platform → Parse DOM → Build Conversation → Inject UI
+**Parse**: Content script loads → Detect platform → Parse DOM → Build Conversation
 
-**Messages**: Content ↔ Background ↔ Popup (CONVERSATION_PARSED, EXPORT_REQUEST, etc.)
+**Messages**: Content ↔ Background ↔ Popup (`export_conversation`, `print_conversation`, `get_conversation`, `get_drift_skeleton`, `update_preferences`, `show_notification` — see `src/shared/constants.ts`)
 
 ## Extension Architecture
 
-**Content Script Lifecycle**: Script injected → Wait DOM → Detect platform → Parse → Inject UI → Listen for commands
+**Content Script Lifecycle**: Script injected → Wait DOM → Detect platform → Parse → Listen for commands
 
 **Background Script**: Context menus, keyboard shortcuts, message routing, tab tracking
 
@@ -85,10 +86,10 @@ See `src/core/types/` for full definitions:
 
 ## Security & Performance
 
-**Security**: No eval(), no external requests, minimal permissions, local processing only
+**Security**: No eval(); the only network requests go to the chat provider already open in the tab — see [docs/PRIVACY.md](../PRIVACY.md). Minimal permissions, local processing only.
 
 **Performance**: Lazy parsing, blob URLs, cached selectors, minimal content script size
 
-**Browser Compatibility**: Chrome/Firefox MV3, webextension-polyfill for API differences
+**Browser Compatibility**: Chrome/Firefox MV3, direct `chrome.*` APIs (Firefox 109+ supports them; no polyfill dependency)
 
 For implementation details, see source files in `src/`.

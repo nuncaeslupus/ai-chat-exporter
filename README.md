@@ -4,7 +4,7 @@ A browser extension to export your AI chatbot conversations from ChatGPT, Claude
 
 ![Version](https://img.shields.io/badge/version-1.1.1-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue.svg)
 
 ## Features
 
@@ -32,6 +32,11 @@ A browser extension to export your AI chatbot conversations from ChatGPT, Claude
   context menu, and `Ctrl+Shift+E` / `Cmd+Shift+E`
 - 🌍 **Multilingual**: Interface available in 7 languages (English, Spanish,
   French, German, Italian, Portuguese, Catalan)
+- ✅ **Q&A pair selection**: Choose which exchanges to export instead of all or
+  nothing, from the popup's pair chooser
+- ⚙️ **Export options**: A metadata/timestamp toggle, text-size choice, and a
+  drag-and-drop filename builder, all in the popup
+- 🌓 **Dark mode**: In the popup and in exported HTML
 
 ## Installation
 
@@ -99,7 +104,7 @@ captured DOM snapshot.
 ## Development
 
 ### Prerequisites
-- Node.js >= 18.0.0
+- Node.js >= 22.0.0
 - pnpm (package manager)
 
 ### Setup
@@ -147,7 +152,7 @@ ai-chat-exporter/
 │   │   ├── background/   # Service worker
 │   │   ├── content/      # Content scripts
 │   │   └── popup/        # Extension popup
-│   └── ui/               # Unused in-page components (not injected today)
+│   └── shared/            # Storage, messages, constants
 ├── tests/                # Test files
 ├── build/                # Build configuration
 └── manifests/            # Extension manifests
@@ -209,10 +214,6 @@ Contributions are welcome! Please:
 
 So you know what you are *not* getting:
 
-- **Selecting which Q&A pairs to export.** Every export includes the whole
-  conversation.
-- **An options UI.** There is no settings screen: metadata is always included,
-  timestamps never are, and the filename template is fixed at `{title}_{date}`.
 - **In-page export buttons.** Export and print are reached from the popup, the
   right-click menu, or the keyboard shortcut only.
 - **Batch export.** One conversation at a time.
@@ -237,7 +238,7 @@ web font, or tracking pixel. Full details in [docs/PRIVACY.md](./docs/PRIVACY.md
 ## Technical Details
 
 ### Built With
-- TypeScript 5.8
+- TypeScript 6.0
 - Vite (build tool)
 - Vitest (testing)
 - jsPDF (PDF generation)
@@ -253,7 +254,13 @@ The extension requires:
 - `activeTab` - To access the current conversation
 - `storage` - To save user preferences
 - `contextMenus` - For the right-click Export and Print menus
-- Host permissions for `chat.openai.com`, `chatgpt.com`, `claude.ai`, `gemini.google.com`
+- `scripting` - To re-inject the content script into a chat tab that was
+  already open when the extension was installed, updated or reloaded
+- Host permissions for `chat.openai.com`, `chatgpt.com`, `claude.ai`,
+  `gemini.google.com`, and `*.web-sandbox.oaiusercontent.com` (reading a
+  ChatGPT Deep Research report from its sandboxed frame)
+
+See [docs/PRIVACY.md](./docs/PRIVACY.md) for the full detail behind each one.
 
 ## License
 

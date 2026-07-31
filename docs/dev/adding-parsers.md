@@ -18,8 +18,7 @@ A parser extracts conversation data from platform-specific DOM and converts it t
 1. Selectors - CSS selectors for DOM elements
 2. Parser class - Extends `BaseParser`
 3. Tests - Unit tests with DOM fixtures
-4. Theme - Optional CSS
-5. URL Configuration - Must update 5 locations (see Step 9)
+4. URL Configuration - Must update 5 locations (see Step 8)
 
 **Critical Pitfall:** Forgetting to update URLs in all 5 required locations will break the parser.
 
@@ -37,13 +36,9 @@ Read `src/core/parsers/base-parser.ts` to understand the base class.
 
 ### Step 1: Capture Platform DOM
 
-**Using capture script:**
-1. Navigate to platform, open console (F12)
-2. Load `tmp/capture-chatgpt-dom.js`
-3. Run: `captureConversationDOM('platform-name')`
-4. Save to `tests/fixtures/dom-snapshots/{platform}/real-capture.html`
-
-**Manual:** Inspect conversation container → Right-click → Copy outerHTML → Save to fixture
+Navigate to the platform, open DevTools, inspect the conversation container,
+right-click it → Copy outerHTML, and save the result to
+`tests/fixtures/dom-snapshots/{platform}/real-capture.html`.
 
 ### Step 2: Analyze DOM Structure
 
@@ -264,31 +259,11 @@ There is no `PARSERS` array and no `getParserByPlatform()` — the registry is a
 `Document` to parse, so `detectParser(doc?)` (the live page) and tests (an
 arbitrary `Document`) share the exact same map instead of a second switch.
 
-### Step 8: Create Theme (Optional)
-
-Create `src/ui/themes/{platform}.css`:
-
-```css
-:root {
-  --claude-primary: #c17a5f;
-  --claude-secondary: #f4f0e8;
-  --claude-text: #2d2d2d;
-  --claude-border: #d4c5b9;
-}
-
-.theme-claude {
-  --primary-color: var(--claude-primary);
-  --secondary-color: var(--claude-secondary);
-  --text-color: var(--claude-text);
-  --border-color: var(--claude-border);
-}
-```
-
-### Step 9: Update URL Configuration
+### Step 8: Update URL Configuration
 
 **CRITICAL:** Update URLs in 5 locations:
 
-#### 9.1: manifests/manifest.base.json (2 places)
+#### 8.1: manifests/manifest.base.json (2 places)
 
 ```json
 {
@@ -309,7 +284,7 @@ Create `src/ui/themes/{platform}.css`:
 }
 ```
 
-#### 9.2: manifests/manifest.chrome.json
+#### 8.2: manifests/manifest.chrome.json
 
 ```json
 {
@@ -322,7 +297,7 @@ Create `src/ui/themes/{platform}.css`:
 }
 ```
 
-#### 9.3: manifests/manifest.firefox.json
+#### 8.3: manifests/manifest.firefox.json
 
 ```json
 {
@@ -335,10 +310,10 @@ Create `src/ui/themes/{platform}.css`:
 }
 ```
 
-#### 9.4: src/extension/popup/popup.ts
+#### 8.4: src/extension/popup/popup.ts
 
-There is a single spot to touch here — the `getUrlsForPlatform()` switch
-(around line 22). It is the only per-platform domain list in the file: the
+There is a single spot to touch here — the `getUrlsForPlatform()` switch. It
+is the only per-platform domain list in the file: the
 popup's "supported platforms" display and its `supportedDomains` activeTab
 check both derive their domains from `parserRegistry` at runtime
 (`[...parserRegistry.keys()].flatMap(getUrlsForPlatform)`), so registering the
@@ -358,14 +333,14 @@ function getUrlsForPlatform(platform: string): string[] {
 }
 ```
 
-### Step 10: Run Tests
+### Step 9: Run Tests
 
 ```bash
 pnpm test
 pnpm test -- claude
 ```
 
-### Step 11: Manual Testing
+### Step 10: Manual Testing
 
 ```bash
 pnpm build:chrome
@@ -537,7 +512,6 @@ private getContainer(): HTMLElement | null {
   - [ ] `manifests/manifest.chrome.json` (web_accessible_resources)
   - [ ] `manifests/manifest.firefox.json` (web_accessible_resources)
   - [ ] `src/extension/popup/popup.ts` (`getUrlsForPlatform`)
-- [ ] Theme CSS created (optional)
 - [ ] Manual testing completed
 
 ## Reference

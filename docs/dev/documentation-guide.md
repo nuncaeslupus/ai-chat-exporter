@@ -15,6 +15,7 @@ Guide for maintaining documentation in AI Chat Exporter.
 ```
 docs/
 ├── README.md              # Documentation index
+├── PRIVACY.md              # Privacy policy
 ├── installation.md        # User: Installation guide
 ├── usage.md               # User: Usage guide
 ├── release-notes-*.txt    # Release notes (plain text)
@@ -29,13 +30,18 @@ docs/
 │   ├── workflow.md
 │   ├── project-structure.md
 │   ├── github-setup.md
-│   └── development-plan.md
+│   ├── development-plan.md
+│   ├── documentation-guide.md
+│   └── parser-gotchas.md
 └── store-listings/        # Store submission files (plain text)
 ```
 
 ## YAML Frontmatter
 
-All documentation files use YAML frontmatter for metadata:
+Most guides under `docs/` and `docs/dev/` carry YAML frontmatter for metadata.
+The top-level `README.md` and `CHANGELOG.md`, the `docs/README.md` index,
+`docs/PRIVACY.md`, `docs/dev/workflow.md` and `docs/dev/parser-gotchas.md` do
+not:
 
 ```yaml
 ---

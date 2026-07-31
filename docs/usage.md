@@ -55,16 +55,18 @@ After installing the extension (see [Installation Guide](installation.md)):
    The popup shows the detected platform, the conversation title, and the
    number of Q&A pairs found.
 
-2. **Pick a format** from the dropdown
+2. **Pick a format** from the format menu
 
    Markdown, HTML, PDF, Word (DOCX), Plain Text or JSON. See
    [Export Formats](#export-formats).
 
 3. **Click "Export"**
 
-   Your browser downloads the file. Filename: `{conversation-title}_{date}.{ext}`.
+   Your browser downloads the file. Filename: `{conversation-title}_{date}.{ext}`
+   by default — customizable, see [Extension Popup](#extension-popup).
 
-The whole conversation is always exported.
+By default the whole conversation is exported; use the pair chooser (see
+[Extension Popup](#extension-popup)) to export only some exchanges.
 
 ### From the Right-Click Menu
 
@@ -161,31 +163,46 @@ A: A neural network is...
 - Easy to parse with code
 - File size: Medium
 
-**Structure**:
+**Structure** (with "Show meta-info" on):
 ```json
 {
+  "schemaVersion": 2,
   "title": "Understanding Neural Networks",
-  "platform": "chatgpt",
-  "model": "gpt-4",
-  "url": "https://chat.openai.com/c/...",
-  "exportedAt": "2026-01-02T10:30:00Z",
+  "platform": "claude",
+  "model": "claude-opus-4",
+  "url": "https://claude.ai/chat/...",
+  "exportedAt": "2026-07-29T15:12:04+02:00",
+  "dateRange": {
+    "from": "2026-07-29T15:10:11+02:00",
+    "to": "2026-07-29T15:12:04+02:00"
+  },
   "pairs": [
     {
       "index": 0,
       "question": {
         "role": "user",
-        "content": "What is a neural network?"
+        "content": "What is a neural network?",
+        "timestamp": "2026-07-29T15:10:11+02:00"
       },
       "answer": {
         "role": "assistant",
-        "content": "A neural network is..."
+        "content": "A neural network is...",
+        "timestamp": "2026-07-29T15:12:04+02:00"
       }
     }
   ]
 }
 ```
 
-Message timestamps are not written to the export.
+`exportedAt`, `dateRange` and per-message `timestamp` are local time with an
+explicit UTC offset, not `Z` — the offset round-trips through `new Date()`
+unchanged, which a normalized `Z` timestamp would not. `title`, `platform`,
+`model`, `url`, `createdAt` and `dateRange` are only present when "Show
+meta-info" is on. A message's `timestamp` is present only where the platform
+provides one — today only Claude does; ChatGPT and Gemini messages never carry
+a timestamp. `htmlContent` and `metadata` (images, artifacts, web-search
+results) are included per message when present, regardless of the
+"Show meta-info" setting.
 
 #### DOCX (.docx)
 **Best for**: Editing in Word, sharing with non-technical users
@@ -245,11 +262,16 @@ platforms it does support. If you installed or updated the extension while the
 page was already open, the popup asks you to reload the page first.
 
 ### Actions
-- **Format dropdown** - Markdown, HTML, PDF, Word, Plain Text, JSON
-- **Export** - Download the whole conversation in that format
+- **Format menu** - Markdown, HTML, PDF, Word, Plain Text, JSON
+- **Export** - Download the conversation (or just the pairs you selected) in
+  that format
 - **Print** - Open it in a new tab and raise the print dialog
-
-There are no other controls: no settings screen, no per-message selection.
+- **Content row** - Opens the pair chooser, where you pick which Q&A
+  exchanges to include instead of the whole conversation; the row itself
+  shows "Whole conversation" or "N of M pairs"
+- **Options row** - Opens a "Show meta-info" toggle (metadata + timestamps), a
+  text-size choice, and a filename builder (see [Defaults](#defaults))
+- **Gear icon** (header) - Opens Settings: theme, plus the About links
 
 ---
 
@@ -271,25 +293,27 @@ To change it:
 
 ## Defaults
 
-The extension has no settings UI. These values are fixed:
+These are the out-of-the-box values; the Options row and Content row (see
+[Extension Popup](#extension-popup)) let you change the ones marked
+"configurable":
 
-| Setting | Value |
-|---------|-------|
-| Format used by the keyboard shortcut | The last format you exported; PDF if you never have |
-| Conversation metadata (title, date, platform, model, URL) | Always included |
-| Message timestamps | Never included |
-| Filename | `{title}_{date}`, e.g. `Understanding-Neural-Networks_2026-01-02` |
+| Setting | Default | Configurable? |
+|---------|---------|---------------|
+| Format used by the keyboard shortcut | The last format you exported; PDF if you never have | No |
+| Conversation metadata + timestamps ("Show meta-info") | On | Yes — toggle in Options |
+| Text size | Normal | Yes — Compact / Normal / Large in Options |
+| Filename | `{title}_{date}`, e.g. `Understanding-Neural-Networks_2026-01-02` | Yes — drag-and-drop builder in Options → File name |
+| Q&A pairs exported | All | Yes — pick specific pairs from the Content row |
+| Theme | Auto | Yes — Light / Dark / Auto in Settings (gear icon) |
 
 Special characters in the title are sanitized automatically, and the extension
-appends the format's own extension.
+appends the format's own extension. Timestamps only appear where the platform
+provides them — today that's Claude only.
 
 ---
 
 ## What the Extension Does Not Do
 
-- **Choosing which Q&A pairs to export.** Exports always contain the entire
-  conversation.
-- **Settings / preferences UI.** See [Defaults](#defaults) above.
 - **Buttons inside the chat page.** Use the popup, the right-click menu, or the
   keyboard shortcut.
 - **Batch export.** One conversation at a time.
@@ -352,8 +376,8 @@ Use browser download management:
 - JSON/TXT are the fastest
 
 ### Privacy
-- Review content before sharing exported files — an export always contains the
-  whole conversation
+- Review content before sharing exported files — by default an export
+  contains the whole conversation, unless you used the Content row to limit it
 - Exports are saved locally on your device; see [PRIVACY.md](PRIVACY.md)
 
 ### Quality
@@ -369,7 +393,8 @@ Use browser download management:
 No. You must export each conversation individually. The keyboard shortcut makes this quicker.
 
 ### Can I export only part of a conversation?
-No. Every export contains the whole conversation.
+Yes. Open the popup's Content row and pick which Q&A exchanges to include;
+unselected pairs are left out of the export.
 
 ### What happens if I close the page during export?
 The export process completes almost instantly for most formats. If interrupted, simply retry the export.

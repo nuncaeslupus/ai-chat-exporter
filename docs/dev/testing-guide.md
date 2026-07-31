@@ -25,7 +25,8 @@ Test-Driven Development (TDD) approach with comprehensive unit tests for all cor
 - Core logic: 90%+ (parsers, exporters, services)
 - UI components: Basic smoke tests
 - Extension code: Integration tests
-- Overall: 80%+
+- Overall: the enforced floor is below the aspirational goals below — see
+  [Coverage](#coverage)
 
 ## Test-Driven Development Workflow
 
@@ -144,7 +145,8 @@ it('works', () => {});
 **DOM Snapshots:** Capture real platform HTML for parser tests
 
 ```typescript
-// Create: captureConversationDOM('chatgpt') in browser console
+// Create: open the platform page, right-click the conversation container →
+// Copy outerHTML
 // Save to: tests/fixtures/dom-snapshots/chatgpt/real-capture.html
 
 // Use in tests
@@ -213,11 +215,12 @@ pnpm test:coverage
 # View HTML report: open coverage/index.html
 ```
 
-**Goals:**
-- Statements: 90%+
-- Branches: 85%+
-- Functions: 90%+
-- Lines: 90%+
+**Enforced floors** (`vitest.config.ts`, ratcheted up as tests land — floors
+sit just under the measured value on `main`, not the aspirational target):
+- Statements: 83%+ (target 90%+)
+- Branches: 69%+ (target 85%+)
+- Functions: 89%+ (target 90%+)
+- Lines: 83%+ (target 90%+)
 
 ## Best Practices
 

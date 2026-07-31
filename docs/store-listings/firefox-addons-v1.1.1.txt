@@ -170,7 +170,9 @@ Permissions Required:
 • activeTab: Access conversation content on supported platforms
 • storage: Save user preferences locally (last used export format)
 • contextMenus: Right-click menu options for quick export and print access
+• scripting: Re-injects the content script into a chat tab that was already open when the extension was installed, updated or reloaded. It cannot reach any site the extension does not already have host access to.
 • Host permissions (chat.openai.com, chatgpt.com, claude.ai, gemini.google.com): Read the open conversation on each supported platform, and, on claude.ai, call Claude's own API with your existing session for artifact content the page does not render. The extension has no access to any other site.
+• Host permission (*.web-sandbox.oaiusercontent.com): Reads a ChatGPT Deep Research report, which renders in a sandboxed frame served from this subdomain, cross-origin from chatgpt.com. Scoped to the web-sandbox subdomain only — not the broader oaiusercontent.com domain that also serves uploaded files.
 
 Platform Support:
 
