@@ -890,11 +890,23 @@ export class PdfExporter extends BaseExporter {
         for (const result of search.results) {
           y = this.ensureSpace(doc, y, lineHeight * 3, margins, pageHeight);
 
-          // Result title (as link)
+          // Result title (as link). Bullet is drawn once for the first line;
+          // continuation lines indent to the text column — same hanging-indent
+          // pattern as renderList's bulletX/textX split, so a wrapped title
+          // reads as one source instead of one bullet per line.
           doc.setTextColor(...hexToRgbTuple(COLOR.link));
+          const titleBulletX = margins.left + 5;
+          const titleTextX = titleBulletX + 4;
           const titleLines = splitLines(doc, this.sanitize(result.title), contentWidth - 10);
-          for (const line of titleLines) {
-            doc.text('• ' + line, margins.left + 5, y);
+          for (const [i, line] of titleLines.entries()) {
+            if (y > pageHeight - margins.bottom) {
+              doc.addPage();
+              y = margins.top;
+            }
+            if (i === 0) {
+              doc.text('•', titleBulletX, y);
+            }
+            doc.text(line, titleTextX, y);
             y += lineHeight * 0.9;
           }
 

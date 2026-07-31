@@ -28,10 +28,14 @@ interface Call {
   args: unknown[];
 }
 
-const { instances, MockJsPDF } = vi.hoisted(() => {
+const { instances, MockJsPDF, setPageHeightForTest } = vi.hoisted(() => {
+  // Mutable so a single test can shrink the page to force a page break inside
+  // a wrapped title deterministically, without guessing at content offsets.
+  let pageHeightOverride = 297;
+
   class MockJsPDF {
     calls: Call[] = [];
-    internal = { pageSize: { getWidth: () => 210, getHeight: () => 297 } };
+    internal = { pageSize: { getWidth: () => 210, getHeight: () => pageHeightOverride } };
 
     constructor(_options: unknown) {
       instances.push(this);
@@ -83,8 +87,28 @@ const { instances, MockJsPDF } = vi.hoisted(() => {
     getNumberOfPages() {
       return 1;
     }
-    splitTextToSize(text: string) {
-      return [text];
+    // Real greedy word-wrap driven by `getTextWidth`, so a title long enough
+    // to exceed the given width actually produces multiple lines instead of
+    // one long unsplit string — needed to exercise the one-bullet-per-source
+    // fix (D-37) below. Short titles still fit on a single line, so this
+    // doesn't disturb the existing single-line assertions above.
+    splitTextToSize(text: string, width?: number) {
+      const str = String(text);
+      if (!width) return [str];
+      const words = str.split(' ');
+      const lines: string[] = [];
+      let current = '';
+      for (const word of words) {
+        const candidate = current ? `${current} ${word}` : word;
+        if (current && this.getTextWidth(candidate) > width) {
+          lines.push(current);
+          current = word;
+        } else {
+          current = candidate;
+        }
+      }
+      if (current) lines.push(current);
+      return lines.length > 0 ? lines : [str];
     }
     addFileToVFS(...args: unknown[]) {
       this.record('addFileToVFS', args);
@@ -103,7 +127,13 @@ const { instances, MockJsPDF } = vi.hoisted(() => {
   }
 
   const instances: InstanceType<typeof MockJsPDF>[] = [];
-  return { instances, MockJsPDF };
+  return {
+    instances,
+    MockJsPDF,
+    setPageHeightForTest: (h: number) => {
+      pageHeightOverride = h;
+    },
+  };
 });
 
 vi.mock('jspdf', () => ({ jsPDF: MockJsPDF }));
@@ -226,5 +256,147 @@ describe('web search citations survive export in all six formats', () => {
     const xml = await extractDocxEntry(result.blob!, 'word/document.xml');
     expect(xml).toContain(TITLE);
     expect(xml).toContain(URL);
+  });
+});
+
+/**
+ * D-37: a source title long enough to wrap used to get a bullet on EVERY
+ * wrapped line, turning one source into several nonsensical entries. The
+ * fix draws the bullet once and indents continuation lines to the text
+ * column, mirroring `renderList`'s hanging indent.
+ */
+describe('pdf: a wrapped source title gets one bullet, not one per line', () => {
+  const LONG_TITLE = Array.from({ length: 40 }, (_, i) => `Word${i}`).join(' ');
+
+  function conversationWithTitle(
+    title: string,
+    fillerWords = 0
+  ): { conversation: Conversation; pairs: QAPair[] } {
+    const searches: WebSearchResult[] = [
+      {
+        query: 'lighthouse keeper shortage',
+        resultCount: 1,
+        results: [{ title, url: URL, domain: DOMAIN }],
+      },
+    ];
+    const answerText = fillerWords
+      ? Array.from({ length: fillerWords }, (_, i) => `filler${i}`).join(' ')
+      : 'Automation replaced most of them.';
+    const p: QAPair[] = [
+      {
+        id: 'p1',
+        index: 0,
+        selected: true,
+        question: {
+          id: 'q1',
+          role: 'user',
+          content: 'Why are lighthouse keepers scarce?',
+          timestamp: new Date('2025-01-01T00:00:00Z'),
+        },
+        answer: {
+          id: 'a1',
+          role: 'assistant',
+          content: answerText,
+          htmlContent: `<p>${answerText}</p>`,
+          timestamp: new Date('2025-01-01T00:00:01Z'),
+          metadata: { webSearches: searches },
+        },
+      },
+    ] as unknown as QAPair[];
+
+    const c: Conversation = {
+      id: 'c1',
+      title: 'Web search citations',
+      platform: 'chatgpt',
+      url: 'https://chatgpt.com/c/1',
+      createdAt: new Date('2025-01-01T00:00:00Z'),
+      pairs: p,
+    } as unknown as Conversation;
+
+    return { conversation: c, pairs: p };
+  }
+
+  /**
+   * Walks forward from the bullet call, greedily reassembling consecutive
+   * `text` calls until they reconstruct `fullTitle` word-for-word. Reports
+   * how many `addPage` calls fell inside that span, so a straddling title
+   * can be told apart from one that fit on a single page.
+   */
+  function collectTitleRender(calls: Call[], fullTitle: string) {
+    const bulletIdx = calls.findIndex((c) => c.method === 'text' && c.args[0] === '•');
+    expect(bulletIdx, 'expected a bullet to be drawn for the source title').toBeGreaterThanOrEqual(
+      0
+    );
+    const bulletCall = calls[bulletIdx]!;
+    let acc = '';
+    const lineCalls: Call[] = [];
+    let i = bulletIdx + 1;
+    while (i < calls.length && acc !== fullTitle) {
+      const call = calls[i]!;
+      if (call.method === 'text' && typeof call.args[0] === 'string') {
+        const candidate = acc ? `${acc} ${call.args[0]}` : call.args[0];
+        if (fullTitle.startsWith(candidate)) {
+          acc = candidate;
+          lineCalls.push(call);
+        } else {
+          break;
+        }
+      }
+      i++;
+    }
+    expect(acc, 'title lines did not reconstruct the full title').toBe(fullTitle);
+    const addPagesBetween = calls.slice(bulletIdx, i).filter((c) => c.method === 'addPage').length;
+    return { bulletCall, lineCalls, addPagesBetween };
+  }
+
+  it('renders exactly one bullet for a title that wraps to 3+ lines, with continuations at the text column', async () => {
+    instances.length = 0;
+    const { conversation: conv, pairs: p } = conversationWithTitle(LONG_TITLE);
+    const result = await new PdfExporter().export(conv, p, { ...options, format: 'pdf' });
+    expect(result.success).toBe(true);
+
+    const calls = instances[0]!.calls;
+    const bulletCount = calls.filter((c) => c.method === 'text' && c.args[0] === '•').length;
+    expect(bulletCount).toBe(1);
+
+    const { bulletCall, lineCalls } = collectTitleRender(calls, LONG_TITLE);
+    expect(lineCalls.length).toBeGreaterThanOrEqual(3);
+
+    const textX = lineCalls[0]!.args[1];
+    for (const c of lineCalls) {
+      expect(c.args[1]).toBe(textX);
+    }
+    expect(bulletCall.args[1]).not.toBe(textX);
+    expect(bulletCall.args[2]).toBe(lineCalls[0]!.args[2]); // bullet sits on the first line's baseline
+  });
+
+  it('keeps exactly one bullet and a consistent text column when the wrapped title crosses a page break', async () => {
+    // A title long enough to need ~35+ lines, on a page shrunk to fit only a
+    // handful of lines: wherever the title happens to start, it necessarily
+    // straddles at least one page break — no need to guess the exact offset.
+    const VERY_LONG_TITLE = Array.from({ length: 150 }, (_, i) => `Word${i}`).join(' ');
+    setPageHeightForTest(60);
+    try {
+      instances.length = 0;
+      const { conversation: conv, pairs: p } = conversationWithTitle(VERY_LONG_TITLE);
+      const result = await new PdfExporter().export(conv, p, { ...options, format: 'pdf' });
+      expect(result.success).toBe(true);
+
+      const calls = instances[0]!.calls;
+      const bulletCount = calls.filter((c) => c.method === 'text' && c.args[0] === '•').length;
+      expect(bulletCount).toBe(1);
+
+      const { lineCalls, addPagesBetween } = collectTitleRender(calls, VERY_LONG_TITLE);
+      expect(addPagesBetween, 'expected the title render to straddle a page break').toBeGreaterThan(
+        0
+      );
+
+      const textX = lineCalls[0]!.args[1];
+      for (const c of lineCalls) {
+        expect(c.args[1], 'continuation line drifted off the text column').toBe(textX);
+      }
+    } finally {
+      setPageHeightForTest(297);
+    }
   });
 });
