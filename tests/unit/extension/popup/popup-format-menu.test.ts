@@ -68,7 +68,24 @@ const CONVERSATION = {
   url: 'https://gemini.google.com/app/abc',
 };
 
+/**
+ * Every `loadPopup()` builds a fresh `PopupController`, and its router binds to
+ * `document` — which survives the markup being replaced. Left alone, load N
+ * leaves N controllers all listening, all re-initializing on the next
+ * synthetic `DOMContentLoaded`, and all acting on the same keypress: an
+ * ArrowDown moved focus N rows, not one. (With six format rows that wrapped
+ * back to a single step at N = 13, which is the only reason the roving-focus
+ * test read as green.) Recording what each load binds lets the next one unbind
+ * it, so exactly one controller is ever live.
+ */
+let documentListeners: [string, EventListenerOrEventListenerObject][] = [];
+
 async function loadPopup(): Promise<void> {
+  for (const [type, listener] of documentListeners) {
+    document.removeEventListener(type, listener);
+  }
+  documentListeners = [];
+
   document.body.innerHTML = POPUP_HTML;
   mockTabsSendMessage.mockImplementation((_tabId: number, message: { type: string }) =>
     message.type === 'get_conversation'
@@ -76,11 +93,23 @@ async function loadPopup(): Promise<void> {
       : Promise.resolve({ success: true })
   );
   vi.resetModules();
-  await import('../../../../src/extension/popup/popup');
-  document.dispatchEvent(new Event('DOMContentLoaded'));
-  await vi.waitFor(() => {
-    expect(document.getElementById('status-indicator')?.className).toContain('active');
-  });
+
+  const addEventListener = document.addEventListener.bind(document);
+  const spy = vi
+    .spyOn(document, 'addEventListener')
+    .mockImplementation((type: string, listener: EventListenerOrEventListenerObject, options) => {
+      documentListeners.push([type, listener]);
+      addEventListener(type, listener, options);
+    });
+  try {
+    await import('../../../../src/extension/popup/popup');
+    document.dispatchEvent(new Event('DOMContentLoaded'));
+    await vi.waitFor(() => {
+      expect(document.getElementById('status-indicator')?.className).toContain('active');
+    });
+  } finally {
+    spy.mockRestore();
+  }
 }
 
 function bodyBox(): HTMLElement {
@@ -280,6 +309,20 @@ describe('popup format menu accessibility', () => {
     toggleMenu();
 
     expect(document.activeElement).toBe(rowFor('pdf'));
+  });
+
+  /**
+   * The popup opens with the menu closed, and `initialize()` paints that
+   * closed state through the same setter that closes it. Focusing the toggle
+   * unconditionally meant a freshly opened popup started with a focus ring on
+   * the chevron — the split button looked half-pressed before anything was
+   * touched. Focus belongs to the browser until a menu has actually been open.
+   */
+  it('leaves the chevron unfocused when the popup opens', async () => {
+    await loadPopup();
+
+    expect(document.activeElement).not.toBe(toggle());
+    expect(menuOpen()).toBe(false);
   });
 
   it('returns focus to the toggle when the menu closes', async () => {

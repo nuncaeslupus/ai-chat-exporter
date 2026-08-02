@@ -478,6 +478,7 @@ class PopupController {
   }
 
   private setFormatMenuOpen(open: boolean): void {
+    const wasOpen = this.formatMenuOpen;
     this.formatMenuOpen = open;
     this.bodyBox()?.setAttribute('data-format-menu-open', String(open));
     const toggle = document.getElementById('format-menu-toggle');
@@ -494,7 +495,13 @@ class PopupController {
     }
     if (open) {
       this.revealSelectedFormatRow();
-    } else {
+    } else if (wasOpen) {
+      // Closing hands focus back to the chevron that opened the menu — but
+      // only when a menu was actually open. `initialize()` also calls this to
+      // paint the closed state, and focusing then left the popup opening with
+      // a focus ring on the chevron (Chrome treats the first programmatic
+      // focus in a fresh document as keyboard-initiated, so `:focus-visible`
+      // matched), which read as a half-pressed Export button.
       toggle?.focus();
     }
   }
