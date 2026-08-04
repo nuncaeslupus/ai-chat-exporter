@@ -38,7 +38,10 @@ const EN_MESSAGES: Record<string, string> = {
   footerPrivacy: 'Privacy',
   footerGitHub: 'GitHub',
   submenuBack: 'Back',
-  submenuDone: 'Done',
+  settingsLanguageLabel: 'Language',
+  settingsLanguageAuto: 'Browser language',
+  exportButtonFormat: 'Export $1',
+  formatNameMD: 'Markdown',
 };
 
 function mockI18n() {
@@ -118,15 +121,62 @@ function openSettingsView(): void {
   document.getElementById('header-gear')!.click();
 }
 
+/**
+ * Serve the shipped `_locales` bundles to the override's `fetch`. Real files,
+ * not fixtures: the point of the setting is that picking Spanish produces the
+ * Spanish the extension actually ships.
+ */
+function serveRealBundles(): void {
+  vi.stubGlobal('fetch', (url: string) => {
+    const locale = /_locales\/([a-z]+)\/messages\.json$/.exec(url)?.[1];
+    if (!locale) return Promise.resolve({ ok: false, status: 404 });
+    const body = readFileSync(
+      resolve(__dirname, `../../../../_locales/${locale}/messages.json`),
+      'utf-8'
+    );
+    return Promise.resolve({ ok: true, json: () => Promise.resolve(JSON.parse(body)) });
+  });
+}
+
+function languageSelect(): HTMLSelectElement {
+  return document.getElementById('settings-language') as HTMLSelectElement;
+}
+
+/**
+ * Pick a language the way a click does, then wait for the whole switch — the
+ * write *and* the repaint it triggers. Waiting on storage alone returns while
+ * the popup is still painted in the old language, which is a race an assertion
+ * would lose roughly whenever the repaint takes more than a microtask.
+ */
+async function chooseLanguage(value: string): Promise<void> {
+  const select = languageSelect();
+  select.value = value;
+  select.dispatchEvent(new Event('change'));
+  await vi.waitFor(async () => {
+    expect(await storedLanguage()).toBe(value);
+    expect(document.documentElement.lang).toBe(value);
+  });
+}
+
+async function storedLanguage(): Promise<unknown> {
+  const stored = await chrome.storage.sync.get('language_preference');
+  return stored.language_preference;
+}
+
 beforeEach(() => {
   mockTabsQuery.mockReset();
   mockTabsSendMessage.mockReset();
   mockStatefulSyncStorage();
   Object.assign(chrome, {
     tabs: { query: mockTabsQuery, sendMessage: mockTabsSendMessage, create: vi.fn() },
-    runtime: { getManifest: () => ({ version: '1.1.1' }) },
+    runtime: {
+      getManifest: () => ({ version: '1.1.1' }),
+      // The language override loads its bundle through here (see i18n.ts).
+      getURL: (path: string) => `chrome-extension://test/${path}`,
+    },
     i18n: mockI18n(),
   });
+  serveRealBundles();
   mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://claude.ai/chat/abc' }]);
   mockTabsSendMessage.mockImplementation((_tabId: number, message: { type: string }) =>
     message.type === 'get_conversation'
@@ -217,14 +267,113 @@ describe('gear view — theme', () => {
   });
 });
 
+/**
+ * Language. `chrome.i18n` is mocked as an English browser throughout, so any
+ * Spanish that appears can only have come from the override — the whole point
+ * of the setting, since `chrome.i18n.getMessage` cannot be asked for a locale.
+ */
+describe('gear view — language', () => {
+  it('defaults to the browser language and says so', async () => {
+    await loadPopup();
+
+    expect(languageSelect().value).toBe('auto');
+    expect(languageSelect().options[0]?.textContent).toBe('Browser language');
+    // Still the mocked English browser, because nothing is pinned.
+    expect(document.querySelector('[data-i18n="settingsTitle"]')?.textContent).toBe('Settings');
+  });
+
+  it('offers every shipped bundle, each named in its own language', async () => {
+    await loadPopup();
+
+    const options = [...languageSelect().options].map((o) => [o.value, o.textContent]);
+    expect(options).toEqual([
+      ['auto', 'Browser language'],
+      ['ca', 'Català'],
+      ['de', 'Deutsch'],
+      ['en', 'English'],
+      ['es', 'Español'],
+      ['fr', 'Français'],
+      ['it', 'Italiano'],
+      ['pt', 'Português'],
+    ]);
+  });
+
+  it('repaints the popup in the chosen language, static text and runtime text alike', async () => {
+    await loadPopup();
+    expect(document.querySelector('[data-i18n="rowOptions"]')?.textContent).toBe('Options');
+
+    await chooseLanguage('es');
+
+    // Static, via localizeHtmlPage().
+    expect(document.querySelector('[data-i18n="rowOptions"]')?.textContent).toBe('Opciones');
+    // Built at runtime — `localizeHtmlPage()` never touches this node, so it
+    // only changes if the re-render after the switch reached it too.
+    await vi.waitFor(() => {
+      expect(document.getElementById('export-button-label')?.textContent).toBe('Exportar Markdown');
+    });
+    expect(document.documentElement.lang).toBe('es');
+  });
+
+  it('survives a re-open', async () => {
+    await loadPopup();
+    await chooseLanguage('fr');
+
+    await loadPopup();
+
+    expect(languageSelect().value).toBe('fr');
+    // `settingsTitle`, not `rowOptions`: French spells that one "Options" too,
+    // so it would pass against an override that never loaded.
+    await vi.waitFor(() => {
+      expect(document.querySelector('[data-i18n="settingsTitle"]')?.textContent).toBe('Paramètres');
+    });
+    expect(document.documentElement.lang).toBe('fr');
+  });
+
+  it('stores the language under its own key, never inside user_preferences', async () => {
+    await loadPopup();
+    await chooseLanguage('de');
+
+    const userPrefs: Record<string, unknown> = await chrome.storage.sync.get('user_preferences');
+    expect(
+      (userPrefs.user_preferences as { language?: unknown } | undefined)?.language
+    ).toBeUndefined();
+  });
+
+  it('does not trip the Options row changed-dot -- language is app-level, not per-export', async () => {
+    await loadPopup();
+    const dot = () => document.getElementById('options-changed-dot')!;
+    expect(dot().hidden).toBe(true);
+
+    await chooseLanguage('it');
+
+    expect(dot().hidden).toBe(true);
+  });
+
+  /**
+   * Preferences sync across devices and outlive an update, so a value naming a
+   * bundle this build no longer ships must not leave the popup fetching a file
+   * that isn't there.
+   */
+  it('ignores a stored language this build does not ship', async () => {
+    await chrome.storage.sync.set({ language_preference: 'klingon' });
+
+    await loadPopup();
+
+    expect(languageSelect().value).toBe('auto');
+    expect(document.querySelector('[data-i18n="rowOptions"]')?.textContent).toBe('Options');
+  });
+});
+
 describe('gear view — About', () => {
-  it('carries the version, the two links and Done -- moved from the Options footer', async () => {
+  it('carries the version and the two links -- moved from the Options footer', async () => {
     await loadPopup();
 
     const footer = document.querySelector('#view-settings .submenu-footer');
     expect(footer?.querySelector('#settings-footer-version')?.textContent).toBe('v1.1.1');
     const links = Array.from(footer?.querySelectorAll('a') ?? []).map((a) => a.textContent?.trim());
     expect(links).toEqual(['Privacy', 'GitHub']);
-    expect(footer?.querySelector('[data-nav="main"]')?.textContent?.trim()).toBe('Done');
+    // The footer's Done went with the redundant back-navigation pass; the
+    // header chevron is the single way out of every submenu now.
+    expect(footer?.querySelector('[data-nav="main"]')).toBeNull();
   });
 });

@@ -1183,6 +1183,12 @@ section {
   color: var(--color-text-secondary);
 }
 
+/*
+ * The filled primary button of a submenu footer. Named for the Done buttons it
+ * was written for; those are gone (the header's back chevron is the single way
+ * out of every submenu now), so the Report view's "Copy & report" — a real
+ * action, not navigation — is the only thing wearing it.
+ */
 .submenu-done {
   flex: none;
   height: 34px;
@@ -1353,6 +1359,31 @@ section {
   cursor: pointer;
 }
 
+/*
+ * Select row (language). Not the choice row above: eight options, each named
+ * in its own language, will not fit a fixed three-step strip at any popup
+ * width. Keeps `.option-row`'s flex layout — label left, control right — and
+ * only borrows the same `--content-column` indent every other label sits at,
+ * so the list keeps one left edge.
+ */
+.option-row--select > .option-row-label {
+  margin-left: var(--content-column);
+}
+
+.option-select {
+  flex: none;
+  /* The longest native name must not push the row past the popup's width. */
+  max-width: 55%;
+  padding: 5px 7px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-row);
+  background: var(--color-surface-key);
+  color: var(--color-text-body);
+  font-family: inherit;
+  font-size: var(--text-md);
+  cursor: pointer;
+}
+
 /* Navigation row: label over the filename, chevron aligned to the label. */
 .option-row--nav {
   align-items: flex-start;
@@ -1405,9 +1436,9 @@ section {
 }
 
 /*
- * Footer: version, the two links, Done. About (version/Privacy/GitHub) moved
- * to the gear view's footer, which reuses this same class -- Options' own
- * footer keeps it only for the `.submenu-done` right-alignment rule below.
+ * Footer: version and the two links. Only the gear view has one now — About
+ * moved there from Options, and Options' remaining footer held nothing but
+ * the redundant Done, so the band went with it rather than paint empty.
  */
 .options-footer {
   gap: 9px;
@@ -1434,10 +1465,6 @@ section {
 
 .options-footer-link:hover {
   color: var(--color-accent);
-}
-
-.options-footer .submenu-done {
-  margin-left: auto;
 }
 
 /*

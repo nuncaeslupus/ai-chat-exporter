@@ -327,9 +327,6 @@
           <ul class="qa-selection-list" id="qa-selection-list"></ul>
           <div class="submenu-footer">
             <span class="pair-chooser-summary" id="qa-selection-count"></span>
-            <button type="button" class="submenu-done" data-nav="main" data-i18n="submenuDone">
-              Done
-            </button>
           </div>
         </section>
 
@@ -395,12 +392,11 @@
             </button>
           </div>
 
-          <!-- About (version, Privacy, GitHub) moved to the gear view's footer. -->
-          <div class="submenu-footer options-footer">
-            <button type="button" class="submenu-done" data-nav="main" data-i18n="submenuDone">
-              Done
-            </button>
-          </div>
+          <!--
+            No footer band. About (version, Privacy, GitHub) moved to the gear
+            view's footer, and Done went with the redundant back-navigation
+            pass — leaving the bar itself would paint 23px of empty chrome.
+          -->
         </section>
 
         <!--
@@ -437,6 +433,19 @@
                 </label>
               </div>
             </fieldset>
+            <!--
+              Language. A select, not the three-step choice row Theme uses:
+              there are eight options, and each language is named in itself
+              (never translated), so they cannot be laid out as a fixed strip.
+              Options are rendered from `SUPPORTED_LOCALES` by popup.ts, so a
+              new bundle shows up here without touching this markup.
+            -->
+            <div class="option-row option-row--select">
+              <label class="option-row-label" for="settings-language" data-i18n="settingsLanguageLabel">
+                Language
+              </label>
+              <select class="option-select" id="settings-language"></select>
+            </div>
           </div>
 
           <div class="submenu-footer options-footer">
@@ -459,9 +468,6 @@
             >
               GitHub
             </a>
-            <button type="button" class="submenu-done" data-nav="main" data-i18n="submenuDone">
-              Done
-            </button>
           </div>
         </section>
 
@@ -538,9 +544,6 @@
               <path d="M9.2 2.6v3.1h3.2" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
             </svg>
             <span class="filename-footer-name" id="filename-preview" data-filename-preview></span>
-            <button type="button" class="submenu-done" data-nav="options" data-i18n="submenuDone">
-              Done
-            </button>
           </div>
         </section>
       </main>

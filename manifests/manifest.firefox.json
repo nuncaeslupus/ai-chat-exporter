@@ -19,7 +19,8 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "assets/*"
+        "assets/*",
+        "_locales/*/messages.json"
       ],
       "matches": [
         "https://chat.openai.com/*",

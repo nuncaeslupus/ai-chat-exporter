@@ -13,6 +13,7 @@ import { sendTabMessage } from '../../shared/tab-messaging';
 import type { Conversation, QAPair } from '../../core/types/conversation';
 import { EXPORT_FORMATS, type ExportFormat, type FontScale } from '../../core/types/exporter';
 import {
+  applyLanguagePreference,
   getMessage,
   getMessageWithValues,
   formatNumber,
@@ -22,8 +23,12 @@ import {
 import { parserRegistry } from '../../core/parsers';
 import {
   DEFAULT_FILENAME_PIECES,
+  LOCALE_NATIVE_NAMES,
+  SUPPORTED_LOCALES,
+  isLanguagePreference,
   type FilenamePiece,
   type FilenamePieceType,
+  type LanguagePreference,
   type ThemePreference,
 } from '../../core/types/config';
 import { StorageService } from '../../shared/storage';
@@ -355,7 +360,10 @@ class PopupController {
   private pageOrigin = '';
 
   async initialize(): Promise<void> {
-    // Localize all static text in the HTML
+    // Localize all static text in the HTML. Runs before the language
+    // preference is known (that needs a storage read and a fetch) so the
+    // popup paints immediately in the browser's language; `applyLanguage()`
+    // in `loadPreferences()` repaints it if a different one is pinned.
     localizeHtmlPage();
     // WCAG 3.1.1: the popup ships 7 locales but never declared which one is
     // rendered — the AT default-language voice mispronounces every locale
@@ -385,6 +393,12 @@ class PopupController {
   }
 
   private async loadPreferences(): Promise<void> {
+    // Language first: everything rendered below this line is rendered in it.
+    this.renderLanguageOptions();
+    await this.applyLanguage(await StorageService.getLanguagePreference(), {
+      repaintDynamic: false,
+    });
+
     // Load last used format
     const lastFormat = localStorage.getItem('lastExportFormat') as ExportFormat;
     if (lastFormat) {
@@ -434,6 +448,72 @@ class PopupController {
   /** The three theme radios. Empty until the Settings view is in the DOM. */
   private themeInputs(): HTMLInputElement[] {
     return [...document.querySelectorAll<HTMLInputElement>('input[name="settings-theme"]')];
+  }
+
+  private languageSelect(): HTMLSelectElement | null {
+    return document.getElementById('settings-language') as HTMLSelectElement | null;
+  }
+
+  /**
+   * Fill the language picker from `SUPPORTED_LOCALES`, so shipping a new
+   * bundle is the only step needed to offer it.
+   *
+   * Only the `auto` option is translated. Every other one names its language in
+   * itself (`Deutsch`, never `German`) — a picker you use precisely because you
+   * cannot read the current language has to be legible in the language you are
+   * looking for.
+   */
+  private renderLanguageOptions(): void {
+    const select = this.languageSelect();
+    if (!select) return;
+
+    select.replaceChildren(
+      new Option(getMessage('settingsLanguageAuto'), 'auto'),
+      ...SUPPORTED_LOCALES.map((locale) => new Option(LOCALE_NATIVE_NAMES[locale], locale))
+    );
+  }
+
+  /**
+   * Pin the language, then repaint what is already on screen in it.
+   *
+   * The static repaint is unconditional, including on the initial load:
+   * `initialize()` localizes the markup before the preference is known (it
+   * needs a storage read and a fetch), so on every open with a language pinned
+   * the popup has already been painted in the browser's language by the time
+   * this runs. Skipping the repaint here left the setting looking like it
+   * reverted the moment the popup was closed and reopened.
+   *
+   * `repaintDynamic` covers the text built at runtime, which
+   * `localizeHtmlPage()` cannot reach — it only rewrites `data-i18n` nodes.
+   * It is off for the initial load alone, where `initialize()` goes on to
+   * render all of it anyway from data this method does not have yet.
+   */
+  private async applyLanguage(
+    language: LanguagePreference,
+    { repaintDynamic }: { repaintDynamic: boolean }
+  ): Promise<void> {
+    await applyLanguagePreference(language);
+    document.documentElement.lang = getUILanguage();
+
+    localizeHtmlPage();
+    // After localizeHtmlPage(), which rewrites the label beside it, and after
+    // the options are rebuilt — replacing them resets `value` to the first one.
+    this.renderLanguageOptions();
+    const select = this.languageSelect();
+    if (select) select.value = language;
+
+    if (!repaintDynamic) return;
+
+    renderPlatformLinks();
+    this.handleFormatChange(this.selectedFormat);
+    this.updateContentRow();
+    this.renderSelectionList();
+    this.updateSelectionSummary();
+    this.renderFilenameBuilder();
+    await this.updateFilenamePreview();
+    // Re-derives the status badge, the conversation meta line and the drift
+    // row from the page itself — the one code path that owns those strings.
+    await this.checkCurrentPage();
   }
 
   /** The fixed-height box every view and state renders into. */
@@ -585,11 +665,11 @@ class PopupController {
     const trigger = target.closest<HTMLElement>('[data-nav]');
     const nav = trigger?.getAttribute('data-nav');
     if (nav && isPopupView(nav) && trigger) {
-      // A back/done button already carries the entry the router recorded when
-      // its own view was opened — recording it again here as the entry for
-      // the view it is returning to would overwrite that view's real trigger
-      // with a button that is not reachable there.
-      if (!trigger.matches('.submenu-back, .submenu-done')) {
+      // A back button already carries the entry the router recorded when its
+      // own view was opened — recording it again here as the entry for the
+      // view it is returning to would overwrite that view's real trigger with
+      // a button that is not reachable there.
+      if (!trigger.matches('.submenu-back')) {
         this.viewEntryTrigger.set(nav, trigger);
       }
       this.setView(nav);
@@ -709,6 +789,27 @@ class PopupController {
         );
       });
     }
+
+    // Language (the gear view): like the theme, applied straight away and
+    // stored outside `UserPreferences`, so it never trips the Options dot.
+    this.languageSelect()?.addEventListener('change', (event) => {
+      const value = (event.target as HTMLSelectElement).value;
+      if (!isLanguagePreference(value)) return;
+      void this.trySavePreference(
+        async () => {
+          await StorageService.setLanguagePreference(value);
+          await this.applyLanguage(value, { repaintDynamic: true });
+        },
+        async () => {
+          // Nothing was applied optimistically here (the repaint happens
+          // inside the write above), so recovery is just putting the picker
+          // back on whatever storage actually holds.
+          await this.applyLanguage(await StorageService.getLanguagePreference(), {
+            repaintDynamic: true,
+          });
+        }
+      );
+    });
 
     // File name: back to the piece list the extension ships with.
     document.getElementById('filename-restore-default')?.addEventListener('click', () => {
