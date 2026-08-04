@@ -3,7 +3,7 @@
  */
 
 import type { UserPreferences } from './messages';
-import type { ThemePreference } from '../core/types/config';
+import type { LanguagePreference, ThemePreference } from '../core/types/config';
 
 export const EXTENSION_NAME = 'AI Chat Exporter';
 
@@ -14,6 +14,7 @@ export const STORAGE_KEYS = {
   USER_PREFERENCES: 'user_preferences',
   LAST_EXPORT_FORMAT: 'last_export_format',
   THEME_PREFERENCE: 'theme_preference',
+  LANGUAGE_PREFERENCE: 'language_preference',
 } as const;
 
 /**
@@ -45,6 +46,14 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
  * changed-from-default dot, which is derived from `DEFAULT_PREFERENCES` alone.
  */
 export const DEFAULT_THEME: ThemePreference = 'auto';
+
+/**
+ * Default language. Stored under its own key for the same reason as the theme:
+ * it is app configuration (the gear), not an export option, so it must not trip
+ * the Options row's changed-from-default dot. `auto` is what every install had
+ * before the setting existed -- the browser's own language, via chrome.i18n.
+ */
+export const DEFAULT_LANGUAGE: LanguagePreference = 'auto';
 
 /**
  * Toast notification duration (ms)

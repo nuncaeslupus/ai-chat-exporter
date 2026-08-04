@@ -495,3 +495,49 @@ describe('popup CSS style consistency (POPUP-1)', () => {
     expect(POPUP_CSS).toMatch(/\.drift-row\s*\{[^}]*border-radius:\s*var\(--radius-lg\)/);
   });
 });
+
+/**
+ * Back (the header chevron) and Done (a footer button) both did nothing but
+ * return to the parent view, so every submenu shipped two controls that meant
+ * the same thing. Asserted over the real markup for *all* submenus at once,
+ * not view by view: the confusion was that it was everywhere, and a per-view
+ * test lets the next new view reintroduce it unnoticed.
+ */
+describe('submenu exits', () => {
+  const SUBMENUS = ['content', 'options', 'settings', 'report', 'filename'] as const;
+
+  function view(name: string): Element {
+    const section = document.getElementById(`view-${name}`);
+    if (!section) throw new Error(`no view-${name} section in popup.html`);
+    return section;
+  }
+
+  beforeEach(() => {
+    document.body.innerHTML = POPUP_BODY;
+  });
+
+  it.each(SUBMENUS)('%s offers exactly one way back, and it is the chevron', (name) => {
+    const exits = [...view(name).querySelectorAll('[data-nav]')].filter((el) =>
+      el.matches('.submenu-back, .submenu-done')
+    );
+
+    expect(exits).toHaveLength(1);
+    expect(exits[0]?.className).toContain('submenu-back');
+  });
+
+  it.each(SUBMENUS)('%s keeps its chevron reachable by name', (name) => {
+    expect(view(name).querySelector('.submenu-back')?.getAttribute('data-i18n-label')).toBe(
+      'submenuBack'
+    );
+  });
+
+  // The one surviving `.submenu-done`: the Report view's "Copy & report" wears
+  // the class for its filled-button styling, but it copies and opens an issue
+  // rather than navigating, so it must never gain a `data-nav`.
+  it("leaves the report view's primary action as an action, not a way out", () => {
+    const action = document.getElementById('drift-report-copy-and-report');
+
+    expect(action?.className).toContain('submenu-done');
+    expect(action?.hasAttribute('data-nav')).toBe(false);
+  });
+});

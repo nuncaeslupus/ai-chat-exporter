@@ -238,14 +238,13 @@ describe('options submenu — the filename row', () => {
 });
 
 describe('options submenu — the footer', () => {
-  // P-4: version + Privacy + GitHub moved to the gear view (popup-settings.test.ts)
-  // to free this footer -- it now carries only Done.
-  it('carries only Done', async () => {
+  // P-4 moved version + Privacy + GitHub to the gear view (popup-settings.test.ts),
+  // leaving this footer holding only Done; dropping the redundant Done left it
+  // holding nothing, and `.submenu-footer` paints a filled bar with 23px of
+  // padding, so an empty one is 23px of grey chrome under the last row.
+  it('has no footer band left to paint', async () => {
     await loadPopup();
 
-    const footer = document.querySelector('#view-options .submenu-footer');
-    expect(footer?.querySelector('#options-footer-version')).toBeNull();
-    expect(footer?.querySelectorAll('a')).toHaveLength(0);
-    expect(footer?.querySelector('[data-nav="main"]')?.textContent?.trim()).toBe('Done');
+    expect(document.querySelector('#view-options .submenu-footer')).toBeNull();
   });
 });

@@ -283,12 +283,20 @@ describe('pair chooser — chrome', () => {
     expect(block).not.toContain('monospace');
   });
 
-  it('routes back and done through the R1 router rather than its own handlers', async () => {
+  it('routes back through the R1 router rather than its own handlers', async () => {
     await loadPopup([pairAt(0)]);
 
     expect(document.querySelector('.submenu-back')?.getAttribute('data-nav')).toBe('main');
-    expect(document.querySelector('#view-content .submenu-done')?.getAttribute('data-nav')).toBe(
-      'main'
-    );
+  });
+
+  // Back (header chevron) and Done (footer) both did nothing but return to the
+  // main view, so a submenu offered two ways out and neither meant anything the
+  // other didn't. The chevron is the one that stayed.
+  it('offers exactly one way back out, and it is the chevron', async () => {
+    await loadPopup([pairAt(0)]);
+
+    const exits = document.querySelectorAll('#view-content [data-nav="main"]');
+    expect(exits).toHaveLength(1);
+    expect(exits[0]?.className).toContain('submenu-back');
   });
 });

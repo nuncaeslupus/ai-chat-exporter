@@ -2,9 +2,13 @@
  * Chrome storage wrapper for extension data persistence
  */
 
-import { STORAGE_KEYS, DEFAULT_PREFERENCES, DEFAULT_THEME } from './constants';
+import { STORAGE_KEYS, DEFAULT_PREFERENCES, DEFAULT_THEME, DEFAULT_LANGUAGE } from './constants';
 import type { UserPreferences } from './messages';
-import type { ThemePreference } from '../core/types/config';
+import {
+  isLanguagePreference,
+  type LanguagePreference,
+  type ThemePreference,
+} from '../core/types/config';
 
 /**
  * Preferences written before `includeMetadata` and `includeTimestamps` merged.
@@ -103,6 +107,46 @@ export class StorageService {
       });
     } catch (error) {
       console.error('Failed to save theme preference:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get the language everything the extension writes comes out in.
+   *
+   * Read by the popup (its own screens) and by the content script (which is
+   * where the exporters run, so it decides the language of the exported file).
+   * Stored beside the theme rather than in `UserPreferences`, and for the same
+   * reason -- see `getThemePreference`.
+   *
+   * A stored value naming a locale this build no longer ships falls back to
+   * `auto`: preferences sync across devices and outlive an update, so a bundle
+   * that has been dropped must not leave the extension asking for a file that
+   * isn't there.
+   */
+  static async getLanguagePreference(): Promise<LanguagePreference> {
+    try {
+      const result: Record<string, unknown> = await chrome.storage.sync.get(
+        STORAGE_KEYS.LANGUAGE_PREFERENCE
+      );
+      const stored = result[STORAGE_KEYS.LANGUAGE_PREFERENCE];
+      return typeof stored === 'string' && isLanguagePreference(stored) ? stored : DEFAULT_LANGUAGE;
+    } catch (error) {
+      console.error('Failed to get language preference:', error);
+      return DEFAULT_LANGUAGE;
+    }
+  }
+
+  /**
+   * Save the language preference.
+   */
+  static async setLanguagePreference(language: LanguagePreference): Promise<void> {
+    try {
+      await chrome.storage.sync.set({
+        [STORAGE_KEYS.LANGUAGE_PREFERENCE]: language,
+      });
+    } catch (error) {
+      console.error('Failed to save language preference:', error);
       throw error;
     }
   }

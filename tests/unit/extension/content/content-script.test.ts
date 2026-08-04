@@ -10,6 +10,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createTestQAPair, createTestConversation } from '../../../utils/exporter-helpers';
 import { EMBEDDED_FRAME_REPORT_ATTR } from '../../../../src/core/parsers/chatgpt/selectors';
 import { WARNING_KEYS, ERROR_KEYS } from '../../../../src/shared/constants';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 
 const mockParse = vi.fn();
 const mockExport = vi.fn();
@@ -965,5 +967,115 @@ describe('content-script Deep Research frame relay (lo-9001)', () => {
     );
 
     expect(frame.getAttribute(EMBEDDED_FRAME_REPORT_ATTR)).toBeNull();
+  });
+});
+
+/**
+ * The language setting reaches the exported file.
+ *
+ * The exporters run here, in the content script — so this, not the popup, is
+ * what decides whether a Spanish-pinned user gets `Usuario` or `User` in their
+ * PDF. `chrome.i18n` is mocked as an English browser throughout, so any Spanish
+ * observed at export time can only have come from the override.
+ */
+describe('content-script export language', () => {
+  const realBundle = (locale: string) =>
+    readFileSync(resolve(__dirname, `../../../../_locales/${locale}/messages.json`), 'utf-8');
+
+  beforeEach(() => {
+    mockParse.mockReset();
+    mockExport.mockReset();
+    Object.assign(chrome, {
+      i18n: {
+        getUILanguage: () => 'en',
+        getMessage: (key: string) => `${key}[browser-en]`,
+      },
+    });
+    vi.stubGlobal('fetch', (url: string) => {
+      const locale = /_locales\/([a-z]+)\/messages\.json$/.exec(url)?.[1];
+      if (!locale) return Promise.resolve({ ok: false, status: 404 });
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(JSON.parse(realBundle(locale))),
+      });
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /**
+   * Answers every `storage.sync.get` with this one key. Harmless for the other
+   * reads in this path: `getUserPreferences` looks up `user_preferences`, finds
+   * nothing, and falls back to its defaults exactly as it does elsewhere here.
+   */
+  function storedLanguage(value: string | undefined): void {
+    (chrome.storage.sync.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+      language_preference: value,
+    });
+  }
+
+  /**
+   * Asserted from inside the exporter call rather than after it: what matters
+   * is that the language is already pinned at the moment the document is
+   * rendered, not merely that it was applied at some point during the export.
+   */
+  async function roleNameSeenByExporter(type: string): Promise<string> {
+    const pairs = [createTestQAPair(0, 'Q', 'A')];
+    mockParse.mockReturnValue({ success: true, conversation: createTestConversation(pairs) });
+
+    let seen = '';
+    const listener = await loadMessageListener();
+    // Same module registry as the content script just loaded, so this is the
+    // very i18n instance its exporters resolve through.
+    const { getMessage } = await import('../../../../src/shared/i18n');
+    mockExport.mockImplementation(() => {
+      seen = getMessage('roleUser');
+      return Promise.resolve({ success: true, blob: new Blob(['x']) });
+    });
+
+    const sendResponse = vi.fn();
+    listener({ type, format: 'md' }, {}, sendResponse);
+    await vi.waitFor(() => {
+      expect(mockExport).toHaveBeenCalled();
+    });
+    return seen;
+  }
+
+  it('renders the export in the pinned language, not the browser one', async () => {
+    storedLanguage('es');
+
+    expect(await roleNameSeenByExporter('export_conversation')).toBe('Usuario');
+  });
+
+  it('leaves the browser in charge when the setting is auto', async () => {
+    storedLanguage('auto');
+
+    expect(await roleNameSeenByExporter('export_conversation')).toBe('roleUser[browser-en]');
+  });
+
+  it('does the same for an install that never touched the setting', async () => {
+    storedLanguage(undefined);
+
+    expect(await roleNameSeenByExporter('export_conversation')).toBe('roleUser[browser-en]');
+  });
+
+  // Print renders through the same exporters, so it has to follow the setting
+  // too -- it is the one path that opens its window before any await.
+  it('applies it to print as well as export', async () => {
+    storedLanguage('de');
+    vi.stubGlobal(
+      'open',
+      vi.fn().mockReturnValue({
+        document: { write: vi.fn(), close: vi.fn(), title: '' },
+        addEventListener: vi.fn(),
+        focus: vi.fn(),
+        print: vi.fn(),
+        close: vi.fn(),
+      })
+    );
+
+    expect(await roleNameSeenByExporter('print_conversation')).toBe('Benutzer');
   });
 });

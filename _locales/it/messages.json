@@ -393,6 +393,14 @@
     "message": "Automatico",
     "description": "Theme option: follow the OS light/dark setting"
   },
+  "settingsLanguageLabel": {
+    "message": "Lingua",
+    "description": "Label of the language picker in the settings (gear) view"
+  },
+  "settingsLanguageAuto": {
+    "message": "Lingua del browser",
+    "description": "Language picker option that follows the browser UI language"
+  },
   "exportButtonFormat": {
     "message": "Esporta $1",
     "description": "Main export button label. $1 = format name",
@@ -462,10 +470,6 @@
   "submenuBack": {
     "message": "Indietro",
     "description": "Accessible name of the back button in every popup submenu"
-  },
-  "submenuDone": {
-    "message": "Fatto",
-    "description": "Button that closes a popup submenu and returns to the main view"
   },
   "pairChooserMore": {
     "message": "altro",

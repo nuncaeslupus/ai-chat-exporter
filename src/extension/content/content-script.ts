@@ -8,6 +8,7 @@ import { getExporter } from '../../core/exporters';
 import { FilenameService } from '../../core/services/filename-service';
 import { ClaudeApiService, type EnrichmentResult } from '../../core/services/claude-api-service';
 import { EXTENSION_NAME, WARNING_KEYS, ERROR_KEYS } from '../../shared/constants';
+import { applyLanguagePreference } from '../../shared/i18n';
 import { SelectionService } from '../../core/services/selection-service';
 import { StorageService } from '../../shared/storage';
 import type { Conversation, ExportFormat } from '../../core/types';
@@ -35,6 +36,18 @@ const PRINT_POLL_INTERVAL_MS = 100;
 
 /** Give up waiting for the print document and print anyway after this long. */
 const PRINT_LOAD_TIMEOUT_MS = 10_000;
+
+/**
+ * Point the exporters at the user's chosen language.
+ *
+ * `auto` (the default) resolves to nothing loaded and leaves chrome.i18n in
+ * charge — the browser's language, exactly as every export behaved before the
+ * setting existed. Any failure to read the bundle degrades the same way, so an
+ * export is never blocked on a translation.
+ */
+async function applyExportLanguage(): Promise<void> {
+  await applyLanguagePreference(await StorageService.getLanguagePreference());
+}
 
 /**
  * Apply the popup's per-pair selection (by `pair.index`, the only identifier
@@ -200,6 +213,11 @@ class ContentScript {
 
       // Get export options from preferences
       const prefs = await StorageService.getUserPreferences();
+      // The exporters run here, so this is what decides the language of the
+      // file itself — role names, section headings, dates. Applied per call
+      // rather than once at injection: a content script outlives the setting
+      // being changed in the popup, and the next export must follow it.
+      await applyExportLanguage();
 
       // Export conversation (use all pairs)
       const result = await exporter.export(conversation, pairsToExport, {
@@ -355,6 +373,11 @@ class ContentScript {
 
       // Get export options from preferences
       const prefs = await StorageService.getUserPreferences();
+      // The exporters run here, so this is what decides the language of the
+      // file itself — role names, section headings, dates. Applied per call
+      // rather than once at injection: a content script outlives the setting
+      // being changed in the popup, and the next export must follow it.
+      await applyExportLanguage();
 
       // Export conversation
       const result = await exporter.export(finalConversation, pairsToExport, {
