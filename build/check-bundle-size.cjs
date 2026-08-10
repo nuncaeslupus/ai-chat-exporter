@@ -103,6 +103,29 @@ function checkLazyUrls(target) {
   return { checked, missing };
 }
 
+/**
+ * Chrome Web Store rejects a package whose code assembles a `javascript:` URL
+ * out of concatenated fragments -- it reads as concealed functionality
+ * (violation "Red Titanium", Code Readability Requirements). Minification is
+ * fine; a split scheme string is not.
+ *
+ * We never write that ourselves. It arrives inside a dependency: canvg's
+ * inlined core-js builds `"java" + "script" + ":"` for a legacy iframe shim,
+ * and canvg came in as one of jsPDF's optional deps (now stubbed out in
+ * build/vite.config.ts). This catches the day a dependency bump drags it -- or
+ * anything like it -- back in, before the store review does.
+ */
+function checkSplitJavascriptScheme(target) {
+  const dir = join(ROOT, target);
+  const offenders = [];
+  for (const name of readdirSync(join(dir, 'assets')).filter((n) => n.endsWith('.js'))) {
+    const code = readFileSync(join(dir, 'assets', name), 'utf-8');
+    // A string literal that is exactly `java`, being concatenated onto.
+    if (/(["'`])java\1\s*\+/.test(code)) offenders.push(`assets/${name}`);
+  }
+  return offenders;
+}
+
 let failed = false;
 
 for (const target of TARGETS) {
@@ -141,6 +164,18 @@ for (const target of TARGETS) {
     for (const entry of missing) console.error(`     ${entry}`);
   } else {
     console.log(`  ok ${target}: ${checked} lazy chunk URL(s) resolve`);
+  }
+
+  const obfuscated = checkSplitJavascriptScheme(target);
+  if (obfuscated.length > 0) {
+    failed = true;
+    console.error(
+      `FAIL ${target}: ${obfuscated.length} chunk(s) build a split "javascript:" ` +
+        `string -- Chrome Web Store rejects this as obfuscated code`
+    );
+    for (const file of obfuscated) console.error(`     ${file}`);
+  } else {
+    console.log(`  ok ${target}: no split "javascript:" scheme in emitted chunks`);
   }
 }
 
