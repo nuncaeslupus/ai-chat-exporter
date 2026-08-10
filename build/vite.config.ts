@@ -11,8 +11,19 @@ const rootDir = resolve(__dirname, '..');
 const modeArgIndex = process.argv.indexOf('--mode');
 const mode = modeArgIndex !== -1 ? process.argv[modeArgIndex + 1] : 'production';
 
+const jspdfOptionalStub = resolve(__dirname, 'jspdf-optional-stub.js');
+
 export default defineConfig({
   root: rootDir,
+  resolve: {
+    // jsPDF's optional deps -- dead weight we never load, and canvg's inlined
+    // core-js trips the Chrome Web Store obfuscation scanner. See the stub.
+    alias: {
+      canvg: jspdfOptionalStub,
+      html2canvas: jspdfOptionalStub,
+      dompurify: jspdfOptionalStub,
+    },
+  },
   build: {
     emptyOutDir: false,
     sourcemap: mode !== 'production',
