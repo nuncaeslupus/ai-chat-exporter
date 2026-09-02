@@ -387,3 +387,38 @@ the same field.
   the subset that happens to pass.
 - Pinning a known gap as an assertion is better than a silent hole, but only if
   the assertion is flipped when the gap closes — the failing test is the point.
+
+## Diagnosing selector drift without a browser
+
+The parsers cannot be checked against the live sites from CI or from a cloud
+session: claude.ai, chatgpt.com and gemini.google.com all render the
+conversation only behind a login, so there is no unauthenticated page to fetch
+and no captured HAR contains the rendered DOM (the transcript arrives as API
+JSON and is assembled client-side). The evidence has to come from someone with
+the page open.
+
+`pnpm probe` generates `dist-probe/selector-probe.js`: a self-contained snippet
+to paste into the DevTools console on the broken page. It reads the selector
+values out of `src/core/parsers/*/selectors.ts` at generation time, so it can
+never test a stale transcription of them.
+
+It prints (and clipboard-copies) a JSON report of:
+
+- a match count for every selector, and the list of those matching **zero**
+  elements — the drifted ones;
+- the class names of the page's real scroll containers, which is what to
+  rewrite `conversationContainer` against;
+- a frequency census of the `data-*` attribute names actually in the DOM —
+  the stable hooks worth moving a selector onto.
+
+The report carries counts, class names and attribute *names* only: no message
+text, no attribute values, no URLs beyond the path with ids masked. That is
+deliberate — it is meant to be pasteable into a public issue.
+
+**Detection is the failure worth designing against.** A drifted content
+selector costs one field in the export and raises a drift warning. A drifted
+selector inside `canParse()` costs *everything*: the popup reports the page as
+unsupported and no other selector is ever consulted, so the drift report that
+would have named the problem is never built. Hence `ClaudeParser.canParse()`
+ORs several independent turn-level hooks rather than requiring the
+`conversationContainer` utility chain — see `custom.conversationSignals`.

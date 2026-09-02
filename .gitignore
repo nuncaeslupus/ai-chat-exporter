@@ -70,3 +70,12 @@ claude-arsenal/session/host_branch
 
 # Generated from @fontsource at build time (see scripts/generate-pdf-fonts.mjs)
 src/core/exporters/pdf-fonts.generated.ts
+dist-probe/
+
+# Python bytecode from the vendored arsenal/skill scripts
+__pycache__/
+*.pyc
+
+# Arsenal per-session local state (the 3.4.x layout moved this out of
+# claude-arsenal/session/, whose entries are listed above)
+arsenal/session/

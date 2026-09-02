@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { ClaudeParser } from '../../../../src/core/parsers/claude/parser';
+import { CLAUDE_SELECTORS } from '../../../../src/core/parsers/claude/selectors';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -56,6 +57,63 @@ describe('ClaudeParser', () => {
       const emptyParser = new ClaudeParser(emptyDocument);
 
       expect(emptyParser.canParse()).toBe(false);
+    });
+
+    // The container selector is a utility-class chain over a layout div, so a
+    // spacing tweak on claude.ai retires it without touching a single turn.
+    // When that happens the page must still be claimed: a false canParse() is
+    // not a degraded export but no export at all -- the popup calls the page
+    // unsupported and never consults the (healthy) turn selectors. This is the
+    // shape of the outage that prompted lo-2478, one layer up.
+    it('still detects a conversation when the container class chain is stale', () => {
+      const staleContainer = new JSDOM(
+        `<div class="overflow-y-auto overflow-x-hidden pt-8 grow">
+           <div data-test-render-count="1">
+             <div data-user-message-bubble><p class="whitespace-pre-wrap">Hi</p></div>
+           </div>
+           <div data-test-render-count="2">
+             <div data-is-streaming="false"><div class="standard-markdown"><p>Hello</p></div></div>
+           </div>
+         </div>`,
+        { url: 'https://claude.ai/chat/abc123' }
+      );
+      const parserOnStale = new ClaudeParser(staleContainer.window.document);
+
+      // None of the utility-class chains match this markup -- `pt-8 grow`
+      // replaced `pt-6 flex-1` -- so detection rests on the structural variant,
+      // which finds the container by the turn wrappers it holds.
+      expect(
+        staleContainer.window.document.querySelector(
+          'div.overflow-y-auto.overflow-x-hidden.pt-6.flex-1, div.overflow-y-auto.overflow-x-hidden.flex-1'
+        )
+      ).toBeNull();
+      expect(
+        staleContainer.window.document.querySelector(CLAUDE_SELECTORS.conversationContainer)
+      ).not.toBeNull();
+      expect(parserOnStale.canParse()).toBe(true);
+    });
+
+    it('still detects a conversation when no container selector matches at all', () => {
+      // The turn wrappers are nested one level deeper than the scroll box, so
+      // even the structural `:has(> ...)` variant misses. Detection then rests
+      // entirely on custom.conversationSignals, which keys off the turns
+      // themselves rather than off anything about their container.
+      const noContainer = new JSDOM(
+        `<section>
+           <span>
+             <div data-test-render-count="1">
+               <div data-user-message-bubble><p class="whitespace-pre-wrap">Hi</p></div>
+             </div>
+           </span>
+         </section>`,
+        { url: 'https://claude.ai/chat/abc123' }
+      );
+      const parserOnNoContainer = new ClaudeParser(noContainer.window.document);
+
+      expect(
+        noContainer.window.document.querySelector(CLAUDE_SELECTORS.conversationContainer)
+      ).toBeNull();
+      expect(parserOnNoContainer.canParse()).toBe(true);
     });
   });
 

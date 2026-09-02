@@ -129,9 +129,18 @@ export class ClaudeParser extends BaseParser {
       return false;
     }
 
-    // Also check if conversation container exists
-    const container = this.document.querySelector(this.selectors.conversationContainer);
-    return container !== null;
+    // Detection must not hang on `conversationContainer` alone. That selector
+    // is a utility-class chain over a layout div (`pt-6 flex-1`), so a pure
+    // styling tweak on claude.ai flips canParse() to false -- and a false
+    // canParse() is not a degraded export, it is *no* export: the popup
+    // reports the page as unsupported and every downstream selector, however
+    // healthy, is never consulted. So the container is one signal among
+    // several, and any turn-level hook is enough to claim the page.
+    const signals = this.selectors.custom?.conversationSignals;
+    return (
+      this.document.querySelector(this.selectors.conversationContainer) !== null ||
+      (typeof signals === 'string' && this.document.querySelector(signals) !== null)
+    );
   }
 
   /**
