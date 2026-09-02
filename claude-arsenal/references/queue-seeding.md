@@ -62,7 +62,7 @@ Everything below is the same either way. The table columns are:
 3. `create_task.py` writes `arsenal/tasks/<id>.md`; fill in its body and replace the
    placeholder gate:
 
-   ```markdown
+   ````markdown
    # T1: <Description>
 
    ## Acceptance gate
@@ -78,7 +78,7 @@ Everything below is the same either way. The table columns are:
 
    ## Location
    <Location column content>
-   ```
+   ````
 
    `gate_run.sh` executes that block, and a worker opens no PR when it fails —
    so a task cannot reach `done` on a gate that failed or never ran. **The fence

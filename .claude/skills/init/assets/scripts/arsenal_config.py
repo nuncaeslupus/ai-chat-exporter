@@ -195,7 +195,10 @@ def load(repo_root: Path | None = None) -> tuple[dict[str, Any], dict[str, str]]
 
     # ARSENAL_HOME may relocate the whole host-owned tree; it also decides
     # where we look for the config itself, so it is resolved first.
-    home = os.environ.get("ARSENAL_HOME", DEFAULTS["home"])
+    # `or`, not a get() default: an exported but empty ARSENAL_HOME would
+    # otherwise make the host root the empty string, putting every
+    # host-owned path at the repo root.
+    home = os.environ.get("ARSENAL_HOME") or DEFAULTS["home"]
     if home != DEFAULTS["home"]:
         values["home"] = home
         sources["home"] = "ARSENAL_HOME"
@@ -216,7 +219,11 @@ def load(repo_root: Path | None = None) -> tuple[dict[str, Any], dict[str, str]]
             sources[key] = str(path)
 
     for key, allowed in ENUMS.items():
-        if values[key] not in allowed:
+        # The isinstance() guard comes first because TOML permits an array or a
+        # table for any key, and both are unhashable: `value not in allowed`
+        # would raise TypeError and print a traceback instead of the readable
+        # ConfigError this function documents.
+        if not isinstance(values[key], str) or values[key] not in allowed:
             raise ConfigError(
                 f"{key}: {values[key]!r} is not one of {sorted(allowed)} (from {sources[key]})"
             )

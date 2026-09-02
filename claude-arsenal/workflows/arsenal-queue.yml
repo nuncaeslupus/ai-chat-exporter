@@ -105,7 +105,15 @@ jobs:
 
   keyword-guard:
     name: task PR closes its task
-    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'arsenal/')
+    # The branch name is only one of the two ways a PR names its task: check_keyword
+    # also resolves `arsenal-task: <id>` out of the PR body, which is how a task PR
+    # opened by hand identifies itself. Gating solely on the branch prefix let such
+    # a PR merge without anyone checking that its `Closes #...` names the task's own
+    # issue — so it could close an unrelated one.
+    if: >-
+      github.event_name == 'pull_request' &&
+      (startsWith(github.head_ref, 'arsenal/') ||
+       contains(github.event.pull_request.body, 'arsenal-task:'))
     runs-on: ubuntu-latest
     permissions:
       contents: read

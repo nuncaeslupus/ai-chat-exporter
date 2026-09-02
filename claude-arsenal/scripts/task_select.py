@@ -157,7 +157,12 @@ def task_id_from_issue(
     but not in the task file fails to resolve and is reported — which is the
     existing `handle_sync.py` conversation about drifted handles, not a new one.
     """
-    body = issue.get("body") or ""
+    # A GitHub issue body is a string or null. Anything else is a malformed
+    # payload, and the honest reading of it is "carries no marker" — searching
+    # it raised a TypeError that surfaced as a traceback from whichever caller
+    # happened to be reading the board.
+    raw_body = issue.get("body")
+    body = raw_body if isinstance(raw_body, str) else ""
     for pattern in (TASK_MARKER_RE, TASK_PATH_RE):
         if match := pattern.search(body):
             return match.group(1)
@@ -357,6 +362,21 @@ def parse_front_matter(text: str) -> dict[str, Any]:
     return data
 
 
+def _as_list(value: Any) -> list[str]:
+    """Front matter may write a single value bare: `requires: surface:cli`.
+
+    parse_front_matter hands that back as a string, and iterating a string
+    yields characters — so a bare value silently became eleven one-character
+    capabilities that could never match `--capability surface:cli`. A scalar is
+    therefore normalised to a one-item list before anything iterates it.
+    """
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(v) for v in value]
+    return [str(value)]
+
+
 def load_tasks(tasks_dir: Path) -> tuple[list[dict[str, Any]], list[str]]:
     """Return (tasks, warnings). A malformed task file is reported rather than
     skipped in silence — a task nobody can see is work that never happens."""
@@ -397,9 +417,9 @@ def load_tasks(tasks_dir: Path) -> tuple[list[dict[str, Any]], list[str]]:
                 if isinstance(meta.get("priority", 0), int)
                 else 0,
                 "deps": [str(d) for d in deps] if isinstance(deps, list) else [],
-                "requires": [str(r) for r in (meta.get("requires") or [])],
+                "requires": _as_list(meta.get("requires")),
                 "workspace": meta.get("workspace"),
-                "tags": [str(t) for t in (meta.get("tags") or [])],
+                "tags": _as_list(meta.get("tags")),
                 "gate": bool(GATE_BLOCK_RE.search(text)),
                 # A status in the file is a fact about finished work, recorded
                 # where it cannot drift: the issue may be long gone.

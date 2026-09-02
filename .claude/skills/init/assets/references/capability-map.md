@@ -11,11 +11,14 @@ says what to do with what it printed.
 ## What the map is
 
 One line per skill section: its name, what it is for, whether it is installed
-in this repo, and — for the ones that are **not** — the skills it would bring.
+in this repo, and — for the ones that are **not** — the skills it would bring. The
+listing below is an example of the shape, not a report about any repo: run the
+command for the real one, which is generated from `sections.json`.
 
-```
-skill sections — 2 of 3 installed here
+```text
+skill sections — 2 of 4 installed here
   core      on   the bundle itself — installer, queue engine, and the skills the protocol names
+  extract   off  capture and parsing — the har skill
   python    off  the Python toolchain — coverage, mutation, dependency and release skills (coverage-gaps, dep-upgrade, mutmut-report, pypi-release, python-bootstrap)
   workflow  on   the spec → design → execute → review → ship discipline
 ```

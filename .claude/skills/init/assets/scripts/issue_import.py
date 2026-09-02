@@ -125,7 +125,9 @@ def render(issue: dict[str, Any], task_id: str) -> str:
     # decode to whitespace afterwards, and land in the file as a body that is
     # blank but truthy — so the `_(no issue body)_` fallback, which exists to
     # tell a reader there is nothing here, never fires.
-    body = html.unescape(issue.get("body") or "").strip() or "_(no issue body)_"
+    raw_body = issue.get("body")
+    text = html.unescape(raw_body if isinstance(raw_body, str) else "").strip()
+    body = text or "_(no issue body)_"
     return TEMPLATE.format(
         task_id=task_id,
         # Two spellings to undo before this lands in the repo, because a task
@@ -148,6 +150,38 @@ def render(issue: dict[str, Any], task_id: str) -> str:
         ),
         body=body,
     )
+
+
+def _rollback(written: list[Path], reason: str) -> int:
+    """Undo a partial `--apply` and say honestly how far the undo got.
+
+    A half-applied import is worse than none: the files that landed carry no
+    `arsenal-task:` marker on their issues yet, so the next handle sync proposes
+    a second issue for each. Cleanup failures are reported rather than
+    suppressed — telling the caller re-running is safe when a file is still
+    there is the one message that turns a recoverable state into duplicates.
+    """
+    stranded: list[Path] = []
+    for created in written:
+        try:
+            created.unlink(missing_ok=True)
+        except OSError:
+            stranded.append(created)
+    if stranded:
+        listed = ", ".join(str(s) for s in stranded)
+        print(
+            f"issue_import: {reason}. The rollback was INCOMPLETE — remove these by "
+            f"hand before re-running, or the next handle sync will open duplicate "
+            f"issues for them: {listed}",
+            file=sys.stderr,
+        )
+        return 1
+    print(
+        f"issue_import: {reason}. Rolled back {len(written)} task file(s) written by "
+        "this run; no issue was relabelled, so re-running is safe.",
+        file=sys.stderr,
+    )
+    return 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -218,20 +252,58 @@ def main(argv: list[str] | None = None) -> int:
                 return candidate
         return None
 
+    written_paths: list[Path] = []
+    # Collected, not printed, until the whole batch lands. These rows are the
+    # caller's instruction to relabel the issue and stamp `arsenal-task:` into
+    # its body; printed as the loop runs, a rollback three issues later leaves
+    # the caller holding instructions for task files that no longer exist, and
+    # an issue marked as the handle for nothing is as broken as a task file with
+    # no handle.
+    emitted: list[str] = []
     for issue in rows:
         task_id = mint()
         if task_id is None:
-            print(
-                "issue_import: could not mint an unused task id after 64 attempts — "
-                f"stopping before issue #{issue.get('number')} rather than overwriting a task file",
-                file=sys.stderr,
+            return _rollback(
+                written_paths,
+                "could not mint an unused task id after 64 attempts — stopping before "
+                f"issue #{issue.get('number')} rather than overwriting a task file",
             )
-            return 1
         path = args.tasks_dir / f"{task_id}.md"
         if args.apply:
-            args.tasks_dir.mkdir(parents=True, exist_ok=True)
-            path.write_text(render(issue, task_id), encoding="utf-8")
-        print(
+            # A half-applied import is worse than none: the files that did land
+            # carry no `arsenal-task:` marker on their issues yet (the caller
+            # applies those from the rows printed below), so the next
+            # handle_sync proposes a second issue for each of them. Anything
+            # this invocation created is therefore removed if a later write
+            # fails, and the failure is reported rather than raised.
+            # Rendering happens BEFORE the path joins the rollback list, because
+            # it is the one step here that can fail without having touched the
+            # filesystem — a body or title that is not a string reaches
+            # `html.unescape` and raises. Inside the write `try` it escaped the
+            # rollback entirely (only OSError was caught) and left every earlier
+            # file behind, which is the half-applied import this guards against.
+            try:
+                rendered = render(issue, task_id)
+            except Exception as exc:  # a malformed issue payload, not a fault here
+                return _rollback(
+                    written_paths,
+                    f"could not render issue #{issue.get('number')} — {exc}",
+                )
+            # Recorded BEFORE the write, because write_text creates and truncates
+            # before it can fail: a path that raised halfway is a file this run
+            # made, and leaving it out of the rollback list is what leaves the
+            # partial behind.
+            written_paths.append(path)
+            try:
+                args.tasks_dir.mkdir(parents=True, exist_ok=True)
+                path.write_text(rendered, encoding="utf-8")
+            except (OSError, UnicodeError) as exc:
+                # UnicodeError alongside OSError: a GitHub body can carry a lone
+                # surrogate, which survives JSON decoding and fails only here, on
+                # the UTF-8 encode. It is a ValueError, so `except OSError` let it
+                # past the rollback with the file already created and truncated.
+                return _rollback(written_paths, f"could not write {path} — {exc}")
+        emitted.append(
             json.dumps(
                 {
                     "issue": issue.get("number"),
@@ -255,6 +327,9 @@ def main(argv: list[str] | None = None) -> int:
                 separators=(",", ":"),
             )
         )
+
+    for row in emitted:
+        print(row)
 
     if not args.apply:
         print(

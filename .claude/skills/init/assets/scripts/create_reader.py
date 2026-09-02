@@ -795,7 +795,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 
 <div class="wrap">
   <div class="hero">
-    <h1>__TITLE__ specification</h1>
+    <h1>__TITLE__ — __DOC_LABEL__</h1>
     <p>Read at your own pace and leave a note on any point you want to discuss.</p>
   </div>
   <details class="help">

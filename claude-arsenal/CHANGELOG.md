@@ -18,6 +18,63 @@ being a changelog nobody reads.
 
 Format: `## [X.Y.Z] - YYYY-MM-DD`, newest first, plain bullets below.
 
+## [3.4.3] - 2026-09-02
+
+### Fixed
+
+- **`create_har.py` no longer leaks URLs through `log.pages`.** Every entry was
+  redacted while the page list was copied verbatim, and browsers set a page's
+  `title` to the page URL — so a capture spanning an OAuth redirect carried the
+  token into an artifact the script calls safe to commit.
+- **`recipes.md` no longer invites captured credentials into tracked source.**
+  The `--secrets` reproduction holds live cookies and tokens; the recipe now says
+  to keep it ephemeral and to read secrets at runtime from the environment.
+- **`arsenal-queue.yml` runs `keyword-guard` for body-marker task PRs.** The job
+  was gated on an `arsenal/` branch prefix alone, so a task PR that names its task
+  in the body — the form `pr-closed` already resolves — could merge without anyone
+  checking that its `Closes #…` named the task's own issue.
+- **`open_task_pr.sh` keeps the rescue backup when the rollback failed.** The
+  commit-failure path deleted it unconditionally, including on the one branch
+  whose own error message tells the operator to restore from that exact file.
+- **`issue_import.py --apply` rolls back a partial batch.** A failed write left
+  earlier task files behind with no `arsenal-task:` markers on their issues, so the
+  next handle sync proposed a duplicate issue for each of them.
+- **`statusline_capture.sh` honours `ARSENAL_HOME`.** It wrote the quota snapshot
+  to `arsenal/session/` while `budget_check.sh` read `${ARSENAL_HOME}/session/`, so
+  the quota guard ran blind on every relocated host tree.
+- **`arsenal_config.py` treats an empty `ARSENAL_HOME` as unset**, and reports an
+  array or table in an enum key as a `ConfigError` rather than a `TypeError`
+  traceback.
+- **`task_select.py` normalises scalar `requires`/`tags`.** A bare
+  `requires: surface:cli` was iterated character by character, so it could never
+  match `--capability surface:cli`.
+- **`queue_hooks.py` survives a null `base.repo`** (sent once a repository is
+  deleted or made private) and warns instead of silently truncating a listing at
+  the 1000-record pagination cap.
+- **`query_status.py` returns 2 on an unreadable `--issues` file** rather than
+  raising through its documented exit contract.
+- **`arsenal_migrate.py` quotes `issue`, `status` and `pr`** in migrated front
+  matter, as it already did for `title` and `workspace`.
+- **`compare_har.py` honours a positive `--limit`** (every value behaved as 4096)
+  and keys parameter changes by scheme and port, matching `identity()`.
+- **`create_repro.py` refuses a non-text request body** instead of dying inside the
+  shell quoter, and **`validate_har.py` passes `content-encoding` to `decode_body`**
+  so a brotli body stops counting as undecodable.
+- **`query_session_history.py` counts only real user turns** toward its
+  five-message floor; tool results and injected skill bodies carry the user role.
+- **`create_reader.py` renders the selected document label** in the main heading
+  instead of a hardcoded "specification".
+
+### Changed
+
+- Documentation corrected where it described behaviour the code does not have:
+  the claim lifecycle (what makes a claim stale, and that pruning a live claim ref
+  breaks the lock), `init`'s directory layout and its retired marketplace
+  declaration, the adversarial-review verdict contract, the `capability-map`
+  section listing, the `pr-review-loop` exit-2 abort, the `AGENTS.md` step 4b
+  fetch needing `body`, and the fact that abbreviated execution still owes the
+  independent review.
+
 ## [3.4.2] - 2026-09-02
 
 ### Fixed

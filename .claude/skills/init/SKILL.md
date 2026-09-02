@@ -76,7 +76,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" --workspace BACKEND --root ./backe
 ```
 
 The script:
-1. Creates `claude-arsenal/` structure: `bin/`, `project/`, `queue/`, `session/`, `agents/`.
+1. Creates the `claude-arsenal/` bundle structure: `bin/`, `scripts/`, `agents/`, `references/`. The host-owned `project/`, `queue/` and `session/` state does **not** live here — it is scaffolded under `arsenal/` by item 3.
 2. Copies bundle scripts from the plugin into `claude-arsenal/bin/` (checksum-based; refreshes stale files only).
 3. Scaffolds the host-owned `arsenal/` tree — `tasks/`, `specs/`, `plans/`, `session/handover.md` — and seeds `arsenal/config.toml`. Upstream owns `claude-arsenal/` and may overwrite it on every re-run; it never writes into `arsenal/` again, so an upgrade cannot touch the host repo's tasks or settings.
 4. Vendors the skills for the chosen sections into `.claude/skills/` — `core` always, plus `workflow` and/or `python`. Flipping a section to `false` in `arsenal/config.toml` prunes its skills on the next run and keeps them pruned; an upgrade of a repo that predates sections keeps whatever it already had.
@@ -84,7 +84,7 @@ The script:
 6. Adds `.gitignore` entries for `surface_profile.json` and the statusLine-written `rate_limits.json`.
 7. Registers `statusline_capture.sh` as the host `statusLine` command (skipped if one already exists) so `budget_check.sh` can read quota.
 8. Injects the session-start protocol block + `@claude-arsenal/AGENTS.md` import into `CLAUDE.md`.
-9. Declares the `claude-arsenal` marketplace and enables `core` + `skill-workshop` in `.claude/settings.json`, pinned to `ref: v<bundle-version>`. An existing declaration is left alone — a consumer who pinned an older ref, a fork, or a local directory meant it.
+9. Registers the skill-edit **gate hooks** in `.claude/settings.json` (`check_skill_workshop_loaded.sh` and its two marker hooks) — a plugin ships these as plugin hooks, but plugin hooks do not travel with a clone, and settings hooks do. It no longer writes a marketplace **declaration**: the web runtime never fetches a git marketplace, so the skills are **vendored** into `.claude/skills/` (item 4) where every surface reads them from the clone itself.
 
 **Retiring vendored skill copies:**
 ```bash
@@ -101,8 +101,8 @@ With `--workspace NAME`, additionally:
 ## Gotchas
 
 - **Bundle scripts are authoritative.** Re-running `init` refreshes any `claude-arsenal/bin/` file whose checksum differs from the plugin bundle. Project data (`project/`, `queue/`, `session/handover.md`) is never touched on re-run.
-- **Cloud sessions need the declaration, not an install.** A cloud session (web, desktop and mobile apps, Claude Tag, routines) runs on a fresh clone and never sees `~/.claude/`, so a plugin installed with `/plugin install` does not reach it — that install state is user-scoped. What reaches it is the repo's committed `.claude/settings.json`, which is why init writes the declaration there. It resolves at session start and needs network access to the marketplace source.
-- **Shared project settings outrank user settings.** The declaration init writes wins over a same-named marketplace in the user's own `~/.claude/settings.json` — including a local `directory` source pointed at a working copy. Developing against a checkout in a repo that has been init'd means editing that pin.
+- **Cloud sessions need the commit, not an install.** A cloud session (web, desktop and mobile apps, Claude Tag, routines) runs on a fresh clone and never sees `~/.claude/`, so a plugin installed with `/plugin install` does not reach it — that install state is user-scoped. What reaches it is what the clone carries: the vendored skills under `.claude/skills/` and the hooks in `.claude/settings.json`. Both are plain files in the commit, so they need no marketplace fetch and no network at session start.
+- **Shared project settings outrank user settings.** `.claude/settings.json` in the repo wins over the user's own `~/.claude/settings.json`, so a host's hooks are what run even where a developer has their own configured.
 - **CC Web without hooks**: `detect_surface.sh` won't auto-run on web, but init writes a permissive `surface_profile.json` so all tasks remain eligible.
 - **CLAUDE.md block must be at root.** The injected block appears in the host root `CLAUDE.md`, not a nested file.
 - **Auto-refresh on session start.** The session-start protocol (AGENTS.md step 0) runs `init.py --silent` automatically. When the plugin is updated to a new version, the next session start detects the version mismatch, refreshes the stale scripts, and reports what changed. No manual `/init` is required for bundle-script updates — only for new workspace registration or major changes to `CLAUDE.md`. A refresh only ever moves **forward**: when the host's committed bundle is newer than this skill's vendored copies, init writes nothing and says so, because the checksum comparison cannot tell a stale file from an upstream fix that has not reached the plugin yet. Update the plugin instead; `--allow-downgrade` overwrites the newer install and is for recovering a broken one.

@@ -189,7 +189,11 @@ Verify `pwd` at the start of the task if unsure.
    A review you run on your own work, recorded as an independent review, is
    worth less than none — it launders the same blind spot into a PR body that
    claims someone checked. Skip it, say so in your outcome report, and let
-   `open_task_pr.sh` record that no independent review ran.
+   `open_task_pr.sh` record that no independent review ran — and note that when
+   the host sets `pre-pr-review = "required"`, that helper refuses to open the PR
+   at all without a CLEAR verdict. That refusal is the point: on a host that
+   requires the review, "the surface could not spawn a reviewer" is a reason to
+   stop and report, never a reason to open the PR anyway.
 
 7. **Review is clear** → open the PR with the thin helper. Export the dynamic
    Co-Authored-By identity supplied by the harness first (never hardcode a

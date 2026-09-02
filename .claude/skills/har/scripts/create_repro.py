@@ -83,10 +83,25 @@ def _headers(entry: dict[str, Any], salt: str, secrets: bool) -> list[tuple[str,
 
 def _body(entry: dict[str, Any]) -> str | None:
     post = (entry.get("request") or {}).get("postData") or {}
-    if not post.get("text"):
+    # `is None`, not falsiness: a capture whose body is `0`, `false`, `[]` or `""`
+    # has a body, and treating it as absent quietly dropped it from the
+    # reproduction instead of reaching the validation below.
+    if post.get("text") is None:
         return None
     decoded = decode_body(post)
-    return decoded.text if decoded.ok else post.get("text")
+    if decoded.ok:
+        return decoded.text
+    raw = post.get("text")
+    # decode_body already rejected this, so `raw` is whatever the capture put
+    # there. A HAR is an untrusted input: `postData.text: 42` would reach sh()
+    # and die on `int.replace`, which reads as a crash in the tool rather than a
+    # bad capture. Refusing here keeps the failure legible.
+    if not isinstance(raw, str):
+        raise SystemExit(
+            "create_repro: request postData.text is not text "
+            f"({type(raw).__name__}) — this capture cannot be reproduced as-is"
+        )
+    return raw
 
 
 def as_curl(entry: dict[str, Any], salt: str, secrets: bool) -> list[str]:

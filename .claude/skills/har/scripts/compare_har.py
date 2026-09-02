@@ -159,14 +159,37 @@ def parameter_changes(only_left: Rows, only_right: Rows) -> list[str]:
     how a diff invents a change that did not happen. Naming the pattern is
     useful; merging the entries is not.
     """
-    by_path: dict[tuple[str, str, str], list[set[str]]] = defaultdict(lambda: [set(), set()])
+    # Scheme and port belong in the key because identity() treats them as identity:
+    # without them a request moved from https://host:443/p?a=1 to http://host:80/p?b=1
+    # reads as one request whose parameters changed, rather than two requests.
+    by_path: dict[tuple[str, str, str, str, str], list[set[str]]] = defaultdict(
+        lambda: [set(), set()]
+    )
+    # Presence is tracked separately from names, because a key can be on a side
+    # with no query parameters at all. Now that scheme and port are in the key, a
+    # plain http->https move produces one left-only key and one right-only key,
+    # and reporting "removed a=1 / added a=1" for those describes a parameter
+    # change that never happened.
+    present: dict[tuple[str, str, str, str, str], list[bool]] = defaultdict(
+        lambda: [False, False]
+    )
     for side, rows in ((0, only_left), (1, only_right)):
         for row in rows:
-            key = (str(row.get("method")), str(row.get("host")), str(row.get("path")))
+            key = (
+                str(row.get("method")),
+                str(row.get("scheme")),
+                str(row.get("host")),
+                str(row.get("port")),
+                str(row.get("path")),
+            )
+            present[key][side] = True
             by_path[key][side].update(name for name, _ in row.get("query") or [])
 
     lines: list[str] = []
-    for (method, host, path), (left_names, right_names) in sorted(by_path.items()):
+    for key, (left_names, right_names) in sorted(by_path.items()):
+        method, _scheme, host, _port, path = key
+        if not all(present[key]):
+            continue
         if not left_names and not right_names:
             continue
         added = sorted(right_names - left_names)
@@ -272,7 +295,15 @@ def main(argv: list[str] | None = None) -> int:
         args.output.write_text("\n".join(lines) + "\n", encoding="utf-8")
         print(f"wrote {len(lines)} line(s) to {args.output}", file=sys.stderr)
     else:
-        kept, note = apply_budget(lines, 0 if args.limit == 0 else 4096)
+        # --limit is documented as a row cap that 0 removes, so a positive value
+        # has to actually cap rows: passing only the byte budget made --limit 1
+        # and --limit 1000 print exactly the same thing.
+        if args.limit > 0 and len(lines) > args.limit:
+            shown = lines[: args.limit]
+            shown.append(f"... {len(lines) - args.limit} more line(s) — raise --limit to see them")
+        else:
+            shown = lines
+        kept, note = apply_budget(shown, 0 if args.limit == 0 else 4096)
         print("\n".join(kept))
         if note:
             print(note)

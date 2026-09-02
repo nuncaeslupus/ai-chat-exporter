@@ -72,8 +72,10 @@ account of the change.
 bash claude-arsenal/bin/adversarial_review.sh verdict
 ```
 
-It reads `tmp/arsenal-review/verdict.md`, takes the last `VERDICT:` line, and
-writes a receipt bound to the digest of the reviewed diff.
+It reads `tmp/arsenal-review/verdict.md`, which must carry **exactly one** `VERDICT:`
+line, positioned as the last non-blank line of the file, and writes a receipt bound to
+the digest of the reviewed diff. It does not take the last of several — more than one
+verdict line is rejected with exit 2, because a reviewer who wrote two did not decide.
 
 `emit` exits 0 with the packet path, **3** when there is nothing to review (an
 empty diff against the base — usually a session working straight on the default

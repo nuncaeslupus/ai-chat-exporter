@@ -1,6 +1,6 @@
 # Claude Arsenal
 
-<!-- claude-arsenal v3.4.2 — imported via @claude-arsenal/AGENTS.md -->
+<!-- claude-arsenal v3.4.3 — imported via @claude-arsenal/AGENTS.md -->
 
 This file is imported by the host repo's `CLAUDE.md` via the session-protocol block
 that `/init` injects, so it sits in context on **every turn of every session**. It
@@ -79,6 +79,10 @@ At the start of every session (fresh start, context compaction, or cold restart)
    (default `arsenal:queue`; `import-label` in `arsenal/config.toml` changes it), save the
    JSON, then
    `python3 claude-arsenal/scripts/issue_import.py --issues /tmp/arsenal-import.json --apply`.
+   > **This fetch must include `body`**, unlike step 2. The body *is* the seeded task's
+   > content, and it is also where an existing `arsenal-task:` marker lives — omit it and
+   > every task file is written empty and every already-imported issue is imported again
+   > as a second task.
    Apply everything each row prints — the `arsenal-task: <id>` line into the body, plus
    the `add_label` / `remove_label` swap onto `arsenal:task`; an issue left on the import
    label is invisible to step 2 and `handle_sync.py` proposes a duplicate for it next
