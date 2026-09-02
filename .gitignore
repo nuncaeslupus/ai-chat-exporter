@@ -88,3 +88,15 @@ arsenal/session/
 # fresh install. Ignored rather than patched -- init.py overwrites bundle
 # files by checksum, so a local fix would not survive the next session.
 claude-arsenal/session/
+
+arsenal/session/surface_profile.json
+
+arsenal/session/rate_limits.json
+
+arsenal/session/budget_iterations.json
+
+arsenal/session/worktree_isolation
+
+arsenal/session/host_branch
+
+arsenal/session/rescue_refs

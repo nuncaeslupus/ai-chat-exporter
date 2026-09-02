@@ -345,6 +345,26 @@ fi
 if ! git fetch "${REMOTE}" "refs/tags/v${latest}:refs/tags/v${latest}" 2>&1 \
     || ! git subtree merge --prefix="${PREFIX}" "v${latest}^{commit}" --squash \
         -m "chore: update claude-arsenal to v${latest}" 2>&1; then
+    # A conflicting subtree merge leaves MERGE_HEAD, a populated index and
+    # conflict markers behind. This branch then warns and exits 0, so the
+    # session reports no failure and the worker loop runs against a tree it
+    # requires to be clean -- the same tree the check above just confirmed was
+    # clean. Put it back before saying anything.
+    #
+    # MERGE_HEAD, not the abort's exit status, is what says the tree is still
+    # mid-merge: `git merge --abort` also fails when there is no merge to abort,
+    # which is the common case on this branch, since a failed `git fetch` never
+    # started one. And a bare `|| true` would hide the case that matters -- an
+    # abort that could not undo a real conflict. Exiting nonzero is not the
+    # answer either: this script promises never to abort a session (3.2.0) and
+    # session-start runs it as a report. So repair the tree where that is
+    # possible, and name the one state that cannot be repaired loudly enough
+    # that nobody dispatches a worker into it.
+    if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1 \
+        && ! git merge --abort >/dev/null 2>&1; then
+        _warn "subtree update failed AND 'git merge --abort' could not undo it: the working tree is left mid-merge, with conflict markers under '${PREFIX}'. The worker loop requires a clean tree — resolve or abort this merge by hand BEFORE dispatching any worker, then: ${_manual_hint}"
+        exit 0
+    fi
     _warn "subtree update failed — run manually: ${_manual_hint}"
     exit 0
 fi

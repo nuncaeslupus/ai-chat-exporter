@@ -48,19 +48,30 @@ from analyze_har import ensure_index
 Key = tuple[str, str, str, str, str, tuple[tuple[str, str], ...], str]
 
 
+def unidentified_body(row: dict[str, Any]) -> bool:
+    """True when the index saw a request body but could not identify it.
+
+    Such a row has no comparable identity at all. Hashing the *mime type*
+    instead made every `application/json` POST to one URL hash alike, so a
+    capture of one search and a capture of another compared equal — the
+    fail-open direction, and on a board whose list endpoint is a POST to an
+    invariant URL also the common one. Substituting the row's own index `i` was
+    no better: `i` counts from zero within each capture, so the fifth
+    unidentified row on the left and the fifth on the right shared an identity
+    and paired as unchanged, which is the same false match by another route.
+    `pair()` therefore routes these rows straight to `only_left`/`only_right`
+    and never asks for their identity.
+    """
+    return not str(row.get("reqBodyHash") or "") and bool(row.get("hasReqBody"))
+
+
 def identity(row: dict[str, Any]) -> Key:
-    """The pairing key. `pageref` is deliberately absent — see the module docstring."""
+    """The pairing key. `pageref` is deliberately absent — see the module docstring.
+
+    Callers must exclude `unidentified_body()` rows first; an unknown body is
+    not equivalent to an absent one.
+    """
     body = str(row.get("reqBodyHash") or "")
-    if not body and row.get("hasReqBody"):
-        # A body the index could not identify. Hashing the *mime type* here
-        # instead — which is what this fallback used to do — made every
-        # `application/json` POST to one URL hash alike, so a capture of one
-        # search and a capture of another compared equal. That is the fail-open
-        # direction, and on a board whose list endpoint is a POST to a URL that
-        # never varies it is also the common one. Unknown is not equivalent, so
-        # the row is given an identity nothing else can share and is reported as
-        # unpaired rather than as unchanged.
-        body = f"unidentified-body:{row.get('i')}"
     return (
         str(row.get("method") or ""),
         str(row.get("scheme") or ""),
@@ -84,13 +95,21 @@ def pair(left: Rows, right: Rows) -> tuple[Pairs, Rows, Rows]:
     from "these were both the third repeat of the same request".
     """
     buckets: dict[Key, list[dict[str, Any]]] = defaultdict(list)
+    only_right: Rows = []
     for row in right:
-        buckets[identity(row)].append(row)
+        if unidentified_body(row):
+            # Never bucketed, so nothing on the left can reach it.
+            only_right.append(row)
+        else:
+            buckets[identity(row)].append(row)
 
     pairs: Pairs = []
     only_left: Rows = []
     consumed: dict[Key, int] = defaultdict(int)
     for row in left:
+        if unidentified_body(row):
+            only_left.append(row)
+            continue
         key = identity(row)
         taken = consumed[key]
         if taken < len(buckets[key]):
@@ -100,7 +119,7 @@ def pair(left: Rows, right: Rows) -> tuple[Pairs, Rows, Rows]:
         else:
             only_left.append(row)
 
-    only_right = [
+    only_right += [
         row
         for key, rows in buckets.items()
         for row in rows[consumed[key] :]

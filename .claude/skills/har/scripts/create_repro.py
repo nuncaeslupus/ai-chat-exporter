@@ -119,18 +119,23 @@ def as_python(entry: dict[str, Any], salt: str, secrets: bool) -> list[str]:
     url = str(request.get("url", ""))
     if not secrets:
         url = redact_url(url, salt)
-    method = str(request.get("method", "GET")).lower()
+    # The verb is capture-controlled, so it is bound as a repr() literal and
+    # passed to requests.request() rather than spliced into an attribute name.
+    # `requests.{method}(...)` would let a capture choose the code that runs
+    # when the operator pastes the snippet, and it also breaks on any verb
+    # `requests` has no shorthand for (PROPFIND, MKCOL, ...).
+    method = str(request.get("method", "GET")).upper()
     headers = dict(_headers(entry, salt, secrets))
     body = _body(entry)
 
-    lines = ["import requests", "", f"url = {url!r}", "headers = {"]
+    lines = ["import requests", "", f"method = {method!r}", f"url = {url!r}", "headers = {"]
     lines += [f"    {name!r}: {value!r}," for name, value in headers.items()]
     lines.append("}")
     if body is not None:
         lines.append(f"data = {body!r}")
-        lines.append(f"response = requests.{method}(url, headers=headers, data=data)")
+        lines.append("response = requests.request(method, url, headers=headers, data=data)")
     else:
-        lines.append(f"response = requests.{method}(url, headers=headers)")
+        lines.append("response = requests.request(method, url, headers=headers)")
     lines += ["response.raise_for_status()", "print(response.status_code, len(response.content))"]
     return lines
 

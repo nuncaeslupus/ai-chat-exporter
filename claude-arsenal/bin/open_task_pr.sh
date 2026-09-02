@@ -591,7 +591,20 @@ path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
 match = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", text, re.DOTALL)
 if not match:
-    sys.exit(0)
+    # Exiting 0 here read as "stamped", and the caller then failed its own
+    # re-check of the same file and reported the vaguer "not a complete
+    # archive" -- the two halves disagreeing about one case, with the specific
+    # cause known here and thrown away. The refusal itself is right: a task
+    # file with no front matter has no `id:` either, so `task_select.py` cannot
+    # attribute it, and inventing a block to satisfy the check would archive a
+    # record the queue still cannot read. Say what is actually wrong instead.
+    print(
+        f"open_task_pr: {path} has no front matter, so 'status: merged' has "
+        "nowhere to go. A task file needs an `id:`/`title:` block; fix the "
+        "file and re-run.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 front = match.group(1)
 if re.search(r"^status:", front, re.MULTILINE):
     front = re.sub(r"^status:.*$", "status: merged", front, count=1, flags=re.MULTILINE)

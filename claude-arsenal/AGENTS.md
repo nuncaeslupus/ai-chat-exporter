@@ -1,6 +1,6 @@
 # Claude Arsenal
 
-<!-- claude-arsenal v3.4.1 — imported via @claude-arsenal/AGENTS.md -->
+<!-- claude-arsenal v3.4.2 — imported via @claude-arsenal/AGENTS.md -->
 
 This file is imported by the host repo's `CLAUDE.md` via the session-protocol block
 that `/init` injects, so it sits in context on **every turn of every session**. It

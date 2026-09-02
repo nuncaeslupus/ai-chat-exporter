@@ -269,6 +269,16 @@ def check_keyword(
     known = {t["id"] for t in tasks}
     task_id = task_id_from_branch(head_ref, known)
     if task_id is None:
+        # Same fallback `plan_pr_closed` uses: a PR opened by hand names its task
+        # in the body, not in the branch name. Without this the branch name alone
+        # decided whether the guard applied, so a hand-opened task PR carrying
+        # `Closes #<unrelated issue>` passed — and its merge closed that issue
+        # while the backstop separately closed the task's own one. That is the
+        # very drift this guard exists to prevent.
+        task_id = task_id_from_issue({"body": pull.get("body") or ""})
+        if task_id not in known:
+            task_id = None
+    if task_id is None:
         return True, f"PR {url}: '{head_ref}' is not a known task branch — guard does not apply"
 
     issue_number = issue_number_for(task_id, issues)

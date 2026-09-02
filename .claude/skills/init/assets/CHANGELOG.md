@@ -18,6 +18,66 @@ being a changelog nobody reads.
 
 Format: `## [X.Y.Z] - YYYY-MM-DD`, newest first, plain bullets below.
 
+## [3.4.2] - 2026-09-02
+
+### Fixed
+
+- **`har`'s `create_repro.py` could turn a capture into executable Python.** The
+  captured HTTP verb was spliced into an attribute name, so a HAR whose
+  `request.method` was not a plain verb produced a snippet that ran whatever the
+  capture chose, the moment an operator pasted it. The verb is now bound as a
+  quoted literal and passed to `requests.request()`, which also fixes the
+  `AttributeError` on any verb `requests` has no shorthand for (`PROPFIND`,
+  `MKCOL`). Update if you run `create_repro.py` against captures you did not
+  produce yourself.
+- **A hand-opened task PR could close someone else's issue.** The closing-keyword
+  guard applied only to `arsenal/<task-id>-…` branches, while the merge backstop
+  already resolved the same task from the `arsenal-task:` marker in the PR body.
+  A task PR opened by hand therefore passed the guard carrying
+  `Closes #<unrelated issue>`, and merging it closed that issue while the task's
+  own one stayed open and claimed — the exact drift the guard exists to prevent,
+  with a green check beside it. The guard now uses the same marker fallback.
+- **`compare_har` reported two different requests as unchanged.** A request body
+  the index could not identify was keyed on the row's own position, which counts
+  from zero *within each capture*, so the fifth unidentified row on each side
+  shared an identity and paired. Such rows are now always reported as unpaired.
+- **`--since`/`--until` without a timezone crashed `query_har` and `create_har`.**
+  A bare `--since 2026-08-30` was compared against the timezone-aware timestamps
+  in the HAR, raising a `TypeError` nothing catches. A value with no offset is
+  now read as UTC.
+- **`capture_har` reported success after a failed navigation.** Every navigation
+  error was treated as the interesting partial capture, so a DNS failure or a
+  refused connection exited 0 and looked identical to a good run. Only a
+  navigation *timeout* is a success now; the HAR is still written either way.
+- **`claim_task.sh` with no task id looked like a lost race.** The missing-argument
+  path exited 1, which this script documents as `lost`, so a caller's own usage
+  error made the task read as already claimed and silently skipped. Usage errors
+  exit 2.
+- **A conflicting `check_update.sh` left the tree mid-merge.** When
+  `git subtree merge` conflicted, the script warned and exited 0 with
+  `MERGE_HEAD`, a populated index and conflict markers in place — handing the
+  worker loop a dirty tree moments after confirming it was clean. The merge is
+  aborted first.
+- **`host_setup.sh` silently under-reverted install churn.** Its `comm` ran in the
+  caller's locale against byte-sorted input, and under any other collation it
+  stops at the first perceived inversion — `package-lock.json` beside
+  `package.json` is enough. A lockfile the install rewrote was then left in the
+  task PR.
+- **`open_task_pr.sh` refused a malformed task file without saying why.** A task
+  file with no front matter made the stamper exit 0 while the caller's own
+  re-check failed and rolled the archive back, reporting only "not a complete
+  archive". The refusal is correct — such a file has no `id:` for the selector to
+  read — but it now names the cause.
+
+### Changed
+
+- **`queue-add` refuses a duplicate task title.** Titles are how an issue resolves
+  back to its task when the board is fetched without bodies (deliberately: ~1.2k
+  context tokens against ~9k on a 40-issue board), and an ambiguous title
+  resolves to nothing — so duplicates showed up later as missing handles and as
+  `handle_sync.py` proposing a second issue for a task that already had one. The
+  collision is now caught at creation, where one rename fixes it.
+
 ## [3.4.1] - 2026-09-01
 
 ### Fixed
