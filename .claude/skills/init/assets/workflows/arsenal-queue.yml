@@ -1,0 +1,124 @@
+# arsenal queue — the queue's state transitions, run by GitHub.
+#
+# `/init` installs this at .github/workflows/arsenal-queue.yml. Its whole
+# purpose is that none of the work below depends on a session being alive to do
+# it. A merged PR closes its task through the `Closes #<issue>` keyword that
+# `open_task_pr.sh` writes; this file covers everything that keyword cannot:
+#
+#   pr-closed     a merged PR whose keyword never fired closes its task anyway;
+#                 a PR closed WITHOUT merging releases the claim, so the task
+#                 goes back on the board instead of looking permanently taken.
+#   sync-handles  a task file merged to the default branch gets its issue handle
+#                 immediately, so the next session finds a complete board rather
+#                 than a chore list.
+#   sweep-claims  a claim held with no open PR for a day belonged to a session
+#                 that crashed; it is released.
+#   keyword-guard a task PR that would merge without closing anything fails its
+#                 check BEFORE the merge, not after.
+#
+# Delete this file if you would rather run those steps by hand — the queue still
+# works, it just goes back to needing a tidy end to every session.
+#
+# Permissions: `issues: write` to close/label/comment on task issues,
+# `contents: write` only so pr-closed can archive a merged task file that its PR
+# did not archive itself. It never checks out or runs code from a pull request.
+
+name: arsenal queue
+
+on:
+  pull_request_target:
+    types: [closed]
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+  push:
+    branches-ignore: ['arsenal/**']
+    paths: ['arsenal/tasks/**']
+  schedule:
+    - cron: '23 5 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: arsenal-queue-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  pr-closed:
+    name: close or release the task
+    # Only PRs that could belong to a task: every other closed PR in the repo
+    # would otherwise pay for a checkout to be told it is not one.
+    # The head-repo check is load-bearing, not hygiene: this job runs on
+    # `pull_request_target` with `issues: write`, and both signals below —
+    # the head ref and the PR body — are things a fork author writes. Without
+    # it, a fork PR closed without merging reaches `release-claim` and strips
+    # a claim another session legitimately holds.
+    if: >-
+      github.event_name == 'pull_request_target' &&
+      github.event.pull_request.head.repo.full_name == github.repository && (
+        startsWith(github.event.pull_request.head.ref, 'arsenal/') ||
+        contains(github.event.pull_request.body, 'arsenal-task:')
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      # The BASE ref, never the PR head: this job runs with a write token, so it
+      # must not execute code the pull request could have changed.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+      - name: Apply the merge (or the abandonment) to the queue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 claude-arsenal/scripts/queue_hooks.py pr-closed
+
+  sync-handles:
+    name: open issues for new task files
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create any missing issue handle
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 claude-arsenal/scripts/queue_hooks.py sync-handles
+
+  sweep-claims:
+    name: release abandoned claims
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Release claims with no open PR behind them
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 claude-arsenal/scripts/queue_hooks.py sweep-claims --max-age-hours 24
+
+  keyword-guard:
+    name: task PR closes its task
+    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'arsenal/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      # The BASE ref, never the PR head: this reads the queue's own task files
+      # to resolve which issue the PR must close, so it must not run a version
+      # of them the pull request could have rewritten.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+      - name: Require the Closes keyword to name THIS task's issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 claude-arsenal/scripts/queue_hooks.py keyword-guard

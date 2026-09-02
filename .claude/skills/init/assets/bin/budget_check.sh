@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # budget_check.sh — pre-dispatch quota guard for the worker loop.
 #
-# Reads claude-arsenal/session/rate_limits.json (written by statusline_capture.sh)
+# Reads arsenal/session/rate_limits.json (written by statusline_capture.sh)
 # and decides whether the loop may dispatch more workers.
 #
 # Exit:
@@ -18,15 +18,24 @@
 # always fails open. The per-session dispatch-round cap is the ALWAYS-AVAILABLE
 # backstop: it does not depend on observable quota, so an auto-dispatching loop
 # can never run unbounded. Set ARSENAL_MAX_ITERATIONS=0 to disable it (quota-only
-# behaviour). The counter resets per CLAUDE_SESSION_ID.
+# behaviour). The counter resets per session, keyed on
+# CLAUDE_CODE_REMOTE_SESSION_ID falling back to CLAUDE_CODE_SESSION_ID — the
+# same pair claiming-internals.md names. The old CLAUDE_SESSION_ID is set on no
+# current surface, so every run keyed on the literal "default": one shared
+# counter across every session on the machine, which both over-counts a fresh
+# session and lets a long one reset by coincidence.
 
 set -uo pipefail
 
-FILE="${ARSENAL_RATE_LIMITS_FILE:-claude-arsenal/session/rate_limits.json}"
+# The session dir, resolved the way every other writer resolves it. Hardcoding
+# `arsenal/` meant a relocated host tree kept its rate-limit and round-counter
+# state somewhere the rest of the toolkit does not look.
+_SESSION_DIR="${ARSENAL_SESSION_DIR:-${ARSENAL_HOME:-arsenal}/session}"
+FILE="${ARSENAL_RATE_LIMITS_FILE:-${_SESSION_DIR}/rate_limits.json}"
 STOP_PCT="${ARSENAL_QUOTA_STOP_PCT:-90}"
 MAX_ITER="${ARSENAL_MAX_ITERATIONS:-50}"
-ITER_FILE="${ARSENAL_ITER_STATE_FILE:-claude-arsenal/session/budget_iterations.json}"
-SESSION_ID="${CLAUDE_SESSION_ID:-default}"
+ITER_FILE="${ARSENAL_ITER_STATE_FILE:-${_SESSION_DIR}/budget_iterations.json}"
+SESSION_ID="${CLAUDE_CODE_REMOTE_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-default}}}"
 
 python3 - "${FILE}" "${STOP_PCT}" "${MAX_ITER}" "${ITER_FILE}" "${SESSION_ID}" <<'PY'
 import sys, json, pathlib
@@ -58,8 +67,19 @@ if max_iter > 0:
         iter_file.write_text(
             json.dumps({"session": session_id, "count": count}), encoding="utf-8"
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        # Said out loud rather than swallowed. The count lives only in this
+        # file, so a write that fails means every later call recomputes `count`
+        # as 1 and the dispatch-round cap — documented as the backstop that does
+        # NOT depend on observable state — silently stops capping anything. The
+        # run is not failed over it (this is a backstop, not a gate), but an
+        # operator who is relying on the cap has to be able to find out that it
+        # is not running.
+        print(
+            f"budget_check: could not persist the round counter to {iter_file} ({exc}) — "
+            "the per-session dispatch cap is NOT in effect for this run",
+            file=sys.stderr,
+        )
     if count > max_iter:
         print(
             f"budget_check: dispatch round {count} exceeds "

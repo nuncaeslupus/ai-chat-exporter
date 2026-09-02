@@ -2,6 +2,7 @@
 name: execution
 description: When the user is implementing code changes from a design — code change, tests, merge-ready output. Do NOT use for investigation (see specify), design (see design), or routine one-off scripts that bypass the design step.
 metadata:
+  section: workflow
   type: workflow
 ---
 
@@ -109,6 +110,44 @@ Before creating the PR, verify:
 - [ ] Changes match the design scope (no scope creep)
 - [ ] PR description prepared: what changes, why, how to test
 
+Every box above is ticked by the session that wrote the code, against the
+understanding that wrote it. Step 4b covers what that cannot reach.
+
+#### 4b. Adversarial review by a session that has never seen the change
+
+Before Step 5, put the change in front of a reviewer with no history of it:
+
+```bash
+bash "${CLAUDE_SKILL_DIR}/../init/assets/bin/adversarial_review.sh" emit
+# prints the packet's absolute path — intent, full diff, rubric
+```
+
+Spawn a subagent whose **entire prompt** is to read the path `emit` printed and
+write its reply to `verdict.md` in that same directory. Pass nothing else: no summary of the
+change, no account of the approach taken, no conversation history. Every such
+addition transplants the blind spot this step exists to escape — a reviewer
+told "this refactor preserves behaviour" checks a different question than one
+that had to work it out. Then record the answer:
+
+```bash
+bash "${CLAUDE_SKILL_DIR}/../init/assets/bin/adversarial_review.sh" verdict
+```
+
+Exit 0 clears Step 5. Exit 1 is a BLOCK — show the findings verbatim, fix them,
+and re-emit, since a review of the tree before the fix does not cover the tree
+after it. Exit 2 means no usable verdict came back, which is not a pass. Exit 3
+means the tree changed while the review ran, so the answer describes code that
+no longer exists: re-emit and review what is actually there.
+
+Pass `--intent <file>` when the change has a written statement of intent that is
+not `status/specification.md`. Auto-discovery reaches for that file, and a repo
+that keeps an archived one hands the reviewer a specification nobody is
+implementing.
+
+Load `claude-arsenal:core:init § references/pre-pr-review.md` for the full
+protocol, how to handle a BLOCK that looks wrong, and the manual form for a repo
+with no vendored bundle.
+
 ### Step 5: Create PR
 
 - Write clear PR description linking to ticket/design
@@ -124,4 +163,4 @@ Before creating the PR, verify:
 
 ## Workspace-aware paths
 
-When `claude-arsenal/project/<WORKSPACE>/` exists, read the spec and plan from there (`spec.md`, `plan.md`, `context.md`) and record gate evidence in the workspace's `plan.md` instead of `status/`. Otherwise read `status/specification.md` and `status/plan.md` as above. When running under the task queue, the claimed task's payload at `claude-arsenal/queue/<id>.md` carries the acceptance gate, which the queue's gate runner executes before the task is released.
+When `arsenal/project/<WORKSPACE>/` exists, read the spec and plan from there (`spec.md`, `plan.md`, `context.md`) and record gate evidence in the workspace's `plan.md` instead of `status/`. Otherwise read `status/specification.md` and `status/plan.md` as above. When running under the task queue, the claimed task's payload at `arsenal/tasks/<id>.md` carries the acceptance gate, which the queue's gate runner executes before the task is released.

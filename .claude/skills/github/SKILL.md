@@ -1,6 +1,6 @@
 ---
 name: github
-description: Use whenever the user is creating commits, opening pull requests, or waiting on PR review/CI feedback — applies Conventional Commits + branch naming, then polls the open PR for review-bot reactions and CI status, addresses each comment inline or replies, and reports when the PR is ready to merge. Triggers — "open a PR", "address review comments", "wait for Gemini / CodeRabbit", "is CI done?". Owns scripts — query_pr_state.py, query_project_type.py. Do NOT use for engineering review of a diff (see review), generic git mechanics like branching/worktrees (see execution), or hardcoding a Co-Authored-By model name (refused — the harness supplies model identity).
+description: Use whenever the user is creating commits, opening pull requests, or waiting on PR review/CI feedback — applies Conventional Commits + branch naming, then polls the PR for review-bot comments and CI status until it is ready to merge. Triggers — "open a PR", "address review comments". Do NOT use for engineering review of a diff (see review) or generic git mechanics (see execution).
 metadata:
   type: workflow
 ---
@@ -31,7 +31,7 @@ Always end the commit with `Co-Authored-By: <ACTIVE-MODEL-NAME> <noreply@anthrop
 
 Body template:
 
-```
+```markdown
 ## Summary
 <1-3 bullets>
 
@@ -41,11 +41,22 @@ Body template:
 
 Branches: `feat/<short-description>`, `fix/<short-description>`. Main branch is `main`. The same dynamic Co-Authored-By rule applies inside the PR body (do not hardcode a model name there either).
 
-## Pre-PR gate — always run host lint before `gh pr create`
+## Pre-PR gate — lint, then an independent read, before `gh pr create`
 
 Before any `gh pr create` invocation, run the host repo's full lint/format/test gate (whatever the project's Makefile / package.json exposes — e.g. `make lint`, `make smoke`, `npm run lint`). Pre-commit hooks do not always cover the same checks CI runs; relying on them alone is how PRs land red. Treat a clean local lint as a non-negotiable precondition for opening the PR — the agile review loop assumes CI was green at push time.
 
 If the host project has no lint target, document that gap (propose a Makefile addition to the user) and proceed; but the omission is the proposal, not a license to skip.
+
+A green lint says the change does not break the repo. It says nothing about whether it is the change that was asked for, and the session that just wrote it is the wrong reader for that question. So the second half of the gate is an adversarial review by a subagent with no history of the work:
+
+```bash
+REVIEW="${CLAUDE_SKILL_DIR}/../init/assets/bin/adversarial_review.sh"
+bash "$REVIEW" emit      # prints the packet's absolute path
+# spawn a subagent whose whole prompt is: read THAT path, reply into verdict.md beside it
+bash "$REVIEW" verdict   # 0 CLEAR · 1 BLOCK · 2 no usable verdict · 3 the tree moved mid-review
+```
+
+Neither 2 nor 3 is a pass: 2 means no verdict came back, 3 means the answer describes a tree that no longer exists. Pass `--intent <file>` when the change has a written intent other than `status/specification.md`, which is what auto-discovery reaches for. Pass the reviewer nothing but the packet path — a summary of what the change was meant to do hands it the author's blind spot. On BLOCK, fix and re-emit rather than opening the PR with the findings unaddressed. Full protocol, override rules, and the form for a repo without the vendored bundle: `claude-arsenal:core:init § references/pre-pr-review.md`.
 
 ## The agile review loop
 
@@ -68,10 +79,10 @@ The script returns JSON to stdout and exits with:
 Handle each state per the rubric in [pr-review-loop](references/pr-review-loop.md):
 
 - `bot_eyeing` → loop continues. Bot owns clearing `:eyes:` by acting again. Exception: with `--unresolved-only`, when every comment the bot wrote is filtered out and the bot did review at some point, the script promotes the state to `bot_approved` / `ready_to_merge` — the loop has done its part and stale eyes lose their blocking force.
-- `bot_commented` → for each comment in `bot_line_comments`, judge: **already addressed** (reply "addressed in <sha>"), **agree** (fix + push + **reply** "addressed in <sha>" — the reply is what `--unresolved-only` anchors on), **disagree** (reply with rationale via `gh api .../pulls/<N>/comments/<id>/replies`), or **ambiguous** (reply asking for clarification + ping the user). Loop continues after action. **Every fix or dismissal MUST be paired with a reply on the thread.**
-- `conflicts` → the PR branch conflicts with its base. Rebase onto (or merge) the base branch, resolve the conflicts, and push. Loop continues. A conflicted PR cannot merge regardless of CI/review state, so this is surfaced first.
+- `bot_commented` → for each comment in `bot_line_comments`, judge: **already addressed** (reply "addressed in <sha>"), **agree** (fix + push + **reply** "addressed in <sha>" — the reply is what `--unresolved-only` anchors on), **disagree** (reply with rationale via `gh api .../pulls/<N>/comments/<id>/replies`), or **ambiguous** (reply asking for clarification + ping the user). Loop continues after action. A fix or dismissal without a reply leaves the thread unresolved, so the next pass re-reads a comment that has already been handled — pair every one with a reply.
+- `conflicts` → the PR branch conflicts with its base. Rebase onto (or merge) the base branch, resolve the conflicts, and push. Loop continues. A conflicted PR cannot merge regardless of CI/review state, so this is surfaced first. When the branch is stacked on a PR that already merged, use `rebase_stack.sh` (see *Multi-PR stacking* below) rather than replaying by hand — it skips the merged commits and knows which conflicts are regenerable.
 - `ci_failed` → fetch the failed log via `gh run view --log-failed <run-id>`, fix, push. Reply on any comments the fix relates to. Loop continues.
-- `ready_to_merge` → exit the loop, tell the user "PR #N ready to merge".
+- `ready_to_merge` → exit the loop, tell the user "PR #N ready to merge". In a repo carrying `arsenal/config.toml`, handing back is not automatically the right ending: `merge-policy` there is the host's standing answer to whether an agent may merge it, and the vendored protocol's completion step gives the rule for each value. Read it before asking a question the host already answered.
 - `merged` / `closed` → exit the loop immediately. PR is no longer open; nothing to do.
 
 ## Multi-PR stacking — autonomous sequential work
@@ -86,10 +97,12 @@ After each merge, immediately rebase the next waiting branch onto `main` to skip
 
 ```bash
 # After fix/iss-A merges into main:
-bash "${CLAUDE_SKILL_DIR}/../../init/assets/bin/rebase_stack.sh" fix/iss-B fix/iss-A
+bash "${CLAUDE_SKILL_DIR}/../init/assets/bin/rebase_stack.sh" fix/iss-B fix/iss-A
 ```
 
-`rebase_stack.sh <branch> <old-base>` computes the fork point, runs `git rebase --onto origin/main`, and force-pushes with lease in one step. Cascade it down the remaining stack (B→C, C→D, …) after each merge.
+`rebase_stack.sh <branch> <old-base>` computes the fork point, runs `git rebase --onto origin/main`, runs the repo's `host-gate`, and force-pushes with lease in one step. Cascade it down the remaining stack (B→C, C→D, …) after each merge. `--no-push` rebases only.
+
+A repo that uses evidence gates conflicts on its own evidence files on almost every replay — both sides moved, and hand-merging two measurements of a tree is meaningless. When every conflicted path is one a task declares as `evidence:`, the script takes the branch's side, re-runs `host-gate` to regenerate, and continues. Anything outside that set stops the rebase and is named: that is a real conflict, and a human resolves it.
 
 ## Project type — Classic vs v2
 

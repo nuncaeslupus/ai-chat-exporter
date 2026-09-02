@@ -1,4 +1,4 @@
-<!-- Load this template when writing the `<task-id>.md` payload file after `create_task.py` prints a new task ID. -->
+<!-- Load this template when filling in the body of a task file created by `create_task.py`. -->
 
 # Payload: <task-id> — <task-title>
 

@@ -15,8 +15,18 @@
 # staged state, and HEAD are all left exactly as they were.
 #
 # Stdout: the created ref name (e.g. refs/arsenal-rescue/20260728-101050-a1b2c3d4),
-#         or nothing when the tree is clean / a snapshot could not be taken.
-# Exit:   always 0 — a rescue must never be the reason its caller fails.
+#         or nothing when there was nothing to rescue.
+# Exit:   0 a ref was written, or the tree was clean and none was needed;
+#         1 the tree HAD work and it could not be snapshotted.
+#
+# Those last two were one answer until now — no ref, exit 0, either way — and a
+# caller cannot route around a failure it cannot see. `worker_postcheck.sh` read
+# that as "clean tree" and went on to `reset --hard` + `clean -fdq`, so a
+# disk-full or a permissions error during the snapshot ended with the work
+# destroyed and no ref to recover it from. Silent, and only on the one occasion
+# the safety net was needed. A rescue still never fails its caller *by
+# accident*: exit 1 means the caller must decide, and the destructive step is
+# the caller's to skip.
 #
 # Recover with either of:
 #   git checkout <ref> -- .          # restore the files into the current tree
@@ -37,7 +47,7 @@ root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 [[ -n "$(git -C "${root}" status --porcelain 2>/dev/null)" ]] || exit 0
 
 tmp_index="$(mktemp "${TMPDIR:-/tmp}/arsenal-rescue-index.XXXXXX" 2>/dev/null || true)"
-[[ -n "${tmp_index}" ]] || exit 0
+[[ -n "${tmp_index}" ]] || exit 1
 # `git read-tree` wants to create the index itself; mktemp already made the file
 # (that is its point — a reserved name), so hand git the reserved path empty.
 : > "${tmp_index}"
@@ -51,11 +61,11 @@ head_sha="$(git -C "${root}" rev-parse --verify --quiet HEAD 2>/dev/null || true
 # repo root. `add -A` honours .gitignore, so ignored session files and build
 # artefacts stay out of the snapshot.
 if [[ -n "${head_sha}" ]]; then
-    GIT_INDEX_FILE="${tmp_index}" git -C "${root}" read-tree "${head_sha}" >/dev/null 2>&1 || exit 0
+    GIT_INDEX_FILE="${tmp_index}" git -C "${root}" read-tree "${head_sha}" >/dev/null 2>&1 || exit 1
 fi
-GIT_INDEX_FILE="${tmp_index}" git -C "${root}" add -A >/dev/null 2>&1 || exit 0
+GIT_INDEX_FILE="${tmp_index}" git -C "${root}" add -A >/dev/null 2>&1 || exit 1
 tree="$(GIT_INDEX_FILE="${tmp_index}" git -C "${root}" write-tree 2>/dev/null || true)"
-[[ -n "${tree}" ]] || exit 0
+[[ -n "${tree}" ]] || exit 1
 
 commit_args=("${tree}")
 [[ -n "${head_sha}" ]] && commit_args+=(-p "${head_sha}")
@@ -73,11 +83,11 @@ else
     snapshot="$(git -C "${root}" commit-tree "${commit_args[@]}" \
         -m "arsenal-rescue: ${REASON}" 2>/dev/null || true)"
 fi
-[[ -n "${snapshot}" ]] || exit 0
+[[ -n "${snapshot}" ]] || exit 1
 
 stamp="$(date -u +%Y%m%d-%H%M%S 2>/dev/null || echo snapshot)"
 ref="refs/arsenal-rescue/${stamp}-${snapshot:0:8}"
-git -C "${root}" update-ref "${ref}" "${snapshot}" >/dev/null 2>&1 || exit 0
+git -C "${root}" update-ref "${ref}" "${snapshot}" >/dev/null 2>&1 || exit 1
 
 printf '%s\n' "${ref}"
 exit 0

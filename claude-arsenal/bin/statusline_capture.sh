@@ -5,7 +5,7 @@
 # subscriptions, carries a `rate_limits` block (five_hour / seven_day, each with
 # used_percentage 0-100 and resets_at). That data is delivered ONLY here — no
 # env var, CLI flag, or file exposes it otherwise. This script extracts it,
-# writes claude-arsenal/session/rate_limits.json (gitignored) ATOMICALLY so a
+# writes arsenal/session/rate_limits.json (gitignored) ATOMICALLY so a
 # concurrent budget_check.sh read never sees a partial file, and prints a short
 # status line on stdout.
 #
@@ -15,7 +15,7 @@
 
 set -uo pipefail
 
-OUT="${ARSENAL_RATE_LIMITS_FILE:-claude-arsenal/session/rate_limits.json}"
+OUT="${ARSENAL_RATE_LIMITS_FILE:-arsenal/session/rate_limits.json}"
 payload="$(cat || true)"
 
 ARSENAL_SL_PAYLOAD="${payload}" python3 - "${OUT}" <<'PY'

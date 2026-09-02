@@ -1,0 +1,110 @@
+{
+  "generated_by": "scripts/sync_sections.py",
+  "note": "Generated. Run `make sync-sections` after adding or re-filing a skill.",
+  "sections": [
+    {
+      "name": "core",
+      "default": true,
+      "core": true,
+      "blurb": "the bundle itself — installer, queue engine, and the skills the protocol names",
+      "skills": [
+        {
+          "name": "continue",
+          "description": "When the user wants to resume work or run the worker loop — picks the next unblocked task, optionally scoped by tag(s) and/or a workspace, or matched by title text. Use /continue [TAG … | WORKSPACE | search-text]. Do NOT use before running init."
+        },
+        {
+          "name": "github",
+          "description": "Use whenever the user is creating commits, opening pull requests, or waiting on PR review/CI feedback — applies Conventional Commits + branch naming, then polls the PR for review-bot comments and CI status until it is ready to merge. Triggers — \"open a PR\", \"address review comments\". Do NOT use for engineering review of a diff (see review) or generic git mechanics (see execution)."
+        },
+        {
+          "name": "init",
+          "description": "When the user needs claude-arsenal/ set up in a host repo, or wants to register a workspace via --workspace. Re-running is safe (refreshes stale bundle files only). Do NOT use to add tasks (see queue-add) or resume the worker loop (see continue)."
+        },
+        {
+          "name": "queue-add",
+          "description": "When the user wants to add a task to the claude-arsenal queue. Do NOT use to update or remove existing tasks."
+        },
+        {
+          "name": "queue-status",
+          "description": "When the user wants queue progress counts by status, or to audit the queue for inconsistencies (missing gates, missing issue handles, broken deps). Do NOT use to modify task status."
+        },
+        {
+          "name": "session-end",
+          "description": "Use whenever the user signals end-of-job, invokes /session-end, or the opt-in SessionStart auto-fire hook runs — three steps. (1) write status/handoff.md if host repo opts in; (2) retrospective scan for repeated errors and proposed skill updates; (3) PR audit — checks CI, review comments, and merge conflicts on session PRs, prints a review table. Triggers — \"wrap up\", \"we're done\", \"/session-end\", \"end-of-job\". Do NOT use mid-job or for cross-session memory."
+        }
+      ]
+    },
+    {
+      "name": "extract",
+      "default": false,
+      "core": false,
+      "blurb": "structured data out of artifacts you did not produce",
+      "skills": [
+        {
+          "name": "har",
+          "description": "Use whenever a HAR capture has to be recorded, read, searched, filtered or turned into a scraper — which request returned a string seen on the page, which parameter pages the results, what to send to reproduce it. Triggers — \"I have a HAR\", \"which request returns this\", \"capture what this page loads\". Do NOT use to parse a JSON/HTML file with no capture around it."
+        }
+      ]
+    },
+    {
+      "name": "python",
+      "default": false,
+      "core": false,
+      "blurb": "the Python toolchain — coverage, mutation, dependency and release skills",
+      "skills": [
+        {
+          "name": "coverage-gaps",
+          "description": "Use whenever the user wants to turn coverage.py's coverage.json into a ranked list of the highest-value missing tests — surfaces contiguous missing-line runs marking whole untested functions or branches. A cheap line-coverage pass below mutmut-report. Triggers — \"what tests am I missing\", \"where are the coverage gaps\". Do NOT use to run the suite or generate the report (run coverage / pytest --cov first), or for non-Python coverage."
+        },
+        {
+          "name": "dep-upgrade",
+          "description": "Use whenever a uv-managed Python project's dependencies need upgrading safely — the uv lock --upgrade, pip-audit, test-gate, classify-breakage runbook, splitting lockfile churn into direct vs transitive. Triggers — \"upgrade the dependencies\", \"check for vulnerable dependencies\". Do NOT use to add one dependency (just uv add), scaffold tooling (see python-bootstrap), or publish (see pypi-release)."
+        },
+        {
+          "name": "mutmut-report",
+          "description": "Use when the user wants to triage a Python project's surviving mutmut mutants after a run — classifies each survivor as REAL_GAP, EQUIVALENT, or UNTESTABLE and reports the test fixes worth making. Triggers — \"which mutants survived\", \"triage mutation testing results\". Do NOT use to run mutmut itself, for coverage reports (see coverage-gaps), or for non-Python mutation testing."
+        },
+        {
+          "name": "pypi-release",
+          "description": "Use whenever a Python package is ready to publish to PyPI — the build, twine check, version bump, tag, and upload runbook, catching version drift and stale dist/ artifacts before upload. Triggers — \"publish to PyPI\", \"cut a release\". Do NOT use to scaffold project tooling (see python-bootstrap) or to upgrade dependencies (see dep-upgrade)."
+        },
+        {
+          "name": "python-bootstrap",
+          "description": "Use whenever a Python project needs scaffolding or retrofitting to the arsenal defaults — uv, ruff, strict mypy, the standard Makefile, a 3.12+ floor — reports the missing pieces and applies them. Triggers — \"set up a Python project\", \"add ruff and mypy config\". Do NOT use to publish to PyPI (see pypi-release) or to upgrade dependencies (see dep-upgrade)."
+        }
+      ]
+    },
+    {
+      "name": "workflow",
+      "default": true,
+      "core": false,
+      "blurb": "the spec → design → execute → review → ship discipline",
+      "skills": [
+        {
+          "name": "design",
+          "description": "When the user is defining the technical solution after discovery — contracts, task split, risk register, sequencing. Owns scripts — validate_plan. Do NOT use for problem investigation (see specify), implementation (see execution), or PR review (see review)."
+        },
+        {
+          "name": "execution",
+          "description": "When the user is implementing code changes from a design — code change, tests, merge-ready output. Do NOT use for investigation (see specify), design (see design), or routine one-off scripts that bypass the design step."
+        },
+        {
+          "name": "gate-check",
+          "description": "Use whenever the user wants an objective PASS/FAIL on a task's measurable acceptance gate from status/plan.md, with the measured numbers — reads the gate (metric, op, threshold) and recorded evidence, or audits every task's gate at once. Triggers — \"did this task pass its gate\", \"are all gates met\". Do NOT use to write code (see execution) or rank missing tests (see coverage-gaps)."
+        },
+        {
+          "name": "review",
+          "description": "When the user is reviewing a PR, diff, design doc, or proposal — risks, tech debt, standards compliance. Do NOT use for implementation (see execution), design (see design), or release sign-off (see ship)."
+        },
+        {
+          "name": "ship",
+          "description": "When the user is confirming a change is ready for production before merge — compatibility, tests, observability, rollback. Do NOT use for implementation (see execution) or PR review (see review)."
+        },
+        {
+          "name": "specify",
+          "description": "When the user is investigating a problem or scoping a new feature with unclear impact — analyzes it and proposes options. Owns scripts — validate_spec. Do NOT use for already-scoped work (see design), implementation (see execution), or routine code edits."
+        }
+      ]
+    }
+  ]
+}

@@ -1,8 +1,10 @@
 ---
 name: coverage-gaps
-description: Use whenever the user wants to turn a coverage.py report into a ranked list of the highest-value missing tests — runs analyze_coverage.py over coverage.json and surfaces contiguous missing-line runs marking whole untested functions or branches. Triggers — "what tests am I missing", "analyze my coverage", "where are the coverage gaps". Owns scripts — analyze_coverage.py. A cheap line-coverage pass below mutmut-report. Do NOT use to run the suite or generate the report (run coverage / pytest --cov first), or for non-Python coverage.
+description: Use whenever the user wants to turn coverage.py's coverage.json into a ranked list of the highest-value missing tests — surfaces contiguous missing-line runs marking whole untested functions or branches. A cheap line-coverage pass below mutmut-report. Triggers — "what tests am I missing", "where are the coverage gaps". Do NOT use to run the suite or generate the report (run coverage / pytest --cov first), or for non-Python coverage.
 argument-hint: "--input coverage.json --limit N"
 user-invocable: true
+metadata:
+  section: python
 ---
 
 # coverage-gaps

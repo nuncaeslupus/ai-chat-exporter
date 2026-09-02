@@ -1,0 +1,103 @@
+# claude-arsenal host configuration — yours; upstream never rewrites this file.
+
+# How far must a task PR get before an agent may merge it?
+#
+#   always               The gates open_task_pr.sh already ran are the whole bar.
+#   after-ci             Every required check has REPORTED, and is green.
+#                        Absent is not green: no runners, no workflows, or a
+#                        job that died unassigned means "wait", not "pass".
+#   after-review         A review has landed (human or bot — whatever GitHub
+#                        reports on the PR) and every comment it raised is
+#                        fixed or answered. CI is NOT consulted. This is the
+#                        value for a repo with no CI, or whose CI is
+#                        unavailable rather than failing.
+#   after-ci-and-review  Both of the two above: green checks AND a review whose
+#                        comments are all addressed. The usual choice for a repo
+#                        that has CI and a review bot — pick this one if you
+#                        expect "wait for green, answer the bot, then merge".
+#   never                An agent never merges. It reports the PR ready and
+#                        stops; a human merges.
+#
+# Whichever is set, both directions are failures: merging past what it allows,
+# and stopping to ask a question this file already answers. Do not set a policy
+# nothing in the repo can ever satisfy — it gets waved through, and then it
+# stays waved through on the day it starts meaning something again.
+merge-policy = "after-ci"
+
+# Shell command run before any task PR is opened; a non-zero exit means no PR.
+# Empty = no host gate. Point it at everything your repo actually checks, not
+# just lint — whatever is not named here is enforced by nobody.
+#   host-gate = "make lint test evidence"
+host-gate = ""
+
+# Shell command that installs this repo's dependencies, run once in a fresh
+# worktree before the first gate (claude-arsenal/bin/host_setup.sh). Empty = no
+# setup step. A worktree is a checkout: it carries tracked files and none of
+# what an install produces, so without this the first gate a worker runs fails
+# on a missing tool and every worker works that out for itself.
+#   host-setup = "npm ci && uv sync"
+host-setup = ""
+
+# How hard the pre-PR adversarial review binds when a TASK PR is opened — a
+# reviewer with no history of the change reads it first
+# (claude-arsenal/bin/adversarial_review.sh). The gates above prove the repo
+# still works; only this one can tell whether the change is the change that was
+# asked for. Read by open_task_pr.sh only: the execution, github and ship skills
+# run the same gate as a step of their own workflow and do not consult this.
+#   warn      Open the task PR either way, and state the outcome in its body.
+#   required  No clearing verdict for this exact tree, no task PR.
+#   off       Do not check, write nothing in the body.
+pre-pr-review = "warn"
+
+# test-first writes a failing test before the change; test-after writes tests
+# alongside it.
+test-discipline = "test-first"
+
+# What /session-end leaves behind: handoff | ticket | none
+session-end = "handoff"
+
+# The skills-listing character budget the auditor enforces. Raise it if your
+# surface's real budget differs, rather than deleting skills to fit a number
+# that is not yours.
+listing-budget = 8000
+
+# Which skill sections this repo installs. Written by `/init` from the profile
+# you picked ("what kind of project is this?"), as a [skills] table below.
+#
+# Every installed skill costs a row in the resident skills listing of every
+# session, forever, whether or not it ever triggers — so a repo that never
+# touches Python should not be carrying five Python skills. Flip a value and
+# the next `/init` (which the session protocol runs anyway) adds or prunes the
+# skills for that section.
+#
+#   workflow  specify, design, execution, review, ship, gate-check
+#   python    python-bootstrap, pypi-release, coverage-gaps, dep-upgrade,
+#             mutmut-report
+#
+# The core section — init, continue, queue-add, queue-status, github,
+# session-end — is always installed and is not listed: the vendored session
+# protocol names those skills directly, so switching one off would break every
+# session rather than save anything worth saving.
+
+# Which model runs what. An alias Claude Code resolves (opus | sonnet | haiku)
+# or a full model id.
+#
+# workers is enforced: the orchestrator exports it as CLAUDE_CODE_SUBAGENT_MODEL
+# before dispatching, so it governs every worker subagent in the session.
+#
+# orchestrator is advisory — a session cannot change the model it is already
+# running as. It is read at session start and reported when the running model
+# is not the one named here. Leave it empty for "no opinion".
+#
+# Keep table headers at the end of this file: a bare key written after one
+# lands inside the table instead of at the top level.
+queue-automation = true
+
+[models]
+orchestrator = ""
+workers = "sonnet"
+
+[skills]
+extract = true
+python = true
+workflow = true

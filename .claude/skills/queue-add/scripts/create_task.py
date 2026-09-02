@@ -1,133 +1,224 @@
 #!/usr/bin/env python3
-"""create_task.py - Append a new task to claude-arsenal/queue/tasks.jsonl.
-Validates schema and dependency edges before writing.
+"""create_task.py — create a task file, and print the issue handle to open for it.
+
+A task is a file in the repository: versioned, reviewed in the pull request
+that adds it, and readable with no network. This script writes that file and
+then prints the issue body its handle needs, because creating the issue itself
+requires GitHub access that differs by surface — the caller makes that call
+with whatever channel it has.
+
+    create_task.py --title "Extract the surface probe" --priority 5 --deps t-aaaa1111
+
+Ids are random rather than derived from the title. The previous scheme hashed
+the title to four hex characters and checked uniqueness against the local file
+only, so two agents adding a task with the same title minted the *same* id and
+neither could see the other's. Random ids need no coordination, which is what
+lets several agents add tasks at once.
+
+Exit: 0 on success, 2 on a validation failure (an unknown dep, or an id clash).
 """
+
+from __future__ import annotations
+
 import argparse
-import hashlib
 import json
+import re
+import secrets
 import sys
-import time
 from pathlib import Path
 
-QUEUE_FILE = "claude-arsenal/queue/tasks.jsonl"
+# The id has to be VISIBLE body text. As an HTML comment it was stripped by
+# the GitHub tools a cloud session uses, which left every issue anonymous and
+# the whole board reading as stateless.
+TASK_MARKER = "`arsenal-task: {task_id}`"
+
+TEMPLATE = """\
+---
+id: {task_id}
+title: {title}
+priority: {priority}
+{extra}---
+
+{body}
+## Acceptance gate
+
+<!-- Replace this with a fenced bash block. A gate that is only prose runs
+     nothing, and a gate that runs nothing passes everything — `task_select.py`
+     reports gate: false for a task with no block, so an unenforced gate is
+     visible rather than quietly inert. -->
+
+```bash
+# arsenal:gate-placeholder — replace with the real check; it may land in this task's own PR
+# e.g. bash tests/surface_probe_test.sh
+false
+```
+"""
 
 
-def _load_queue(path: Path) -> list[dict]:
-    rows: list[dict] = []
-    if not path.exists():
-        return rows
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line:
-            try:
-                data = json.loads(line)
-                if isinstance(data, dict):
-                    rows.append(data)
-            except json.JSONDecodeError:
-                pass
-    return rows
+
+# The documented meaning of `priority`: task size, larger runs sooner. Kept here
+# rather than in prose so `--size` and the board's convention check agree on one
+# set of values.
+SIZE_PRIORITY = {"S": 10, "M": 5, "L": 1}
+
+def new_task_id() -> str:
+    return f"t-{secrets.token_hex(4)}"
 
 
-def _generate_id(title: str) -> str:
-    seed = f"{title}-{time.time()}"
-    return "lo-" + hashlib.sha256(seed.encode()).hexdigest()[:4]
+def existing_ids(tasks_dir: Path) -> set[str]:
+    """Every task id this tree knows — live tasks and finished ones alike.
+
+    The history dir is included because that is where `task_select.py` looks
+    too, and the two must agree on what the task set is. A dep on merged work
+    is the *most* satisfied dep there is; reading only the live dir refused to
+    write down exactly that, and the workaround — dropping the dep and saying
+    it in prose — leaves the graph unable to answer "what depended on this".
+    """
+    ids: set[str] = set()
+    if not tasks_dir.is_dir():
+        return ids
+    # Quotes optional, and only in the pairs `_parse_scalar` strips: the
+    # selector reads `id: "t-abc12345"` as `t-abc12345`, so a generator that
+    # quotes defined an id this never saw, and a dep on that task read as a dep
+    # on nothing. A lone quote is not stripped there either — it reads as part
+    # of the id — so accepting one here would trade the old disagreement for a
+    # subtler one, where the dep validates and then resolves to nothing.
+    pattern = re.compile(
+        r"""^id:\s*(?:["'](?P<quoted>[A-Za-z0-9._-]+)["']|(?P<bare>[A-Za-z0-9._-]+))\s*$""",
+        re.MULTILINE,
+    )
+    paths = sorted(tasks_dir.glob("*.md")) + sorted((tasks_dir / "_history").glob("*.md"))
+    for path in paths:
+        # `_`- and `.`-prefixed files are notes living alongside the tasks — the
+        # migration's `_migrated-history.md` lists ids it does not define. The
+        # selector skips them, so accepting a dep on one would declare a dep the
+        # selector can never satisfy: the exact failure this check exists to stop.
+        if path.name.startswith(("_", ".")):
+            continue
+        match = pattern.search(path.read_text(encoding="utf-8"))
+        if match:
+            ids.add(match.group("quoted") or match.group("bare"))
+    return ids
 
 
-def add_task(
+def build(
+    tasks_dir: Path,
+    *,
     title: str,
     priority: int,
-    requires: list[str],
     deps: list[str],
-    queue_path: Path,
-    workspace: str | None = None,
-    tags: list[str] | None = None,
-    max_attempts: int = 3,
-) -> str:
-    rows = _load_queue(queue_path)
-    existing_ids = {r["id"] for r in rows}
+    requires: list[str],
+    tags: list[str],
+    workspace: str | None,
+    max_attempts: int | None,
+    body: str,
+) -> tuple[str, str]:
+    """Return (task_id, file contents). Raises ValueError on a bad dep."""
+    known = existing_ids(tasks_dir)
 
-    for dep in deps:
-        if dep not in existing_ids:
-            sys.exit(
-                f"add_task: dep '{dep}' not found in queue. "
-                f"Existing IDs: {sorted(existing_ids) or '(empty queue)'}"
-            )
+    # A dep that does not exist would silently block the task forever: the
+    # selector treats unknown deps as unsatisfied, on purpose. Catching it here
+    # turns a task that never runs into an error at the moment of the typo.
+    unknown = [d for d in deps if d not in known]
+    if unknown:
+        raise ValueError(
+            f"unknown dep(s): {', '.join(unknown)} — no task file declares them in {tasks_dir}"
+        )
 
-    task_id = _generate_id(title)
-    _attempt_counter = 0
-    while task_id in existing_ids:
-        task_id = _generate_id(title + str(_attempt_counter))
-        _attempt_counter += 1
-        if _attempt_counter > 100:
-            sys.exit("add_task: could not generate a unique ID after 100 attempts")
+    task_id = new_task_id()
+    while task_id in known:  # pragma: no cover — 2^32 space, but cheap to be sure
+        task_id = new_task_id()
 
-    row: dict = {
-        "id": task_id,
-        "title": title,
-        "status": "open",
-        "priority": priority,
-        "requires": requires,
-        "deps": [{"id": d, "type": "blocks"} for d in deps],
-        "assignee": None,
-        "payload": f"{task_id}.md",
-        "max_attempts": max_attempts,
-        "attempts": 0,
-    }
-
-    if workspace is not None:
-        row["workspace"] = workspace
-
-    # Normalise tags: drop blanks, de-duplicate, preserve first-seen order.
+    extra = ""
+    if deps:
+        extra += f"deps: [{', '.join(deps)}]\n"
+    if requires:
+        extra += f"requires: [{', '.join(requires)}]\n"
     if tags:
-        seen: set[str] = set()
-        clean_tags = []
-        for tag in tags:
-            tag = tag.strip()
-            if tag and tag not in seen:
-                seen.add(tag)
-                clean_tags.append(tag)
-        if clean_tags:
-            row["tags"] = clean_tags
+        extra += f"tags: [{', '.join(tags)}]\n"
+    if workspace:
+        extra += f"workspace: {workspace}\n"
+    if max_attempts is not None and max_attempts != 3:
+        extra += f"max-attempts: {max_attempts}\n"
 
-    queue_path.parent.mkdir(parents=True, exist_ok=True)
-    with queue_path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(row, separators=(",", ":")) + "\n")
+    text = TEMPLATE.format(
+        task_id=task_id,
+        title=json.dumps(title),
+        priority=priority,
+        extra=extra,
+        body=(body.strip() + "\n\n") if body.strip() else "",
+    )
+    return task_id, text
 
-    return task_id
 
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("--title", required=True)
+    parser.add_argument(
+        "--size",
+        choices=sorted(SIZE_PRIORITY),
+        help="task size — the documented meaning of priority (S=10, M=5, L=1)",
+    )
+    parser.add_argument(
+        "--priority",
+        type=int,
+        default=None,
+        help="raw priority override; prefer --size, which writes the documented value",
+    )
+    parser.add_argument("--deps", action="append", default=[], help="repeatable task id")
+    parser.add_argument("--requires", action="append", default=[], help="e.g. surface:cli")
+    parser.add_argument("--tag", action="append", default=[], dest="tags")
+    parser.add_argument("--workspace")
+    parser.add_argument("--max-attempts", type=int, dest="max_attempts")
+    parser.add_argument("--body", default="", help="task detail placed above the gate")
+    parser.add_argument("--tasks-dir", type=Path, default=Path("arsenal/tasks"))
+    args = parser.parse_args(argv)
 
-def main() -> None:
-    p = argparse.ArgumentParser(description="Add a task to the claude-arsenal queue.")
-    p.add_argument("--title", required=True, help="Task title")
-    p.add_argument("--priority", type=int, default=0, help="Task priority (higher = more urgent)")
-    p.add_argument(
-        "--requires", action="append", default=[], metavar="CAP",
-        help="Surface capability requirement (e.g. surface:cli). Repeatable.",
-    )
-    p.add_argument(
-        "--deps", action="append", default=[], metavar="ID",
-        help="Task ID this task blocks on (repeatable).",
-    )
-    p.add_argument("--workspace", default=None, metavar="NAME",
-                   help="Workspace this task belongs to (used by LOOP_WORKSPACE filtering).")
-    p.add_argument(
-        "--tag", action="append", default=[], metavar="TAG",
-        help="Free-form label for /continue tag scoping (used by LOOP_TAGS). Repeatable.",
-    )
-    p.add_argument(
-        "--max-attempts", type=int, default=3, metavar="N",
-        help="Maximum gate-failure attempts before auto-escalation (default: 3).",
-    )
-    p.add_argument("--queue", default=QUEUE_FILE, help="Path to queue.jsonl")
-    args = p.parse_args()
+    # `priority` means task size, and only that. Build order is already
+    # expressible — `deps` is a DAG, which is what the selector runs on and what
+    # survives re-planning — so encoding rank here duplicates that information in
+    # a form nothing validates against the graph. Both conventions did end up in
+    # the same column, and because a rank scale's floor sits above the size
+    # scale's ceiling, every rank-encoded task outranked every size-encoded one
+    # unconditionally: an ordering nobody chose, decided by when a row was
+    # written (#146). --size writes the documented value; --priority stays for a
+    # deliberate override.
+    if args.size and args.priority is not None:
+        parser.error("--size and --priority are mutually exclusive; --size writes the value")
+    priority = SIZE_PRIORITY[args.size] if args.size else (args.priority or 0)
 
-    task_id = add_task(
-        args.title, args.priority, args.requires, args.deps,
-        Path(args.queue), args.workspace, args.tag,
-        args.max_attempts,
-    )
+    try:
+        task_id, text = build(
+            args.tasks_dir,
+            title=args.title,
+            priority=priority,
+            deps=args.deps,
+            requires=args.requires,
+            tags=args.tags,
+            workspace=args.workspace,
+            max_attempts=args.max_attempts,
+            body=args.body,
+        )
+    except ValueError as exc:
+        print(f"create_task: {exc}", file=sys.stderr)
+        return 2
+
+    args.tasks_dir.mkdir(parents=True, exist_ok=True)
+    path = args.tasks_dir / f"{task_id}.md"
+    path.write_text(text, encoding="utf-8")
+
     print(task_id)
+    print(f"file: {path}", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("Open its issue handle with your GitHub tools:", file=sys.stderr)
+    print(f"  title: {args.title}", file=sys.stderr)
+    print("  labels: arsenal:task", file=sys.stderr)
+    print(f"  body:  {TASK_MARKER.format(task_id=task_id)}", file=sys.stderr)
+    print(f"         Task defined in `{path}`", file=sys.stderr)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

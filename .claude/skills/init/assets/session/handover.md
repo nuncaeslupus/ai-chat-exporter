@@ -18,14 +18,14 @@
 
 ## How to continue
 
-1. Read `claude-arsenal/AGENTS.md` for the worker loop algorithm.
-2. Run `claude-arsenal/bin/queue_eval.sh` to get the next unblocked task.
+1. Read `claude-arsenal/references/worker-loop.md` for the worker loop algorithm.
+2. Run `python3 claude-arsenal/scripts/task_select.py --issues <issues.json>` for the next unblocked task.
 3. If the last task is still `in_progress` with no active assignee, run:
-   `claude-arsenal/bin/release.sh <task_id> open` to requeue it first.
+   leave it: the next attempt claims the next attempt ref, so nothing needs requeueing.
 
 ## Surface profile at handover
 
-<!-- Copy of claude-arsenal/session/surface_profile.json contents for quick reference. -->
+<!-- Copy of arsenal/session/surface_profile.json contents for quick reference. -->
 
 ## Queue snapshot at handover
 
