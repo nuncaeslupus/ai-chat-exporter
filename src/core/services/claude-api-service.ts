@@ -578,27 +578,58 @@ export class ClaudeApiService {
     apiData: ClaudeApiConversationResponse,
     artifactsByMessageUuid: Map<string, Artifact[]>
   ): QAPair[] {
-    const humanMessages = apiData.chat_messages.filter((m) => m.sender === 'human');
-    const assistantMessages = apiData.chat_messages.filter((m) => m.sender === 'assistant');
-    const pairCount = Math.min(humanMessages.length, assistantMessages.length);
-
+    // Walk `chat_messages` in order, pairing each human with the assistant
+    // that follows it -- the same structural walk `ClaudeParser.extractQAPairs`
+    // does over the DOM, so both paths agree on what a pair is.
+    //
+    // This used to filter into two lists and zip them positionally, which is
+    // only sound when the senders strictly alternate. A live audit
+    // (2026-09-03) found 8 of 22 conversations carrying one extra assistant
+    // message, and in the worst case it sat mid-conversation --
+    // `H A H A [A] H A H A H A`. Zipping that attaches answers 3-5 to the
+    // wrong questions and drops the last one, so the caller guarded the zip
+    // with `humans.length === assistants.length`. That guard traded silent
+    // corruption for silent truncation: an asymmetric conversation kept
+    // whatever few turns the virtual-scroll DOM happened to hold (1 of 5 on
+    // the audited chat). Walking in order is correct for both shapes, so the
+    // guard is gone and the caller simply asks whether this walk found more
+    // pairs than the DOM did.
     const pairs: QAPair[] = [];
-    for (let index = 0; index < pairCount; index++) {
-      const human = humanMessages[index];
-      const assistant = assistantMessages[index];
-      if (!human || !assistant) continue;
+    let pendingHuman: ClaudeApiChatMessage | null = null;
 
-      const apiArtifacts = artifactsByMessageUuid.get(assistant.uuid);
-      const answer = this.buildMessageFromApi(assistant, 'assistant');
+    const pushPair = (human: ClaudeApiChatMessage, assistant: ClaudeApiChatMessage | null) => {
+      const answer = assistant
+        ? this.buildMessageFromApi(assistant, 'assistant')
+        : { id: `${human.uuid}-unanswered`, role: 'assistant' as const, content: '' };
+      const apiArtifacts = assistant ? artifactsByMessageUuid.get(assistant.uuid) : undefined;
 
       pairs.push({
-        id: assistant.uuid,
-        index,
+        id: assistant?.uuid ?? `${human.uuid}-unanswered`,
+        index: pairs.length,
         question: this.buildMessageFromApi(human, 'user'),
         answer: apiArtifacts ? { ...answer, metadata: { artifacts: apiArtifacts } } : answer,
         selected: true,
       });
+    };
+
+    for (const message of apiData.chat_messages) {
+      if (message.sender === 'human') {
+        // Two questions in a row: the first never got an answer. Keep it as
+        // its own pair rather than letting the next answer slide onto it.
+        if (pendingHuman) pushPair(pendingHuman, null);
+        pendingHuman = message;
+        continue;
+      }
+      if (message.sender !== 'assistant') continue;
+      // An assistant message with no question ahead of it -- a regenerated or
+      // branched reply. It belongs to no pair, exactly as in the DOM walk.
+      if (!pendingHuman) continue;
+      pushPair(pendingHuman, message);
+      pendingHuman = null;
     }
+
+    // A trailing unanswered question is an in-progress turn; the DOM walk
+    // skips it, so this does too.
     return pairs;
   }
 
@@ -632,18 +663,22 @@ export class ClaudeApiService {
     const artifactsByMessageUuid = this.extractArtifacts(apiData);
 
     // PAR-2: claude.ai's virtual-scroll DOM can capture far fewer turns than
-    // the conversation actually has. When the API's own human/assistant
-    // messages line up 1:1 and outnumber what the DOM scrape found, the DOM
-    // count is the truncated one — rebuild every pair from the API instead of
-    // discarding the turns the DOM never saw.
-    const humanMessages = apiData.chat_messages.filter((m) => m.sender === 'human');
-    const assistantMessages = apiData.chat_messages.filter((m) => m.sender === 'assistant');
-    if (
-      humanMessages.length === assistantMessages.length &&
-      humanMessages.length > conversation.pairs.length
-    ) {
-      const pairs = this.buildPairsFromApiMessages(apiData, artifactsByMessageUuid);
-      return { conversation: { ...conversation, pairs } };
+    // the conversation actually has. Whenever the API's own ordered walk finds
+    // more pairs than the DOM scrape did, the DOM count is the truncated one —
+    // rebuild every pair from the API instead of discarding the turns the DOM
+    // never saw.
+    //
+    // The old form of this test also required the human and assistant counts
+    // to match, because `buildPairsFromApiMessages` zipped the two lists
+    // positionally and a mid-conversation extra assistant would misalign them.
+    // That walk is now in message order and correct for asymmetric shapes, so
+    // the count comparison is the whole condition — which matters, because a
+    // live audit (2026-09-03) found 36% of conversations asymmetric, and every
+    // one of them was previously excluded from the rebuild and exported
+    // truncated.
+    const apiPairs = this.buildPairsFromApiMessages(apiData, artifactsByMessageUuid);
+    if (apiPairs.length > conversation.pairs.length) {
+      return { conversation: { ...conversation, pairs: apiPairs } };
     }
 
     const match = this.matchPairsToApiMessages(conversation, apiData);

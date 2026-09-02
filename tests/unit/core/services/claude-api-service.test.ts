@@ -554,6 +554,79 @@ describe('ClaudeApiService', () => {
       expect(enriched.pairs[0]?.answer.metadata?.artifacts).toBeUndefined();
     });
 
+    it('rebuilds an asymmetric conversation without misaligning the answers', () => {
+      // Live audit of a real account (2026-09-03): 8 of 22 conversations
+      // carried one extra assistant message, and the worst case put it
+      // mid-conversation -- sender sequence `H A H A [A] H A H A H A`, 5
+      // questions and 6 answers.
+      //
+      // Two bugs met here. `buildPairsFromApiMessages` zipped humans against
+      // assistants positionally, so that extra reply shifted answers 3-5 onto
+      // the wrong questions; the caller therefore refused to rebuild unless
+      // the two counts matched, which left this conversation exporting the 1
+      // pair the virtual-scroll DOM happened to hold instead of all 5.
+      // Walking in message order is correct for both shapes.
+      const conversation = makeConversation([makePair(0, 'Q1', 'A1')]);
+
+      const seq: Array<'human' | 'assistant'> = [
+        'human', // Q0
+        'assistant', // A0
+        'human', // Q1
+        'assistant', // A1
+        'assistant', // orphan: a regenerated reply, belongs to no pair
+        'human', // Q2
+        'assistant', // A2
+        'human', // Q3
+        'assistant', // A3
+        'human', // Q4
+        'assistant', // A4
+      ];
+      let q = 0;
+      let a = 0;
+      let orphaned = false;
+      const chatMessages: ClaudeApiChatMessage[] = seq.map((sender, i) => {
+        if (sender === 'human') {
+          return makeApiMessage(
+            `u${String(q)}`,
+            i,
+            'human',
+            [textBlock(`Question ${String(q++)}`)],
+            '2026-01-01T00:00:00Z',
+            ''
+          );
+        }
+        const isOrphan = i === 4 && !orphaned;
+        if (isOrphan) orphaned = true;
+        return makeApiMessage(
+          `a${String(isOrphan ? 'orphan' : a)}`,
+          i,
+          'assistant',
+          [textBlock(isOrphan ? 'ORPHAN REPLY' : `Answer ${String(a++)}`)],
+          '2026-01-01T00:01:00Z',
+          ''
+        );
+      });
+
+      const apiData: ClaudeApiConversationResponse = {
+        uuid: 'conv-asym',
+        name: 'Asymmetric',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        chat_messages: chatMessages,
+      };
+
+      const { conversation: enriched } = ClaudeApiService.enrichConversation(conversation, apiData);
+
+      // All five questions recovered, not the single windowed DOM pair.
+      expect(enriched.pairs).toHaveLength(5);
+      enriched.pairs.forEach((pair, i) => {
+        expect(pair.question.content).toBe(`Question ${String(i)}`);
+        expect(pair.answer.content).toBe(`Answer ${String(i)}`);
+      });
+      // The unpaired regenerated reply is not smuggled into any pair.
+      expect(enriched.pairs.map((p) => p.answer.content)).not.toContain('ORPHAN REPLY');
+    });
+
     it('gives a turn with only non-text blocks empty content rather than fabricating any', () => {
       // The live capture had exactly this: an assistant turn whose four blocks
       // were all thinking/tool_use/tool_result, with no text at all.

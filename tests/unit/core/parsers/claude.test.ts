@@ -357,6 +357,38 @@ describe('ClaudeParser', () => {
       expect(result.drift?.sanityFindings?.map((f) => f.rule)).toContain('content-shortfall');
     });
 
+    it('pairs a turn whose only user hook is data-testid="user-message" (2026 markup)', () => {
+      // Probed live on claude.ai 2026-09-03: neither `[data-user-message-bubble]`
+      // nor `div.mb-1.mt-6.group` exists in the DOM any more, so the shipped
+      // `custom.userTurnWrapper` matched nothing and `isUserTurn` was false for
+      // every turn. The user turn then failed the assistant check too and was
+      // dropped as "neither role recognized"; the answer was dropped right
+      // after as an orphan. Every conversation parsed to zero pairs, and
+      // because `collectWarnings` only walks pairs that exist, it did it
+      // silently. Every other fixture in this file still carries the dead
+      // bubble attribute, which is why the suite stayed green throughout.
+      const html = `
+        <html><head><title>Word diff - Claude</title></head><body>
+          <div class="overflow-y-auto overflow-x-hidden flex-1">
+            <div data-test-render-count="1">
+              <div data-testid="user-message"><p class="whitespace-pre-wrap">How do I diff two files?</p></div>
+            </div>
+            <div data-test-render-count="1">
+              <div data-is-streaming="false">
+                <div class="standard-markdown">Use a diff tool.</div>
+              </div>
+            </div>
+          </div>
+        </body></html>
+      `;
+      const liveDom = new JSDOM(html, { url: 'https://claude.ai/chat/abc123' });
+      const result = new ClaudeParser(liveDom.window.document).parse();
+
+      expect(result.conversation?.pairs).toHaveLength(1);
+      expect(result.conversation?.pairs[0]?.question.content).toBe('How do I diff two files?');
+      expect(result.conversation?.pairs[0]?.answer.content).toBe('Use a diff tool.');
+    });
+
     it('handles empty conversation', () => {
       const container = document.querySelector(
         'div.overflow-y-scroll.overflow-x-hidden.pt-6.flex-1'
