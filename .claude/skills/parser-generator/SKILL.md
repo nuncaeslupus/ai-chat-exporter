@@ -94,9 +94,12 @@ const q = s => { try { return document.querySelectorAll(s).length } catch (e) { 
 ({ container: q('main#main'), turns: q('[data-turn]'), content: q('.markdown') })
 ```
 
-Whichever you use, the output is counts and class names only — no message text — so
-it is safe to paste into an issue, and safe to ask a *user* to run when the broken
-page is theirs and not reachable from here.
+Whichever you use, the output is counts and class names only — no message text — and
+`pnpm probe` redacts every path segment of the URL it reports, so it is safe to paste
+into an issue and safe to ask a *user* to run when the broken page is theirs and not
+reachable from here. A probe you hand-roll carries whatever you put in it: if you add
+the URL, redact it the same way, because a workspace slug or a username identifies a
+person as surely as a session id does.
 
 Scope every probe to one turn — `[...document.querySelectorAll('[data-turn="assistant"]')].pop()`
 — then query inside it. A page-wide `querySelector` in a multi-turn document returns
@@ -178,8 +181,20 @@ the transcript arrives over the network as JSON before the page renders any of i
 so the response body is an independent count of what the conversation actually
 contains.
 
-Load the `har` skill and reconcile: if the API says 24 messages and the parser emits
-11 Q&A pairs, that gap is the bug, and you have it as a number rather than as a
+Load the `har` skill and reconcile. Two conditions have to hold before a number from
+the capture means anything:
+
+- **The response is actually there.** A capture can hold the transcript request with a
+  null response, an empty body, or a body it cannot decode — a streamed or compressed
+  response the recorder truncated. None of those is a count of zero; they are a capture
+  that failed and has to be retaken. Check the body before comparing.
+- **Both sides count the same thing.** The API's message array is not the parser's Q&A
+  pairs: one pair spans two messages, and branches, edited turns, deleted turns and
+  non-text records inflate the API side without owing the parser anything. Normalise to
+  the same unit — active-branch messages on both sides, or pairs on both — before
+  calling a difference a gap.
+
+Once both hold, a residual gap is the bug, and you have it as a number rather than as a
 suspicion. It is the only check here that does not depend on having anticipated the
 widget.
 

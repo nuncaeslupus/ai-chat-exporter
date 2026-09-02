@@ -10,9 +10,18 @@ the conversation as the backend serves it — JSON, before the SPA renders anyth
 
 | Question | HAR |
 |---|---|
-| Did the parser drop turns / attachments / branches? | **Yes** — the response body is an independent count |
+| Did the parser drop turns / attachments / branches? | **Yes, once the body checks out** — see below |
 | What is the endpoint behind a field the DOM never shows? | **Yes** — timestamps, model ids, edit history |
 | Which selector went stale? | **No** — see below |
+
+A response body is an independent count only when the capture actually carries it.
+Before comparing anything, confirm the transcript entry has a response, that the
+response has a body, and that the body decodes as JSON. A recorder can log the request
+with a `null` response, drop the body on a streamed or compressed response, or truncate
+it past a size cap — and each of those reads downstream as "the API returned fewer
+messages", which is the exact conclusion reconciliation exists to make trustworthy.
+`analyze_har.py --endpoints` shows which entries carry bodies; if the transcript
+response is missing or undecodable, retake the capture rather than reconcile against it.
 
 **A HAR contains no DOM.** claude.ai, chatgpt.com and gemini.google.com assemble
 the markup client-side; it never crosses the wire. Selector drift is invisible in
@@ -66,26 +75,45 @@ python3 $S/query_har.py --input capture.har --response-match "a sentence from th
 # 3. Pull that response body out and count the messages in it.
 python3 $S/query_har.py --input capture.har --url 'chat_conversations' \
     --mime json --extract-body --output-dir bodies/
+
+# 4. Before the capture leaves your machine: derive a redacted one. Same filter as
+#    step 3, so what you share is what you reconciled against. Bodies are dropped
+#    unless you pass --keep-bodies, and a body is the whole conversation in
+#    plaintext — so keep them only for a capture that never gets shared.
+python3 $S/create_har.py --input capture.har --url 'chat_conversations' \
+    --mime json --output capture.redacted.har
 ```
 
 The selection flags (`--url`, `--host`, `--mime`, `--type`, `--status`,
 `--response-match`, …) are one shared grammar spelled identically across every
-script in that skill, so the filter that found the request is the filter that
-redacts it in step 4 below. Output is capped at 20 rows / 4096 bytes by default —
+script in that skill, so the filter that found the request in step 2 is the filter
+that redacts it in step 4. Output is capped at 20 rows / 4096 bytes by default —
 `--limit 0` removes both caps, `--output PATH` writes the full result to a file.
 
 Then compare against the parser: open the page, run
 `detectParser().parse().conversation.pairs.length` in the console, and put the two
 numbers side by side.
 
-**A gap is a bug, not a rounding difference.** Each missing pair is a turn that
-silently will not reach any of the six exporters. Chase it to a specific widget
-before moving on — the usual causes are a turn shape the parser returns early on
-(Gemini's Deep Research turns), a content block with no branch in `extractQAPairs`,
-and non-text blocks counted by the API but never rendered into a pair.
+**Normalise before you compare.** The two numbers are not the same unit. One Q&A pair
+is two messages on the API side, so a raw message count is roughly double the pair
+count before any bug exists. On top of that the API array carries records the parser
+is right to leave out: turns on inactive branches, the superseded versions of an
+edited turn, soft-deleted turns, and system or tool records with no rendered turn.
+Filter the API side to the active branch and to user/assistant records, then convert
+one side to the other's unit — pairs to messages, or messages to pairs — and compare
+those.
 
-Record the reconciled numbers in the PR. "Parses correctly" is not checkable
-later; "API 24 / parser 24" is.
+**A gap that survives normalisation is a bug, not a rounding difference.** Each
+missing pair is a turn that silently will not reach any of the six exporters. Chase it
+to a specific widget before moving on — the usual causes are a turn shape the parser
+returns early on (Gemini's Deep Research turns), a content block with no branch in
+`extractQAPairs`, and non-text blocks counted by the API but never rendered into a
+pair. A gap that disappears under normalisation was never a defect; record what you
+normalised away so the next reconciliation does not rediscover it.
+
+Record the reconciled numbers in the PR, in the normalised unit and saying which
+one. "Parses correctly" is not checkable later; "API 24 active messages / parser 12
+pairs = 24" is.
 
 ## Known task overlap
 
