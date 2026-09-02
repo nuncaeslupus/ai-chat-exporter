@@ -79,10 +79,41 @@ describe('ClaudeParser', () => {
       );
       const parserOnStale = new ClaudeParser(staleContainer.window.document);
 
+      // None of the utility-class chains match this markup -- `pt-8 grow`
+      // replaced `pt-6 flex-1` -- so detection rests on the structural variant,
+      // which finds the container by the turn wrappers it holds.
+      expect(
+        staleContainer.window.document.querySelector(
+          'div.overflow-y-auto.overflow-x-hidden.pt-6.flex-1, div.overflow-y-auto.overflow-x-hidden.flex-1'
+        )
+      ).toBeNull();
       expect(
         staleContainer.window.document.querySelector(CLAUDE_SELECTORS.conversationContainer)
-      ).toBeNull();
+      ).not.toBeNull();
       expect(parserOnStale.canParse()).toBe(true);
+    });
+
+    it('still detects a conversation when no container selector matches at all', () => {
+      // The turn wrappers are nested one level deeper than the scroll box, so
+      // even the structural `:has(> ...)` variant misses. Detection then rests
+      // entirely on custom.conversationSignals, which keys off the turns
+      // themselves rather than off anything about their container.
+      const noContainer = new JSDOM(
+        `<section>
+           <span>
+             <div data-test-render-count="1">
+               <div data-user-message-bubble><p class="whitespace-pre-wrap">Hi</p></div>
+             </div>
+           </span>
+         </section>`,
+        { url: 'https://claude.ai/chat/abc123' }
+      );
+      const parserOnNoContainer = new ClaudeParser(noContainer.window.document);
+
+      expect(
+        noContainer.window.document.querySelector(CLAUDE_SELECTORS.conversationContainer)
+      ).toBeNull();
+      expect(parserOnNoContainer.canParse()).toBe(true);
     });
   });
 

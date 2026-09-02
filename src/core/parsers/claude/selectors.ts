@@ -16,9 +16,15 @@ export const CLAUDE_SELECTORS: SelectorSet = {
   // the pre-2026 snapshots still resolve (lo-2478).
   // Progressively looser: the exact 2026 chain first (so a healthy page still
   // resolves the same node it always did), then the same node without the
-  // spacing/flex utilities, which are the parts that churn.
+  // spacing/flex utilities, which are the parts that churn, and finally a
+  // variant carrying no utility class at all -- the container is whatever div
+  // holds the turn wrappers as direct children, which is true regardless of
+  // how Tailwind spells the scroll box. `querySelector` returns the first
+  // match in document order rather than the first alternative that matches, so
+  // the structural variant resolves the same node the class chains do on a
+  // healthy page instead of shadowing them.
   conversationContainer:
-    'div.overflow-y-auto.overflow-x-hidden.pt-6.flex-1, div.overflow-y-scroll.overflow-x-hidden.pt-6.flex-1, div.overflow-y-auto.overflow-x-hidden.flex-1, div.overflow-y-scroll.overflow-x-hidden.flex-1',
+    'div.overflow-y-auto.overflow-x-hidden.pt-6.flex-1, div.overflow-y-scroll.overflow-x-hidden.pt-6.flex-1, div.overflow-y-auto.overflow-x-hidden.flex-1, div.overflow-y-scroll.overflow-x-hidden.flex-1, div:has(> div[data-test-render-count])',
 
   // Individual message elements (both user and assistant)
   // Every turn (user or assistant) is wrapped in div[data-test-render-count];
