@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -48,6 +49,32 @@ from _harlib import (
 from analyze_har import ensure_index, verify_for_seek
 
 DEFAULT_DROP_TYPES = ("image", "font", "media", "stylesheet")
+
+
+# A "://" test only catches authority-form URLs. `myapp:/callback#access_token=…`
+# and `about:blank#access_token=…` are valid URI references that carry a fragment
+# just the same, and both kept it in the output.
+_URI_SCHEME_RE = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
+
+
+def _redact_pages(pages: Any, salt: str) -> list[dict[str, Any]]:
+    """`log.pages` was copied through verbatim while every entry was redacted.
+
+    Browsers set a page's `title` to the page URL, so a capture that includes an
+    OAuth redirect carried the token in the fragment straight into an artifact
+    this script describes as safe to commit. `redact_url` already strips
+    userinfo and the fragment and redacts token-shaped query values.
+    """
+    out: list[dict[str, Any]] = []
+    for page in pages or []:
+        if not isinstance(page, dict):
+            continue
+        copied = dict(page)
+        title = copied.get("title")
+        if isinstance(title, str) and _URI_SCHEME_RE.match(title):
+            copied["title"] = redact_url(title, salt)
+        out.append(copied)
+    return out
 
 
 def _redact_entry(entry: dict[str, Any], salt: str) -> dict[str, Any]:
@@ -190,7 +217,9 @@ def main(argv: list[str] | None = None) -> int:
             "version": log.get("version", "1.2"),
             "creator": {"name": "claude-arsenal har", "version": "1.0"},
             "browser": log.get("browser"),
-            "pages": log.get("pages") or [],
+            "pages": (
+                log.get("pages") or [] if args.secrets else _redact_pages(log.get("pages"), salt)
+            ),
             "entries": kept,
         }
     }

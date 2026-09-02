@@ -159,7 +159,7 @@ with no vendored bundle.
 
 ## Abbreviation
 
-**Abbreviated execution** = Step 2a + Step 2b + Step 2c + Step 4 (tests and gate evidence are not optional in abbreviation). Whether abbreviation is allowed depends on project conventions documented in the host repo's `CLAUDE.md`; that same file can declare `<!-- test-discipline: test-after -->` to fall back to write-tests-after (see Step 2a).
+**Abbreviated execution** = Step 2a + Step 2b + Step 2c + Step 4 + Step 4b (tests, gate evidence and the independent adversarial review are not optional in abbreviation — abbreviating is about skipping ceremony, not about skipping the only check the author cannot perform on their own work). Whether abbreviation is allowed depends on project conventions documented in the host repo's `CLAUDE.md`; that same file can declare `<!-- test-discipline: test-after -->` to fall back to write-tests-after (see Step 2a).
 
 ## Workspace-aware paths
 

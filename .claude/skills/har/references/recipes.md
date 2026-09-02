@@ -98,6 +98,14 @@ reproduce anything. What comes back is a `requests` call with the real headers,
 which becomes the body of the scraping loop: substitute the `page` parameter
 found in step 4 and iterate until the status the capture already showed.
 
+> **The output holds live credentials — treat it as a secret, not as source.**
+> Those headers are the session's real cookies and authorization tokens. Keep the
+> generated file ephemeral (outside the repo, deleted after use) and never commit
+> it. When the loop becomes code you keep, read every credential at runtime from
+> an environment variable or a secret manager and leave nothing but the variable
+> name in the tracked file — a token pasted into a scraper outlives the capture,
+> the branch, and usually the person who pasted it.
+
 Use `--format curl` to check the request outside Python first. Both forms
 escape every captured value for their destination, so a header carrying shell
 metacharacters stays data.

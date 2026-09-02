@@ -46,10 +46,10 @@ If engineering standards exist in the host repo (a project-level `engineering-co
 - Do tests actually assert meaningful behavior (not just "it doesn't crash")?
 - If no tests exist and the change is non-trivial → flag as blocker
 
-**Gate evidence**: for a plan with task Gates (`status/plan.md`), verify each task's gate is recorded and met — the Evidence log row is complete (measured value, command, commit SHA, environment provenance) and the measured value satisfies the gate. The `gate-check` skill audits this mechanically:
+**Gate evidence**: for a plan with task Gates (`status/plan.md`), verify each task's gate is recorded and met — the Evidence log row is complete (measured value, command, commit SHA, environment provenance) and the measured value satisfies the gate. The `gate-check` skill audits this mechanically; its script lives in that skill, so name it from here rather than assuming a bare `run_gate.py` is on `PATH`:
 
 ```bash
-run_gate.py --input status/plan.md
+python3 "${CLAUDE_SKILL_DIR}/../gate-check/scripts/run_gate.py" --input status/plan.md
 ```
 
 Exit 0 means every gated task passes with complete evidence; exit 1 means a gate failed or lacks evidence, which is a blocker on a gated task. Exit 2 means no Gate column was found, or a usage error (missing file, bad `--id`) — confirm the correct plan file exists and the invocation uses `--input`, and treat exit 2 as a should-flag rather than a blocker only after confirming the plan genuinely predates the gate convention.

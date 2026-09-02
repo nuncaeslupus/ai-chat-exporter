@@ -34,8 +34,17 @@ which is not set on any current surface, so every claim was attributed to a proc
 never released — it is superseded. Attempt *n* claims `<prefix>/<id>.a<n>`, bounded by the
 task's `max-attempts`. A crashed session therefore blocks nothing.
 
+A suffixed attempt is not a free pass around a live claim, so `claim_task.sh` refuses any
+attempt above 1 unless `ARSENAL_CLAIM_STALE_OK=1` says the caller has *checked* that the
+previous attempt is dead. That acknowledgement is the whole safety property here: a
+running session and a crashed one present identically from outside, and the ref is the
+only thing standing between them and two agents on one task.
+
 **Two costs to know about.** Claim refs accumulate, roughly one per task ever claimed,
-grouped under `arsenal/claims/` — prune them from a CLI session occasionally. And creating
+grouped under `arsenal/claims/` — prune them from a CLI session occasionally, but only
+refs whose task is finished or whose claim has been swept. The ref *is* the lock: deleting
+a live one lets a second session claim a task the first is still working. Confirm the
+owner and confirm the claim is stale before deleting anything under `arsenal/claims/`. And creating
 a ref fires GitHub's `push`/`create` events, so a repository whose workflows trigger on an
 unfiltered `on: push` will run CI on every claim; scope them with
 `branches-ignore: ['arsenal/**']`.

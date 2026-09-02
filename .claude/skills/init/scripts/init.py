@@ -147,9 +147,17 @@ workers = "sonnet"
 # eligible. `access:` capabilities are deliberately absent — they gate work a
 # session may genuinely be unable to do, so they are granted by the probe or by
 # naming one at /continue, never by a default nobody chose.
+# Deny by default. A session runs on exactly ONE surface, so claiming cli, web
+# and cloud at once was not permissive — it was false, and every task gated on
+# `requires: [surface:cli]` became selectable on the web, where it cannot run.
+# An undetected surface promises nothing; `bin/detect_surface.sh` overwrites this
+# with what the surface actually offers, and until it has, a task that declares a
+# requirement waits instead of being handed to a surface that may not meet it.
+# Tasks with no `requires:` are unaffected — an empty requirement set is a subset
+# of every profile, this one included.
 DEFAULT_SURFACE_PROFILE = {
     "surface": "unknown",
-    "capabilities": ["surface:cli", "surface:web", "surface:cloud"],
+    "capabilities": [],
 }
 
 WORKSPACE_SPEC_STUB = """\

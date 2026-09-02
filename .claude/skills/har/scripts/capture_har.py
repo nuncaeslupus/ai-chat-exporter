@@ -88,7 +88,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        from playwright.sync_api import sync_playwright  # type: ignore[import-not-found]
+        from playwright.sync_api import (  # type: ignore[import-not-found]
+            TimeoutError as PlaywrightTimeoutError,
+        )
+        from playwright.sync_api import sync_playwright
     except ImportError:
         print(
             "capture_har: playwright is not installed. Run this script as\n"
@@ -99,6 +102,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    navigation_failed = False
     with sync_playwright() as play:
         launch: dict[str, object] = {"headless": not args.headed}
         if args.executable:
@@ -125,8 +129,19 @@ def main(argv: list[str] | None = None) -> int:
             page = context.new_page()
             try:
                 page.goto(args.url, wait_until="networkidle", timeout=args.timeout * 1000)
-            except Exception as exc:  # the partial capture is the interesting one
+            except PlaywrightTimeoutError as exc:
+                # The partial capture is the interesting one: the page never went
+                # idle, but everything it did request is already in the HAR, so
+                # this stays a success.
                 print(f"capture_har: navigation did not settle: {exc}", file=sys.stderr)
+            except Exception as exc:
+                # Anything else -- DNS failure, refused connection, a URL with no
+                # scheme -- is a real error. The HAR is still written by the
+                # `finally` so whatever was captured survives, but the exit status
+                # has to say so: returning 0 here made a capture of nothing look
+                # indistinguishable from a good one.
+                print(f"capture_har: navigation failed: {exc}", file=sys.stderr)
+                navigation_failed = True
             else:
                 page.wait_for_timeout(args.wait * 1000)
             finally:
@@ -140,6 +155,12 @@ def main(argv: list[str] | None = None) -> int:
         print("capture_har: no HAR was written", file=sys.stderr)
         return 1
     print(f"wrote {args.output} ({args.output.stat().st_size} bytes)")
+    if navigation_failed:
+        print(
+            "capture_har: the capture is incomplete -- navigation failed",
+            file=sys.stderr,
+        )
+        return 1
     print(f"next: python3 validate_har.py --input {args.output}")
     return 0
 

@@ -24,7 +24,7 @@ from __future__ import annotations
 import argparse
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from _harlib import decode_body, is_sensitive_header
@@ -89,12 +89,24 @@ def _compile(pattern: str | None, flag: str) -> re.Pattern[str] | None:
         raise FilterError(f"{flag}: {exc}") from exc
 
 
+def _as_utc(when: datetime) -> datetime:
+    """Force a timestamp onto UTC so naive and aware values stay comparable.
+
+    HAR `startedDateTime` carries an offset, but `--since`/`--until` are typed
+    by hand and usually do not. Comparing the two raises TypeError, which no
+    caller catches, so a bare `--since 2026-08-30` used to abort the run. A
+    naive value is read as UTC rather than rejected: that is what someone
+    filtering `Z` timestamps means, and it keeps the flag usable.
+    """
+    return when.replace(tzinfo=UTC) if when.tzinfo is None else when
+
+
 def _parse_time(value: str | None, flag: str) -> datetime | None:
     if value is None:
         return None
     text = value.strip().replace("Z", "+00:00")
     try:
-        return datetime.fromisoformat(text)
+        return _as_utc(datetime.fromisoformat(text))
     except ValueError as exc:
         raise FilterError(f"{flag} {value!r}: expected an ISO-8601 timestamp") from exc
 
@@ -177,7 +189,7 @@ class Selection:
         if not isinstance(raw, str):
             return False
         try:
-            when = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            when = _as_utc(datetime.fromisoformat(raw.replace("Z", "+00:00")))
         except ValueError:
             return False
         if self.since and when < self.since:

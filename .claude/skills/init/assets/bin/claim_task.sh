@@ -39,8 +39,14 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHANNEL="${SCRIPT_DIR}/github_channel.sh"
 
-TASK_ID="${1:?claim_task.sh requires <task-id>}"
+# Not `${1:?...}`: that exits 1, and this script documents 1 as `lost`. A caller
+# invoked with an unset or empty id would read its own usage error as a lost
+# race and skip the task as already claimed. Usage errors exit 2, like `_fail`
+# below -- which is defined further down, hence the inline exit.
+TASK_ID="${1:-}"
 ATTEMPT="${2:-1}"
+
+[[ -n "${TASK_ID}" ]] || { echo "error: claim_task.sh requires <task-id>" >&2; exit 2; }
 
 REMOTE="${ARSENAL_QUEUE_REMOTE:-origin}"
 PREFIX="${ARSENAL_CLAIM_PREFIX:-arsenal/claims}"

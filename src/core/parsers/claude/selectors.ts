@@ -14,8 +14,17 @@ export const CLAUDE_SELECTORS: SelectorSet = {
   // `overflow-y-auto` -- which made `canParse()` return false and stopped the
   // parser from running on the live site at all. Both spellings are kept so
   // the pre-2026 snapshots still resolve (lo-2478).
+  // Progressively looser: the exact 2026 chain first (so a healthy page still
+  // resolves the same node it always did), then the same node without the
+  // spacing/flex utilities, which are the parts that churn, and finally a
+  // variant carrying no utility class at all -- the container is whatever div
+  // holds the turn wrappers as direct children, which is true regardless of
+  // how Tailwind spells the scroll box. `querySelector` returns the first
+  // match in document order rather than the first alternative that matches, so
+  // the structural variant resolves the same node the class chains do on a
+  // healthy page instead of shadowing them.
   conversationContainer:
-    'div.overflow-y-auto.overflow-x-hidden.pt-6.flex-1, div.overflow-y-scroll.overflow-x-hidden.pt-6.flex-1',
+    'div.overflow-y-auto.overflow-x-hidden.pt-6.flex-1, div.overflow-y-scroll.overflow-x-hidden.pt-6.flex-1, div.overflow-y-auto.overflow-x-hidden.flex-1, div.overflow-y-scroll.overflow-x-hidden.flex-1, div:has(> div[data-test-render-count])',
 
   // Individual message elements (both user and assistant)
   // Every turn (user or assistant) is wrapped in div[data-test-render-count];
@@ -54,6 +63,18 @@ export const CLAUDE_SELECTORS: SelectorSet = {
     // no turn was recognized as a user turn and every conversation parsed to
     // zero Q&A pairs (lo-2478). Both spellings are kept.
     userTurnWrapper: '[data-user-message-bubble], div.mb-1.mt-6.group',
+
+    // Detection signals: any one of these means "this claude.ai page is
+    // showing a conversation". canParse() ORs them instead of requiring the
+    // `conversationContainer` utility-class chain, which is a pure layout
+    // selector (`pt-6 flex-1`) that claude.ai rewrites on any spacing tweak.
+    // Twice now that chain has gone stale and taken *all* detection with it
+    // (lo-2478 -- overflow-y-scroll -> overflow-y-auto), because a failed
+    // canParse() reports "no conversation found" rather than a parse warning.
+    // These are attribute hooks and semantic classes: they change when the
+    // turn markup changes, not when the padding does.
+    conversationSignals:
+      'div[data-test-render-count], div[data-testid="user-message"], [data-user-message-bubble], div[data-is-streaming], div.standard-markdown, div.progressive-markdown, div.font-claude-response',
 
     // User message specific selectors
     userMessageContent: 'div[data-testid="user-message"] p.whitespace-pre-wrap',

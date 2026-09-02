@@ -29,7 +29,8 @@
     "package:all": "pnpm build && node build/package-all.cjs",
     "generate:pdf-fonts": "node scripts/generate-pdf-fonts.mjs",
     "prebuild": "pnpm generate:pdf-fonts",
-    "postinstall": "pnpm generate:pdf-fonts"
+    "postinstall": "pnpm generate:pdf-fonts",
+    "probe": "node scripts/selector-probe.mjs"
   },
   "keywords": [
     "browser-extension",

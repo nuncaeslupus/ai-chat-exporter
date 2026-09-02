@@ -48,19 +48,30 @@ from analyze_har import ensure_index
 Key = tuple[str, str, str, str, str, tuple[tuple[str, str], ...], str]
 
 
+def unidentified_body(row: dict[str, Any]) -> bool:
+    """True when the index saw a request body but could not identify it.
+
+    Such a row has no comparable identity at all. Hashing the *mime type*
+    instead made every `application/json` POST to one URL hash alike, so a
+    capture of one search and a capture of another compared equal — the
+    fail-open direction, and on a board whose list endpoint is a POST to an
+    invariant URL also the common one. Substituting the row's own index `i` was
+    no better: `i` counts from zero within each capture, so the fifth
+    unidentified row on the left and the fifth on the right shared an identity
+    and paired as unchanged, which is the same false match by another route.
+    `pair()` therefore routes these rows straight to `only_left`/`only_right`
+    and never asks for their identity.
+    """
+    return not str(row.get("reqBodyHash") or "") and bool(row.get("hasReqBody"))
+
+
 def identity(row: dict[str, Any]) -> Key:
-    """The pairing key. `pageref` is deliberately absent — see the module docstring."""
+    """The pairing key. `pageref` is deliberately absent — see the module docstring.
+
+    Callers must exclude `unidentified_body()` rows first; an unknown body is
+    not equivalent to an absent one.
+    """
     body = str(row.get("reqBodyHash") or "")
-    if not body and row.get("hasReqBody"):
-        # A body the index could not identify. Hashing the *mime type* here
-        # instead — which is what this fallback used to do — made every
-        # `application/json` POST to one URL hash alike, so a capture of one
-        # search and a capture of another compared equal. That is the fail-open
-        # direction, and on a board whose list endpoint is a POST to a URL that
-        # never varies it is also the common one. Unknown is not equivalent, so
-        # the row is given an identity nothing else can share and is reported as
-        # unpaired rather than as unchanged.
-        body = f"unidentified-body:{row.get('i')}"
     return (
         str(row.get("method") or ""),
         str(row.get("scheme") or ""),
@@ -84,13 +95,21 @@ def pair(left: Rows, right: Rows) -> tuple[Pairs, Rows, Rows]:
     from "these were both the third repeat of the same request".
     """
     buckets: dict[Key, list[dict[str, Any]]] = defaultdict(list)
+    only_right: Rows = []
     for row in right:
-        buckets[identity(row)].append(row)
+        if unidentified_body(row):
+            # Never bucketed, so nothing on the left can reach it.
+            only_right.append(row)
+        else:
+            buckets[identity(row)].append(row)
 
     pairs: Pairs = []
     only_left: Rows = []
     consumed: dict[Key, int] = defaultdict(int)
     for row in left:
+        if unidentified_body(row):
+            only_left.append(row)
+            continue
         key = identity(row)
         taken = consumed[key]
         if taken < len(buckets[key]):
@@ -100,7 +119,7 @@ def pair(left: Rows, right: Rows) -> tuple[Pairs, Rows, Rows]:
         else:
             only_left.append(row)
 
-    only_right = [
+    only_right += [
         row
         for key, rows in buckets.items()
         for row in rows[consumed[key] :]
@@ -140,14 +159,37 @@ def parameter_changes(only_left: Rows, only_right: Rows) -> list[str]:
     how a diff invents a change that did not happen. Naming the pattern is
     useful; merging the entries is not.
     """
-    by_path: dict[tuple[str, str, str], list[set[str]]] = defaultdict(lambda: [set(), set()])
+    # Scheme and port belong in the key because identity() treats them as identity:
+    # without them a request moved from https://host:443/p?a=1 to http://host:80/p?b=1
+    # reads as one request whose parameters changed, rather than two requests.
+    by_path: dict[tuple[str, str, str, str, str], list[set[str]]] = defaultdict(
+        lambda: [set(), set()]
+    )
+    # Presence is tracked separately from names, because a key can be on a side
+    # with no query parameters at all. Now that scheme and port are in the key, a
+    # plain http->https move produces one left-only key and one right-only key,
+    # and reporting "removed a=1 / added a=1" for those describes a parameter
+    # change that never happened.
+    present: dict[tuple[str, str, str, str, str], list[bool]] = defaultdict(
+        lambda: [False, False]
+    )
     for side, rows in ((0, only_left), (1, only_right)):
         for row in rows:
-            key = (str(row.get("method")), str(row.get("host")), str(row.get("path")))
+            key = (
+                str(row.get("method")),
+                str(row.get("scheme")),
+                str(row.get("host")),
+                str(row.get("port")),
+                str(row.get("path")),
+            )
+            present[key][side] = True
             by_path[key][side].update(name for name, _ in row.get("query") or [])
 
     lines: list[str] = []
-    for (method, host, path), (left_names, right_names) in sorted(by_path.items()):
+    for key, (left_names, right_names) in sorted(by_path.items()):
+        method, _scheme, host, _port, path = key
+        if not all(present[key]):
+            continue
         if not left_names and not right_names:
             continue
         added = sorted(right_names - left_names)
@@ -253,7 +295,15 @@ def main(argv: list[str] | None = None) -> int:
         args.output.write_text("\n".join(lines) + "\n", encoding="utf-8")
         print(f"wrote {len(lines)} line(s) to {args.output}", file=sys.stderr)
     else:
-        kept, note = apply_budget(lines, 0 if args.limit == 0 else 4096)
+        # --limit is documented as a row cap that 0 removes, so a positive value
+        # has to actually cap rows: passing only the byte budget made --limit 1
+        # and --limit 1000 print exactly the same thing.
+        if args.limit > 0 and len(lines) > args.limit:
+            shown = lines[: args.limit]
+            shown.append(f"... {len(lines) - args.limit} more line(s) — raise --limit to see them")
+        else:
+            shown = lines
+        kept, note = apply_budget(shown, 0 if args.limit == 0 else 4096)
         print("\n".join(kept))
         if note:
             print(note)
