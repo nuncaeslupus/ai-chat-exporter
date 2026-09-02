@@ -65,7 +65,7 @@ The **Gate** column is required: a measurable acceptance condition `<metric> <op
 
 ### Dependency graph
 
-```
+```text
 T1 ──┬─> T2 ──┐
      └─> T3 ──┴─> T4
 ```

@@ -19,14 +19,14 @@
 
 set -uo pipefail
 
-# Record the isolation verdict where queue_batch.sh reads it, so an `unavailable`
+# Record the isolation verdict where task_select.py reads it, so an `unavailable`
 # probe mechanically clamps the batch width to 1 (serialized in-place mode) —
 # the orchestrator no longer has to remember to pass --max 1 (QIC-6). Only a
 # negative probe is persisted: a passing git-level probe does NOT prove the Task
 # tool honors `isolation: worktree`, so `available` is confirmed later by
 # worker_postcheck.sh after the first worker returns.
 _record_isolation() {
-    local dir="${ARSENAL_SESSION_DIR:-claude-arsenal/session}"
+    local dir="${ARSENAL_SESSION_DIR:-${ARSENAL_HOME:-arsenal}/session}"
     mkdir -p "${dir}" 2>/dev/null || return 0
     printf '%s\n' "$1" > "${dir}/worktree_isolation" 2>/dev/null || true
 }

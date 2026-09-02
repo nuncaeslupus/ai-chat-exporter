@@ -15,7 +15,7 @@
 A gate is the measurable acceptance condition for one task. It lives in the
 `Gate` column of the plan's `Implementation tasks` table and reads:
 
-```
+```text
 <metric> <op> <threshold>
 ```
 
@@ -54,7 +54,7 @@ expressed on the **same scale**. `coverage >= 90` checked against a measured
 
 The plan's `Evidence log` table records, per task, the proof the gate was met:
 
-```
+```markdown
 | T# | Gate                    | Measured | Command         | SHA     | Env     | Date       |
 |----|-------------------------|----------|-----------------|---------|---------|------------|
 | T1 | `line_coverage >= 0.90` | 0.93     | `make coverage` | a1b2c3d | [HERE]  | 2026-06-06 |

@@ -175,9 +175,16 @@ def build_report(tasks: dict[str, str], evidence: dict[str, dict], strict: bool 
         row = evidence.get(tid)
         measured = _measured_from_row(row)
         verdict = evaluate(gate_text, measured)
-        check_ev = parse_gate(gate_text) is not None or measured is not None
-        missing = missing_evidence(row) if check_ev else []
         has_gate = bool(gate_text and not _looks_templated(gate_text))
+        # Evidence is required of a MANUAL gate too. `verdict` never reads PASS
+        # for one — the rule the skill documents — but the exit code did read 0,
+        # and to a caller that is the same thing as a pass. A prose gate is
+        # exactly the kind that needs a human to record what they checked, so
+        # "manual, and nobody wrote down that they looked" is incomplete, not
+        # clean. Previously this asked for evidence only when the gate parsed as
+        # numeric or a measurement happened to exist.
+        check_ev = has_gate or measured is not None
+        missing = missing_evidence(row) if check_ev else []
         items.append(
             {
                 "task": tid,
@@ -223,7 +230,11 @@ def _print_human(report: dict) -> None:
             mark = "✓"
             detail = f"PASS — measured {i.get('measured')} {i['op']} {i['threshold']}"
         elif i["verdict"] == "MANUAL":
-            mark, detail = "?", "non-numeric gate — verify manually"
+            # Reached only when the evidence row IS complete — the branch above
+            # catches the incomplete case first. So this is "a human recorded
+            # what they checked, and the grammar cannot score it", which is a
+            # legitimate resting state rather than a silent pass.
+            mark, detail = "?", "non-numeric gate — verified by hand, not by the parser"
         else:
             mark, detail = "?", "gate recorded; no measured value to compare"
         print(f"  {mark} {i['task']:<5} {i['gate']:<32} {detail}")
@@ -251,7 +262,7 @@ def _focus(
         measured = _measured_from_row(row)
     verdict = evaluate(gate_text, measured)
     has_gate = bool(gate_text and not _looks_templated(gate_text))
-    check_ev = parse_gate(gate_text) is not None or measured is not None
+    check_ev = has_gate or measured is not None  # manual gates need evidence too
     missing = missing_evidence(row) if check_ev else []
     result = {
         "task": tid,
@@ -284,7 +295,7 @@ def _focus(
             print(f"  threshold: {verdict['op']} {verdict['threshold']} (no measured value given)")
         elif verdict["kind"] == "manual":
             print("  verdict:  non-numeric gate — verify manually")
-        if has_gate and verdict["kind"] != "manual":
+        if has_gate:
             if missing:
                 print(f"  evidence: INCOMPLETE — missing {', '.join(missing)}")
             else:

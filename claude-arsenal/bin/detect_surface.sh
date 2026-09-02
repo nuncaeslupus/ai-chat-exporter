@@ -1,26 +1,31 @@
 #!/usr/bin/env bash
-# detect_surface.sh — updates claude-arsenal/session/surface_profile.json.
+# detect_surface.sh — updates arsenal/session/surface_profile.json.
 # Detects surface (cli/web) via CLAUDE_CODE_REMOTE and probes available services.
-# No-op if claude-arsenal/session/ does not exist (repo not initialized).
+# No-op if arsenal/session/ does not exist (repo not initialized).
 #
 # DUPLICATED ACROSS SKILLS:
 # - plugins/core/skills/init/assets/bin/detect_surface.sh (canonical)
 # - plugins/core/hooks/detect_surface.sh
-# Keep both copies in sync. Update via skill-creator's sync_duplicates.py.
+# Keep both copies in sync. Update via skill-workshop's sync_duplicates.py.
 
-STATE_DIR="claude-arsenal/session"
+STATE_DIR="${ARSENAL_HOME:-arsenal}/session"
 PROFILE="${STATE_DIR}/surface_profile.json"
 
 main() {
     [[ -d "${STATE_DIR}" ]] || return 0
 
+    # CLAUDE_CODE_REMOTE is set on every cloud surface, not just the web app:
+    # the desktop and mobile apps, Claude Tag and routines all report it. The
+    # capability was named `surface:web` first and reads as if it excluded them,
+    # so `surface:cloud` is emitted alongside it. Both are granted; task files
+    # written against either keep matching.
     if [[ "${CLAUDE_CODE_REMOTE:-}" == "true" ]]; then
-        surface="web"
+        surface="cloud"
+        caps=("\"surface:cloud\"" "\"surface:web\"")
     else
         surface="cli"
+        caps=("\"surface:cli\"")
     fi
-
-    caps=("\"surface:${surface}\"")
 
     if command -v pg_isready &>/dev/null 2>&1; then
         if pg_isready -t 2 -q 2>/dev/null; then

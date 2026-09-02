@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # workspace_list.sh — lists registered workspaces that have at least spec.md or plan.md.
 # Output: one workspace name per line. Exit 0 always.
-PROJECT_DIR="claude-arsenal/project"
+PROJECT_DIR="${ARSENAL_HOME:-arsenal}/project"
 [[ -d "${PROJECT_DIR}" ]] || exit 0
 for dir in "${PROJECT_DIR}"/*/; do
     [[ -d "${dir}" ]] || continue

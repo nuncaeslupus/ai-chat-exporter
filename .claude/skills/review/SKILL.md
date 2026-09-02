@@ -2,6 +2,7 @@
 name: review
 description: When the user is reviewing a PR, diff, design doc, or proposal — risks, tech debt, standards compliance. Do NOT use for implementation (see execution), design (see design), or release sign-off (see ship).
 metadata:
+  section: workflow
   type: workflow
 ---
 
@@ -45,7 +46,13 @@ If engineering standards exist in the host repo (a project-level `engineering-co
 - Do tests actually assert meaningful behavior (not just "it doesn't crash")?
 - If no tests exist and the change is non-trivial → flag as blocker
 
-**Gate evidence**: for a plan with task Gates (`status/plan.md`), verify each task's gate is recorded and met — the Evidence log row is complete (measured value, command, commit SHA, environment provenance) and the measured value satisfies the gate. The `gate-check` skill audits this mechanically: `run_gate.py --input status/plan.md` exits 0 when every gated task passes with complete evidence, 1 when a gate fails or lacks evidence. A failing or unrecorded gate on a gated task is a blocker. Exit 2 means no Gate column found or a usage error (missing file, bad `--id`) — confirm the correct plan file exists and the invocation uses `--input`; treat exit 2 as a should-flag (not a blocker) only after confirming the plan genuinely predates the gate convention.
+**Gate evidence**: for a plan with task Gates (`status/plan.md`), verify each task's gate is recorded and met — the Evidence log row is complete (measured value, command, commit SHA, environment provenance) and the measured value satisfies the gate. The `gate-check` skill audits this mechanically; its script lives in that skill, so name it from here rather than assuming a bare `run_gate.py` is on `PATH`:
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/../gate-check/scripts/run_gate.py" --input status/plan.md
+```
+
+Exit 0 means every gated task passes with complete evidence; exit 1 means a gate failed or lacks evidence, which is a blocker on a gated task. Exit 2 means no Gate column was found, or a usage error (missing file, bad `--id`) — confirm the correct plan file exists and the invocation uses `--input`, and treat exit 2 as a should-flag rather than a blocker only after confirming the plan genuinely predates the gate convention.
 
 **Hard blocker rule**: production code changes with zero test companions in the diff are Request Changes — except config-only, docs-only, or refactor with existing green tests covering the touched paths. When waiving on the refactor exception, the reviewer states the exception applied and asserts the green-test evidence explicitly (CI link or local test run).
 

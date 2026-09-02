@@ -2,5 +2,39 @@
   "statusLine": {
     "type": "command",
     "command": "bash claude-arsenal/bin/statusline_capture.sh"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash claude-arsenal/bin/check_skill_workshop_loaded.sh"
+          }
+        ],
+        "matcher": "Edit|Write|MultiEdit|Bash"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash claude-arsenal/bin/mark_skill_workshop_loaded.sh"
+          }
+        ],
+        "matcher": "Skill"
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash claude-arsenal/bin/mark_skill_workshop_loaded_from_prompt.sh"
+          }
+        ]
+      }
+    ]
   }
 }

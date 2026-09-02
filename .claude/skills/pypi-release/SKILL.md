@@ -1,8 +1,10 @@
 ---
 name: pypi-release
-description: Use whenever a Python package is ready to publish to PyPI — the build, twine check, version bump, tag, and upload runbook. Runs validate_release.py to catch version drift (pyproject vs __version__ vs the intended tag) and stale dist/ artifacts before upload. Triggers — "publish to PyPI", "cut a release", "twine upload", "release v1.2.0". Owns scripts — validate_release. Complements the ship skill; Do NOT use this to scaffold project tooling (see python-bootstrap) or to upgrade dependencies (see dep-upgrade).
+description: Use whenever a Python package is ready to publish to PyPI — the build, twine check, version bump, tag, and upload runbook, catching version drift and stale dist/ artifacts before upload. Triggers — "publish to PyPI", "cut a release". Do NOT use to scaffold project tooling (see python-bootstrap) or to upgrade dependencies (see dep-upgrade).
 argument-hint: "--tag vX.Y.Z"
 user-invocable: true
+metadata:
+  section: python
 ---
 
 # pypi-release

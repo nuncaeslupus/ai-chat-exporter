@@ -29,7 +29,14 @@ Same Bash `command` (normalized: stripped argv whitespace) with non-zero exit co
 
 ### 4. user-correction phrases
 
-User messages matching any of:
+Scanned over genuine user turns only — records the harness attributes to a
+person (`origin.kind: human`). Most records filed under role `user` were never
+typed by anyone: tool results, skill bodies loaded through the Skill tool,
+`!command` escapes and their output, task notifications, SDK-driven prompts.
+Scanning those matches the *skill's* prose rather than the user's, and the one
+real correction sinks into a list of noise.
+
+Turns matching any of:
 - `\bno[, ]+don'?t\b`, `\bstop (doing|that)\b`, `\bdon'?t (do|use)\b`
 - `\bwrong\b`, `\bI already (told|said)\b`, `\bagain\b.*\b(no|don'?t)\b`
 - `\bnot (what|that)\b.*\b(asked|wanted|meant)\b`

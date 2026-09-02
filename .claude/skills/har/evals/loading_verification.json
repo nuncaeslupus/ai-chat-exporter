@@ -1,0 +1,14 @@
+{
+  "skill": "har",
+  "canary": "har-loaded-2026-08-30-7f3a91c4-2b6d4e8a1c9f0b73",
+  "negative_control": "this-fact-is-false-and-must-not-appear-in-the-skill-body",
+  "load_prompts": [
+    "I saved a HAR from DevTools — which request returns the job listings?",
+    "Analyse this capture.har and tell me what API this site uses",
+    "Build me a scraper from this HAR file"
+  ],
+  "no_load_prompts": [
+    "Parse this standalone JSON file and pull out the titles",
+    "Open Chrome and capture the network traffic for me"
+  ]
+}

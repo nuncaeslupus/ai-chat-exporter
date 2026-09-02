@@ -76,6 +76,27 @@ dist-probe/
 __pycache__/
 *.pyc
 
-# Arsenal per-session local state (the 3.4.x layout moved this out of
-# claude-arsenal/session/, whose entries are listed above)
+# Arsenal per-session local state. One directory entry rather than a line per
+# file: the 3.4.x layout moved this out of claude-arsenal/session/, whose
+# individual entries are listed above and kept for the pre-migration bundle.
 arsenal/session/
+
+# 3.4.1's init.py still recreates an EMPTY handover template inside the
+# vendored prefix on every run, although the migration moved host state to
+# arsenal/ and the session protocol reads arsenal/session/handover.md. Left
+# tracked it is a trap: two handovers, and the stale empty one looks like a
+# fresh install. Ignored rather than patched -- init.py overwrites bundle
+# files by checksum, so a local fix would not survive the next session.
+claude-arsenal/session/
+
+arsenal/session/surface_profile.json
+
+arsenal/session/rate_limits.json
+
+arsenal/session/budget_iterations.json
+
+arsenal/session/worktree_isolation
+
+arsenal/session/host_branch
+
+arsenal/session/rescue_refs

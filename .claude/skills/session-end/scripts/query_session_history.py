@@ -9,7 +9,8 @@ report:
   - repeated_tool_errors   : same tool + first error line ≥3 times
   - throwaway_scripts      : tmp/*.{sh,py,js} written and not promoted
   - repeated_failing_bash  : same Bash command failing ≥2 times
-  - user_corrections       : user messages matching correction regex
+  - user_corrections       : genuine user turns matching correction regex
+                            (tool results and skill injections are excluded)
 
 Exit codes:
   0 — report emitted
@@ -64,6 +65,30 @@ def _message(rec: dict) -> dict:
     return msg if isinstance(msg, dict) else {}
 
 
+def _is_user_turn(rec: dict) -> bool:
+    """True only for a `user` record the person actually authored.
+
+    Most records filed under role `user` were never typed by anyone: tool
+    results, skill bodies loaded through the Skill tool, `!command` shell
+    escapes and their output, task notifications, SDK-driven prompts. Scanning
+    those for correction phrases finds the *skill's* prose — a `## Gotchas`
+    section reading "what goes wrong AND why" reads as the user saying
+    something went wrong.
+
+    `origin.kind` is the harness's own answer to who authored a turn, so this
+    allows rather than denies: across this project's transcripts it admits
+    every typed, queued and suggestion-accepted turn and nothing else, where a
+    denylist of `isMeta`/`toolUseResult` still let `<bash-input>` and
+    `<task-notification>` records through. A transcript old enough to predate
+    the field reports no corrections rather than wrong ones — as does a record
+    that spells `origin` as anything but a mapping, which is why the check is
+    the `isinstance` `_message` already uses and not a truthiness test: a
+    string there raised out of the scan instead of being skipped.
+    """
+    origin = rec.get("origin")
+    return isinstance(origin, dict) and origin.get("kind") == "human"
+
+
 def _user_text(rec: dict) -> str:
     """Concatenated text of a user message record (empty string if none)."""
     content = _message(rec).get("content")
@@ -109,6 +134,13 @@ def _scan(files: list[Path]) -> dict:
         # Count user text messages first and skip short/abandoned sessions
         # before any global mutation below — the previous end-of-loop guard
         # ran after the counters had already been polluted.
+        # Deliberately every user-role record, not just `_is_user_turn` ones: this
+        # is a session-*length* proxy guarding the global counters below, and a
+        # session with eight records did real work whoever authored them. Narrowing
+        # it to human turns would drop exactly the sessions this scan exists to
+        # mine — see retrospective_user_turns_test.sh, whose fixture is a genuine
+        # session carrying one human correction. Authorship is filtered where it
+        # belongs, on the correction text itself.
         session_user_msgs = sum(
             1 for rec in records if rec.get("type") == "user" and _user_text(rec)
         )
@@ -148,7 +180,7 @@ def _scan(files: list[Path]) -> dict:
                             bash_fail_counts[cmd] += 1
                             bash_fail_sessions[cmd].add(session_id)
                 # User text content (correction-phrase detection).
-                text = _user_text(rec)
+                text = _user_text(rec) if _is_user_turn(rec) else ""
                 if text:
                     m = CORRECTION_RE.search(text)
                     if m:

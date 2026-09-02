@@ -3,7 +3,7 @@
 Analyze mutmut surviving mutants and output a structured, actionable report.
 
 Usage:
-    python analyze_mutmut.py [--venv VENV] [--module MODULE] [--max N]
+    python analyze_mutmut.py [--venv VENV] [--module MODULE] [--limit N]
 """
 
 import argparse
@@ -163,7 +163,9 @@ def _main() -> None:
     parser = argparse.ArgumentParser(description="Analyze mutmut survivors")
     parser.add_argument("--venv", help="Path to virtualenv (auto-detected if omitted)")
     parser.add_argument("--module", help="Only report on modules matching this substring")
+    # `--limit` is the canon's spelling; `--max` shipped first and still works.
     parser.add_argument(
+        "--limit",
         "--max",
         type=int,
         default=50,

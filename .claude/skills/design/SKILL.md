@@ -2,6 +2,7 @@
 name: design
 description: When the user is defining the technical solution after discovery — contracts, task split, risk register, sequencing. Owns scripts — validate_plan. Do NOT use for problem investigation (see specify), implementation (see execution), or PR review (see review).
 metadata:
+  section: workflow
   type: workflow
 ---
 
@@ -77,6 +78,35 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/validate_plan.py" --input status/plan.md
 
 It checks the plan has the required sections (Technical solution, Implementation tasks, Evidence log, Sign-off) and that the task table carries the required columns including the measurable Gate — shape only. The `gate-check` skill's `run_gate.py` then audits the gate values and evidence themselves (add `--strict` there to require a gate on every task).
 
+### Step 6: Publish the annotatable plan
+
+Generate the reader once the validator passes, and hand both files to the user in the same
+reply. The plan is what the user signs off on, so it goes back in a form they can mark up
+section by section rather than as a path to open themselves:
+
+Run `create_reader.py` (in `claude-arsenal/scripts/`; it imports `markdown`, which
+`uv run --with markdown python3` supplies):
+
+```bash
+create_reader.py --input status/plan.md --output-dir status
+```
+
+Auto-discovery only looks for spec files, so the plan is named explicitly — which means
+`--output-dir` has to travel with it. Point both flags at `arsenal/project/<WORKSPACE>/`
+when a workspace plan exists, or the reader lands back in `status/` beside a plan it does
+not render. Writes `plan-reader.html` and `plan-annotated.md` there and prints both paths;
+the step is done when those two paths exist and the user has been given the HTML. The
+reader keeps its notes under a namespace of its own, so plan annotations never overwrite
+the spec's, and its export is named `<project>-plan-notes-<date>.md`.
+
+When a returned export arrives — a path in `~/Downloads`, an upload, a paste — move it
+into the plan's directory beside the reader and commit it. The annotations are the
+sign-off record for this plan; left in Downloads they are gone by the next session.
+
+Full rules — which documents need one, the naming, and why the work that
+consumes the document waits for the annotations:
+`claude-arsenal:core:init § references/annotatable-reader.md`.
+
 ---
 
 ## Abbreviation
@@ -85,4 +115,4 @@ It checks the plan has the required sections (Technical solution, Implementation
 
 ## Workspace-aware paths
 
-When `claude-arsenal/project/<WORKSPACE>/` exists, write the plan to `claude-arsenal/project/<WORKSPACE>/plan.md` (and the contracts/risks tail to the workspace's `spec.md`) instead of `status/plan.md`. Otherwise use `status/` as above. The validator takes the path via `--input`; point it at whichever file was written.
+When `arsenal/project/<WORKSPACE>/` exists, write the plan to `arsenal/project/<WORKSPACE>/plan.md` (and the contracts/risks tail to the workspace's `spec.md`) instead of `status/plan.md`. Otherwise use `status/` as above. The validator takes the path via `--input`; point it at whichever file was written.

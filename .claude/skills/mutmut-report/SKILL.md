@@ -1,8 +1,10 @@
 ---
 name: mutmut-report
-description: Use when the user wants to triage a Python project's surviving mutmut mutants after a run — runs the analysis script, classifies each survivor as REAL_GAP, EQUIVALENT, or UNTESTABLE, and reports the test fixes worth making. Triggers — "analyze mutmut survivors", "which mutants survived", "triage mutation testing results", "/mutmut-report --module X". Owns scripts — analyze_mutmut.py. Do NOT use to run mutmut itself (run `mutmut run` first), for coverage reports (see coverage-gaps), or for non-Python mutation testing.
+description: Use when the user wants to triage a Python project's surviving mutmut mutants after a run — classifies each survivor as REAL_GAP, EQUIVALENT, or UNTESTABLE and reports the test fixes worth making. Triggers — "which mutants survived", "triage mutation testing results". Do NOT use to run mutmut itself, for coverage reports (see coverage-gaps), or for non-Python mutation testing.
 argument-hint: "--module MODULE --max N"
 user-invocable: true
+metadata:
+  section: python
 ---
 
 # mutmut Survivors Report
