@@ -70,22 +70,16 @@ claude-arsenal/session/host_branch
 
 # Generated from @fontsource at build time (see scripts/generate-pdf-fonts.mjs)
 src/core/exporters/pdf-fonts.generated.ts
+dist-probe/
 
-arsenal/session/surface_profile.json
-
-arsenal/session/rate_limits.json
-
-arsenal/session/budget_iterations.json
-
-arsenal/session/worktree_isolation
-
-arsenal/session/host_branch
-
-arsenal/session/rescue_refs
-
-# Python bytecode from the arsenal scripts (claude-arsenal/scripts/*.py)
+# Python bytecode from the vendored arsenal/skill scripts
 __pycache__/
 *.pyc
+
+# Arsenal per-session local state. One directory entry rather than a line per
+# file: the 3.4.x layout moved this out of claude-arsenal/session/, whose
+# individual entries are listed above and kept for the pre-migration bundle.
+arsenal/session/
 
 # 3.4.1's init.py still recreates an EMPTY handover template inside the
 # vendored prefix on every run, although the migration moved host state to
