@@ -21,6 +21,7 @@ Exit: 0 on success, 2 on a validation failure (an unknown dep, or an id clash).
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import re
 import secrets
@@ -101,6 +102,38 @@ def existing_ids(tasks_dir: Path) -> set[str]:
     return ids
 
 
+def normalise_title(text: str) -> str:
+    """Fold a title the way `task_select.normalise_title` folds it.
+
+    Duplicated rather than imported because the two live in different skills
+    with no import path between them. The folding has to agree, since this is
+    what decides whether a title can serve as a task's handle later.
+    """
+    return re.sub(r"\s+", " ", html.unescape(str(text))).strip().casefold()
+
+
+def existing_titles(tasks_dir: Path) -> set[str]:
+    """Every normalised task title this tree knows, live and finished alike."""
+    titles: set[str] = set()
+    if not tasks_dir.is_dir():
+        return titles
+    pattern = re.compile(r"""^title:\s*(.+?)\s*$""", re.MULTILINE)
+    paths = sorted(tasks_dir.glob("*.md")) + sorted((tasks_dir / "_history").glob("*.md"))
+    for path in paths:
+        if path.name.startswith(("_", ".")):
+            continue
+        match = pattern.search(path.read_text(encoding="utf-8"))
+        if not match:
+            continue
+        raw = match.group(1)
+        try:
+            raw = json.loads(raw)
+        except (ValueError, TypeError):
+            raw = raw.strip("\"'")
+        titles.add(normalise_title(raw))
+    return titles
+
+
 def build(
     tasks_dir: Path,
     *,
@@ -113,8 +146,36 @@ def build(
     max_attempts: int | None,
     body: str,
 ) -> tuple[str, str]:
-    """Return (task_id, file contents). Raises ValueError on a bad dep."""
+    """Return (task_id, file contents). Raises ValueError on a bad dep or title."""
     known = existing_ids(tasks_dir)
+
+    # A title is not decoration: `handle_sync.py` and `arsenal-queue.yml` both
+    # title the issue handle from it, and `task_id_from_issue` resolves an issue
+    # back to its task by that title whenever the session-start fetch skipped
+    # `body` -- which it does deliberately, because fetching every body costs
+    # ~9k context tokens on a 40-issue board against ~1.2k without. Two tasks
+    # sharing a title make that resolution ambiguous, and the resolver's answer
+    # for an ambiguous title is None: neither task's issue can be attributed, so
+    # the board reports missing handles and `handle_sync.py` proposes duplicate
+    # issues for tasks that already have one. Refusing the collision here costs
+    # one rename; allowing it costs the body fetch for the whole board.
+    #
+    # Best-effort, deliberately: this reads the tree before the caller writes,
+    # so two processes racing could both pass. A lock would not close that,
+    # because the collision that actually reaches a board is not two processes
+    # sharing a directory -- it is two agents on separate branches or worktrees,
+    # whose files meet only at the merge, where no lock of ours exists. The
+    # authoritative detector therefore stays where it can see the merged result:
+    # `task_select.task_id_from_issue` resolves an ambiguous title to None and
+    # says so. This check exists to turn the ordinary sequential case into an
+    # error at the moment of the typo, not to be that detector.
+    if normalise_title(title) in existing_titles(tasks_dir):
+        raise ValueError(
+            f"a task in {tasks_dir} already has the title {title!r}. Titles have to be "
+            "distinct: they are how an issue resolves back to its task when the board is "
+            "fetched without bodies. Give this one a title that says what is different "
+            "about it."
+        )
 
     # A dep that does not exist would silently block the task forever: the
     # selector treats unknown deps as unsatisfied, on purpose. Catching it here

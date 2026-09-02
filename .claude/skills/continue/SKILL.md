@@ -63,6 +63,13 @@ nothing. Check there before adding `access:browser`.
 it is closed, has an assignee, or carries `arsenal:claimed`. This is not a race — a human
 who assigned themselves did so long ago — so a plain check settles it.
 
+A claim goes **stale** rather than permanent: `arsenal:claimed` left by a session that
+crashed would otherwise make a task visible forever and claimable never. `queue_hooks.py
+sweep-claims --max-age-hours 24` is what releases those, and it is the only thing that
+should — it checks the claim has no open PR behind it before touching anything. Never
+judge a claim abandoned by eye: a live session's claim and a dead session's claim look
+identical from here.
+
 **4. Claim it.**
 
 Run `claim_task.sh <task-id>` (in `claude-arsenal/bin/`).
@@ -79,11 +86,15 @@ Obey the result verbatim:
 
 Never work around a `lost` by claiming a different ref or re-running with another attempt
 number. The whole point of the ref is that exactly one agent proceeds; routing around it
-recreates the double-claims it exists to prevent.
+recreates the double-claims it exists to prevent. The one legitimate path past a claim is
+the stale one above — a sweep that released it, after which the task is simply unclaimed
+again — never a hand-picked attempt number.
 
 Then mark the issue so a human can see which agent holds it: self-assign, add
 `arsenal:claimed`, and comment with the session id from `CLAUDE_CODE_REMOTE_SESSION_ID`
-— a `cse_…` value that doubles as a session URL, so the claim is clickable.
+— a `cse_…` value that doubles as a session URL, so the claim is clickable — falling back
+to `CLAUDE_CODE_SESSION_ID` on a local session, which has no remote id. Never invent one —
+a claim comment with no owner in it is what the label was added to avoid.
 
 **5. Work the task, then open its PR with `open_task_pr.sh`.** It resolves the task's
 issue number, writes `Closes #<issue>` into the PR body *and* the commit message, and
@@ -147,10 +158,16 @@ a typo would quietly promote a session past a limit that exists for a reason.
   corrupt it — and `open_task_pr.sh` refuses to open a PR for a task it cannot link, rather
   than merging one that closes nothing.
 - **`gate: false` in the selector output means the task has no runnable gate.** A prose-only
-  gate executes nothing and therefore passes everything. Fix the task file before working
-  it, rather than completing something that nothing checked.
+  gate executes nothing, so it verifies nothing — it is reported as `prose-only` or `none`,
+  never as passed — an unrun gate is not a verdict and must not be treated as one. Fix the task
+  file before working it, rather than completing something that nothing checked.
 - **Blocked workspace**: if a scoped selection is empty but the global queue has tasks,
   report what is blocking and offer to fall back to the global queue.
 - **Retries claim a new ref.** A crashed session blocks nothing: attempt 2 claims
-  `<id>.a2`. Past `max-attempts` the task stops being offered and needs a human — read the
+  `<id>.a2` — but only once the first attempt is *known* stale, and `claim_task.sh`
+  requires `ARSENAL_CLAIM_STALE_OK=1` to acknowledge that. Stale means the sweep released
+  the claim, or the owning session is known to have stopped. A closed PR is not proof: a
+  session whose PR was closed may still be running, and joining it is the double-claim.
+  Bumping the attempt number to get past a claim never established as stale recreates the
+  double-claim this whole mechanism exists to prevent. Past `max-attempts` the task stops being offered and needs a human — read the
   `## Failure notes` in the task file before re-dispatching.

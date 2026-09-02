@@ -167,6 +167,46 @@ def read_rows(queue_path: Path) -> list[dict[str, Any]]:
     return rows
 
 
+_PLAIN_SCALAR_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_./-]*")
+# Strings a YAML reader resolves to something that is not a string. `true`,
+# `null`, `123` and `2026-09-02` all satisfy _PLAIN_SCALAR_RE, so matching that
+# pattern is necessary but not sufficient: emitted bare, each would come back as
+# a bool, None, an int or a date and silently change the field's type.
+_YAML_RESOLVES_NONSTRING_RE = re.compile(
+    r"""(?xi)
+    ^(?:
+        y|n|yes|no|true|false|on|off        # booleans, in every YAML 1.1 spelling
+      | null|~|                             # nulls, the empty scalar included
+      | [-+]?0b[01_]+                       # binary
+      | [-+]?0o?[0-7_]+                     # octal, both spellings
+      | [-+]?(?:[0-9][0-9_]*)               # decimal int
+      | [-+]?0x[0-9a-f_]+                   # hex
+      | [-+]?(?:[0-9][0-9_]*)?\.[0-9_]*     # float
+      | [-+]?\.(?:inf|nan)                  # specials
+      | [0-9]{4}-[0-9]{1,2}-[0-9]{1,2}.*    # date / timestamp
+    )$"""
+)
+
+
+def _yaml_scalar(value: Any) -> str:
+    """Quote only what needs it, so the common case stays byte-identical.
+
+    `open_task_pr.sh` stamps `status: merged` bare, and these files are read back
+    by both producers — emitting `status: "merged"` here would put the two out of
+    step for no gain. Two kinds of value are quoted: one that is not a plain
+    scalar at all (it carries ": ", opens with "#" or "-", or is empty), and one
+    that *looks* plain but that a YAML reader resolves to something other than a
+    string — `true`, `null`, `123`, `2026-09-02`. Both rewrite the meaning of the
+    front matter; the second does it silently, by changing the field's type.
+    """
+    if isinstance(value, bool) or not isinstance(value, (str, int)):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, int):
+        return str(value)
+    plain = _PLAIN_SCALAR_RE.fullmatch(value) and not _YAML_RESOLVES_NONSTRING_RE.match(value)
+    return value if plain else json.dumps(value, ensure_ascii=False)
+
+
 def _yaml_list(values: list[str]) -> str:
     """A YAML flow sequence whose items survive being read back.
 
@@ -194,15 +234,19 @@ def task_markdown(row: dict[str, Any], payload_body: str, *, terminal: bool = Fa
         lines.append(f"workspace: {json.dumps(str(row['workspace']), ensure_ascii=False)}")
     if row.get("tags"):
         lines.append(f"tags: {_yaml_list([str(t) for t in row['tags']])}")
+    # Emitted through _yaml_scalar for the same reason `title` and `workspace` are
+    # json.dumps'd: a legacy queue value carrying ": ", a leading "#" or a leading
+    # "-" would otherwise change the meaning of the front matter — or make the file
+    # unparseable — while the migration still reported success.
     if row.get("issue"):
-        lines.append(f"issue: {row['issue']}")
+        lines.append(f"issue: {_yaml_scalar(row['issue'])}")
     if terminal:
         # The status is what makes a dep on this task resolve as satisfied
         # rather than unknown, and it is recorded in the file because the issue
         # that once carried it may be closed, pruned, or never have existed.
-        lines.append(f"status: {row.get('status')}")
+        lines.append(f"status: {_yaml_scalar(row.get('status'))}")
         if row.get("pr"):
-            lines.append(f"pr: {row['pr']}")
+            lines.append(f"pr: {_yaml_scalar(row['pr'])}")
     max_attempts = row.get("max_attempts")
     if isinstance(max_attempts, int) and max_attempts != 3:
         lines.append(f"max-attempts: {max_attempts}")

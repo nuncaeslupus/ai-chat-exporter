@@ -519,7 +519,11 @@ _unarchive_task_file() {
         echo "open_task_pr: could not restore ${_ARCHIVED_LIVE} from ${_ARCHIVED_BACKUP} — the archived copy at ${_ARCHIVED_DEST} is being left in place. Move it back by hand; the backup is at ${_ARCHIVED_BACKUP}." >&2
         return 1
     fi
-    rm -f "${_ARCHIVED_DEST}" "${_ARCHIVED_BACKUP}"
+    # The archive goes now; the BACKUP waits until the assertion below proves the
+    # tree is actually back. Deleting it here made every later failure path — a
+    # failed rm, a broken index restore — report "the backup has been kept" over
+    # a backup that was already gone.
+    rm -f "${_ARCHIVED_DEST}"
     # Put the INDEX back where it was, rather than staging the rollback: the
     # task file may have been untracked (a task added by this very PR) or
     # carrying unstaged edits, and `git add -A` would turn either into a staged
@@ -538,6 +542,7 @@ _unarchive_task_file() {
         echo "open_task_pr: the rollback did not complete — ${_ARCHIVED_LIVE} should be present and ${_ARCHIVED_DEST} should be gone; check both, and the index, by hand." >&2
         return 1
     fi
+    rm -f "${_ARCHIVED_BACKUP}"
     echo "open_task_pr: restored ${_ARCHIVED_LIVE} — the archive was undone" >&2
 }
 
@@ -591,7 +596,20 @@ path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
 match = re.match(r"\A---\r?\n(.*?)\r?\n---\r?\n", text, re.DOTALL)
 if not match:
-    sys.exit(0)
+    # Exiting 0 here read as "stamped", and the caller then failed its own
+    # re-check of the same file and reported the vaguer "not a complete
+    # archive" -- the two halves disagreeing about one case, with the specific
+    # cause known here and thrown away. The refusal itself is right: a task
+    # file with no front matter has no `id:` either, so `task_select.py` cannot
+    # attribute it, and inventing a block to satisfy the check would archive a
+    # record the queue still cannot read. Say what is actually wrong instead.
+    print(
+        f"open_task_pr: {path} has no front matter, so 'status: merged' has "
+        "nowhere to go. A task file needs an `id:`/`title:` block; fix the "
+        "file and re-run.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 front = match.group(1)
 if re.search(r"^status:", front, re.MULTILINE):
     front = re.sub(r"^status:.*$", "status: merged", front, count=1, flags=re.MULTILINE)
@@ -694,17 +712,22 @@ if ! commit_err="$(git commit "${commit_args[@]}" 2>&1 >/dev/null)"; then
     # Reaching here then means a hook, a git-config problem, or an identity that
     # cannot be resolved — and the message used to name the one cause that
     # cannot apply, sending the reader to look in the wrong place.
+    # The backup is deleted per-branch, not once at the end: on the failed-rollback
+    # branch the task file is still in tasks/_history/ and this byte-exact copy is
+    # the only way back — and the failure message above names that exact path. The
+    # host-gate failure path keeps it for the same reason.
     if [[ -n "${_ARCHIVED_DEST}" ]]; then
         if _unarchive_task_file; then
             restored="The task file has been restored to ${ARSENAL_HOME}/tasks/."
+            [[ -n "${_ARCHIVED_BACKUP}" ]] && rm -f "${_ARCHIVED_BACKUP}"
         else
-            restored="THE ROLLBACK ALSO FAILED — see above; the tree needs a hand before re-running."
+            restored="THE ROLLBACK ALSO FAILED — see above; the tree needs a hand before re-running. The backup at ${_ARCHIVED_BACKUP:-<none>} has been kept."
         fi
     else
         restored="Nothing had been archived, so the tree is unchanged."
+        [[ -n "${_ARCHIVED_BACKUP}" ]] && rm -f "${_ARCHIVED_BACKUP}"
     fi
     echo "open_task_pr: could not commit ${TASK_ID} — no PR opened. ${restored} git said: ${commit_err:-<no output>}" >&2
-    [[ -n "${_ARCHIVED_BACKUP}" ]] && rm -f "${_ARCHIVED_BACKUP}"
     exit 1
 fi
 # The commit holds the archive now, so the backup has nothing left to protect.

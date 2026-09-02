@@ -113,7 +113,13 @@ _setup_status=0
 (cd "${_repo_root}" && bash -c "${host_setup}") >&2 || _setup_status=$?
 
 _after="$(_dirty_tracked)"
-_churn="$(comm -13 <(printf '%s\n' "${_before}") <(printf '%s\n' "${_after}") | grep -v '^$' || true)"
+# LC_ALL=C, because `_dirty_tracked` sorts with `LC_ALL=C sort`. Under any other
+# collation `comm` reads byte-sorted input as unsorted, prints "file 1 is not in
+# sorted order" and stops producing reliable output at the first perceived
+# inversion -- `Makefile` beside `makefile`, or `package-lock.json` beside
+# `package.json` is enough. The failure is silent: `_churn` comes back short and
+# the install's lockfile rewrite lands in the task PR unreverted.
+_churn="$(LC_ALL=C comm -13 <(printf '%s\n' "${_before}") <(printf '%s\n' "${_after}") | grep -v '^$' || true)"
 
 if [[ -n "${_churn}" ]]; then
     # `--` and one path per call: a lockfile named `-foo` or containing a space

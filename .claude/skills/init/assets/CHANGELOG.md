@@ -18,6 +18,169 @@ being a changelog nobody reads.
 
 Format: `## [X.Y.Z] - YYYY-MM-DD`, newest first, plain bullets below.
 
+## [3.4.5] - 2026-09-02
+
+- `keyword-guard` no longer passes a task PR when a truncated `arsenal:task`
+  listing is the reason its issue handle could not be resolved. The guard's
+  fail-open means "no handle exists yet", which only holds for a complete
+  listing — past the pagination cap the handle may exist, and the PR's
+  `Closes #N` then names an unrelated issue that merging closes for good.
+  A handle that resolved within the cap is still checked exactly as before, so
+  this does not block task PRs on a board merely large enough to truncate, and
+  only the issue listing's own completeness is consulted — a PR with a long
+  enough commit list no longer trips the guard through the shared pagination
+  flag.
+
+## [3.4.4] - 2026-09-02
+
+- The queue workflow's merge guard no longer fails on the pull request that
+  installs the bundle. It reads the queue's task files from the **base** ref,
+  and on a bootstrap PR those arrive with the pull request itself, so the step
+  died with "can't open file" — a red check that reads as a broken PR rather
+  than as a queue that does not exist yet. It now skips when arsenal is not on
+  the base ref, where there are no task files and so no task issue a `Closes`
+  line could name wrongly. 3.4.3 widened that guard to also match a task id in
+  the PR body, which is what began routing bootstrap PRs into it.
+- `issue_import.py --apply` creates each task file exclusively instead of
+  overwriting whatever is at the path. Ids are minted against a directory
+  snapshot read before the loop, so a task file that lands in the gap — a
+  concurrent import, a worker committing its own task — was invisible to the
+  mint and silently destroyed. It is now a clean refusal with the batch rolled
+  back.
+- `pr-closed` no longer reads a truncated issue listing as "this task has no
+  handle". The handle may simply have sat past the pagination cap, and treating
+  it as absent left a merged task closing nothing and its issue open and claimed
+  forever. Its webhook fires once, so unlike `sync-handles` and `sweep-claims`
+  it cannot refuse and retry: it now names the task and exits non-zero so the
+  run goes red where somebody will see it.
+- A listing of **exactly** 1,000 records is no longer reported as truncated. Ten
+  full pages was taken as proof of an eleventh, so a board of exactly 1,000
+  issues made `sync-handles` and `sweep-claims` refuse to run on a board that
+  was in fact complete. An eleventh request now settles it.
+- **The default surface profile grants no capabilities.** It previously claimed
+  `surface:cli`, `surface:web` and `surface:cloud` at once, which no session can
+  be — so every task gated on `requires: [surface:cli]` was selectable on the
+  web, where it cannot run. Tasks with no `requires:` are unaffected. If you use
+  `requires:` and have not run `bin/detect_surface.sh` on a surface, run it
+  there; the selector now warns, naming the tasks it held back and the fix.
+
+## [3.4.3] - 2026-09-02
+
+### Fixed
+
+- **`create_har.py` no longer leaks URLs through `log.pages`.** Every entry was
+  redacted while the page list was copied verbatim, and browsers set a page's
+  `title` to the page URL — so a capture spanning an OAuth redirect carried the
+  token into an artifact the script calls safe to commit.
+- **`recipes.md` no longer invites captured credentials into tracked source.**
+  The `--secrets` reproduction holds live cookies and tokens; the recipe now says
+  to keep it ephemeral and to read secrets at runtime from the environment.
+- **`arsenal-queue.yml` runs `keyword-guard` for body-marker task PRs.** The job
+  was gated on an `arsenal/` branch prefix alone, so a task PR that names its task
+  in the body — the form `pr-closed` already resolves — could merge without anyone
+  checking that its `Closes #…` named the task's own issue.
+- **`open_task_pr.sh` keeps the rescue backup when the rollback failed.** The
+  commit-failure path deleted it unconditionally, including on the one branch
+  whose own error message tells the operator to restore from that exact file.
+- **`issue_import.py --apply` rolls back a partial batch.** A failed write left
+  earlier task files behind with no `arsenal-task:` markers on their issues, so the
+  next handle sync proposed a duplicate issue for each of them.
+- **`statusline_capture.sh` honours `ARSENAL_HOME`.** It wrote the quota snapshot
+  to `arsenal/session/` while `budget_check.sh` read `${ARSENAL_HOME}/session/`, so
+  the quota guard ran blind on every relocated host tree.
+- **`arsenal_config.py` treats an empty `ARSENAL_HOME` as unset**, and reports an
+  array or table in an enum key as a `ConfigError` rather than a `TypeError`
+  traceback.
+- **`task_select.py` normalises scalar `requires`/`tags`.** A bare
+  `requires: surface:cli` was iterated character by character, so it could never
+  match `--capability surface:cli`.
+- **`queue_hooks.py` survives a null `base.repo`** (sent once a repository is
+  deleted or made private) and warns instead of silently truncating a listing at
+  the 1000-record pagination cap.
+- **`query_status.py` returns 2 on an unreadable `--issues` file** rather than
+  raising through its documented exit contract.
+- **`arsenal_migrate.py` quotes `issue`, `status` and `pr`** in migrated front
+  matter, as it already did for `title` and `workspace`.
+- **`compare_har.py` honours a positive `--limit`** (every value behaved as 4096)
+  and keys parameter changes by scheme and port, matching `identity()`.
+- **`create_repro.py` refuses a non-text request body** instead of dying inside the
+  shell quoter, and **`validate_har.py` passes `content-encoding` to `decode_body`**
+  so a brotli body stops counting as undecodable.
+- **`query_session_history.py` counts only real user turns** toward its
+  five-message floor; tool results and injected skill bodies carry the user role.
+- **`create_reader.py` renders the selected document label** in the main heading
+  instead of a hardcoded "specification".
+
+### Changed
+
+- Documentation corrected where it described behaviour the code does not have:
+  the claim lifecycle (what makes a claim stale, and that pruning a live claim ref
+  breaks the lock), `init`'s directory layout and its retired marketplace
+  declaration, the adversarial-review verdict contract, the `capability-map`
+  section listing, the `pr-review-loop` exit-2 abort, the `AGENTS.md` step 4b
+  fetch needing `body`, and the fact that abbreviated execution still owes the
+  independent review.
+
+## [3.4.2] - 2026-09-02
+
+### Fixed
+
+- **`har`'s `create_repro.py` could turn a capture into executable Python.** The
+  captured HTTP verb was spliced into an attribute name, so a HAR whose
+  `request.method` was not a plain verb produced a snippet that ran whatever the
+  capture chose, the moment an operator pasted it. The verb is now bound as a
+  quoted literal and passed to `requests.request()`, which also fixes the
+  `AttributeError` on any verb `requests` has no shorthand for (`PROPFIND`,
+  `MKCOL`). Update if you run `create_repro.py` against captures you did not
+  produce yourself.
+- **A hand-opened task PR could close someone else's issue.** The closing-keyword
+  guard applied only to `arsenal/<task-id>-…` branches, while the merge backstop
+  already resolved the same task from the `arsenal-task:` marker in the PR body.
+  A task PR opened by hand therefore passed the guard carrying
+  `Closes #<unrelated issue>`, and merging it closed that issue while the task's
+  own one stayed open and claimed — the exact drift the guard exists to prevent,
+  with a green check beside it. The guard now uses the same marker fallback.
+- **`compare_har` reported two different requests as unchanged.** A request body
+  the index could not identify was keyed on the row's own position, which counts
+  from zero *within each capture*, so the fifth unidentified row on each side
+  shared an identity and paired. Such rows are now always reported as unpaired.
+- **`--since`/`--until` without a timezone crashed `query_har` and `create_har`.**
+  A bare `--since 2026-08-30` was compared against the timezone-aware timestamps
+  in the HAR, raising a `TypeError` nothing catches. A value with no offset is
+  now read as UTC.
+- **`capture_har` reported success after a failed navigation.** Every navigation
+  error was treated as the interesting partial capture, so a DNS failure or a
+  refused connection exited 0 and looked identical to a good run. Only a
+  navigation *timeout* is a success now; the HAR is still written either way.
+- **`claim_task.sh` with no task id looked like a lost race.** The missing-argument
+  path exited 1, which this script documents as `lost`, so a caller's own usage
+  error made the task read as already claimed and silently skipped. Usage errors
+  exit 2.
+- **A conflicting `check_update.sh` left the tree mid-merge.** When
+  `git subtree merge` conflicted, the script warned and exited 0 with
+  `MERGE_HEAD`, a populated index and conflict markers in place — handing the
+  worker loop a dirty tree moments after confirming it was clean. The merge is
+  aborted first.
+- **`host_setup.sh` silently under-reverted install churn.** Its `comm` ran in the
+  caller's locale against byte-sorted input, and under any other collation it
+  stops at the first perceived inversion — `package-lock.json` beside
+  `package.json` is enough. A lockfile the install rewrote was then left in the
+  task PR.
+- **`open_task_pr.sh` refused a malformed task file without saying why.** A task
+  file with no front matter made the stamper exit 0 while the caller's own
+  re-check failed and rolled the archive back, reporting only "not a complete
+  archive". The refusal is correct — such a file has no `id:` for the selector to
+  read — but it now names the cause.
+
+### Changed
+
+- **`queue-add` refuses a duplicate task title.** Titles are how an issue resolves
+  back to its task when the board is fetched without bodies (deliberately: ~1.2k
+  context tokens against ~9k on a 40-issue board), and an ambiguous title
+  resolves to nothing — so duplicates showed up later as missing handles and as
+  `handle_sync.py` proposing a second issue for a task that already had one. The
+  collision is now caught at creation, where one rename fixes it.
+
 ## [3.4.1] - 2026-09-01
 
 ### Fixed

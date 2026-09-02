@@ -15,7 +15,10 @@
 
 set -uo pipefail
 
-OUT="${ARSENAL_RATE_LIMITS_FILE:-arsenal/session/rate_limits.json}"
+# budget_check.sh reads ${ARSENAL_HOME:-arsenal}/session/rate_limits.json, so a
+# relocated host tree must write the snapshot there too — otherwise the quota
+# guard runs blind on every host that sets ARSENAL_HOME.
+OUT="${ARSENAL_RATE_LIMITS_FILE:-${ARSENAL_HOME:-arsenal}/session/rate_limits.json}"
 payload="$(cat || true)"
 
 ARSENAL_SL_PAYLOAD="${payload}" python3 - "${OUT}" <<'PY'

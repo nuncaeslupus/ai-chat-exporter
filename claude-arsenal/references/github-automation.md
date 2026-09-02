@@ -111,9 +111,9 @@ that ended badly:
 | Event | What GitHub does |
 |---|---|
 | Task PR merged, keyword never fired | Closes the issue as completed, archives the task file |
-| Task PR closed **without** merging | Removes `arsenal:claimed` + the assignee, so the task returns to the board |
+| Task PR closed **without** merging | Removes `arsenal:claimed` + the assignee, and supersedes the claim ref, so the task returns to the board genuinely claimable |
 | Task file lands on the default branch | Opens its `arsenal:task` issue handle immediately |
-| Claim held >24h with no open PR | Releases it — the session holding it crashed |
+| Claim held >24h with no open PR | Releases it — the session holding it crashed. This sweep is the only sanctioned way a claim is released; nothing else should decide a claim looks abandoned |
 | Task PR opened with no closing keyword | Fails its check **before** the merge |
 
 `/init` installs the workflow and prints what it does and what it can touch. It never runs

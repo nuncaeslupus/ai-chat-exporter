@@ -55,7 +55,19 @@ def _capabilities(entries: list[dict[str, Any]]) -> dict[str, Any]:
             continue
         response = entry.get("response")
         content = (response.get("content") if isinstance(response, dict) else None) or {}
-        decoded = decode_body(content)
+        # Without the header, _decompress can only sniff magic bytes: gzip and
+        # zlib are guessable, brotli is not. A base64 brotli body then counted
+        # as undecodable here while `query_har.py --show` decoded it fine,
+        # because that path supplies the header.
+        encoding = next(
+            (
+                h.get("value")
+                for h in (response.get("headers") if isinstance(response, dict) else None) or []
+                if isinstance(h, dict) and str(h.get("name", "")).lower() == "content-encoding"
+            ),
+            None,
+        )
+        decoded = decode_body(content, content_encoding=encoding)
         if decoded.present:
             bodies += 1
             if (content.get("encoding") or "").lower() == "base64":

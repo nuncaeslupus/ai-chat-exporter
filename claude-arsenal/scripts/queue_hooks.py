@@ -95,6 +95,8 @@ def plan_pr_closed(
     event: dict[str, Any],
     tasks: list[dict[str, Any]],
     issues: list[dict[str, Any]],
+    *,
+    truncated: bool = False,
 ) -> list[dict[str, Any]]:
     """What a closed PR means for the queue.
 
@@ -153,7 +155,7 @@ def plan_pr_closed(
     base_ref = str((pull.get("base") or {}).get("ref") or "")
     default_branch = str(
         (event.get("repository") or {}).get("default_branch")
-        or (pull.get("base") or {}).get("repo", {}).get("default_branch")
+        or ((pull.get("base") or {}).get("repo") or {}).get("default_branch")
         or ""
     )
     into_default = bool(default_branch) and base_ref == default_branch
@@ -171,6 +173,28 @@ def plan_pr_closed(
 
     issue_number = issue_number_for(task_id, issues)
     if issue_number is None:
+        if truncated:
+            # "Not in the listing" and "does not exist" are the same observation
+            # here, and only one of them is safe to act on. The handle may simply
+            # have sat past the pagination cap, in which case treating it as
+            # absent leaves a merged task closing nothing and its issue open and
+            # claimed forever. Unlike sync-handles and sweep-claims this command
+            # cannot just refuse and run again later — it is driven by a webhook
+            # that fires once — so it reports loudly instead, and the run goes red
+            # with the task named for a human to finish by hand.
+            return [
+                {
+                    "kind": "unresolved",
+                    "task": task_id,
+                    "message": (
+                        f"PR {url}: could not resolve the issue handle for task {task_id} "
+                        "because the issue listing was truncated at the pagination cap. "
+                        "This PR's task may still be open and claimed — check it and close "
+                        "it by hand, then narrow the board (close or re-label finished "
+                        "tasks) so the listing fits."
+                    ),
+                }
+            ]
         return [
             {
                 "kind": "note",
@@ -254,6 +278,8 @@ def check_keyword(
     tasks: list[dict[str, Any]],
     issues: list[dict[str, Any]],
     commit_messages: list[str],
+    *,
+    truncated: bool = False,
 ) -> tuple[bool, str]:
     """Whether this task PR closes ITS OWN issue. Returns (ok, message).
 
@@ -269,14 +295,42 @@ def check_keyword(
     known = {t["id"] for t in tasks}
     task_id = task_id_from_branch(head_ref, known)
     if task_id is None:
+        # Same fallback `plan_pr_closed` uses: a PR opened by hand names its task
+        # in the body, not in the branch name. Without this the branch name alone
+        # decided whether the guard applied, so a hand-opened task PR carrying
+        # `Closes #<unrelated issue>` passed — and its merge closed that issue
+        # while the backstop separately closed the task's own one. That is the
+        # very drift this guard exists to prevent.
+        task_id = task_id_from_issue({"body": pull.get("body") or ""})
+        if task_id not in known:
+            task_id = None
+    if task_id is None:
         return True, f"PR {url}: '{head_ref}' is not a known task branch — guard does not apply"
 
     issue_number = issue_number_for(task_id, issues)
     if issue_number is None:
+        if truncated:
+            # The fail-open below rests on "no handle exists yet". A truncated
+            # listing cannot support that reading: the handle may sit past the
+            # pagination cap, in which case this PR's `Closes #N` names some
+            # OTHER issue and merging closes it — precisely the drift this guard
+            # exists to prevent, waved through with a green check. `pr-closed` is
+            # no backstop for it either, because by then the wrong issue is
+            # already closed. So the one case where the answer is unknowable
+            # fails, and says what a human has to do about it.
+            return False, (
+                f"PR {url}: the `{TASK_LABEL}` issue listing was truncated at the pagination "
+                f"cap, so task {task_id}'s issue handle could not be resolved — it may exist "
+                "beyond the cap. Merging now could close an unrelated issue. Confirm the task's "
+                "own issue number by hand and check that this PR's closing keyword names it."
+            )
         # No handle to point at yet. Failing here would block the PR on
         # something the author cannot fix from the PR, so it is a pass with a
         # note; `sync-handles` opens the issue and `plan_pr_closed` still
         # reconciles on merge.
+        #
+        # Only sound because the listing was WHOLE: "not in a complete listing"
+        # really does mean "does not exist".
         return True, (
             f"PR {url}: task {task_id} has no issue handle yet — nothing to reference. "
             "sync-handles will open one."
@@ -305,6 +359,26 @@ def check_keyword(
         "stacked on another branch. `claude-arsenal/bin/open_task_pr.sh` writes both "
         "automatically — a PR missing them was opened by hand."
     )
+
+
+def _refuse_on_truncation(api: Api | None, command: str) -> bool:
+    """Stop a state-changing command that was handed a partial listing.
+
+    Both of these commands write to the board from what they read. Acting on a
+    truncated view is not a smaller version of the right answer — it is the
+    wrong one, and it writes: a duplicate issue for a task whose handle sat past
+    the cap, or a released claim whose open PR was never seen. Refusing costs a
+    delayed run; proceeding costs queue state.
+    """
+    if api is None or not api.truncated:
+        return False
+    print(
+        f"queue_hooks: refusing to run {command} — a GitHub listing was truncated at the "
+        "pagination cap, so the plan would be built from an incomplete board. Narrow the "
+        "query (close or re-label finished tasks) and re-run.",
+        file=sys.stderr,
+    )
+    return True
 
 
 def plan_sync_handles(
@@ -407,9 +481,21 @@ def _parse_ts(raw: Any) -> datetime | None:
 class Api:
     """The smallest GitHub REST client that covers these actions."""
 
+    # GitHub's own listing cap for this client: 10 pages of 100. The
+    # eleventh request paginate() may make is a probe, never collected.
+    MAX_PAGES = 10
+
     def __init__(self, repo: str, token: str) -> None:
         self.repo = repo
         self.token = token
+        # Set by paginate() when a listing hits the page cap. A warning alone was
+        # not enough: every command acts on what it was handed, so a partial view
+        # makes sync-handles open a duplicate issue for a task whose handle sat
+        # past the cap, sweep-claims release a claim whose PR it never saw, and
+        # pr-closed read a merged task as having no handle at all. The flag is
+        # what lets the first two refuse and the third report.
+        self.truncated = False
+
 
     def request(self, method: str, path: str, body: Any = None) -> Any:
         url = path if path.startswith("http") else f"{API_ROOT}{path}"
@@ -424,12 +510,34 @@ class Api:
         return json.loads(payload) if payload else None
 
     def paginate(self, path: str) -> list[dict[str, Any]]:
+        """Up to `MAX_PAGES` pages, with one extra request to prove truncation.
+
+        A tenth page that comes back exactly full is ambiguous: it is what a list
+        of 1,001 records looks like, and equally what a list of exactly 1,000
+        looks like. Inferring truncation from it declared every board of exactly
+        1,000 incomplete, and `_refuse_on_truncation` then refused sync-handles
+        and sweep-claims on a board that was whole. Page 11 settles it — empty
+        means the listing simply ended, and it costs one request only in the case
+        that was previously guessed at.
+        """
         out: list[dict[str, Any]] = []
         page = 1
-        while page <= 10:
+        while page <= self.MAX_PAGES + 1:
             sep = "&" if "?" in path else "?"
             chunk = self.request("GET", f"{path}{sep}per_page=100&page={page}")
             if not isinstance(chunk, list) or not chunk:
+                break
+            if page > self.MAX_PAGES:
+                # The probe came back with records, so the list really does run
+                # past the cap. They are deliberately not collected: returning a
+                # partial eleventh page would make the truncation harder to see,
+                # not smaller.
+                self.truncated = True
+                print(
+                    f"queue_hooks: {path} returned more than {len(out)} records — the list "
+                    "is truncated, so plans built from it are incomplete",
+                    file=sys.stderr,
+                )
                 break
             out.extend(chunk)
             if len(chunk) < 100:
@@ -463,6 +571,13 @@ def apply_action(action: dict[str, Any], api: Api | None, *, tasks_dir: Path) ->
     if kind == "note":
         print(f"queue_hooks: {action['message']}")
         return True
+
+    # Not a failed action — an action that could not be planned. It returns False
+    # so the run exits non-zero, which is the only way a once-only webhook makes
+    # itself visible to a human.
+    if kind == "unresolved":
+        print(f"queue_hooks: {action['message']}", file=sys.stderr)
+        return False
 
     if kind == "archive-task":
         return _archive(action, tasks_dir)
@@ -641,6 +756,14 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print("queue_hooks: no --issues and no usable token", file=sys.stderr)
             return 2
+        # Read HERE, before anything else paginates. `Api.truncated` is one
+        # sticky flag across every listing, and keyword-guard goes on to page
+        # through the PR's commits: a long enough commit list would raise the
+        # flag and make the guard reject a PR whose ISSUE listing was complete
+        # and whose handle is simply absent — turning a deliberate fail-open
+        # into a rejection the author cannot act on. Only the completeness of
+        # the issue listing says anything about whether a handle exists.
+        issues_truncated = bool(args.issues is None and api is not None and api.truncated)
 
         if args.command == "keyword-guard":
             # Returns straight from here: this command reports a verdict on
@@ -657,7 +780,18 @@ def main(argv: list[str] | None = None) -> int:
                 commits = api.pr_commit_messages(int(number)) if number else []
             else:
                 commits = []
-            ok, message = check_keyword(event, tasks, issues, commits)
+            # Narrower than refusing on any truncation: a handle that resolved
+            # within the cap is the right issue number whether or not the listing
+            # ran past it, and failing those PRs too would block every task PR on
+            # a board large enough to truncate. Only the unresolvable case is
+            # actually unknowable, and that is where check_keyword fails.
+            ok, message = check_keyword(
+                event,
+                tasks,
+                issues,
+                commits,
+                truncated=issues_truncated,
+            )
             print(message, file=sys.stdout if ok else sys.stderr)
             return 0 if ok else 1
 
@@ -666,8 +800,15 @@ def main(argv: list[str] | None = None) -> int:
             if not event_path or not event_path.is_file():
                 print("queue_hooks: no event payload to read", file=sys.stderr)
                 return 2
-            actions = plan_pr_closed(_load_json(event_path), tasks, issues)
+            actions = plan_pr_closed(
+                _load_json(event_path),
+                tasks,
+                issues,
+                truncated=issues_truncated,
+            )
         elif args.command == "sync-handles":
+            if _refuse_on_truncation(api, "sync-handles"):
+                return 2
             actions = plan_sync_handles(tasks, issues)
         else:
             if args.prs is not None:
@@ -676,6 +817,8 @@ def main(argv: list[str] | None = None) -> int:
                 prs = api.open_prs()
             else:
                 prs = []
+            if _refuse_on_truncation(api, "sweep-claims"):
+                return 2
             now = _parse_ts(args.now) or datetime.now(UTC)
             actions = plan_sweep_claims(
                 issues,

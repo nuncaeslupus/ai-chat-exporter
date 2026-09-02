@@ -134,6 +134,13 @@ def _scan(files: list[Path]) -> dict:
         # Count user text messages first and skip short/abandoned sessions
         # before any global mutation below — the previous end-of-loop guard
         # ran after the counters had already been polluted.
+        # Deliberately every user-role record, not just `_is_user_turn` ones: this
+        # is a session-*length* proxy guarding the global counters below, and a
+        # session with eight records did real work whoever authored them. Narrowing
+        # it to human turns would drop exactly the sessions this scan exists to
+        # mine — see retrospective_user_turns_test.sh, whose fixture is a genuine
+        # session carrying one human correction. Authorship is filtered where it
+        # belongs, on the correction text itself.
         session_user_msgs = sum(
             1 for rec in records if rec.get("type") == "user" and _user_text(rec)
         )
