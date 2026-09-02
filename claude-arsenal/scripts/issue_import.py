@@ -289,14 +289,25 @@ def main(argv: list[str] | None = None) -> int:
                     written_paths,
                     f"could not render issue #{issue.get('number')} — {exc}",
                 )
-            # Recorded BEFORE the write, because write_text creates and truncates
-            # before it can fail: a path that raised halfway is a file this run
-            # made, and leaving it out of the rollback list is what leaves the
-            # partial behind.
-            written_paths.append(path)
+            # Exclusive creation, never write_text. `taken` is a snapshot of the
+            # directory read before the loop, so a task file that appears in the
+            # gap — a concurrent import, a worker landing its own task — is
+            # invisible to mint(), and write_text would silently overwrite
+            # somebody else's task. "x" turns that race into a FileExistsError.
             try:
                 args.tasks_dir.mkdir(parents=True, exist_ok=True)
-                path.write_text(rendered, encoding="utf-8")
+                stream = path.open("x", encoding="utf-8")
+            except OSError as exc:
+                return _rollback(written_paths, f"could not create {path} — {exc}")
+            # Recorded only once the exclusive create has SUCCEEDED, and before
+            # the write, which can still fail with the file already in place.
+            # Both halves matter: a path added earlier would put a file this run
+            # never made on the rollback list, and unlinking it would destroy the
+            # very task the exclusive create refused to overwrite.
+            written_paths.append(path)
+            try:
+                with stream:
+                    stream.write(rendered)
             except (OSError, UnicodeError) as exc:
                 # UnicodeError alongside OSError: a GitHub body can carry a lone
                 # surrogate, which survives JSON decoding and fails only here, on

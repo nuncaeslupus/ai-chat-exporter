@@ -129,4 +129,16 @@ jobs:
       - name: Require the Closes keyword to name THIS task's issue
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 claude-arsenal/scripts/queue_hooks.py keyword-guard
+        run: |
+          # The base ref is where the queue's own task files live, and on the PR
+          # that INSTALLS the bundle the base does not have them yet: the script
+          # arrives with the very pull request being guarded. Running it there
+          # failed the check with "can't open file", which reads as a broken PR
+          # rather than as a queue that does not exist yet. There is nothing to
+          # guard against in that case — no task files, so no task issue a
+          # `Closes` line could get wrong.
+          if [ ! -f claude-arsenal/scripts/queue_hooks.py ]; then
+            echo "arsenal is not installed on ${GITHUB_BASE_REF:-the base ref} yet — nothing to guard"
+            exit 0
+          fi
+          python3 claude-arsenal/scripts/queue_hooks.py keyword-guard

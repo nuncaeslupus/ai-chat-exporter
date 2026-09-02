@@ -95,6 +95,8 @@ def plan_pr_closed(
     event: dict[str, Any],
     tasks: list[dict[str, Any]],
     issues: list[dict[str, Any]],
+    *,
+    truncated: bool = False,
 ) -> list[dict[str, Any]]:
     """What a closed PR means for the queue.
 
@@ -171,6 +173,28 @@ def plan_pr_closed(
 
     issue_number = issue_number_for(task_id, issues)
     if issue_number is None:
+        if truncated:
+            # "Not in the listing" and "does not exist" are the same observation
+            # here, and only one of them is safe to act on. The handle may simply
+            # have sat past the pagination cap, in which case treating it as
+            # absent leaves a merged task closing nothing and its issue open and
+            # claimed forever. Unlike sync-handles and sweep-claims this command
+            # cannot just refuse and run again later — it is driven by a webhook
+            # that fires once — so it reports loudly instead, and the run goes red
+            # with the task named for a human to finish by hand.
+            return [
+                {
+                    "kind": "unresolved",
+                    "task": task_id,
+                    "message": (
+                        f"PR {url}: could not resolve the issue handle for task {task_id} "
+                        "because the issue listing was truncated at the pagination cap. "
+                        "This PR's task may still be open and claimed — check it and close "
+                        "it by hand, then narrow the board (close or re-label finished "
+                        "tasks) so the listing fits."
+                    ),
+                }
+            ]
         return [
             {
                 "kind": "note",
@@ -437,15 +461,21 @@ def _parse_ts(raw: Any) -> datetime | None:
 class Api:
     """The smallest GitHub REST client that covers these actions."""
 
+    # GitHub's own listing cap for this client: 10 pages of 100. The
+    # eleventh request paginate() may make is a probe, never collected.
+    MAX_PAGES = 10
+
     def __init__(self, repo: str, token: str) -> None:
         self.repo = repo
         self.token = token
         # Set by paginate() when a listing hits the page cap. A warning alone was
-        # not enough: both state-changing commands act on what they were handed,
-        # so a partial view makes sync-handles open a duplicate issue for a task
-        # whose handle sat past the cap, and sweep-claims release a claim whose
-        # PR it never saw. The flag is what lets those two refuse instead.
+        # not enough: every command acts on what it was handed, so a partial view
+        # makes sync-handles open a duplicate issue for a task whose handle sat
+        # past the cap, sweep-claims release a claim whose PR it never saw, and
+        # pr-closed read a merged task as having no handle at all. The flag is
+        # what lets the first two refuse and the third report.
         self.truncated = False
+
 
     def request(self, method: str, path: str, body: Any = None) -> Any:
         url = path if path.startswith("http") else f"{API_ROOT}{path}"
@@ -460,26 +490,39 @@ class Api:
         return json.loads(payload) if payload else None
 
     def paginate(self, path: str) -> list[dict[str, Any]]:
+        """Up to `MAX_PAGES` pages, with one extra request to prove truncation.
+
+        A tenth page that comes back exactly full is ambiguous: it is what a list
+        of 1,001 records looks like, and equally what a list of exactly 1,000
+        looks like. Inferring truncation from it declared every board of exactly
+        1,000 incomplete, and `_refuse_on_truncation` then refused sync-handles
+        and sweep-claims on a board that was whole. Page 11 settles it — empty
+        means the listing simply ended, and it costs one request only in the case
+        that was previously guessed at.
+        """
         out: list[dict[str, Any]] = []
         page = 1
-        while page <= 10:
+        while page <= self.MAX_PAGES + 1:
             sep = "&" if "?" in path else "?"
             chunk = self.request("GET", f"{path}{sep}per_page=100&page={page}")
             if not isinstance(chunk, list) or not chunk:
+                break
+            if page > self.MAX_PAGES:
+                # The probe came back with records, so the list really does run
+                # past the cap. They are deliberately not collected: returning a
+                # partial eleventh page would make the truncation harder to see,
+                # not smaller.
+                self.truncated = True
+                print(
+                    f"queue_hooks: {path} returned more than {len(out)} records — the list "
+                    "is truncated, so plans built from it are incomplete",
+                    file=sys.stderr,
+                )
                 break
             out.extend(chunk)
             if len(chunk) < 100:
                 break
             page += 1
-        else:
-            # Falling out of the `while` means page 11 was reachable: the list is
-            # truncated.
-            self.truncated = True
-            print(
-                f"queue_hooks: {path} returned more than {len(out)} records — the list "
-                "is truncated, so plans built from it are incomplete",
-                file=sys.stderr,
-            )
         return out
 
     def issues(self, label: str, state: str = "all") -> list[dict[str, Any]]:
@@ -508,6 +551,13 @@ def apply_action(action: dict[str, Any], api: Api | None, *, tasks_dir: Path) ->
     if kind == "note":
         print(f"queue_hooks: {action['message']}")
         return True
+
+    # Not a failed action — an action that could not be planned. It returns False
+    # so the run exits non-zero, which is the only way a once-only webhook makes
+    # itself visible to a human.
+    if kind == "unresolved":
+        print(f"queue_hooks: {action['message']}", file=sys.stderr)
+        return False
 
     if kind == "archive-task":
         return _archive(action, tasks_dir)
@@ -711,7 +761,12 @@ def main(argv: list[str] | None = None) -> int:
             if not event_path or not event_path.is_file():
                 print("queue_hooks: no event payload to read", file=sys.stderr)
                 return 2
-            actions = plan_pr_closed(_load_json(event_path), tasks, issues)
+            actions = plan_pr_closed(
+                _load_json(event_path),
+                tasks,
+                issues,
+                truncated=bool(api is not None and api.truncated),
+            )
         elif args.command == "sync-handles":
             if _refuse_on_truncation(api, "sync-handles"):
                 return 2
