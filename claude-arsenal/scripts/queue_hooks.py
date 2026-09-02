@@ -278,6 +278,8 @@ def check_keyword(
     tasks: list[dict[str, Any]],
     issues: list[dict[str, Any]],
     commit_messages: list[str],
+    *,
+    truncated: bool = False,
 ) -> tuple[bool, str]:
     """Whether this task PR closes ITS OWN issue. Returns (ok, message).
 
@@ -307,10 +309,28 @@ def check_keyword(
 
     issue_number = issue_number_for(task_id, issues)
     if issue_number is None:
+        if truncated:
+            # The fail-open below rests on "no handle exists yet". A truncated
+            # listing cannot support that reading: the handle may sit past the
+            # pagination cap, in which case this PR's `Closes #N` names some
+            # OTHER issue and merging closes it — precisely the drift this guard
+            # exists to prevent, waved through with a green check. `pr-closed` is
+            # no backstop for it either, because by then the wrong issue is
+            # already closed. So the one case where the answer is unknowable
+            # fails, and says what a human has to do about it.
+            return False, (
+                f"PR {url}: the `{TASK_LABEL}` issue listing was truncated at the pagination "
+                f"cap, so task {task_id}'s issue handle could not be resolved — it may exist "
+                "beyond the cap. Merging now could close an unrelated issue. Confirm the task's "
+                "own issue number by hand and check that this PR's closing keyword names it."
+            )
         # No handle to point at yet. Failing here would block the PR on
         # something the author cannot fix from the PR, so it is a pass with a
         # note; `sync-handles` opens the issue and `plan_pr_closed` still
         # reconciles on merge.
+        #
+        # Only sound because the listing was WHOLE: "not in a complete listing"
+        # really does mean "does not exist".
         return True, (
             f"PR {url}: task {task_id} has no issue handle yet — nothing to reference. "
             "sync-handles will open one."
@@ -736,6 +756,14 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print("queue_hooks: no --issues and no usable token", file=sys.stderr)
             return 2
+        # Read HERE, before anything else paginates. `Api.truncated` is one
+        # sticky flag across every listing, and keyword-guard goes on to page
+        # through the PR's commits: a long enough commit list would raise the
+        # flag and make the guard reject a PR whose ISSUE listing was complete
+        # and whose handle is simply absent — turning a deliberate fail-open
+        # into a rejection the author cannot act on. Only the completeness of
+        # the issue listing says anything about whether a handle exists.
+        issues_truncated = bool(args.issues is None and api is not None and api.truncated)
 
         if args.command == "keyword-guard":
             # Returns straight from here: this command reports a verdict on
@@ -752,7 +780,18 @@ def main(argv: list[str] | None = None) -> int:
                 commits = api.pr_commit_messages(int(number)) if number else []
             else:
                 commits = []
-            ok, message = check_keyword(event, tasks, issues, commits)
+            # Narrower than refusing on any truncation: a handle that resolved
+            # within the cap is the right issue number whether or not the listing
+            # ran past it, and failing those PRs too would block every task PR on
+            # a board large enough to truncate. Only the unresolvable case is
+            # actually unknowable, and that is where check_keyword fails.
+            ok, message = check_keyword(
+                event,
+                tasks,
+                issues,
+                commits,
+                truncated=issues_truncated,
+            )
             print(message, file=sys.stdout if ok else sys.stderr)
             return 0 if ok else 1
 
@@ -765,7 +804,7 @@ def main(argv: list[str] | None = None) -> int:
                 _load_json(event_path),
                 tasks,
                 issues,
-                truncated=bool(api is not None and api.truncated),
+                truncated=issues_truncated,
             )
         elif args.command == "sync-handles":
             if _refuse_on_truncation(api, "sync-handles"):

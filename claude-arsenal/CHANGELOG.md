@@ -18,6 +18,19 @@ being a changelog nobody reads.
 
 Format: `## [X.Y.Z] - YYYY-MM-DD`, newest first, plain bullets below.
 
+## [3.4.5] - 2026-09-02
+
+- `keyword-guard` no longer passes a task PR when a truncated `arsenal:task`
+  listing is the reason its issue handle could not be resolved. The guard's
+  fail-open means "no handle exists yet", which only holds for a complete
+  listing — past the pagination cap the handle may exist, and the PR's
+  `Closes #N` then names an unrelated issue that merging closes for good.
+  A handle that resolved within the cap is still checked exactly as before, so
+  this does not block task PRs on a board merely large enough to truncate, and
+  only the issue listing's own completeness is consulted — a PR with a long
+  enough commit list no longer trips the guard through the shared pagination
+  flag.
+
 ## [3.4.4] - 2026-09-02
 
 - The queue workflow's merge guard no longer fails on the pull request that
