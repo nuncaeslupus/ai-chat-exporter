@@ -60,6 +60,19 @@ export default tseslint.config(
     },
   },
   {
-    ignores: ["dist/**", "tmp/**", "node_modules/**", "*.js", "*.cjs"],
+    // Build-time Node scripts (scripts/selector-probe.mjs) are not part of any
+    // tsconfig, so type-aware linting cannot parse them -- `project: true`
+    // fails outright with "file was not found in any of the provided
+    // project(s)". They are still worth linting, just untyped: turn the
+    // type-checked layer off for them rather than skipping the files.
+    files: ["scripts/**/*.mjs", "scripts/**/*.js"],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: {
+      parserOptions: { project: false, projectService: false },
+      globals: { console: "readonly", process: "readonly", Buffer: "readonly", URL: "readonly" },
+    },
+  },
+  {
+    ignores: ["dist/**", "dist-probe/**", "tmp/**", "node_modules/**", "*.js", "*.cjs"],
   }
 );
