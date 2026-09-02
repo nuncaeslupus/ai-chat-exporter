@@ -70,3 +70,4 @@ claude-arsenal/session/host_branch
 
 # Generated from @fontsource at build time (see scripts/generate-pdf-fonts.mjs)
 src/core/exporters/pdf-fonts.generated.ts
+dist-probe/
