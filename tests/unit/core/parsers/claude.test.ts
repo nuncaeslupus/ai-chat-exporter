@@ -133,6 +133,17 @@ describe('ClaudeParser', () => {
       expect(title).toBe('Claude Conversation');
     });
 
+    it('strips the " - Claude" suffix when falling back to the page title', () => {
+      // The 2026 redesign removed `chat-title-button`, so the page title is
+      // the only remaining source -- and it is always "<name> - Claude".
+      // Left alone, that suffix lands in every exported title and filename.
+      document.querySelector('[data-testid="chat-title-button"]')?.remove();
+      const pageTitleEl = document.querySelector('title');
+      if (pageTitleEl) pageTitleEl.textContent = 'Comparing two files - Claude';
+
+      expect(parser.getTitle()).toBe('Comparing two files');
+    });
+
     it('handles empty title element', () => {
       const titleEl = document.querySelector('[data-testid="chat-title-button"] div.truncate');
       if (titleEl) titleEl.textContent = '   ';

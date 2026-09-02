@@ -157,10 +157,14 @@ export class ClaudeParser extends BaseParser {
       return title;
     }
 
-    // Fallback to page title
+    // Fallback to page title. Since the 2026 redesign dropped
+    // `chat-title-button` (probed live 2026-09-03: zero matches), this is no
+    // longer a fallback but the only source left -- and claude.ai renders it
+    // as "<conversation> - Claude", so the suffix has to come off here or it
+    // rides along into every exported title and filename.
     const pageTitle = this.document.querySelector('title')?.textContent?.trim();
     if (pageTitle && pageTitle !== 'Claude') {
-      return pageTitle;
+      return pageTitle.replace(/\s+-\s+Claude$/, '').trim() || this.getDefaultTitle();
     }
 
     return this.getDefaultTitle();

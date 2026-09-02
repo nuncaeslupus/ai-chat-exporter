@@ -568,7 +568,7 @@ describe('ClaudeApiService', () => {
       // Walking in message order is correct for both shapes.
       const conversation = makeConversation([makePair(0, 'Q1', 'A1')]);
 
-      const seq: Array<'human' | 'assistant'> = [
+      const seq: ('human' | 'assistant')[] = [
         'human', // Q0
         'assistant', // A0
         'human', // Q1
