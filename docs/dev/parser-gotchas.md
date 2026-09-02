@@ -422,3 +422,15 @@ unsupported and no other selector is ever consulted, so the drift report that
 would have named the problem is never built. Hence `ClaudeParser.canParse()`
 ORs several independent turn-level hooks rather than requiring the
 `conversationContainer` utility chain — see `custom.conversationSignals`.
+
+**Extraction has to be at least as broad as detection.** Widening `canParse()`
+without widening the walk moves the failure rather than fixing it: the page is
+claimed off any of seven signals, the walk still needs
+`data-test-render-count`, and if that render-debug attribute is stripped the
+export comes back empty from a page the popup just called supported — an
+outcome that looks like an app bug, not selector drift, because no warning
+fires. So `ClaudeParser` resolves its turns through a fallback: the wrapper
+when it exists, otherwise the same turn-level role markers detection trusts,
+with nested matches filtered out so one turn is never counted twice. The rule
+generalises — every selector guarding detection needs a path through
+extraction that does not depend on a selector detection no longer requires.
