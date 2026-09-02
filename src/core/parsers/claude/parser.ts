@@ -221,7 +221,15 @@ export class ClaudeParser extends BaseParser {
 
     const userTurnWrapper = this.selectors.custom?.userTurnWrapper || 'div.mb-1.mt-6.group';
     const fallback = `${userTurnWrapper}, ${this.selectors.assistantMessage}`;
-    const matches = Array.from(this.document.querySelectorAll(fallback));
+    // The open artifact panel renders its body with `font-claude-response`
+    // too, and it sits OUTSIDE every turn -- so without this it is picked up
+    // as an extra assistant turn: harmless for pairing only because it trails
+    // the conversation, and enough on its own to inflate the drift denominator
+    // and to mis-pair the moment the panel is not last.
+    const panel = this.selectors.custom?.artifactPanel;
+    const matches = Array.from(this.document.querySelectorAll(fallback)).filter(
+      (el) => !(panel && el.closest(panel) !== null)
+    );
     return matches.filter((el) => !matches.some((other) => other !== el && other.contains(el)));
   }
 

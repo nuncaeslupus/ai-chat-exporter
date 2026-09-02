@@ -639,6 +639,8 @@ describe('ClaudeParser', () => {
       return doc;
     };
 
+    const noop = (): void => undefined;
+
     const stripRenderCount = (doc: Document): void => {
       doc
         .querySelectorAll('[data-test-render-count]')
@@ -670,13 +672,22 @@ describe('ClaudeParser', () => {
     });
 
     it('counts each turn once, so a response nested in a bubble is not a second turn', () => {
-      const doc = load(stripRenderCount);
+      // Pair shape alone cannot prove this: a duplicate assistant marker is
+      // swallowed as an orphan turn and the pairs still come out right. The
+      // resolved turn *count* is the thing under test, so read it directly --
+      // it is also the denominator the drift check divides by, so a wrong
+      // count here would report a phantom content shortfall.
+      class Probe extends ClaudeParser {
+        turnCount(): number {
+          return this.countTurnContainers();
+        }
+      }
 
-      // Two turns (one user, one assistant) -- not four, which is what an
-      // unfiltered union of the role markers would report and what would make
-      // every answer pair with the wrong question.
-      const pairs = new ClaudeParser(doc).parse().conversation?.pairs ?? [];
-      expect(pairs.map((pair) => pair.answer.content !== '')).toEqual([true]);
+      const withWrapper = new Probe(load(noop));
+      const withoutWrapper = new Probe(load(stripRenderCount));
+
+      expect(withWrapper.turnCount()).toBe(2);
+      expect(withoutWrapper.turnCount()).toBe(2);
     });
 
     it('prefers the turn wrapper when it is present', () => {
