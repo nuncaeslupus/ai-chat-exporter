@@ -195,6 +195,59 @@ export class ClaudeParser extends BaseParser {
   }
 
   /**
+   * The elements to walk as turns, one per turn of either role.
+   *
+   * `custom.turnContainer` (`data-test-render-count`) is the ideal handle --
+   * one wrapper per turn, both roles, no nesting -- but it is a render-debug
+   * attribute, exactly the kind of thing a build strips. Losing it used to
+   * cost the whole export *silently*: `canParse()` claims the page off any of
+   * seven independent signals, so detection still succeeded and the walk below
+   * then found nothing, producing zero pairs on a page the popup had just
+   * reported as supported. Detection being broader than extraction is the bug;
+   * this closes the gap by falling back to the turn-level hooks detection
+   * itself trusts.
+   *
+   * The fallback matches user bubbles and assistant responses directly, then
+   * drops any match nested inside another -- a response body sitting inside a
+   * turn wrapper must not be counted as a second turn, or every answer pairs
+   * with the wrong question.
+   */
+  private resolveTurns(): Element[] {
+    const turnContainer = this.selectors.custom?.turnContainer || 'div[data-test-render-count]';
+    const primary = Array.from(this.document.querySelectorAll(turnContainer));
+    if (primary.length > 0) {
+      return primary;
+    }
+
+    const userTurnWrapper = this.selectors.custom?.userTurnWrapper || 'div.mb-1.mt-6.group';
+    const fallback = `${userTurnWrapper}, ${this.selectors.assistantMessage}`;
+    // The open artifact panel renders its body with `font-claude-response`
+    // too, and it sits OUTSIDE every turn -- so without this it is picked up
+    // as an extra assistant turn: harmless for pairing only because it trails
+    // the conversation, and enough on its own to inflate the drift denominator
+    // and to mis-pair the moment the panel is not last.
+    const panel = this.selectors.custom?.artifactPanel;
+    const matches = Array.from(this.document.querySelectorAll(fallback)).filter(
+      (el) => !(panel && el.closest(panel) !== null)
+    );
+    return matches.filter((el) => !matches.some((other) => other !== el && other.contains(el)));
+  }
+
+  /**
+   * Whether a turn element is, or contains, a node matching `selector`.
+   *
+   * With `custom.turnContainer` present a turn is a wrapper and the marker is
+   * inside it; in the fallback walk the turn *is* the marker, so a descendant
+   * query alone would classify every turn as neither role.
+   */
+  private turnMatches(turn: Element, selector: string): boolean {
+    if (typeof turn.matches === 'function' && turn.matches(selector)) {
+      return true;
+    }
+    return turn.querySelector(selector) !== null;
+  }
+
+  /**
    * Extract Q&A pairs from the Claude DOM.
    *
    * Pairs structurally: turns are walked in document order (one query over
@@ -211,15 +264,14 @@ export class ClaudeParser extends BaseParser {
   protected extractQAPairs(config: ParserConfig): QAPair[] {
     const pairs: QAPair[] = [];
     this.turnLengths = [];
-    const turnContainer = this.selectors.custom?.turnContainer || 'div[data-test-render-count]';
     const userTurnWrapper = this.selectors.custom?.userTurnWrapper || 'div.mb-1.mt-6.group';
-    const turns = this.document.querySelectorAll(turnContainer);
+    const turns = this.resolveTurns();
 
     let pendingQuestion: Message | null = null;
     let hasPendingQuestion = false;
 
     turns.forEach((turn) => {
-      const isUserTurn = turn.querySelector(userTurnWrapper) !== null;
+      const isUserTurn = this.turnMatches(turn, userTurnWrapper);
 
       if (isUserTurn) {
         if (hasPendingQuestion) {
@@ -240,7 +292,7 @@ export class ClaudeParser extends BaseParser {
         return;
       }
 
-      const isAssistantTurn = turn.querySelector(this.selectors.assistantMessage) !== null;
+      const isAssistantTurn = this.turnMatches(turn, this.selectors.assistantMessage);
       if (!isAssistantTurn) {
         // Neither role recognized structurally; nothing to pair here.
         return;
@@ -305,9 +357,11 @@ export class ClaudeParser extends BaseParser {
    * many turns did the DOM hold".
    */
   protected override countTurnContainers(): number {
-    const turnContainer = this.selectors.custom?.turnContainer || 'div[data-test-render-count]';
     try {
-      return this.document.querySelectorAll(turnContainer).length;
+      // Same resolution `extractQAPairs` uses, fallback included: a drift
+      // check that counts turns a different way than the walk does reports a
+      // shortfall against a denominator the parser never had.
+      return this.resolveTurns().length;
     } catch {
       return 0;
     }

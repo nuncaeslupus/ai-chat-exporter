@@ -38,7 +38,13 @@ export const CLAUDE_SELECTORS: SelectorSet = {
   // role apart (alongside custom.userTurnWrapper for the user side) when
   // pairing turns structurally -- previously declared here but never read
   // by parser.ts, which hardcoded this same selector inline instead (lo-d0f0).
-  assistantMessage: 'div[data-is-streaming="false"]',
+  // `div.font-claude-response` is kept as a second spelling: `data-is-streaming`
+  // is a transport-state attribute on the streaming wrapper, so a change to how
+  // responses stream can drop it while the response markup itself is untouched.
+  // Without a second spelling that leaves every assistant turn unrecognized and
+  // every pair unmatched -- the same single-point-of-failure shape that took
+  // detection down twice (lo-2478).
+  assistantMessage: 'div[data-is-streaming="false"], div.font-claude-response',
 
   // Content within messages
   messageContent:

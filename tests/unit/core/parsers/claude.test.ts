@@ -623,4 +623,92 @@ describe('ClaudeParser', () => {
       expect(answer).toContain('[Document · MD: Reading a tide table]');
     });
   });
+
+  describe('extraction survives losing the turn wrapper', () => {
+    // canParse() claims the page off any of seven signals, but the walk used to
+    // depend on `data-test-render-count` alone -- a render-debug attribute a
+    // build can strip. Detection succeeding while extraction found nothing
+    // produced an empty export on a page the popup reported as supported.
+    const load = (mutate: (doc: Document) => void): Document => {
+      const html = readFileSync(
+        join(__dirname, '../../../fixtures/dom-snapshots/claude/artifact-panel.html'),
+        'utf-8'
+      );
+      const doc = new JSDOM(html, { url: 'https://claude.ai/chat/abc123' }).window.document;
+      mutate(doc);
+      return doc;
+    };
+
+    const noop = (): void => undefined;
+
+    const stripRenderCount = (doc: Document): void => {
+      doc
+        .querySelectorAll('[data-test-render-count]')
+        .forEach((el) => el.removeAttribute('data-test-render-count'));
+    };
+
+    it('still pairs the turn when data-test-render-count is gone', () => {
+      const doc = load(stripRenderCount);
+
+      expect(doc.querySelectorAll('[data-test-render-count]')).toHaveLength(0);
+
+      const pairs = new ClaudeParser(doc).parse().conversation?.pairs ?? [];
+      expect(pairs).toHaveLength(1);
+      expect(pairs[0]?.question.content).toContain('Draft me a tide table helper');
+      expect(pairs[0]?.answer.content).toContain('Both pieces are below');
+    });
+
+    it('still recognizes the assistant turn when data-is-streaming is gone too', () => {
+      const doc = load((d) => {
+        stripRenderCount(d);
+        d.querySelectorAll('[data-is-streaming]').forEach((el) =>
+          el.removeAttribute('data-is-streaming')
+        );
+      });
+
+      const pairs = new ClaudeParser(doc).parse().conversation?.pairs ?? [];
+      expect(pairs).toHaveLength(1);
+      expect(pairs[0]?.answer.content).toContain('Both pieces are below');
+    });
+
+    it('counts each turn once, so a response nested in a bubble is not a second turn', () => {
+      // Pair shape alone cannot prove this: a duplicate assistant marker is
+      // swallowed as an orphan turn and the pairs still come out right. The
+      // resolved turn *count* is the thing under test, so read it directly --
+      // it is also the denominator the drift check divides by, so a wrong
+      // count here would report a phantom content shortfall.
+      class Probe extends ClaudeParser {
+        turnCount(): number {
+          return this.countTurnContainers();
+        }
+      }
+
+      const withWrapper = new Probe(load(noop));
+      const withoutWrapper = new Probe(load(stripRenderCount));
+
+      expect(withWrapper.turnCount()).toBe(2);
+      expect(withoutWrapper.turnCount()).toBe(2);
+    });
+
+    it('prefers the turn wrapper when it is present', () => {
+      const html = readFileSync(
+        join(__dirname, '../../../fixtures/dom-snapshots/claude/artifact-panel.html'),
+        'utf-8'
+      );
+      const doc = new JSDOM(html, { url: 'https://claude.ai/chat/abc123' }).window.document;
+
+      // Same result either way: the fallback is a safety net, not a second
+      // parsing mode whose output has to be reconciled with the first.
+      const withWrapper = new ClaudeParser(doc).parse().conversation?.pairs ?? [];
+      const withoutWrapper =
+        new ClaudeParser(load(stripRenderCount)).parse().conversation?.pairs ?? [];
+
+      expect(withoutWrapper.map((p) => p.question.content)).toEqual(
+        withWrapper.map((p) => p.question.content)
+      );
+      expect(withoutWrapper.map((p) => p.answer.content)).toEqual(
+        withWrapper.map((p) => p.answer.content)
+      );
+    });
+  });
 });
