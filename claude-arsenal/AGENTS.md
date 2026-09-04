@@ -1,6 +1,6 @@
 # Claude Arsenal
 
-<!-- claude-arsenal v3.6.2 — imported via @claude-arsenal/AGENTS.md -->
+<!-- claude-arsenal v3.6.3 — imported via @claude-arsenal/AGENTS.md -->
 
 This file is imported by the host repo's `CLAUDE.md` via the session-protocol block
 that `/init` injects, so it sits in context on **every turn of every session**. It
@@ -26,6 +26,13 @@ At the start of every session (fresh start, context compaction, or cold restart)
       the newest tag, an `UPDATE AVAILABLE`, or — the one that has bitten consumers — an
       `UNTAGGED UPSTREAM RELEASE`, where upstream's default branch ships a version whose
       tag was never pushed. The fix for that one is upstream (`make tag`), not here.
+      **On a non-subtree install the report is INERT, and that is the correct answer, not
+      a finding.** No remote and no subtree merge is what both `/init` from the plugin and
+      `init.py` run from a clone leave behind; the script reports drift for subtree
+      installs only. Say it once if it has not been said this session, and do not open work
+      on it — updating means refreshing the plugin or the clone and re-running `init.py`,
+      never a merge. Reporting it as a defect each session is the recurring false alarm
+      this note exists to stop.
       `--check-only` matters: without it the script merges the new subtree and commits,
       which is a history-writing side effect from a step described as a report, landing in
       the same main working tree the worker loop requires to be clean.

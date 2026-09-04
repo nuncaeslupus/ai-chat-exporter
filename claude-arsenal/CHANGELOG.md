@@ -18,6 +18,37 @@ being a changelog nobody reads.
 
 Format: `## [X.Y.Z] - YYYY-MM-DD`, newest first, plain bullets below.
 
+## [3.6.3] - 2026-09-04
+
+- **A non-subtree install no longer reads as a broken one.** With no `arsenal`
+  remote and no subtree merge, `check_update.sh` said the bundle "cannot be
+  updated by merge even once the remote is added" and told you to add a remote.
+  Both facts are true and the advice is wrong for that reader: nothing about a
+  plugin install was ever going to update by merge, and the remote buys drift
+  reporting only. Since session-start step 0(a) runs this every session and says
+  to surface what it reports, a consumer got the same false alarm forever — one
+  spent a session concluding the bundle was unmaintainable and looking for a way
+  to graft a subtree on. The message now names the install mode, says INERT is
+  correct here, and gives both update routes that land in this git state: the
+  plugin's `/plugin update` + `/init`, and the clone-based `init.py` that
+  `docs/INSTALL.md` documents for cloud, CI and fresh containers, which has no
+  plugin to update at all. `AGENTS.md` step 0(a) and `UPDATE.md`'s new "Which
+  install do you have?" table say the same, so the alarm is not re-raised each
+  session and nobody is sent after a plugin they do not have.
+- **`UPDATE.md` no longer credits the wrong mechanism for keeping a fork.**
+  "Claude Code resolves skills with project-level precedence, so your fork takes
+  over" describes which skill *loads*; what decides which files survive an
+  upgrade is the `.arsenal-vendored` marker — `/init` `rmtree`s a skill folder
+  that carries one and prints `left alone` for one that does not. Copying a
+  skill from the cache is safe because the marketplace does not ship the marker,
+  but copying one from another project's `.claude/skills/` carries it, and the
+  next `/init` deleted that fork in silence. The customisation steps now begin
+  by removing the marker and name the receipt line to look for.
+- `UPDATE.md` gains **"Which install do you have?"** — the one-line probe
+  (`_is_subtree`'s own `--basic-regexp` test, so a consumer with
+  `grep.patternType=fixed` is not told a subtree is a plugin) and a table of how
+  each mode updates and what `check_update.sh` is expected to say for it.
+
 ## [3.6.2] - 2026-09-04
 
 - **The quota guard's override is documented.** `ARSENAL_RATE_LIMITS_FILE`
