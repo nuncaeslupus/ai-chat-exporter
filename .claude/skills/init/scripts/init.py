@@ -1152,6 +1152,11 @@ def _handover_is_untouched(text: str) -> bool:
     lines, and see whether any prose survives. Deliberately conservative — a
     file we cannot confidently call empty is one we keep.
     """
+    # The stock template first, exactly. Its "How to continue" steps are ordinary
+    # numbered prose, so the heuristic below reads them as content a session
+    # wrote — the one file guaranteed to be untouched, called touched.
+    if text.strip() == HANDOVER_TEMPLATE.strip():
+        return True
     body = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
     for line in body.splitlines():
         stripped = line.strip()

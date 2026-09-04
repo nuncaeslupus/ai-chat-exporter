@@ -91,6 +91,15 @@ and archived its task — GitHub did that, per the transitions above. An abandon
 PR has already released its claim. So a session that ends abruptly, on a quota
 stop, a crash, or a closed window, leaves the queue correct anyway.
 
+**With one window, and it is worth knowing where it is.** A session that dies
+*after* claiming and *before* opening its PR leaves a claim behind that no PR
+transition will ever release, because there is no PR. What repairs it is the
+`sweep-claims` job — `queue_hooks.py sweep-claims --max-age-hours 24` on the
+daily cron — so the queue is self-correcting there rather than immediately
+correct, and the task is unavailable until the sweep runs. Without
+`.github/workflows/arsenal-queue.yml` installed, nothing sweeps at all: the next
+session repairs stale claims and unhandled task files itself before starting.
+
 That is the property the whole design is aiming at, and it is worth stating as a
 rule for anything added later:
 

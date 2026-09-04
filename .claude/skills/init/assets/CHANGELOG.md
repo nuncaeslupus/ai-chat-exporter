@@ -18,6 +18,31 @@ being a changelog nobody reads.
 
 Format: `## [X.Y.Z] - YYYY-MM-DD`, newest first, plain bullets below.
 
+## [3.9.1] - 2026-09-04
+
+Three things a consumer's review caught in 3.9.0, all confirmed against the
+source before being fixed here.
+
+- **A pristine shadow handover was never retired.** `_handover_is_untouched()`
+  strips comments, headings and empty bullets, then treats any surviving prose as
+  something a session wrote. `HANDOVER_TEMPLATE`'s own "How to continue" steps are
+  ordinary numbered prose, so the one file guaranteed to be untouched was the one
+  it called touched: `_retire_shadow_handover()` kept the legacy shadow and
+  reported it to the user as content to merge by hand. The stock template is now
+  matched exactly, before the heuristic runs.
+- **`github-automation.md` overstated the crash guarantee.** "A session that ends
+  abruptly leaves the queue correct anyway" is true for a merged or abandoned PR
+  and false for the window between claiming and opening one — that claim is
+  released by the daily `sweep-claims --max-age-hours 24`, so the queue is
+  self-correcting rather than immediately correct, and by nothing at all when
+  `arsenal-queue.yml` is not installed. The window is now named where the
+  guarantee is made.
+- **`worker-loop.md` steps 5 and 6 contradicted 3.9.0's own separate-session
+  branch.** Step 3 says a separate-session worker never returns through
+  `worker_postcheck.sh`; step 5 then said to spawn Task-tool subagents and step 6
+  to postcheck each returned worker. Both steps now branch by dispatch mode, so
+  the mode 3.9.0 introduced can actually be followed to the end.
+
 ## [3.9.0] - 2026-09-04
 
 ### A spawned worker is no longer told to do what it cannot

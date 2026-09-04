@@ -124,8 +124,12 @@ dispatches that many workers at once. Run when the queue has open tasks:
      "Recovering" the claim by giving your branch its own pushable ref defeats
      the shared-ref lock entirely and lets two sessions both win the same task —
      the precise double-claim failure this protocol prevents. Obey the result.
-5. **Spawn every won task as a Task-tool worker subagent in ONE message**
-   (see `agents/worker.md`) so they run concurrently:
+5. **Dispatch every won task.** Which of the two shapes you are in was decided
+   back in step 3, and steps 5 and 6 differ by it — so say which one you are in
+   before reading on.
+
+   **Task-tool dispatch — spawn every won task as a worker subagent in ONE
+   message** (see `agents/worker.md`) so they run concurrently:
    - `isolation: worktree`
    - Inject the relative-path directive and the task payload path.
    - Say that the gates run in the **foreground** and that ending the turn ends
@@ -142,7 +146,24 @@ dispatches that many workers at once. Run when the queue has open tasks:
      non-zero exit — 1 the command failed, 2 the config is unreadable or this is
      not a git repository — means the tree is not set up and the worker returns
      `open`; only exit 0 continues, whether or not a command was declared.
-6. **Wait for all workers.** Then, for each returned outcome:
+   **Separate-session dispatch — open one session per won task instead.** The
+   worker never returns into this session, so there is nothing to spawn in one
+   message and nothing to wait on in step 6: each session opens its own PR (or
+   returns `branch:<name>`), and you pick the outcomes up off GitHub. Isolation
+   was attested with `record_isolation.sh separate-session` in step 3, so the
+   `worker_postcheck.sh` calls below do not apply — there is no returned worker
+   to run them against, and inventing an outcome to feed one would replace a
+   measurement with a guess. Everything else in step 6 — the PR, the gate
+   evidence, `Closes #<issue>` — you read from the PR itself. A session that
+   returns `branch:<name>` had no channel that could open one: **open it
+   yourself**, with the `Closes #<issue>` line, before you count that task as
+   dispatched. Step 6 writes that handoff out, and this mode skips step 6 — so
+   it is named here too, because a pushed branch is not an opened PR: a task
+   left at a branch holds its claim until `sweep-claims` releases it a day
+   later, and its PR never opens by itself.
+
+6. **Wait for all workers** (Task-tool dispatch only — separate sessions are
+   picked up off GitHub, per step 5). Then, for each returned outcome:
    - **Assert the tree invariant first** — pass the worker's reported root so
      isolation is measured rather than inferred, and its outcome and returned
      text so a `done` is checked for the evidence a completion carries:
