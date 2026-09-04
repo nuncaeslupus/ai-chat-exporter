@@ -18,6 +18,415 @@ being a changelog nobody reads.
 
 Format: `## [X.Y.Z] - YYYY-MM-DD`, newest first, plain bullets below.
 
+## [3.9.1] - 2026-09-04
+
+Three things a consumer's review caught in 3.9.0, all confirmed against the
+source before being fixed here.
+
+- **A pristine shadow handover was never retired.** `_handover_is_untouched()`
+  strips comments, headings and empty bullets, then treats any surviving prose as
+  something a session wrote. `HANDOVER_TEMPLATE`'s own "How to continue" steps are
+  ordinary numbered prose, so the one file guaranteed to be untouched was the one
+  it called touched: `_retire_shadow_handover()` kept the legacy shadow and
+  reported it to the user as content to merge by hand. The stock template is now
+  matched exactly, before the heuristic runs.
+- **`github-automation.md` overstated the crash guarantee.** "A session that ends
+  abruptly leaves the queue correct anyway" is true for a merged or abandoned PR
+  and false for the window between claiming and opening one — that claim is
+  released by the daily `sweep-claims --max-age-hours 24`, so the queue is
+  self-correcting rather than immediately correct, and by nothing at all when
+  `arsenal-queue.yml` is not installed. The window is now named where the
+  guarantee is made.
+- **`worker-loop.md` steps 5 and 6 contradicted 3.9.0's own separate-session
+  branch.** Step 3 says a separate-session worker never returns through
+  `worker_postcheck.sh`; step 5 then said to spawn Task-tool subagents and step 6
+  to postcheck each returned worker. Both steps now branch by dispatch mode, so
+  the mode 3.9.0 introduced can actually be followed to the end.
+
+## [3.9.0] - 2026-09-04
+
+### A spawned worker is no longer told to do what it cannot
+
+A session spawned by another carries **no `mcp__*` tools** — true both for a
+routine firing a fresh session and for a directly created child, and neither
+warns you. Where REST is also refused, such a worker's only channel to GitHub is
+plain `git`: enough to fetch, read claim refs and push a branch; not enough to
+read issues, claim, open a PR or merge.
+
+The protocol block `/init` injects into your `CLAUDE.md` told **every** session
+to fetch the board, claim, and open PRs — and a spawned child reads that file
+like any other session. Three workers blocked on exactly this. It now opens by
+naming the spawned case and sending it straight to its task, and its dispatch
+step says to pass the repository and `ARSENAL_TASK_ISSUE` explicitly.
+
+`agents/worker.md` says how far a worker gets on each surface. As a Task-tool
+subagent it opens the PR itself; as a separate session its last step is the push,
+and `open_task_pr.sh` printing `branch:<name>` is **a completed handoff, not a
+failure**.
+
+`references/orchestrator-tick.md` gains a dispatch section with the three things
+every dispatch must carry, each a measured failure rather than a precaution:
+
+1. **The repository, explicitly.** Of four workers dispatched without it, two got
+   containers with no sources — and the create call returned **201** for all
+   four, so nothing in the response told them apart.
+2. **`ARSENAL_TASK_ISSUE`.** The helper resolves the issue over the API the
+   worker does not have, and refuses before touching git. Do not work around it
+   with `ARSENAL_ALLOW_UNLINKED_PR=1` — that opens a PR that completes no task.
+3. **Evidence the assignment is real** — the issue number, the claim ref
+   (`arsenal/claims/<id>`, readable over `git ls-remote`), the dispatching
+   session id. A worker's first turn is now routinely an unfamiliar sender
+   telling it to edit files; refusing that is correct behaviour, which is
+   precisely why it cannot be the signal you rely on.
+
+### `record_isolation.sh` — breaking the batch-of-one deadlock
+
+**New:** `claude-arsenal/bin/record_isolation.sh <mechanism>`.
+
+`available` had exactly one writer: `worker_postcheck.sh`, observing a returned
+worker's toplevel. A worker dispatched as a separate session never returns
+through it, so the sentinel stayed `unknown` forever and `task_select.py` clamped
+every batch to **one task, permanently** — on the surface where separate sessions
+are the only shape that works. The only way out was `--no-isolation-clamp`, which
+disables the check rather than satisfying it.
+
+Run `record_isolation.sh separate-session` after dispatching that way. It records
+that isolation follows from **how you dispatched** — a container per worker
+cannot share a tree — rather than from a path comparison.
+
+That distinction matters: the obvious fix, feeding a cross-container path to
+`worker_postcheck.sh`, **inverts**. Its check is `worker_root != own_root`, and
+two containers routinely both check out at `/home/user/<repo>` — identical paths
+would read as "the worker ran in my tree" at the moment isolation is most
+complete.
+
+The vocabulary is closed (`separate-session`, `separate-clone`); an unknown
+mechanism is refused, not recorded, because this file gates a safety clamp.
+Provenance is written to `worktree_isolation.why` (machine-local, gitignored by
+`/init`). Do **not** use it for Task-tool subagents — `worker_postcheck.sh`
+measures that case correctly, and a measurement beats an attestation.
+
+> **Judgement call worth reviewing.** That a separate container structurally
+> guarantees isolation is an assumption this script cannot verify from inside;
+> it is an attestation by the orchestrator about how it dispatched. The closed
+> vocabulary is what bounds it.
+
+## [3.8.2] - 2026-09-04
+
+### `AGENTS.md` is 201 tokens lighter, with nothing removed
+
+`AGENTS.md` sits in context on **every turn of every session**, so what it costs
+is paid forever by every consumer. Three changes landed in it in one day and the
+resident budget fell to 33 tokens of headroom against the 5000 cap — enough that
+the next addition, whatever it was, would have failed CI.
+
+Four passages moved or compressed. Every **instruction** stays resident; only the
+reasoning behind them moved:
+
+- The bundle-refresh guard keeps "if (a) reported `VENDORED SKILL BEHIND BUNDLE`,
+  skip (b)" and drops the paragraph explaining the guard's history.
+- The issue-fetch step keeps the field list and the ~9k-vs-~1.2k numbers, and
+  drops the explanation of why no script reads a body.
+- **Why the `arsenal-task:` marker must be visible text and never an HTML
+  comment** is now in `references/queue-seeding.md`, under its own heading. Same
+  rule, more room to say what a stripped id actually costs you.
+- **Why ending a session is reporting and not repair** is now in
+  `references/github-automation.md`, next to the transitions that make it true.
+  It carries the rule worth keeping: if you find yourself writing "remember to X
+  before the session ends", X belongs in a workflow or a script, not a protocol.
+
+Nothing a session is told to do has changed. If you have forked `AGENTS.md`,
+this is a text-only merge.
+
+Headroom is back to 234 tokens.
+
+## [3.8.1] - 2026-09-04
+
+- **The evidence-gate reference now documents the placeholder exception.** 3.7.0
+  stated the rule flatly — *"a task's own PR can never amend its own acceptance
+  gate"* — but `gate_run.sh` has always had a bootstrap case: when the default
+  branch still carries the `# arsenal:gate-placeholder` command, it runs the
+  working copy's instead, and says so on stderr. A worker reading only the
+  reference had two ways to get it wrong: preserve the placeholder to look
+  compliant, or treat the "running the working copy's instead" line as a bug.
+  The rule now says *already real* where it meant it, names the exception, and
+  says why it is not a relaxation — a placeholder asserts nothing, so there is no
+  criterion for a branch to weaken, and the gate block's threshold is still read
+  from the default branch either way.
+
+## [3.8.0] - 2026-09-04
+
+### New reference: `orchestrator-tick.md`
+
+`worker-loop.md` documents how one task gets implemented. The other half — what
+the session that dispatches, reviews and merges actually does — had no written
+counterpart, so in practice it lived in the prompt text of whatever routine was
+driving the fleet.
+
+That is a bad place for a contract: not in any repository, so not reviewed, not
+versioned, not diffable, retyped by hand into each successive trigger until the
+copies drift, and gone when the routine is deleted.
+
+The new reference covers one tick's ordered steps, where a tick defers to the
+owner instead of deciding, and three things worth knowing before building a fleet:
+
+- **The merge preconditions, restated at the moment they are applied** — not held,
+  every thread resolved, and *the orchestrator ran the host gate itself and saw
+  exit 0*. A worker reporting its own gate passed is a claim, not evidence. This
+  is the precondition most likely to be quietly dropped when nobody is watching.
+- **Report at most six lines, or "no change".** An hourly loop that narrates itself
+  spends its context on its own transcript and eventually runs out mid-tick.
+- **A tick is not portable.** A trigger that spawns a fresh session per firing
+  stores no MCP connectors, so that session has no channel to the GitHub API and
+  blocks on the tick's first step. Binding to an already-open session is the only
+  shape that works — and the design that looks better fails an hour later rather
+  than immediately.
+
+It also states the boundary that keeps people from trying to move the loop into
+CI: `arsenal-queue.yml` can run board hygiene on a schedule, but an Actions job
+has no Claude session in it and can never do the reviewing or merging half.
+
+Arsenal still ships no scheduler. The reference owns what a tick does; your
+surface owns when it happens.
+
+## [3.7.1] - 2026-09-04
+
+- **Four helpers that aborted or lied instead of degrading.** All four share a
+  shape: the guard already exists a line away, and the path that skipped it is
+  the one nobody exercises.
+  - `open_task_pr.sh` took an option as a value. `--title --body-file x.md`
+    satisfies the `$# -ge 2` count check, so `TITLE` became `--body-file` and
+    `x.md` fell through to positional — the #352 subject bug, reachable again
+    through the option form added to fix it, and the comment above the parser
+    already claimed it could not happen. The subject survives a squash, so a
+    wrong one is only fixable by rewriting shared history. Empty and `-`-leading
+    values are now rejected in both the spaced and `=` forms.
+  - `gate_run.sh` caught only `OSError` around a `read_text`. `UnicodeDecodeError`
+    derives from `ValueError`, so a non-UTF-8 task file escaped as a traceback —
+    out of a branch that only prints a diagnostic, after the gate decision was
+    already made.
+  - `arsenal_migrate.py` raised its merge-policy `MigrateError` from the config
+    block, which runs after the task files, the history files and
+    `_migrated-history.md` are on disk. `main()` then printed `nothing was
+    written` over a half-migrated tree. The check moves to pre-flight, beside
+    the payload resolution that is there for exactly this reason.
+  - `init.py` left one `shadow.unlink()` unguarded while the read either side of
+    it and the following `rmdir` were both non-fatal. A read-only checkout or a
+    permission ended `init_base` before `_vendor_skills`, `_register_gate_hook`
+    and `_inject_claude_md` ran — a half-installed repo, to tidy up a file
+    nothing reads.
+
+  `vendored_robustness_test.sh` pins all four; every one of its gates fails
+  against 3.6.3.
+## [3.7.0] - 2026-09-04
+
+### The quota guard now stops on a refusal, not only on a percentage
+
+`budget_check.sh` accepts a second shape in `rate_limits.json`: a `status` field,
+nested under a window or flat, exactly as `get_session` returns it. Any value
+other than `"allowed"` stops the loop (exit 3); `"allowed"` passes and is
+reported as a pass rather than as missing data.
+
+This is what makes the guard reachable on a cloud session at all. That surface
+runs no statusLine, so it has no `used_percentage` to give — a document carrying
+only what it *can* supply used to hit the "fields absent" fail-open and guard
+nothing, on the one surface that runs unattended fleets.
+
+`ARSENAL_QUOTA_STOP_PCT` does **not** apply to the refusal check and cannot
+disable it. A percentage is a forecast about the next call; a refusal is a fact
+already established about one that was made. Do not translate a refusal into a
+synthesised `"used_percentage": 100` — `ARSENAL_QUOTA_STOP_PCT=101` would then
+silently switch off a guard reporting a wall already hit.
+
+### A task's gate is fixed for the life of the task — now stated, not discovered
+
+The gate is read from the default branch, so a task's own PR can never amend its
+own acceptance criteria. That property is deliberate (a worker whose branch
+supplies the gate it is held to is certifying itself) but it was written down
+only in the source, and several task texts invited exactly the amendment it
+refuses — costing a worker a whole session chasing a missing test that was really
+a gate it had edited and could not use.
+
+Now in `AGENTS.md` § Task format, with the full rule, the wording to avoid, and
+the recovery in `references/evidence-gates.md`. **Do not write a task that tells
+its implementer to update the gate block in the same diff.** A gate that needs to
+change is a board-side edit merged first, or a new task.
+
+The gate-only soft-fail some hosts have asked for is deliberately *not* shipped:
+letting a branch weaken its own acceptance criteria mid-flight reopens the
+self-certification hole the default-branch read exists to close.
+
+### A merged task PR with no issue handle now archives its task file
+
+`queue_hooks.py pr-closed` reconciles a merged task PR even when the task has no
+issue handle yet. The keyword guard passes such a PR on the stated grounds that
+pr-closed "still reconciles on merge" — and it did not: the work merged, the task
+file stayed live, and the next `handle_sync.py` proposed a fresh handle for work
+that had already landed.
+
+With no handle there is no issue to close, and none is invented — the archive is
+the whole of the reconciliation, and it is reported as such.
+
+### Why `/init` does not seed `permissions.allow`
+
+`references/github-automation.md` now explains why an unattended run stops on a
+permission prompt, and why a seeded permissions block is not the fix — it would
+look like one while changing nothing.
+
+Short version: the `mcp__github__*` calls the protocol makes already pass
+silently (the account's GitHub connector grants them, outside `settings.json`).
+The session tools that *do* prompt cannot be pre-approved from a committed file
+at all, for either of two reasons the doc tells you how to distinguish. The one
+thing that measurably helps is dispatching **one `create_session` per message** —
+a batch of them reads as a single refusable action and is refused as one.
+
+## [3.6.3] - 2026-09-04
+
+- **A non-subtree install no longer reads as a broken one.** With no `arsenal`
+  remote and no subtree merge, `check_update.sh` said the bundle "cannot be
+  updated by merge even once the remote is added" and told you to add a remote.
+  Both facts are true and the advice is wrong for that reader: nothing about a
+  plugin install was ever going to update by merge, and the remote buys drift
+  reporting only. Since session-start step 0(a) runs this every session and says
+  to surface what it reports, a consumer got the same false alarm forever — one
+  spent a session concluding the bundle was unmaintainable and looking for a way
+  to graft a subtree on. The message now names the install mode, says INERT is
+  correct here, and gives both update routes that land in this git state: the
+  plugin's `/plugin update` + `/init`, and the clone-based `init.py` that
+  `docs/INSTALL.md` documents for cloud, CI and fresh containers, which has no
+  plugin to update at all. `AGENTS.md` step 0(a) and `UPDATE.md`'s new "Which
+  install do you have?" table say the same, so the alarm is not re-raised each
+  session and nobody is sent after a plugin they do not have.
+- **`UPDATE.md` no longer credits the wrong mechanism for keeping a fork.**
+  "Claude Code resolves skills with project-level precedence, so your fork takes
+  over" describes which skill *loads*; what decides which files survive an
+  upgrade is the `.arsenal-vendored` marker — `/init` `rmtree`s a skill folder
+  that carries one and prints `left alone` for one that does not. Copying a
+  skill from the cache is safe because the marketplace does not ship the marker,
+  but copying one from another project's `.claude/skills/` carries it, and the
+  next `/init` deleted that fork in silence. The customisation steps now begin
+  by removing the marker and name the receipt line to look for.
+- `UPDATE.md` gains **"Which install do you have?"** — the one-line probe
+  (`_is_subtree`'s own `--basic-regexp` test, so a consumer with
+  `grep.patternType=fixed` is not told a subtree is a plugin) and a table of how
+  each mode updates and what `check_update.sh` is expected to say for it.
+
+## [3.6.2] - 2026-09-04
+
+- **The quota guard's override is documented.** `ARSENAL_RATE_LIMITS_FILE`
+  shipped working and named in no markdown file in the repo. It matters most on
+  a cloud session — Claude Code on the web, the apps, a routine — which never
+  runs a statusLine, so `rate_limits.json` is never written and the
+  percentage guard fails open on every round. That is the surface most likely
+  to be running an unattended fleet, and the one where `ARSENAL_MAX_ITERATIONS`
+  is not a backstop but the entire ceiling. `references/quota-governance.md`
+  now says so, gives the exact JSON shape `budget_check.sh` accepts, and warns
+  that a document describing exhaustion in any other vocabulary (a
+  `get_session` `{"status": "..."}` response, say) fails open **silently** —
+  the guard stays inert while looking configured. Also listed in the
+  tuning-knobs table. (#329, first half)
+
+## [3.6.1] - 2026-09-04
+
+- **The skill-edit gate no longer opens when its own analyser breaks.** Any
+  crash inside `gate_target.py` produced an empty target, which the hook read as
+  "nothing to gate" and allowed — silently, with nothing in the transcript to
+  say the check had stopped running. A crash now refuses the call and prints
+  why. An unparseable payload is still allowed: that is a handled case, not a
+  crash. (#347, in part)
+- **An unusable evidence gate is no longer scored as a failed one.** A JSON
+  number too large for a float raised `OverflowError` out of `gate_evidence.py`,
+  and the traceback's exit 1 is `gate_run.sh`'s *assertion failed* — so a gate
+  that could not be scored was reported as a gate the work had failed. It now
+  exits 2 ("declared but unusable"), which existed for exactly this. (#346)
+- **A migration will not write a task with no gate.** `arsenal_migrate.py`
+  turned a payload that was missing, or that pointed outside the queue
+  directory, into an empty task body carrying the `<!-- No gate was recorded -->`
+  fallback — then summarised the run as a success and exited 0, so the operator
+  deleted the legacy queue and the gate was gone. Every payload is now resolved
+  before the first file is written, and an unreadable one exits 2 having
+  written nothing. (#346)
+- `arsenal_migrate.py` also refuses to write a `config.toml` whose reported
+  merge policy is not the one in the file — the substitution was never checked,
+  so a template whose spacing had drifted was reported as set and written
+  unchanged. (#346)
+- **`gate_run.sh` says when your branch's gate edit was ignored.** A task's gate
+  comes from the default branch by design; a branch that edits it had that edit
+  discarded in silence, so the gate failed naming a symbol the implementation
+  had renamed and the worker debugged its own code. It now says which command
+  ran and why. Its other diagnostic said the task file was "not on disk" when it
+  usually is — corrected to "preferred over the working copy". (#349, in part)
+- `pr-review-loop.md` pointed at an upstream path that does not exist in a
+  consumer's tree; it now names the vendored
+  `claude-arsenal/references/github-automation.md`. (#346)
+
+## [3.6.0] - 2026-09-04
+
+- **Security: a migration no longer executes your skills.** `arsenal_migrate.py`
+  read `init.py`'s config template by *importing* every `init.py` it could glob
+  under `.claude/skills/*/scripts/`, running that file's top level — so any
+  skill in the tree could run arbitrary code during a migration, and it happened
+  on the **dry run** too, because `--apply` only guards the write. The template
+  is now read by parsing, never importing, and only from the one path `/init`
+  actually vendors to. (#343)
+- **The migration carries your handover across.** `arsenal_migrate.py` used to
+  decline the whole of `arsenal/session/` whenever it already existed — and
+  since `UPDATE.md` documents trees-first-then-migrate, `init.py` had always
+  created it first, so the real handover was *never* carried over on a migration
+  that followed the documented order. It now merges file by file, and names
+  anything it genuinely declines instead of reporting `left alone`. (#353)
+- **`/init` no longer shadows your handover.** The bundle shipped
+  `session/handover.md`, so every run recreated an empty
+  `claude-arsenal/session/handover.md` beside the real
+  `arsenal/session/handover.md`. Nothing read it, and an empty handover looks
+  exactly like a fresh install — so a session that opened it concluded there was
+  no prior context. The bundle no longer ships it; an existing copy is removed
+  when untouched, and **preserved with a warning** when it has content. (#353)
+- **A section you enable is now honoured or explained, never dropped.** A
+  vendored `init.py` derived the requestable sections from the skills already
+  installed, so a section whose skills were all un-vendored could not be named:
+  `--sections extract` failed as "unknown section", and `extract = true` in
+  `arsenal/config.toml` was dropped in silence behind the usual success line.
+  Sections now come from the shipped `sections.json`, and a section that is on
+  with no skill to satisfy it says so and tells you to re-run the plugin's
+  `init.py`. (#354)
+- **A GitHub outage is no longer reported as a permission problem.**
+  `github_channel.sh` matched a bare `403`/`404` anywhere in `gh`'s output, so an
+  HTTP 500 whose body carried a `#404` documentation link — or a connection
+  reset with `403` inside a trace id — came back as "this channel may read but
+  not write here", which `claim_task.sh` maps to `manual`. The match is now
+  anchored to `gh`'s own `HTTP <code>:` framing. (#342)
+
+## [3.5.0] - 2026-09-04
+
+- `open_task_pr.sh` now **rejects an unknown option** instead of taking it as
+  the PR title. `open_task_pr.sh <id> --body-file x.md` used to open a PR
+  subjected `x.md: --body-file` and merge it; the subject is the one part of a
+  PR that survives a squash, so the only fix was rewriting shared history.
+  (#352)
+- `open_task_pr.sh` gains `--title`, `--type`, `--body-file` and `--help`.
+  `--body-file` supplies the PR body's Summary prose; the `Closes #<issue>`
+  line, the gate note and the review receipt are still written by the script,
+  because a body without them does not complete the task.
+- **Branch slugs are now ASCII on every locale.** A non-English title could
+  produce a branch name `git push` refuses — glibc collates accented letters
+  inside `a-z` under a UTF-8 locale, and `cut -c1-40` splits multibyte
+  characters. Invisible on CI (the runners are C.UTF-8), reproducible on any
+  workstation with a real UTF-8 locale. If you carry a local patch for this,
+  you can drop it. (#350)
+- **The board reports a stale working tree.** `query_status.py` makes one
+  read-only `git ls-remote` and warns when your checkout is behind the remote
+  default branch. A stale task file and a genuinely open task read identically
+  from the board, so a behind-by-N tree hands out work that is already merged.
+  Skip it with `--no-remote-check`; it is silent when the remote is
+  unreachable. Session-start step 3 now begins with `git fetch --quiet origin`.
+  (#351)
+- `task_select.py --issues` now **exits 2 on a file it cannot read**, matching
+  `query_status.py`. A missing path raised `FileNotFoundError` and a truncated
+  `{"issues": null}` raised `TypeError`; either could leave an empty state map,
+  which is indistinguishable from a healthy new board — so the selector would
+  hand out a task that was already finished. (#345)
+
 ## [3.4.5] - 2026-09-02
 
 - `keyword-guard` no longer passes a task PR when a truncated `arsenal:task`

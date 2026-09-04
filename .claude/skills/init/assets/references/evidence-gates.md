@@ -7,6 +7,7 @@ numeric threshold has no number behind it yet.
 
 - [The fence is what makes a gate mechanical](#the-fence-is-what-makes-a-gate-mechanical)
 - [Gate blocks run verbatim](#gate-blocks-run-verbatim)
+- [The gate is fixed for the life of the task](#the-gate-is-fixed-for-the-life-of-the-task)
 - [Evidence gates (numeric acceptance)](#evidence-gates-numeric-acceptance)
 - [Unmeasured — the third outcome](#unmeasured--the-third-outcome)
 - [The placeholder, and the first PR that replaces it](#the-placeholder-and-the-first-pr-that-replaces-it)
@@ -36,6 +37,51 @@ runs instead of dying at exit 127; `ARSENAL_GATE_INHERIT_ENV=1` opts out
 entirely). Treat a gate block from an untrusted plan/payload as you would any
 code to run — review it. A gate that could not run exits **3**, never 0 or 1,
 and a worker treats it as "could not run" rather than reading it as a verdict.
+
+## The gate is fixed for the life of the task
+
+`open_task_pr.sh` runs the gate with `ARSENAL_GATE_FROM_DEFAULT=1`, so
+`gate_run.sh` reads the task file **from the default branch** and not from the
+branch under test. A worker whose own branch supplies the gate it is being held
+to is certifying itself, so this is not a setting to relax.
+
+The consequence is the part that costs a session if it is not said out loud:
+**a task's own PR can never amend an acceptance gate that is already real.** Not
+the assertions, not the test names it calls, not a symbol it renamed. The edit is
+not rejected — it is simply never read, and the failure that follows names a
+missing test rather than the reason for it.
+
+**The one exception is the placeholder, and it is not a relaxation.** A task
+seeded from a plan ships with the placeholder command (`# arsenal:gate-placeholder`),
+which asserts nothing: there is no criterion yet for a branch to weaken. So when
+the default branch still carries the placeholder and the working copy supplies a
+real command, `gate_run.sh` runs the working copy's — and says so on stderr. That
+is how a task defines its first gate, in its own PR, and it is the intended
+bootstrap. The gate *block* around it — metric, operator, threshold, evidence
+path — is still read from the default branch, so the threshold is the board's
+either way. Once the default branch carries a real command the exception is
+closed for good, and the paragraph above is the whole of the rule.
+
+Two things follow for a worker. Replacing a placeholder in a task's own PR is
+correct work, not self-certification — do not preserve the placeholder to look
+compliant. And a `gate_run` line saying it ran the working copy's command is that
+bootstrap, not a bug to chase.
+
+So a task text must not invite the amendment. This sentence, from a real task,
+describes something the toolkit refuses:
+
+> `build_list_requests` is the name this task gives that seam; an implementation
+> choosing another name **updates this block in the same diff**.
+
+Write the constraint instead: the gate is a precondition the board sets, and an
+implementation that cannot satisfy it as written needs a **board-side edit merged
+to the default branch first**, or a new task. Restoring the block byte-for-byte
+from the default branch is the correct recovery when a branch has already
+diverged.
+
+`gate_run.sh` says which file it read on every run, and says explicitly when a
+working-copy gate exists and was not used. Read that line before looking for a
+bug in the implementation.
 
 ---
 

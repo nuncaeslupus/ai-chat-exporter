@@ -202,7 +202,20 @@ def main() -> None:
     raw_measured = _dig(data, key)
     if isinstance(raw_measured, bool) or not isinstance(raw_measured, int | float):
         _fail(f"evidence value at {key!r} is not numeric: {raw_measured!r}", 2)
-    measured = float(raw_measured)
+    # A Python int is unbounded; a float is not. JSON carries arbitrary-precision
+    # integer literals, so an evidence file holding a 400-digit number raised
+    # OverflowError here — uncaught, so the traceback escaped as exit 1, which is
+    # `gate_run.sh`'s "the assertion failed". An unusable gate was therefore
+    # scored as a FAILED one, and exit 2 ("declared but unusable"), which exists
+    # for exactly this, never fired.
+    try:
+        measured = float(raw_measured)
+    except OverflowError:
+        _fail(
+            f"evidence value at {key!r} is out of float range — "
+            "a gate cannot be scored against it",
+            2,
+        )
     # `json.loads` accepts the JavaScript spellings `NaN`, `Infinity` and
     # `-Infinity`, and both are `float` — so they cleared the type check above
     # and reached the comparison, where they are the wrong kind of wrong: `NaN`

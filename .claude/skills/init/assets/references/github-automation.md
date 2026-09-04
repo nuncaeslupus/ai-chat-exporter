@@ -1,8 +1,51 @@
 # GitHub automation — merging, and the upkeep GitHub does
 
 Read this when a merge did not close its task, when a PR check about the closing
-keyword fails, or when deciding whether to install / remove
-`.github/workflows/arsenal-queue.yml`.
+keyword fails, when an unattended run stopped on a permission prompt, or when
+deciding whether to install / remove `.github/workflows/arsenal-queue.yml`.
+
+---
+
+## Why an unattended run stops on a permission prompt
+
+An orchestrator on a cloud surface can sit for hours waiting on a prompt nobody
+is there to answer. `/init` deliberately writes **no** `permissions.allow` block
+to try to prevent that, because a seeded block does not fix it — and shipping one
+would look like a fix while changing nothing.
+
+**The GitHub tools are not the problem.** On the surfaces where this was
+measured, `mcp__github__*` calls — listing issues, creating a branch, opening and
+updating a PR, commenting, merging — passed silently already: the account's
+GitHub connector grants them, outside `settings.json` entirely. Seeding grants
+that are already held buys nothing and widens the file for no reason.
+
+**The session tools are the problem, and an allow rule cannot clear them.**
+`create_session`, `get_session` and their siblings prompted in a repo whose
+committed `.claude/settings.json` carried them spelled exactly right, and
+prompted again on the next call — no sticky approval. Two mechanisms produce
+that, and both are outside a repository's reach:
+
+- A tool the server marks as requiring user interaction prompts on **every**
+  call, in every permission mode, and a matching allow rule does not skip it.
+- Project `permissions.allow` entries grant capability, so they apply only after
+  the workspace is **trusted** — a per-user acceptance stored outside the clone.
+  Until then the entries are ignored and the prompts continue. Look for a startup
+  line reading `Ignoring N permissions.allow entries … this workspace has not
+  been trusted` to tell the two apart.
+
+Neither is reachable from a committed file, which is why this is documentation
+and not a `/init` step.
+
+**What actually helps: dispatch one session per message.** Three `create_session`
+calls sent in a single message were refused together — a batch reads as one
+refusable action — while the same three sent one per message were each approved.
+An orchestrator that fans out serially gets through; one that fans out in a
+single turn stops on the first refusal and loses the whole round.
+
+Do not try to route around any of this by having a session widen its own
+permissions. Writing to `.claude/` is checked before allow rules are read, on
+purpose, and that check is load-bearing. A permission a fleet needs is a decision
+its owner makes once, not something a session grants itself at 3am.
 
 ---
 
@@ -36,6 +79,33 @@ session-start protocol in `AGENTS.md`) or create the handle with `handle_sync.py
 `ARSENAL_ALLOW_UNLINKED_PR=1` to get past it — that is the old silent failure, opted into.
 
 ---
+
+## Ending a session is reporting, not repair
+
+`AGENTS.md` step 7 asks a session with open work to audit it and write a
+handover before ending. That step is a **report for the human**, not a repair
+the queue depends on.
+
+Nothing the next session needs is produced by it. A merged PR has already closed
+and archived its task — GitHub did that, per the transitions above. An abandoned
+PR has already released its claim. So a session that ends abruptly, on a quota
+stop, a crash, or a closed window, leaves the queue correct anyway.
+
+**With one window, and it is worth knowing where it is.** A session that dies
+*after* claiming and *before* opening its PR leaves a claim behind that no PR
+transition will ever release, because there is no PR. What repairs it is the
+`sweep-claims` job — `queue_hooks.py sweep-claims --max-age-hours 24` on the
+daily cron — so the queue is self-correcting there rather than immediately
+correct, and the task is unavailable until the sweep runs. Without
+`.github/workflows/arsenal-queue.yml` installed, nothing sweeps at all: the next
+session repairs stale claims and unhandled task files itself before starting.
+
+That is the property the whole design is aiming at, and it is worth stating as a
+rule for anything added later:
+
+> If you find yourself writing "remember to X before the session ends", X belongs
+> in a workflow or a script, not in a protocol. The sessions that most need
+> cleaning up are exactly the ones that ended badly and will never read it.
 
 ## Merge policy — the host's standing answer to "may I merge this?"
 
