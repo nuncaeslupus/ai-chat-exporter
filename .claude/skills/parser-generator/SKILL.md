@@ -94,9 +94,11 @@ const q = s => { try { return document.querySelectorAll(s).length } catch (e) { 
 ({ container: q('main#main'), turns: q('[data-turn]'), content: q('.markdown') })
 ```
 
-Whichever you use, the output is counts and class names only — no message text — and
-`pnpm probe` redacts every path segment of the URL it reports, so it is safe to paste
-into an issue and safe to ask a *user* to run when the broken page is theirs and not
+Whichever you use, the output is structural diagnostics only: selector match counts,
+the selectors that matched nothing, class names of the real scroll containers, the
+`data-*` attribute *names* present, the platform id and the page language — plus a URL
+whose every path segment `pnpm probe` redacts. No message text and no attribute values.
+That is the whole report, so it is safe to paste into an issue and safe to ask a *user* to run when the broken page is theirs and not
 reachable from here. A probe you hand-roll carries whatever you put in it: if you add
 the URL, redact it the same way, because a workspace slug or a username identifies a
 person as surely as a session id does.
