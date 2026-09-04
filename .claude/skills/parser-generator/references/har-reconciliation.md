@@ -94,12 +94,21 @@ is exactly as sensitive as the original, so it is a private capture too, whateve
 you named it.
 
 The selection flags (`--url`, `--host`, `--mime`, `--type`, `--status`,
-`--response-match`, …) are one shared grammar spelled identically across every
-script in that skill, which is what lets step 2 hand its answer to the steps after
-it: `--response-match` *discovers* which endpoint carried the text, and steps 3-4
-then address that endpoint by `--url`/`--mime`. Same grammar, different job — not
-the same filter re-run. Output is capped at 20 rows / 4096 bytes by default —
-`--limit 0` removes both caps, `--output PATH` writes the full result to a file.
+`--response-match`, …) come from one shared parser, `add_selection_args()`, so they
+are spelled identically in the three scripts that filter — `query_har.py`,
+`create_har.py`, `compare_har.py`. (`analyze_har.py`, `capture_har.py`,
+`create_repro.py` and `validate_har.py` do not take them; do not assume a flag from
+here works there.)
+
+Within that grammar the flags are not interchangeable, which is what the step 2 → 3-4
+handoff actually depends on. `--response-match` is evaluated by
+`Selection.matches_body()`: it decodes each response and searches its text, which is
+how step 2 *discovers* which endpoint carried the sentence you saw. `--url` and
+`--mime` are evaluated by `Selection.matches_index()`, against request metadata alone
+— cheap, and all steps 3-4 need once you know the endpoint. So the later steps address
+the request step 2 found; they do not re-run its filter. Output is capped at 20 rows /
+4096 bytes by default — `--limit 0` removes both caps, `--output PATH` writes the full
+result to a file.
 
 Then compare against the parser: open the page, run
 `detectParser().parse().conversation.pairs.length` in the console, and put the two
@@ -114,11 +123,18 @@ ratio turns each of those into a phantom gap.
 Filter the API side first: the active branch only, current records only (drop the
 superseded versions of an edited turn and soft-deleted ones), and user/assistant types
 only — system and tool records render no turn. Then walk that filtered array in message
-order and pair it the way the parser does, each question with the assistant message
-that follows it, leaving an unanswered question as a pair with an empty half rather
-than borrowing the next question's answer. Compare *those* pairs to the parser's, and
-report anything that failed to match — an API record with no parsed turn, or the
-reverse — as its own count rather than folding it into the total.
+order and pair it the way the parser does — which means copying two rules, not one.
+A question left unanswered *mid-thread* becomes a pair with an empty half, so a later
+answer cannot slide onto it. A question left pending at the *end* is skipped
+entirely: `ClaudeParser.extractQAPairs` and `ChatGPTParser.extractQAPairs` both treat
+a trailing question as an in-progress turn, so an API side that counts it will read
+one pair high against a parser that is behaving correctly. Apply the same two rules to
+the API array before comparing.
+
+Compare *those* pairs to the parser's, and report what failed to match in **both**
+directions as its own count — API records with no parsed turn, and parser pairs with
+no API record. One number cannot show you both, and a reconciliation that only looks
+one way misses a parser inventing a pair as surely as one dropping it.
 
 **A gap that survives normalisation is a bug, not a rounding difference.** Each
 missing pair is a turn that silently will not reach any of the six exporters. Chase it
@@ -128,9 +144,10 @@ returns early on (Gemini's Deep Research turns), a content block with no branch 
 pair. A gap that disappears under normalisation was never a defect; record what you
 normalised away so the next reconciliation does not rediscover it.
 
-Record the reconciled numbers in the PR, in the normalised unit and saying which
-one. "Parses correctly" is not checkable later; "API 25 active messages -> 12 pairs / parser 12
-pairs, 1 unmatched assistant record" is.
+Record the reconciled numbers in the PR, in the matched unit and saying which one, with
+both unmatched counts even when they are zero — a missing zero reads as a check nobody
+ran. "Parses correctly" is not checkable later; "API 25 active messages -> 12 pairs /
+parser 12 pairs / 0 API records unmatched, 0 parser pairs unmatched" is.
 
 ## Known task overlap
 
