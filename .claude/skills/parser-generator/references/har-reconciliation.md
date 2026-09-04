@@ -47,6 +47,7 @@ public, write a derived capture with `create_har.py`, which redacts **by default
 and drops bodies unless asked to keep them:
 
 ```bash
+S=.claude/skills/har/scripts
 python3 $S/create_har.py --input capture.har --output fixture.har --type xhr
 ```
 
@@ -76,32 +77,48 @@ python3 $S/query_har.py --input capture.har --response-match "a sentence from th
 python3 $S/query_har.py --input capture.har --url 'chat_conversations' \
     --mime json --extract-body --output-dir bodies/
 
-# 4. Before the capture leaves your machine: derive a redacted one. Same filter as
-#    step 3, so what you share is what you reconciled against. Bodies are dropped
-#    unless you pass --keep-bodies, and a body is the whole conversation in
-#    plaintext — so keep them only for a capture that never gets shared.
+# 4. Before the capture leaves your machine: derive a redacted one. This is a
+#    SEPARATE artifact from the one you reconciled against, not the same file
+#    made safe. Bodies are dropped unless you pass --keep-bodies, so the shared
+#    capture is metadata only and cannot answer steps 2-3 — and it must not,
+#    because a body here is the whole conversation in plaintext.
 python3 $S/create_har.py --input capture.har --url 'chat_conversations' \
     --mime json --output capture.redacted.har
 ```
 
+So there are two captures, and the distinction is the whole point: `capture.har`
+stays on your machine and is what steps 2-3 read, bodies and all;
+`capture.redacted.har` is what leaves it. Never reconcile against the redacted one
+and never share the private one — and if you ever pass `--keep-bodies`, the output
+is exactly as sensitive as the original, so it is a private capture too, whatever
+you named it.
+
 The selection flags (`--url`, `--host`, `--mime`, `--type`, `--status`,
 `--response-match`, …) are one shared grammar spelled identically across every
-script in that skill, so the filter that found the request in step 2 is the filter
-that redacts it in step 4. Output is capped at 20 rows / 4096 bytes by default —
+script in that skill, which is what lets step 2 hand its answer to the steps after
+it: `--response-match` *discovers* which endpoint carried the text, and steps 3-4
+then address that endpoint by `--url`/`--mime`. Same grammar, different job — not
+the same filter re-run. Output is capped at 20 rows / 4096 bytes by default —
 `--limit 0` removes both caps, `--output PATH` writes the full result to a file.
 
 Then compare against the parser: open the page, run
 `detectParser().parse().conversation.pairs.length` in the console, and put the two
 numbers side by side.
 
-**Normalise before you compare.** The two numbers are not the same unit. One Q&A pair
-is two messages on the API side, so a raw message count is roughly double the pair
-count before any bug exists. On top of that the API array carries records the parser
-is right to leave out: turns on inactive branches, the superseded versions of an
-edited turn, soft-deleted turns, and system or tool records with no rendered turn.
-Filter the API side to the active branch and to user/assistant records, then convert
-one side to the other's unit — pairs to messages, or messages to pairs — and compare
-those.
+**Match, do not multiply.** The two numbers are not the same unit, and the obvious
+conversion is wrong: "one pair is two messages" only holds when senders strictly
+alternate, and they do not. Real accounts carry conversations with an extra assistant
+message, mid-thread or trailing — an audit of one found 8 of 22 — and a fixed 2:1
+ratio turns each of those into a phantom gap.
+
+Filter the API side first: the active branch only, current records only (drop the
+superseded versions of an edited turn and soft-deleted ones), and user/assistant types
+only — system and tool records render no turn. Then walk that filtered array in message
+order and pair it the way the parser does, each question with the assistant message
+that follows it, leaving an unanswered question as a pair with an empty half rather
+than borrowing the next question's answer. Compare *those* pairs to the parser's, and
+report anything that failed to match — an API record with no parsed turn, or the
+reverse — as its own count rather than folding it into the total.
 
 **A gap that survives normalisation is a bug, not a rounding difference.** Each
 missing pair is a turn that silently will not reach any of the six exporters. Chase it
@@ -112,8 +129,8 @@ pair. A gap that disappears under normalisation was never a defect; record what 
 normalised away so the next reconciliation does not rediscover it.
 
 Record the reconciled numbers in the PR, in the normalised unit and saying which
-one. "Parses correctly" is not checkable later; "API 24 active messages / parser 12
-pairs = 24" is.
+one. "Parses correctly" is not checkable later; "API 25 active messages -> 12 pairs / parser 12
+pairs, 1 unmatched assistant record" is.
 
 ## Known task overlap
 
