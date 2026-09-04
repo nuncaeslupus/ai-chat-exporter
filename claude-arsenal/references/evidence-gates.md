@@ -46,10 +46,26 @@ branch under test. A worker whose own branch supplies the gate it is being held
 to is certifying itself, so this is not a setting to relax.
 
 The consequence is the part that costs a session if it is not said out loud:
-**a task's own PR can never amend its own acceptance gate.** Not the assertions,
-not the test names it calls, not a symbol it renamed. The edit is not rejected —
-it is simply never read, and the failure that follows names a missing test rather
-than the reason for it.
+**a task's own PR can never amend an acceptance gate that is already real.** Not
+the assertions, not the test names it calls, not a symbol it renamed. The edit is
+not rejected — it is simply never read, and the failure that follows names a
+missing test rather than the reason for it.
+
+**The one exception is the placeholder, and it is not a relaxation.** A task
+seeded from a plan ships with the placeholder command (`# arsenal:gate-placeholder`),
+which asserts nothing: there is no criterion yet for a branch to weaken. So when
+the default branch still carries the placeholder and the working copy supplies a
+real command, `gate_run.sh` runs the working copy's — and says so on stderr. That
+is how a task defines its first gate, in its own PR, and it is the intended
+bootstrap. The gate *block* around it — metric, operator, threshold, evidence
+path — is still read from the default branch, so the threshold is the board's
+either way. Once the default branch carries a real command the exception is
+closed for good, and the paragraph above is the whole of the rule.
+
+Two things follow for a worker. Replacing a placeholder in a task's own PR is
+correct work, not self-certification — do not preserve the placeholder to look
+compliant. And a `gate_run` line saying it ran the working copy's command is that
+bootstrap, not a bug to chase.
 
 So a task text must not invite the amendment. This sentence, from a real task,
 describes something the toolkit refuses:

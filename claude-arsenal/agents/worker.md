@@ -2,8 +2,17 @@
 
 Task-tool subagent spawned by the orchestrator for each claimed task.
 Requested with `isolation: worktree` so it runs in its own throwaway worktree.
-The worker implements one task and opens its PR. The **orchestrator** owns the
-claim; you never touch it.
+The worker implements one task and gets it as far as this surface allows. The
+**orchestrator** owns the claim; you never touch it.
+
+**How far that is depends on where you are running.** As a Task-tool subagent you
+inherit this session's GitHub access and open the PR yourself. As a *separate
+session* spawned by an orchestrator you have no `mcp__*` tools at all, so your last
+step is the push: `open_task_pr.sh` prints `branch:<name>` and that is a completed
+handoff, not a failure. Return the line and stop — the orchestrator opens the PR.
+Either way you need `ARSENAL_TASK_ISSUE` from the orchestrator when you cannot
+reach the API yourself.
+→ `claude-arsenal/references/orchestrator-tick.md`
 
 Completion is recorded by the PR merging. `open_task_pr.sh` resolves the task's
 issue number and writes `Closes #<issue>` into both the PR body and the commit

@@ -18,6 +18,152 @@ being a changelog nobody reads.
 
 Format: `## [X.Y.Z] - YYYY-MM-DD`, newest first, plain bullets below.
 
+## [3.9.0] - 2026-09-04
+
+### A spawned worker is no longer told to do what it cannot
+
+A session spawned by another carries **no `mcp__*` tools** — true both for a
+routine firing a fresh session and for a directly created child, and neither
+warns you. Where REST is also refused, such a worker's only channel to GitHub is
+plain `git`: enough to fetch, read claim refs and push a branch; not enough to
+read issues, claim, open a PR or merge.
+
+The protocol block `/init` injects into your `CLAUDE.md` told **every** session
+to fetch the board, claim, and open PRs — and a spawned child reads that file
+like any other session. Three workers blocked on exactly this. It now opens by
+naming the spawned case and sending it straight to its task, and its dispatch
+step says to pass the repository and `ARSENAL_TASK_ISSUE` explicitly.
+
+`agents/worker.md` says how far a worker gets on each surface. As a Task-tool
+subagent it opens the PR itself; as a separate session its last step is the push,
+and `open_task_pr.sh` printing `branch:<name>` is **a completed handoff, not a
+failure**.
+
+`references/orchestrator-tick.md` gains a dispatch section with the three things
+every dispatch must carry, each a measured failure rather than a precaution:
+
+1. **The repository, explicitly.** Of four workers dispatched without it, two got
+   containers with no sources — and the create call returned **201** for all
+   four, so nothing in the response told them apart.
+2. **`ARSENAL_TASK_ISSUE`.** The helper resolves the issue over the API the
+   worker does not have, and refuses before touching git. Do not work around it
+   with `ARSENAL_ALLOW_UNLINKED_PR=1` — that opens a PR that completes no task.
+3. **Evidence the assignment is real** — the issue number, the claim ref
+   (`arsenal/claims/<id>`, readable over `git ls-remote`), the dispatching
+   session id. A worker's first turn is now routinely an unfamiliar sender
+   telling it to edit files; refusing that is correct behaviour, which is
+   precisely why it cannot be the signal you rely on.
+
+### `record_isolation.sh` — breaking the batch-of-one deadlock
+
+**New:** `claude-arsenal/bin/record_isolation.sh <mechanism>`.
+
+`available` had exactly one writer: `worker_postcheck.sh`, observing a returned
+worker's toplevel. A worker dispatched as a separate session never returns
+through it, so the sentinel stayed `unknown` forever and `task_select.py` clamped
+every batch to **one task, permanently** — on the surface where separate sessions
+are the only shape that works. The only way out was `--no-isolation-clamp`, which
+disables the check rather than satisfying it.
+
+Run `record_isolation.sh separate-session` after dispatching that way. It records
+that isolation follows from **how you dispatched** — a container per worker
+cannot share a tree — rather than from a path comparison.
+
+That distinction matters: the obvious fix, feeding a cross-container path to
+`worker_postcheck.sh`, **inverts**. Its check is `worker_root != own_root`, and
+two containers routinely both check out at `/home/user/<repo>` — identical paths
+would read as "the worker ran in my tree" at the moment isolation is most
+complete.
+
+The vocabulary is closed (`separate-session`, `separate-clone`); an unknown
+mechanism is refused, not recorded, because this file gates a safety clamp.
+Provenance is written to `worktree_isolation.why` (machine-local, gitignored by
+`/init`). Do **not** use it for Task-tool subagents — `worker_postcheck.sh`
+measures that case correctly, and a measurement beats an attestation.
+
+> **Judgement call worth reviewing.** That a separate container structurally
+> guarantees isolation is an assumption this script cannot verify from inside;
+> it is an attestation by the orchestrator about how it dispatched. The closed
+> vocabulary is what bounds it.
+
+## [3.8.2] - 2026-09-04
+
+### `AGENTS.md` is 201 tokens lighter, with nothing removed
+
+`AGENTS.md` sits in context on **every turn of every session**, so what it costs
+is paid forever by every consumer. Three changes landed in it in one day and the
+resident budget fell to 33 tokens of headroom against the 5000 cap — enough that
+the next addition, whatever it was, would have failed CI.
+
+Four passages moved or compressed. Every **instruction** stays resident; only the
+reasoning behind them moved:
+
+- The bundle-refresh guard keeps "if (a) reported `VENDORED SKILL BEHIND BUNDLE`,
+  skip (b)" and drops the paragraph explaining the guard's history.
+- The issue-fetch step keeps the field list and the ~9k-vs-~1.2k numbers, and
+  drops the explanation of why no script reads a body.
+- **Why the `arsenal-task:` marker must be visible text and never an HTML
+  comment** is now in `references/queue-seeding.md`, under its own heading. Same
+  rule, more room to say what a stripped id actually costs you.
+- **Why ending a session is reporting and not repair** is now in
+  `references/github-automation.md`, next to the transitions that make it true.
+  It carries the rule worth keeping: if you find yourself writing "remember to X
+  before the session ends", X belongs in a workflow or a script, not a protocol.
+
+Nothing a session is told to do has changed. If you have forked `AGENTS.md`,
+this is a text-only merge.
+
+Headroom is back to 234 tokens.
+
+## [3.8.1] - 2026-09-04
+
+- **The evidence-gate reference now documents the placeholder exception.** 3.7.0
+  stated the rule flatly — *"a task's own PR can never amend its own acceptance
+  gate"* — but `gate_run.sh` has always had a bootstrap case: when the default
+  branch still carries the `# arsenal:gate-placeholder` command, it runs the
+  working copy's instead, and says so on stderr. A worker reading only the
+  reference had two ways to get it wrong: preserve the placeholder to look
+  compliant, or treat the "running the working copy's instead" line as a bug.
+  The rule now says *already real* where it meant it, names the exception, and
+  says why it is not a relaxation — a placeholder asserts nothing, so there is no
+  criterion for a branch to weaken, and the gate block's threshold is still read
+  from the default branch either way.
+
+## [3.8.0] - 2026-09-04
+
+### New reference: `orchestrator-tick.md`
+
+`worker-loop.md` documents how one task gets implemented. The other half — what
+the session that dispatches, reviews and merges actually does — had no written
+counterpart, so in practice it lived in the prompt text of whatever routine was
+driving the fleet.
+
+That is a bad place for a contract: not in any repository, so not reviewed, not
+versioned, not diffable, retyped by hand into each successive trigger until the
+copies drift, and gone when the routine is deleted.
+
+The new reference covers one tick's ordered steps, where a tick defers to the
+owner instead of deciding, and three things worth knowing before building a fleet:
+
+- **The merge preconditions, restated at the moment they are applied** — not held,
+  every thread resolved, and *the orchestrator ran the host gate itself and saw
+  exit 0*. A worker reporting its own gate passed is a claim, not evidence. This
+  is the precondition most likely to be quietly dropped when nobody is watching.
+- **Report at most six lines, or "no change".** An hourly loop that narrates itself
+  spends its context on its own transcript and eventually runs out mid-tick.
+- **A tick is not portable.** A trigger that spawns a fresh session per firing
+  stores no MCP connectors, so that session has no channel to the GitHub API and
+  blocks on the tick's first step. Binding to an already-open session is the only
+  shape that works — and the design that looks better fails an hour later rather
+  than immediately.
+
+It also states the boundary that keeps people from trying to move the loop into
+CI: `arsenal-queue.yml` can run board hygiene on a schedule, but an Actions job
+has no Claude session in it and can never do the reviewing or merging half.
+
+Arsenal still ships no scheduler. The reference owns what a tick does; your
+surface owns when it happens.
+
 ## [3.7.1] - 2026-09-04
 
 - **Four helpers that aborted or lied instead of degrading.** All four share a

@@ -92,6 +92,20 @@ dispatches that many workers at once. Run when the queue has open tasks:
      lives in the selector rather than in this protocol on purpose — a rule the
      caller has to remember is one it can skip exactly once, in the round that
      discovers isolation is missing.
+
+     **Dispatching separate sessions rather than Task-tool subagents?** Then no
+     worker ever returns through `worker_postcheck.sh`, which is `available`'s
+     only writer — so the sentinel stays `unknown` and every batch is clamped to
+     one task, permanently, on the surface where separate sessions are the only
+     shape that works. Record the fact instead:
+     `bash claude-arsenal/bin/record_isolation.sh separate-session`. It attests
+     that isolation follows from HOW you dispatched (a container per worker
+     cannot share a tree) rather than from a path comparison, which inverts
+     across containers — two containers routinely check out at the same path.
+     The vocabulary is closed and the provenance is written to
+     `worktree_isolation.why`; an unknown mechanism is refused, not recorded.
+     Do NOT use it for Task-tool subagents: `worker_postcheck.sh` measures that
+     case correctly, and a measurement is worth more than an attestation.
 4. For each task line, `bash claude-arsenal/bin/claim_task.sh <task_id>`
    (sequential — each push is atomic):
    - `won` → keep the task in the dispatch set. `claim_task.sh` reports `won`

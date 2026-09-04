@@ -7,6 +7,7 @@ mid-session. A session that picks up existing work never needs this file.
 ## Contents
 
 - [Seeding from a plan table](#seeding-from-a-plan-table) — one procedure, workspace or solo
+- [The handle marker must be visible text](#the-handle-marker-must-be-visible-text)
 - [Importing issues filed between sessions](#importing-issues-filed-between-sessions)
 - [Divergence handling](#divergence-handling) — a `D-N` task, never a note in the handover
 
@@ -89,6 +90,20 @@ Everything below is the same either way. The table columns are:
 4. Proceed to the **worker loop** (`claude-arsenal/references/worker-loop.md`).
 
 ---
+
+## The handle marker must be visible text
+
+`handle_sync.py` proposes an issue per task file, and that issue carries a
+`` `arsenal-task: <id>` `` line identifying which task it is a handle for.
+
+**Write it as visible text, never as an HTML comment.** Some GitHub tools strip
+angle-bracketed content from issue bodies. An id that is stripped leaves the
+issue anonymous: nothing can resolve it back to its task, `handle_sync.py`
+proposes a *second* handle for the same task file next session, and the board
+reads as stateless while looking fine.
+
+The same rule applies to the marker `issue_import.py` writes back into an
+imported issue, for the same reason.
 
 ## Importing issues filed between sessions
 

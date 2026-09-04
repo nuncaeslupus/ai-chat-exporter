@@ -80,6 +80,24 @@ session-start protocol in `AGENTS.md`) or create the handle with `handle_sync.py
 
 ---
 
+## Ending a session is reporting, not repair
+
+`AGENTS.md` step 7 asks a session with open work to audit it and write a
+handover before ending. That step is a **report for the human**, not a repair
+the queue depends on.
+
+Nothing the next session needs is produced by it. A merged PR has already closed
+and archived its task — GitHub did that, per the transitions above. An abandoned
+PR has already released its claim. So a session that ends abruptly, on a quota
+stop, a crash, or a closed window, leaves the queue correct anyway.
+
+That is the property the whole design is aiming at, and it is worth stating as a
+rule for anything added later:
+
+> If you find yourself writing "remember to X before the session ends", X belongs
+> in a workflow or a script, not in a protocol. The sessions that most need
+> cleaning up are exactly the ones that ended badly and will never read it.
+
 ## Merge policy — the host's standing answer to "may I merge this?"
 
 `arsenal/config.toml` carries `merge-policy`, and this is the step that reads it:
