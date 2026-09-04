@@ -53,22 +53,43 @@ export const CLAUDE_SELECTORS: SelectorSet = {
   // Conversation title
   conversationTitle: 'button[data-testid="chat-title-button"] div.truncate',
 
-  // Model indicator
-  modelIndicator: 'button[data-testid="model-selector-dropdown"] div.whitespace-nowrap',
+  // Model indicator.
+  // The inner `div.whitespace-nowrap` is gone from the 2026 markup (probed
+  // live 2026-09-03: zero matches), so `getModel()` returned null and no
+  // export carried a model at all. The button itself keeps the semantic
+  // `data-testid` and its whole text is the model name ("Opus 5 High"), so
+  // read the button. The old inner-div spelling is not kept as a fallback:
+  // `querySelector` returns the first match in *document order*, and the
+  // button is that div's ancestor, so the div could never win anyway.
+  modelIndicator: 'button[data-testid="model-selector-dropdown"]',
 
   // Custom selectors for Claude-specific elements
   custom: {
     // Per-turn wrapper: every turn (user or assistant) gets one of these;
     // it survives even when a redesign guts the turn's inner content.
     turnContainer: 'div[data-test-render-count]',
-    // User turn's inner wrapper -- present for every user turn regardless of
-    // whether data-testid="user-message" survives inside it (lo-d0f0).
-    // `div.mb-1.mt-6.group` is gone from the 2026 markup; the bubble now
-    // carries `data-user-message-bubble`, an attribute rather than a utility
-    // chain, so it leads. With the old chain dead and nothing replacing it,
-    // no turn was recognized as a user turn and every conversation parsed to
-    // zero Q&A pairs (lo-2478). Both spellings are kept.
-    userTurnWrapper: '[data-user-message-bubble], div.mb-1.mt-6.group',
+    // User turn's inner wrapper -- what tells a user turn apart from an
+    // assistant one in `extractQAPairs`.
+    //
+    // Probed live on claude.ai 2026-09-03: BOTH previous spellings match zero
+    // nodes. `div.mb-1.mt-6.group` went with the 2026 redesign, and
+    // `data-user-message-bubble` -- which the previous comment here claimed
+    // had replaced it -- is not in the DOM either. With every alternative
+    // dead, `isUserTurn` was false for every turn, so each user turn fell
+    // through to the assistant check, failed that too, and was dropped as
+    // "neither role recognized"; its answer was then dropped as an orphan.
+    // Every conversation parsed to zero pairs, silently, because
+    // `collectWarnings` only walks pairs that already exist.
+    //
+    // `data-testid="user-message"` is the hook that actually survives, and it
+    // leads for that reason. It is the same node `userMessage` above resolves,
+    // which is fine: role detection only asks whether the turn contains a user
+    // bubble at all. The two dead spellings are kept so pre-2026 snapshots
+    // still resolve -- but a selector list is only as live as its first
+    // matching member, so measure them against the live page before trusting
+    // any of them again (lo-2478, lo-d0f0).
+    userTurnWrapper:
+      '[data-testid="user-message"], [data-user-message-bubble], div.mb-1.mt-6.group',
 
     // Detection signals: any one of these means "this claude.ai page is
     // showing a conversation". canParse() ORs them instead of requiring the

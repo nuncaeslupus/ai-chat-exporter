@@ -1,6 +1,6 @@
 {
   "name": "ai-chat-exporter",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Browser extension to export AI chatbot conversations to PDF, Markdown, DOCX, and more",
   "type": "module",
   "scripts": {
