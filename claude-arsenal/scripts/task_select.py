@@ -551,15 +551,34 @@ def main(argv: list[str] | None = None) -> int:
     state: dict[str, str] = {}
     issue_warnings: list[str] = []
     if args.issues:
+        # Every way this file can be absent or wrong is an error, not an empty
+        # state map. `query_status.py` already returns 2 here; this path only
+        # caught JSONDecodeError, so a path that did not exist raised
+        # FileNotFoundError out of a documented exit contract, and a truncated
+        # `{"issues": null}` raised TypeError from the comprehension below.
+        # Either way the operator sees a traceback instead of the one sentence
+        # that says which file was unreadable — and on the branch where the
+        # exception is swallowed by a caller, an empty state map hands out a
+        # task that is already finished.
         try:
             payload = json.loads(args.issues.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError) as exc:
+            print(f"task_select: cannot read --issues — {exc}", file=sys.stderr)
+            return 2
         except json.JSONDecodeError as exc:
             print(f"task_select: --issues is not valid JSON — {exc}", file=sys.stderr)
             return 2
         # Accept either a bare array or the {"issues": [...]} envelope some
         # GitHub tools wrap results in, so the caller can save what it got.
         if isinstance(payload, dict):
-            payload = payload.get("issues", [])
+            payload = payload.get("issues")
+        if not isinstance(payload, list):
+            print(
+                f"task_select: --issues {args.issues} is not an issue list — expected a "
+                'JSON array, or an object with an "issues" array',
+                file=sys.stderr,
+            )
+            return 2
         state = state_from_issues(
             [i for i in payload if isinstance(i, dict)],
             titles=title_index(tasks),

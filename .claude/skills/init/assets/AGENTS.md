@@ -1,6 +1,6 @@
 # Claude Arsenal
 
-<!-- claude-arsenal v3.4.5 — imported via @claude-arsenal/AGENTS.md -->
+<!-- claude-arsenal v3.6.2 — imported via @claude-arsenal/AGENTS.md -->
 
 This file is imported by the host repo's `CLAUDE.md` via the session-protocol block
 that `/init` injects, so it sits in context on **every turn of every session**. It
@@ -59,10 +59,14 @@ At the start of every session (fresh start, context compaction, or cold restart)
    > charged once per session before any work is read. With the GitHub MCP tools that is
    > the `fields` argument; with `gh`, `--json number,title,state,labels,assignees`.
 
-3. **Read the board** —
+3. **Read the board** — `git fetch --quiet origin`, then
    `python3 claude-arsenal/scripts/query_status.py --issues /tmp/arsenal-issues.json`.
    Report anything it flags: a task with no fenced gate block, a task file with no issue
-   handle, or a dep that no task file declares.
+   handle, a dep that no task file declares, or a working tree behind the remote.
+   > The issues are fetched fresh; the task files are as old as your last pull, and a
+   > stale one reads exactly like an open task. `query_status` reports the drift — the
+   > fetch is what removes it. If the fetch fails, say so and treat the counts as
+   > unverified.
 
 4. **Create any missing handles** (usually a no-op — `.github/workflows/arsenal-queue.yml`
    opens them when the task file lands) —

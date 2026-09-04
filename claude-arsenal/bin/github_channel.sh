@@ -105,7 +105,15 @@ api() {
             # knows how to handle. Returning 4 made `claim_task.sh` map it to
             # `error` — which stops the whole session — instead of `manual`,
             # so the documented fallback was unreachable on the `gh` channel.
-            if [[ "${method}" != "GET" ]] && grep -qiE 'HTTP 40[34]|403|404' <<<"${out}"; then
+            # Anchored on gh's own `HTTP <code>:` framing. The bare `403|404`
+            # alternatives matched anywhere in ${out} — which is gh's stdout AND
+            # stderr — so an HTTP 500 whose body carried a `#404` doc link, or a
+            # connection reset with `403` inside a trace id, was reported as a
+            # permission failure. The caller then sent a human after a token
+            # problem that did not exist, and a real outage was reclassified as
+            # `manual` rather than surfacing as the error it was.
+            if [[ "${method}" != "GET" ]] \
+                && grep -qiE '(^|[^0-9])HTTP[[:space:]]+40[34]([^0-9]|$)' <<<"${out}"; then
                 echo "channel:none"
                 echo "${method} ${path}"
                 [[ -n "${body}" ]] && echo "${body}"

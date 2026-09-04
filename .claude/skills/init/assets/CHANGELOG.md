@@ -18,6 +18,122 @@ being a changelog nobody reads.
 
 Format: `## [X.Y.Z] - YYYY-MM-DD`, newest first, plain bullets below.
 
+## [3.6.2] - 2026-09-04
+
+- **The quota guard's override is documented.** `ARSENAL_RATE_LIMITS_FILE`
+  shipped working and named in no markdown file in the repo. It matters most on
+  a cloud session — Claude Code on the web, the apps, a routine — which never
+  runs a statusLine, so `rate_limits.json` is never written and the
+  percentage guard fails open on every round. That is the surface most likely
+  to be running an unattended fleet, and the one where `ARSENAL_MAX_ITERATIONS`
+  is not a backstop but the entire ceiling. `references/quota-governance.md`
+  now says so, gives the exact JSON shape `budget_check.sh` accepts, and warns
+  that a document describing exhaustion in any other vocabulary (a
+  `get_session` `{"status": "..."}` response, say) fails open **silently** —
+  the guard stays inert while looking configured. Also listed in the
+  tuning-knobs table. (#329, first half)
+
+## [3.6.1] - 2026-09-04
+
+- **The skill-edit gate no longer opens when its own analyser breaks.** Any
+  crash inside `gate_target.py` produced an empty target, which the hook read as
+  "nothing to gate" and allowed — silently, with nothing in the transcript to
+  say the check had stopped running. A crash now refuses the call and prints
+  why. An unparseable payload is still allowed: that is a handled case, not a
+  crash. (#347, in part)
+- **An unusable evidence gate is no longer scored as a failed one.** A JSON
+  number too large for a float raised `OverflowError` out of `gate_evidence.py`,
+  and the traceback's exit 1 is `gate_run.sh`'s *assertion failed* — so a gate
+  that could not be scored was reported as a gate the work had failed. It now
+  exits 2 ("declared but unusable"), which existed for exactly this. (#346)
+- **A migration will not write a task with no gate.** `arsenal_migrate.py`
+  turned a payload that was missing, or that pointed outside the queue
+  directory, into an empty task body carrying the `<!-- No gate was recorded -->`
+  fallback — then summarised the run as a success and exited 0, so the operator
+  deleted the legacy queue and the gate was gone. Every payload is now resolved
+  before the first file is written, and an unreadable one exits 2 having
+  written nothing. (#346)
+- `arsenal_migrate.py` also refuses to write a `config.toml` whose reported
+  merge policy is not the one in the file — the substitution was never checked,
+  so a template whose spacing had drifted was reported as set and written
+  unchanged. (#346)
+- **`gate_run.sh` says when your branch's gate edit was ignored.** A task's gate
+  comes from the default branch by design; a branch that edits it had that edit
+  discarded in silence, so the gate failed naming a symbol the implementation
+  had renamed and the worker debugged its own code. It now says which command
+  ran and why. Its other diagnostic said the task file was "not on disk" when it
+  usually is — corrected to "preferred over the working copy". (#349, in part)
+- `pr-review-loop.md` pointed at an upstream path that does not exist in a
+  consumer's tree; it now names the vendored
+  `claude-arsenal/references/github-automation.md`. (#346)
+
+## [3.6.0] - 2026-09-04
+
+- **Security: a migration no longer executes your skills.** `arsenal_migrate.py`
+  read `init.py`'s config template by *importing* every `init.py` it could glob
+  under `.claude/skills/*/scripts/`, running that file's top level — so any
+  skill in the tree could run arbitrary code during a migration, and it happened
+  on the **dry run** too, because `--apply` only guards the write. The template
+  is now read by parsing, never importing, and only from the one path `/init`
+  actually vendors to. (#343)
+- **The migration carries your handover across.** `arsenal_migrate.py` used to
+  decline the whole of `arsenal/session/` whenever it already existed — and
+  since `UPDATE.md` documents trees-first-then-migrate, `init.py` had always
+  created it first, so the real handover was *never* carried over on a migration
+  that followed the documented order. It now merges file by file, and names
+  anything it genuinely declines instead of reporting `left alone`. (#353)
+- **`/init` no longer shadows your handover.** The bundle shipped
+  `session/handover.md`, so every run recreated an empty
+  `claude-arsenal/session/handover.md` beside the real
+  `arsenal/session/handover.md`. Nothing read it, and an empty handover looks
+  exactly like a fresh install — so a session that opened it concluded there was
+  no prior context. The bundle no longer ships it; an existing copy is removed
+  when untouched, and **preserved with a warning** when it has content. (#353)
+- **A section you enable is now honoured or explained, never dropped.** A
+  vendored `init.py` derived the requestable sections from the skills already
+  installed, so a section whose skills were all un-vendored could not be named:
+  `--sections extract` failed as "unknown section", and `extract = true` in
+  `arsenal/config.toml` was dropped in silence behind the usual success line.
+  Sections now come from the shipped `sections.json`, and a section that is on
+  with no skill to satisfy it says so and tells you to re-run the plugin's
+  `init.py`. (#354)
+- **A GitHub outage is no longer reported as a permission problem.**
+  `github_channel.sh` matched a bare `403`/`404` anywhere in `gh`'s output, so an
+  HTTP 500 whose body carried a `#404` documentation link — or a connection
+  reset with `403` inside a trace id — came back as "this channel may read but
+  not write here", which `claim_task.sh` maps to `manual`. The match is now
+  anchored to `gh`'s own `HTTP <code>:` framing. (#342)
+
+## [3.5.0] - 2026-09-04
+
+- `open_task_pr.sh` now **rejects an unknown option** instead of taking it as
+  the PR title. `open_task_pr.sh <id> --body-file x.md` used to open a PR
+  subjected `x.md: --body-file` and merge it; the subject is the one part of a
+  PR that survives a squash, so the only fix was rewriting shared history.
+  (#352)
+- `open_task_pr.sh` gains `--title`, `--type`, `--body-file` and `--help`.
+  `--body-file` supplies the PR body's Summary prose; the `Closes #<issue>`
+  line, the gate note and the review receipt are still written by the script,
+  because a body without them does not complete the task.
+- **Branch slugs are now ASCII on every locale.** A non-English title could
+  produce a branch name `git push` refuses — glibc collates accented letters
+  inside `a-z` under a UTF-8 locale, and `cut -c1-40` splits multibyte
+  characters. Invisible on CI (the runners are C.UTF-8), reproducible on any
+  workstation with a real UTF-8 locale. If you carry a local patch for this,
+  you can drop it. (#350)
+- **The board reports a stale working tree.** `query_status.py` makes one
+  read-only `git ls-remote` and warns when your checkout is behind the remote
+  default branch. A stale task file and a genuinely open task read identically
+  from the board, so a behind-by-N tree hands out work that is already merged.
+  Skip it with `--no-remote-check`; it is silent when the remote is
+  unreachable. Session-start step 3 now begins with `git fetch --quiet origin`.
+  (#351)
+- `task_select.py --issues` now **exits 2 on a file it cannot read**, matching
+  `query_status.py`. A missing path raised `FileNotFoundError` and a truncated
+  `{"issues": null}` raised `TypeError`; either could leave an empty state map,
+  which is indistinguishable from a healthy new board — so the selector would
+  hand out a task that was already finished. (#345)
+
 ## [3.4.5] - 2026-09-02
 
 - `keyword-guard` no longer passes a task PR when a truncated `arsenal:task`

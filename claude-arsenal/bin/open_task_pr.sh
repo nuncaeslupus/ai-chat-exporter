@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # open_task_pr.sh <task_id> <title> [<type>]
+# open_task_pr.sh <task_id> --title <title> [--type <type>] [--body-file <path>]
+# open_task_pr.sh --help
 # Commit a worker's task changes on a feature branch cut from the host DEFAULT
 # branch (origin/main), push it, and open a PR that closes the task's issue.
 #
@@ -56,9 +58,71 @@
 set -uo pipefail
 
 REMOTE="${ARSENAL_QUEUE_REMOTE:-origin}"
-TASK_ID="${1:?open_task_pr.sh requires <task_id>}"
-TITLE="${2:?open_task_pr.sh requires <title>}"
-TYPE="${3:-feat}"
+
+_usage() {
+    cat <<'USAGE'
+usage: open_task_pr.sh <task_id> <title> [<type>]
+       open_task_pr.sh <task_id> --title <title> [--type <type>] [--body-file <path>]
+
+  <task_id>            the queue task this PR completes (e.g. lo-cf3d)
+  <title>              the PR/commit subject, WITHOUT the Conventional Commits type
+  <type>               Conventional Commits type; default: feat
+
+Options:
+  --title <text>       same as the second positional argument
+  --type <text>        same as the third positional argument
+  --body-file <path>   file whose contents become the PR body's Summary prose.
+                       The `Closes #<issue>` line, the acceptance-gate note and
+                       the review receipt are still written by this script — a
+                       body that dropped them would break task completion.
+  -h, --help           print this and exit
+
+Env: ARSENAL_QUEUE_REMOTE, ARSENAL_COAUTHOR, ARSENAL_TASK_ISSUE,
+     ARSENAL_ISSUES_JSON, ARSENAL_HOME, ARSENAL_ALLOW_UNLINKED_PR,
+     ARSENAL_ALLOW_SHARED_ADD
+USAGE
+}
+
+# Positional-only parsing let `open_task_pr.sh lo-cf3d --body-file tmp/pr.md` run
+# to completion with TITLE=--body-file and TYPE=tmp/pr.md, and merged the subject
+# `tmp/pr.md: --body-file` into main (#352). The subject is the one part of a PR
+# that survives a squash, so a typo here is only fixable by rewriting shared
+# history. An argument that looks like an option is now never taken as a value:
+# it is either a known option or a usage error, before anything touches git.
+TASK_ID=""
+TITLE=""
+TYPE=""
+BODY_FILE=""
+_positional=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help) _usage; exit 0 ;;
+        --title)      [[ $# -ge 2 ]] || { echo "open_task_pr: --title needs a value" >&2; _usage >&2; exit 1; }; TITLE="$2"; shift 2 ;;
+        --title=*)    TITLE="${1#--title=}"; shift ;;
+        --type)       [[ $# -ge 2 ]] || { echo "open_task_pr: --type needs a value" >&2; _usage >&2; exit 1; }; TYPE="$2"; shift 2 ;;
+        --type=*)     TYPE="${1#--type=}"; shift ;;
+        --body-file)  [[ $# -ge 2 ]] || { echo "open_task_pr: --body-file needs a value" >&2; _usage >&2; exit 1; }; BODY_FILE="$2"; shift 2 ;;
+        --body-file=*) BODY_FILE="${1#--body-file=}"; shift ;;
+        --) shift; while [[ $# -gt 0 ]]; do _positional+=("$1"); shift; done ;;
+        -*) echo "open_task_pr: unknown option: $1" >&2; _usage >&2; exit 1 ;;
+        *) _positional+=("$1"); shift ;;
+    esac
+done
+
+[[ -n "${_positional[0]:-}" ]] && TASK_ID="${_positional[0]}"
+[[ -z "${TITLE}" && -n "${_positional[1]:-}" ]] && TITLE="${_positional[1]}"
+[[ -z "${TYPE}"  && -n "${_positional[2]:-}" ]] && TYPE="${_positional[2]}"
+TYPE="${TYPE:-feat}"
+
+if [[ ${#_positional[@]} -gt 3 ]]; then
+    echo "open_task_pr: too many arguments (got ${#_positional[@]}, expected at most 3)" >&2
+    _usage >&2; exit 1
+fi
+[[ -n "${TASK_ID}" ]] || { echo "open_task_pr.sh requires <task_id>" >&2; _usage >&2; exit 1; }
+[[ -n "${TITLE}" ]]   || { echo "open_task_pr.sh requires <title>" >&2; _usage >&2; exit 1; }
+if [[ -n "${BODY_FILE}" && ! -f "${BODY_FILE}" ]]; then
+    echo "open_task_pr: --body-file ${BODY_FILE} does not exist" >&2; exit 1
+fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd 2>/dev/null || echo .)"
 BUNDLE_SCRIPTS="$(cd "${SCRIPT_DIR}/../scripts" && pwd 2>/dev/null || echo "${SCRIPT_DIR}/../scripts")"
 ARSENAL_HOME="${ARSENAL_HOME:-arsenal}"
@@ -308,8 +372,23 @@ _in_linked_worktree() {
 }
 
 # Slug: lowercase, non-alphanumerics → single hyphens, trimmed, capped.
-slug="$(printf '%s' "${TITLE}" | tr '[:upper:]' '[:lower:]' \
-    | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' | cut -c1-40 | sed -E 's/-+$//')"
+#
+# The whole pipeline runs under LC_ALL=C, and a final C-locale pass strips
+# anything that still is not [a-z0-9-] (#350). Both are load-bearing, and the
+# bug they close is invisible to CI because the runners are C.UTF-8:
+#   * Under a UTF-8 locale glibc collates accented letters INSIDE the `a-z`
+#     range, so `[^a-z0-9]` does not match `é` and it survives into the branch
+#     name raw. `tr '[:upper:]' '[:lower:]'` mangles multibyte there too.
+#   * `cut -c1-40` counts bytes, so a multibyte character straddling byte 40 is
+#     left as a lone continuation byte — not even valid UTF-8.
+# `git push` then refuses the ref, on exactly the workstations where people
+# write non-English titles and nowhere the tests run. This was patched three
+# times in one consumer's tree; each bundle bump reverted it, which is why the
+# normalisation belongs here.
+slug="$(export LC_ALL=C; printf '%s' "${TITLE}" | tr -d '\n\r' \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' | cut -c1-40 \
+    | sed -E 's/[^a-z0-9-]+//g; s/-+$//')"
 [[ -z "${slug}" ]] && slug="task"
 BRANCH="arsenal/${TASK_ID}-${slug}"
 
@@ -759,8 +838,16 @@ fi
 # nobody re-reads a worker's log; the PR body is the one surface the person
 # merging this actually looks at, so "nobody independent read this" has to be
 # written where that decision is made.
+# --body-file supplies the Summary prose in place of the bare title. It does
+# NOT replace the whole body: `Closes #<issue>` is the completion mechanism and
+# the review receipt is what the person merging reads, so neither is delegated
+# to a caller-supplied file.
+summary_prose="${TITLE}"
+if [[ -n "${BODY_FILE}" ]]; then
+    summary_prose="$(cat "${BODY_FILE}")"
+fi
 BODY="$(printf '## Summary\n\n%s\n\n%s\n\n## Test plan\n\n%s\n%s' \
-    "${closes_line}" "${TITLE}" "${gate_note}" \
+    "${closes_line}" "${summary_prose}" "${gate_note}" \
     "$([[ -n "${review_note}" ]] && printf '\n%s\n' "${review_note}")")"
 PR_TITLE="${TYPE}: ${TITLE}"
 

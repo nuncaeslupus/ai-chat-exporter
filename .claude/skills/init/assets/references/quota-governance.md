@@ -28,4 +28,42 @@ back to `CLAUDE_CODE_SESSION_ID`, the same pair `references/claiming-internals.m
 names; `CLAUDE_SESSION_ID` is set on no current surface — and lives in the gitignored
 `arsenal/session/budget_iterations.json`.
 
+### On a cloud session the guard cannot see quota at all
+
+`statusline_capture.sh` is a **statusLine** command, and a statusLine is a
+terminal affordance. A session running in the cloud — Claude Code on the web,
+the desktop and mobile apps, a routine — never runs one, so
+`rate_limits.json` is never written and `budget_check.sh` fails open on every
+round. That is the surface most likely to be running an unattended fleet, and
+it is the surface where the quota half of the guard does nothing. On it,
+`ARSENAL_MAX_ITERATIONS` is not a backstop; it is the entire ceiling.
+
+**`ARSENAL_RATE_LIMITS_FILE` is the seam.** It overrides the path
+`budget_check.sh` reads, so an orchestrator that can observe quota by some
+other means can write that file itself and the percentage guard starts working:
+
+```bash
+# whatever your surface can tell you about quota, in the shape below
+ARSENAL_RATE_LIMITS_FILE=/tmp/quota.json bash claude-arsenal/bin/budget_check.sh
+```
+
+The shape is not negotiable — `used_percentage` under `five_hour` and/or
+`seven_day`, the same block a statusLine receives:
+
+```json
+{"five_hour": {"used_percentage": 95, "resets_at": "2026-09-04T12:00:00Z"}}
+```
+
+Anything else is "fields absent" and fails open **silently**, which is the trap:
+a document that plainly describes exhaustion in some other vocabulary still
+buys nothing. A `get_session` response carrying `{"status": "allowed",
+"rateLimitType": "five_hour"}` does not satisfy this check — translate it to
+the shape above, or the guard stays inert while looking configured.
+
+And translate honestly: `status` reports whether the API is refusing *right
+now*, which is a wall already hit. `ARSENAL_QUOTA_STOP_PCT` exists to stop
+before that. A hard stop on a refusal is a reasonable thing to want, but it is
+a different signal and must not be mapped onto the percentage threshold — doing
+so makes the threshold silently inert whenever the other document is present.
+
 ---

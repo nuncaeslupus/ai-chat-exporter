@@ -2,8 +2,13 @@
 """query_status.py — the board: what is open, claimed, done, and what is blocking.
 
 Reads the task graph from the repository and the state from the GitHub issues the
-caller already fetched, so it needs no network of its own and cannot disagree with
-what the selector sees — both derive from the same two inputs.
+caller already fetched, so it cannot disagree with what the selector sees — both
+derive from the same two inputs.
+
+It makes one read-only network call of its own: `git ls-remote` for the remote
+default branch's tip, to say whether the working tree those task files came from
+is current. Nothing is fetched and no ref is written. `--no-remote-check` skips
+it; a failure is silent, because a surface with no network still has a board.
 
     python3 claude-arsenal/scripts/query_status.py --issues /tmp/issues.json [--detail]
 
@@ -16,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -46,6 +52,88 @@ def blocking(task: dict[str, Any], state: dict[str, str]) -> list[str]:
     return [d for d in task["deps"] if state.get(d) not in TERMINAL]
 
 
+
+def _git(args: list[str], cwd: Path, timeout: float = 10.0) -> str | None:
+    """Run a git command, returning its stdout, or None if it did not succeed.
+
+    Every caller below treats None as "cannot tell" and stays quiet. That is
+    deliberate: the surfaces most likely to fail here (no git, no network, a
+    detached worktree, a proxy that eats `git://`) are the same surfaces that
+    still have a perfectly usable board sitting on disk.
+    """
+    try:
+        done = subprocess.run(
+            ["git", *args],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return done.stdout.strip() if done.returncode == 0 else None
+
+
+def staleness_warning(tasks_dir: Path, remote: str = "origin") -> str | None:
+    """Say when the tree these task files were read from is behind the remote.
+
+    The board has a remote source of truth (the issues, fetched fresh every
+    session) and a local one (the task files, as of whenever someone last
+    pulled), and only the first is guaranteed current. A stale tree and a
+    legitimately-open task are indistinguishable from the board: both say "not
+    done", and only the tree knows how much is actually left. One session
+    redid nineteen already-merged items against a `main` seventeen commits
+    behind, and what eventually surfaced it was an unrelated `gh run list` —
+    no protocol step could, because no step performed a single operation
+    against the remote.
+
+    The check is a `git ls-remote` rather than a fetch: it costs one
+    round-trip, mutates nothing, and needs no write access to the object
+    store. If the remote tip is not an object we hold, we are behind it (or
+    diverged) and cannot say by how much; if we do hold it, we can count.
+    """
+    root = _git(["rev-parse", "--show-toplevel"], tasks_dir if tasks_dir.is_dir() else Path.cwd())
+    if not root:
+        return None
+    top = Path(root)
+
+    # The remote's published HEAD symref names the default branch. Read it from
+    # the same ls-remote that gives us the tip, so a repo whose local
+    # `refs/remotes/<remote>/HEAD` was never set still resolves.
+    out = _git(["ls-remote", "--symref", remote, "HEAD"], top, timeout=20.0)
+    if not out:
+        return None
+    branch, tip = "", ""
+    for line in out.splitlines():
+        if line.startswith("ref:"):
+            parts = line.split()
+            if len(parts) >= 2 and parts[1].startswith("refs/heads/"):
+                branch = parts[1][len("refs/heads/") :]
+        elif line.endswith("\tHEAD") or line.endswith(" HEAD"):
+            tip = line.split()[0]
+    if not tip:
+        return None
+    label = f"{remote}/{branch}" if branch else f"{remote}/HEAD"
+
+    head = _git(["rev-parse", "HEAD"], top)
+    if head == tip:
+        return None
+
+    if _git(["cat-file", "-e", f"{tip}^{{commit}}"], top) is None:
+        return (
+            f"board computed from a tree that does not contain {label} ({tip[:8]}) — "
+            "fetch first, or every count below is as of an unknown point in the past"
+        )
+
+    behind = _git(["rev-list", "--count", f"HEAD..{tip}"], top)
+    if not behind or behind == "0":
+        return None
+    return (
+        f"board computed from a tree {behind} commit(s) behind {label} — fetch first; "
+        "a task file that is merely stale is indistinguishable from an open task"
+    )
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tasks-dir", type=Path, default=Path("arsenal/tasks"))
@@ -58,6 +146,16 @@ def main(argv: list[str] | None = None) -> int:
         help="emit one JSON object per task with its DERIVED state, for a host check to consume",
     )
     parser.add_argument("--fail-on-problems", action="store_true")
+    parser.add_argument(
+        "--no-remote-check",
+        action="store_true",
+        help="skip the read-only `git ls-remote` that reports a stale working tree",
+    )
+    parser.add_argument(
+        "--remote",
+        default="origin",
+        help="remote to measure the tree's freshness against (default: origin)",
+    )
     parser.add_argument(
         "--pending-merge",
         action="store_true",
@@ -120,6 +218,14 @@ def main(argv: list[str] | None = None) -> int:
             "query_status: no --issues file — issue handles and issue state not checked",
             file=sys.stderr,
         )
+
+    # Printed here rather than appended to `warnings`, because the --json path
+    # returns before those are rendered and a stale board is exactly as wrong
+    # when a host check is the one reading it.
+    if not args.no_remote_check:
+        stale = staleness_warning(args.tasks_dir, remote=args.remote)
+        if stale:
+            print(f"query_status: {stale}", file=sys.stderr)
 
     counts = {"open": 0, "claimed": 0, "done": 0, "cancelled": 0, "blocked": 0}
     problems: list[str] = []

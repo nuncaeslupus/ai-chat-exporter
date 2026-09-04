@@ -104,7 +104,11 @@ if [[ ! -f "${PAYLOAD}" || ${_prefer_default} -eq 1 ]]; then
     found=0
     for ref in "${REMOTE}/${DEFAULT_BRANCH}" "${DEFAULT_BRANCH}"; do
         if git show "${ref}:${HOME_DIR}/tasks/${TASK_ID}.md" >"${PAYLOAD_TMP}" 2>/dev/null; then
-            echo "gate_run: task file read from ${ref} (not on disk)" >&2
+            # Not "(not on disk)": in this branch the file usually IS on disk,
+            # and saying otherwise sent workers looking for a stale checkout
+            # instead of telling them the default branch's copy is the one that
+            # counts.
+            echo "gate_run: task file read from ${ref} (preferred over the working copy)" >&2
             PAYLOAD="${PAYLOAD_TMP}"
             found=1
             break
@@ -273,6 +277,25 @@ if working and is_placeholder(cmd):
             file=sys.stderr,
         )
         cmd = wcmd
+elif working:
+    # The branch edited a gate that is already real on the board. That edit is
+    # discarded by design — it is exactly what self-certification would target —
+    # but discarding it in silence is what costs the session: the gate fails
+    # naming a symbol the implementation renamed, and the worker debugs its own
+    # code against a test that no longer exists. Say which command ran and why.
+    try:
+        wcmd = gate_command(gate_section(pathlib.Path(working).read_text(encoding="utf-8")))
+    except OSError:
+        wcmd = None
+    if wcmd and wcmd != cmd:
+        print(
+            f"gate_run: {task_id} — the gate that ran is the one on the DEFAULT BRANCH. "
+            "Your branch edits the gate block, and that edit was NOT used and cannot be: "
+            "a task's gate is the precondition it was accepted under, so a PR cannot "
+            "change the gate it is judged by. If the gate genuinely needs amending, merge "
+            "the task-file change on its own first, or open a new task.",
+            file=sys.stderr,
+        )
     else:
         print(
             f"gate_run: {task_id} — the gate command is still the placeholder on both the "

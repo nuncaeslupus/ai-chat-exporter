@@ -29,7 +29,7 @@ Exit: 0 on success, 1 if nothing to migrate, 2 on error.
 from __future__ import annotations
 
 import argparse
-import importlib.util
+import ast
 import json
 import re
 import secrets
@@ -58,30 +58,72 @@ def config_template(repo_root: Path) -> str | None:
     stops `init.py` writing the complete one.
     """
     here = Path(__file__).resolve()
+    # Two exact paths, not a glob over `.claude/skills/*`. Vendored, this file
+    # sits at `<repo>/claude-arsenal/scripts/`, so `parents[2]` is the repo root
+    # and the wildcard matched EVERY skill's `scripts/init.py` — a file any skill
+    # may ship and any of them may have authored. `init.py` vendors flat into
+    # `.claude/skills/<name>/`, so the only init.py this script ever wants is
+    # the one under `init/`.
     candidates = [
         # Inside the plugin tree: assets/scripts/ → ../../scripts/init.py
-        *here.parents[2].glob("scripts/init.py"),
+        here.parents[2] / "scripts" / "init.py",
         # Vendored into a consumer: .claude/skills/init/scripts/init.py
-        *sorted(repo_root.glob(".claude/skills/*/scripts/init.py")),
+        repo_root / ".claude" / "skills" / "init" / "scripts" / "init.py",
     ]
     for candidate in candidates:
-        if candidate.name != "init.py":
-            continue
-        spec = importlib.util.spec_from_file_location("_arsenal_init_template", candidate)
-        if spec is None or spec.loader is None:
-            continue
-        module = importlib.util.module_from_spec(spec)
-        sys.modules["_arsenal_init_template"] = module
+        # Parsed, never imported. This used to `exec_module()` the file, which
+        # ran its top level — so a migration executed arbitrary code out of the
+        # consumer's skills tree, and did so on the DRY RUN as well, because
+        # `--apply` only guards the write. `_CONFIG_TEMPLATE` is a module-level
+        # string literal; reading it needs no interpreter.
         try:
-            spec.loader.exec_module(module)
-            template = getattr(module, "_CONFIG_TEMPLATE", None)
-        except Exception:  # a bundle we cannot read is not a reason to crash
+            tree = ast.parse(candidate.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, SyntaxError, ValueError):
             continue
-        finally:
-            sys.modules.pop("_arsenal_init_template", None)
+        template = None
+        for node in tree.body:
+            if not isinstance(node, ast.Assign):
+                continue
+            if not any(
+                isinstance(t, ast.Name) and t.id == "_CONFIG_TEMPLATE" for t in node.targets
+            ):
+                continue
+            try:
+                template = ast.literal_eval(node.value)
+            except ValueError:
+                template = None
         if isinstance(template, str) and "merge-policy" in template:
             return template
     return None
+
+
+
+def _is_placeholder(path: Path) -> bool:
+    """Whether a file holds nothing a session would want to read.
+
+    Headings, HTML comments and empty list scaffolding are what `init.py`
+    scaffolds; anything else is something a person wrote. Deliberately
+    conservative — a file we cannot confidently call empty is one we keep, so
+    the migration declines it and says so rather than overwriting it.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    body = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
+    for line in body.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        bullet = re.sub(r"^[-*]\s*", "", stripped)
+        bullet = re.sub(r"^\d+\.\s*", "", bullet)
+        if not bullet:
+            continue
+        label, sep, rest = bullet.partition(":")
+        if sep and not rest.strip() and label.startswith("**"):
+            continue
+        return False
+    return True
 
 
 def new_task_id() -> str:
@@ -296,13 +338,36 @@ def migrate(
         # `payload` is a path out of the legacy queue file, so it is contained
         # before it is read: a row carrying `../../.ssh/id_rsa` would otherwise
         # have its contents copied into a task file under `arsenal/tasks/`.
-        payload_path = queue_dir / str(row.get("payload") or f"{row['id']}.md")
-        try:
-            resolved = _contained(payload_path, queue_dir, where=f"row {row['id']} payload")
-        except MigrateError as exc:
-            report.append(f"payload: {exc} — skipped")
-            return ""
-        return resolved.read_text(encoding="utf-8") if resolved.is_file() else ""
+        declared = row.get("payload")
+        payload_path = queue_dir / str(declared or f"{row['id']}.md")
+        resolved = _contained(payload_path, queue_dir, where=f"row {row['id']} payload")
+        if not resolved.is_file():
+            # A row that never named a payload, with no `<id>.md` beside the
+            # queue, is a task that was recorded without a body. The gateless
+            # fallback is the honest rendering of that and always has been.
+            # A row that DID name one is the opposite: the gate exists, we
+            # cannot read it, and writing the same fallback would report a
+            # missing gate as an absent one.
+            if not declared:
+                return ""
+            raise MigrateError(
+                f"row {row['id']}: payload {payload_path} does not exist — "
+                "its acceptance gate would be silently replaced by the "
+                "'no gate was recorded' fallback"
+            )
+        return resolved.read_text(encoding="utf-8")
+
+    # Every payload is resolved BEFORE the first task file is written. Both of
+    # these used to degrade to an empty body: an uncontained path appended a
+    # `payload: … — skipped` line and returned "", and a missing file returned
+    # "" with no line at all. Either way the task was written carrying the
+    # `<!-- No gate was recorded -->` fallback, the run summarised as
+    # `task files: N to create` and exited 0 — so the operator deleted the
+    # legacy queue and the gate was gone, from a migration that reported
+    # success. `main()` turns a MigrateError into exit 2 having written
+    # nothing, which is the only safe answer for a one-shot irreversible move.
+    for _row in [*live, *finished]:
+        payload_for(_row)
 
     created = skipped = 0
     for row in live:
@@ -363,18 +428,54 @@ def migrate(
         report.append(f"history: {len(finished)} terminal task(s) → {history}")
 
     # Host-owned state out of the vendored prefix.
+    #
+    # `left alone` used to be the whole story for a destination that existed,
+    # and `docs/UPDATE.md` documents the order as trees-first-then-migrate — so
+    # `init.py` had ALWAYS scaffolded `arsenal/session/` before this ran, and
+    # this had ALWAYS declined the whole directory. A consumer's real handover
+    # stayed behind the vendored prefix while an empty template sat where every
+    # reader looks, and the migration reported success. So an existing
+    # destination is now merged file by file rather than skipped wholesale, and
+    # whatever is genuinely declined is named.
     for name in ("session", "project"):
         src = repo_root / "claude-arsenal" / name
         dst = home / name
         if not src.is_dir():
             continue
-        if dst.exists():
-            report.append(f"state: {dst} already exists — left alone")
+        if not dst.exists():
+            if apply:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(src), str(dst))
+            report.append(f"state: {src} → {dst}")
             continue
-        if apply:
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(src), str(dst))
-        report.append(f"state: {src} → {dst}")
+
+        carried: list[str] = []
+        declined: list[str] = []
+        for item in sorted(src.rglob("*")):
+            if item.is_dir():
+                continue
+            rel = item.relative_to(src)
+            target = dst / rel
+            # A destination that exists but holds nothing written is the
+            # scaffolded template, and the source is the real thing: carrying
+            # it across is the whole point of the migration. Anything else is
+            # declined and named — never overwritten.
+            if target.exists() and not _is_placeholder(target):
+                declined.append(rel.as_posix())
+                continue
+            if apply:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(item), str(target))
+            carried.append(rel.as_posix())
+        if carried:
+            report.append(f"state: {src} → {dst} ({', '.join(carried)})")
+        for declined_rel in declined:
+            report.append(
+                f"state: {dst / declined_rel} already has content — left alone; "
+                f"{src / declined_rel} was NOT carried across"
+            )
+        if not carried and not declined:
+            report.append(f"state: {src} is empty — nothing to carry across")
 
     config = home / "config.toml"
     if not config.exists():
@@ -386,7 +487,21 @@ def migrate(
                 f'"{merge_policy}" to keep the policy this queue was using.'
             )
         else:
-            body = _MERGE_POLICY_LINE.sub(f'merge-policy = "{merge_policy}"', template, count=1)
+            # subn, not sub: the anchored pattern can miss a template whose
+            # spacing drifted (`merge-policy  =  "x"`), and `sub` returns the
+            # text unchanged when it matches nothing. The report then announced
+            # the policy it meant to write while the file on disk kept another
+            # one — a config that lies about the merge policy an agent goes on
+            # to enforce.
+            body, _subs = _MERGE_POLICY_LINE.subn(
+                f'merge-policy = "{merge_policy}"', template, count=1
+            )
+            if _subs != 1:
+                raise MigrateError(
+                    "init.py's config template has no `merge-policy = \"...\"` line to set "
+                    f"(matched {_subs} times) — refusing to write a config whose reported "
+                    "merge policy is not the one in the file"
+                )
             if apply:
                 home.mkdir(parents=True, exist_ok=True)
                 config.write_text(body, encoding="utf-8")

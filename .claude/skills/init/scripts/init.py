@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """init.py - Bootstrap or update claude-arsenal/ in a host repository."""
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -514,6 +515,16 @@ def _known_sections() -> set[str]:
     that adding a section to a SKILL.md is enough to make it requestable. A
     shipped section with no entry in `_SECTION_DEFAULTS` is simply off by
     default — opt-in, which is the right default for anything new.
+
+    The manifest is unioned in because the on-disk scan cannot see a section
+    whose skills are all still un-vendored, and that is a chicken-and-egg a
+    consumer cannot break out of: a vendored `_source_skills_dir()` is the
+    repo's own `.claude/skills/`, so `extract` was unrequestable because `har`
+    was not installed, and `har` was not installed because `extract` was
+    unrequestable. Via `--sections` that failed loudly; via `config.toml` it
+    failed silently — the flag was simply dropped from `known` and the usual
+    `skills: vendored N` line printed as though nothing had been asked for.
+    `sections.json` ships beside this script and carries the full set.
     """
     try:
         shipped = {
@@ -523,7 +534,13 @@ def _known_sections() -> set[str]:
         }
     except OSError:
         shipped = set()
-    return (set(_SECTION_DEFAULTS) | shipped) - {_CORE_SECTION}
+    manifest = _load_manifest() or {}
+    declared = {
+        entry["name"]
+        for entry in manifest.get("sections", [])
+        if isinstance(entry, dict) and isinstance(entry.get("name"), str)
+    }
+    return (set(_SECTION_DEFAULTS) | shipped | declared) - {_CORE_SECTION}
 
 
 def _skill_section(skill_dir: Path) -> str:
@@ -843,7 +860,31 @@ def _vendor_skills(
     source = _source_skills_dir()
     dest = repo_path / ".claude" / "skills"
     if source.resolve() == dest.resolve():
-        return  # running from the vendored copy; nothing to copy in
+        # Running from the vendored copy: the source IS the destination, so
+        # there is nothing to copy in. Saying nothing was the silent half of
+        # the same bug — a consumer who enabled a section here got the usual
+        # success output and no skill, because a vendored copy can only ever
+        # refresh the skills a repo already has. Name the sections that are on
+        # with nothing on disk to satisfy them, and say where to get them.
+        if not silent:
+            recorded = _read_sections_table(_home(repo_path) / "config.toml") or {}
+            asked = (
+                set(sections)
+                if sections is not None
+                else {name for name, on in recorded.items() if on}
+            )
+            on_disk = {
+                _skill_section(d) for d in source.iterdir() if (d / "SKILL.md").is_file()
+            }
+            empty = sorted(asked - on_disk - {_CORE_SECTION})
+            if empty:
+                print(
+                    f"  skills: section(s) {', '.join(empty)} are enabled but no skill for "
+                    "them is installed — a vendored init.py can only refresh what this repo "
+                    "already has. Re-run the plugin's init.py (or update the bundle) to "
+                    "install them."
+                )
+        return
 
     shipped = {d.name: _skill_section(d) for d in source.iterdir() if (d / "SKILL.md").is_file()}
     by_section: dict[str, set[str]] = {}
@@ -1052,6 +1093,101 @@ def _inject_claude_md(repo_path: Path) -> None:
         return
     claude_md.write_text(replaced.rstrip("\n") + "\n", encoding="utf-8")
     print("  CLAUDE.md: session-protocol block refreshed (was out of date)")
+
+
+
+# The host-owned handover template. It lives here, not in `assets/`, because
+# anything under `assets/` is a bundle file and `_refresh_bundle` rewrites
+# bundle files into `claude-arsenal/` — which is how this template came to
+# shadow the real handover in the first place (see `_retire_shadow_handover`).
+HANDOVER_TEMPLATE = """# Session Handover
+
+<!-- Written at session end. A new session reading this file can resume without
+     additional context. -->
+
+## Last task
+
+- **ID**: <!-- e.g. lo-a3f8 -->
+- **Title**: <!-- task title -->
+- **Status at handover**: <!-- open | in_progress | done | blocked -->
+
+## What was done this session
+
+<!-- One-paragraph summary. Include commit SHAs if relevant. -->
+
+## What remains
+
+<!-- Bulleted list of sub-tasks or acceptance-criteria items not yet met. -->
+
+## How to continue
+
+1. Read `claude-arsenal/references/worker-loop.md` for the worker loop algorithm.
+2. Run `python3 claude-arsenal/scripts/task_select.py --issues <issues.json>` for
+   the next unblocked task.
+
+## Surface profile at handover
+
+<!-- Copy of session/surface_profile.json for quick reference. -->
+
+## Queue snapshot at handover
+
+<!-- Output of: python3 claude-arsenal/scripts/query_status.py --detail -->
+"""
+
+
+def _handover_is_untouched(text: str) -> bool:
+    """Whether a handover file carries nothing a session would want to read.
+
+    The same test the session-start protocol describes in prose ("content beyond
+    the template"): strip HTML comments, headings, list scaffolding and blank
+    lines, and see whether any prose survives. Deliberately conservative — a
+    file we cannot confidently call empty is one we keep.
+    """
+    body = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
+    for line in body.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        # An untouched bullet is the label with nothing after the colon.
+        bullet = re.sub(r"^[-*]\s*", "", stripped)
+        bullet = re.sub(r"^\d+\.\s*", "", bullet)
+        if not bullet:
+            continue
+        label, sep, rest = bullet.partition(":")
+        if sep and not rest.strip() and label.startswith("**"):
+            continue
+        return False
+    return True
+
+
+def _retire_shadow_handover(bundle_dir: Path, home: Path, repo_path: Path) -> None:
+    """Remove the handover the bundle used to write into its own prefix.
+
+    Consumers upgraded from a bundle that shipped `session/handover.md` still
+    carry `<bundle>/session/handover.md`. Nothing reads it, and an empty one
+    reads exactly like a fresh install, so it is removed — but only when it is
+    provably untouched. A copy someone actually wrote into is left where it is
+    and reported, because deleting a session's only written record to tidy up a
+    path is the worse failure by far.
+    """
+    shadow = bundle_dir / "session" / "handover.md"
+    if not shadow.is_file() or shadow.resolve() == (home / "session" / "handover.md").resolve():
+        return
+    try:
+        text = shadow.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return
+    rel = shadow.relative_to(repo_path)
+    if _handover_is_untouched(text):
+        shadow.unlink()
+        with contextlib.suppress(OSError):
+            shadow.parent.rmdir()
+        print(f"  removed: {rel} (shadowed {home.name}/session/handover.md)")
+    else:
+        print(
+            f"  WARNING: {rel} has content but nothing reads it — the live handover is "
+            f"{home.name}/session/handover.md. Merge it across and delete the old copy."
+        )
 
 
 def _home(repo_path: Path) -> Path:
@@ -1318,14 +1454,19 @@ def init_base(
         config.write_text(_CONFIG_TEMPLATE, encoding="utf-8")
         print(f"  created: {config.relative_to(repo_path)}")
 
-    # Create session handover
+    # Create session handover. This is the ONLY handover the bundle scaffolds.
+    # `assets/session/handover.md` used to ship as a bundle file too, so
+    # `_refresh_bundle` recreated `<bundle>/session/handover.md` on every run,
+    # forever, after the host tree moved to `arsenal/`. Nothing reads that copy
+    # — every reader names `{home}/session/handover.md` — but an empty handover
+    # is indistinguishable from a fresh install, so a session that opened the
+    # wrong one concluded there was no prior context and carried on without it.
     handover = home / "session" / "handover.md"
     if not handover.exists():
-        handover.write_text(
-            "# Session Handover\n\n<!-- Written at session end. -->\n",
-            encoding="utf-8",
-        )
+        handover.write_text(HANDOVER_TEMPLATE, encoding="utf-8")
         print(f"  created: {handover.relative_to(repo_path)}")
+
+    _retire_shadow_handover(arsenal, home, repo_path)
 
     # Default surface profile (gitignored — overwritten by detect_surface.sh hook)
     profile = home / "session" / "surface_profile.json"

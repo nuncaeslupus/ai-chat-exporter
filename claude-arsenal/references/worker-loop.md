@@ -306,6 +306,7 @@ before starting; older versions do not support `statusLine.rate_limits`.
 | `ARSENAL_MAX_WORKERS` | `2` | Workers per batch. `2` is the validated git-push concurrency ceiling; higher N raises claim-race churn and PR/merge-conflict surface. **Forced to `1` when worktree isolation is unavailable** (loop step 0): parallel workers are unsafe sharing one tree. |
 | `ARSENAL_QUOTA_STOP_PCT` | `90` | Stop the loop before dispatch at/above this used-percentage on either window. |
 | `ARSENAL_MAX_ITERATIONS` | `50` | Always-available per-session dispatch-round cap (quota-independent). `0` disables it. |
+| `ARSENAL_RATE_LIMITS_FILE` | `<session>/rate_limits.json` | Where the quota guard reads its snapshot. Override it to feed quota from a surface with no statusLine — a cloud session writes this file for itself or the percentage guard never engages. See `references/quota-governance.md`. |
 | `ARSENAL_GATE_INHERIT_ENV` | _(unset)_ | Set `1` to run gate blocks with the caller's full environment instead of the hardened throwaway HOME + restricted PATH. |
 | `LOOP_WORKSPACE` | _(unset)_ | Workspace scope; set by `/continue` token inference. |
 | `LOOP_TAGS` | _(unset)_ | Comma/space-separated tag scope (ANDed); set by `/continue` token inference. |
