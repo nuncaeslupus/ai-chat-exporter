@@ -104,11 +104,12 @@ Within that grammar the flags are not interchangeable, which is what the step 2 
 handoff actually depends on. `--response-match` is evaluated by
 `Selection.matches_body()`: it decodes each response and searches its text, which is
 how step 2 *discovers* which endpoint carried the sentence you saw. `--url` and
-`--mime` are evaluated by `Selection.matches_index()`, against request metadata alone
-— cheap, and all steps 3-4 need once you know the endpoint. So the later steps address
-the request step 2 found; they do not re-run its filter. Output is capped at 20 rows /
-4096 bytes by default — `--limit 0` removes both caps, `--output PATH` writes the full
-result to a file.
+`--mime` are evaluated by `Selection.matches_index()`, against the sidecar index alone
+— `--url` against the request URL, `--mime` against the *response* MIME type, and the
+capture is never opened. That is cheap, and all steps 3-4 need once you know the
+endpoint. So the later steps address the request step 2 found; they do not re-run
+its filter. Output is capped at 20 rows / 4096 bytes by default — `--limit 0` removes
+both caps, `--output PATH` writes the full result to a file.
 
 Then compare against the parser: open the page, run
 `detectParser().parse().conversation.pairs.length` in the console, and put the two
