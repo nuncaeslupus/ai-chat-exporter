@@ -1,0 +1,197 @@
+# Completed before the migration
+
+Recorded so the history survives; these are not queue entries.
+
+- `lo-4e26` — Unblock pnpm validate: add missing eslint devDeps, fix marked v17 highlight API (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/4
+- `lo-194d` — Gemini: add gemini.google.com to host_permissions and content_scripts in all manifests (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/40
+- `lo-3920` — Gemini: capture DOM snapshot fixtures and add parser unit tests (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/41
+- `lo-485e` — Gemini: register GeminiParser in parserRegistry and verify detection on a live page (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/48
+- `lo-1316` — Gemini: verify artifact chips and thinking extraction against fixtures (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/55
+- `lo-8d36` — Add tests for pdf, docx and html exporters (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/56
+- `lo-f096` — Export Options UI: metadata and timestamp toggles in the popup (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/81
+- `lo-adf1` — Q&A pair selection UI wired to SelectionService (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/86
+- `lo-ad6c` — Print functionality: formatted print view and print dialog (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/137
+- `lo-0f01` — Clear the 1151 eslint errors (or right-size the config) and gate lint in CI (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/97
+- `lo-71dc` — Sanitize scraped HTML on the two live re-injection paths (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/8
+- `lo-c03f` — Content script bundle is 2.24MB injected on every page load: lazy-load exporters (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/42
+- `lo-2b62` — Coverage thresholds are silently ignored: real coverage is 28 percent (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/13
+- `lo-ce4b` — Delete the dead src/ui tree, html-pdf-exporter and md-exporter (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/76
+- `lo-519c` — pnpm dev is broken and dev builds are minified without sourcemaps (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/20
+- `lo-aee0` — Ctrl+Shift+E shortcut sends a message nothing handles (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/25
+- `lo-0cd5` — Test html-content-parser: 446 lines at 3.7 percent coverage feeding three exporters (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/18
+- `lo-f854` — Print window.open is popup-blocked after awaits and leaks the object URL (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/59
+- `lo-5cda` — README and usage.md document features that do not exist and platforms as coming soon that shipped (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/50
+- `lo-58b0` — adding-parsers.md and adding-exporters.md describe APIs the code does not have (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/65
+- `lo-df75` — CI gaps: version sync check, zip artifacts, audit, dependabot, and make validate still runs lint (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/66
+- `lo-7c34` — Claude parser re-encodes every image via canvas on every parse (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/22
+- `lo-84e6` — extractOrganizationId serializes the entire page DOM on every Claude export (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/58
+- `lo-e5f2` — Strip debug console.log from parser and exporter hot paths (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/105
+- `lo-b617` — Convert .agents/parser-generator into a real .claude/skills skill (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/38
+- `lo-490a` — Convert .agents/exporter-generator into a real .claude/skills skill (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/52
+- `lo-2026` — Firefox manifest hardcodes the name and ships a placeholder gecko id (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/61
+- `lo-c393` — Add integration tests: real fixture to parser to every exporter (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/24
+- `lo-0906` — package:source ships .claude, .agents and claude-arsenal to Firefox reviewers (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/85
+- `lo-b59b` — Add DOM-drift regression tests for plausible selector breakage (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/91
+- `lo-5e70` — development-plan, testing-guide and releasing docs are stale; BUILD_INSTRUCTIONS.md is missing (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/80
+- `lo-e9b2` — Forced sync layout in image loops and six cleanup passes per message (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/77
+- `lo-8f9b` — Fix two vacuous tests that pass on broken implementations (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/98
+- `lo-fe02` — Drop unused typescript-eslint deps, fix engines floor, dedupe vite configs (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/90
+- `lo-4d4a` — Gemini selectors never match the real DOM so canParse always returns false (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/41
+- `lo-72f1` — Privacy policy 404s and store listings claim no external servers while cookies and favicons leave (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/9
+- `lo-2086` — Export and print failures are reported to the popup as success (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/10
+- `lo-3005` — Any message with artifacts or web searches loses all rich formatting in every export (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/14
+- `lo-74ed` — cleanupElement strips aria-hidden and deletes rendered LaTeX from every export (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/11
+- `lo-a8c6` — ChatGPT drops image-only user turns, misaligning every later Q&A pair (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/12
+- `lo-64a6` — DOCX code blocks collapse to a single line (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/15
+- `lo-227b` — PDF sanitizer deletes representable characters instead of substituting them (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/16
+- `lo-0cd9` — Five of six exporters ignore selectedPairs and always export everything (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/21
+- `lo-d4ac` — HTML export hardcodes English labels and lang attribute (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/19
+- `lo-4f4e` — Claude API artifacts are matched by position and title, misattributing them (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/17
+- `lo-02cf` — Popup and exported HTML fail WCAG AA contrast (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/27
+- `lo-8312` — Exported HTML fetches favicons from Google, leaking visited domains (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/23
+- `lo-cef8` — image-loader taints the canvas on CORS-restricted images so PDF images vanish silently (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/82
+- `lo-08b0` — No re-entrancy guard: a double click runs two exports racing on shared state (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/79
+- `lo-45b2` — Artifacts are rendered twice in every export format (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/83
+- `lo-23fb` — Web search result titles and URLs are dropped from md, txt and docx exports (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/112
+- `lo-2420` — Popup has no aria-live region and hardcodes English strings (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/63
+- `lo-6756` — Filename truncation counts UTF-16 units, not UTF-8 bytes (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/62
+- `lo-5af6` — shared/messages.ts declares message contracts nothing uses, and structure service takes any (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/89
+- `lo-e339` — Context menu handlers never check chrome.runtime.lastError (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/64
+- `lo-934c` — No dark mode in the popup or exported HTML (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/128
+- `lo-6b97` — D-1: Stale ivansaul/ai-chat-exporter links throughout docs/store-listings (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/57
+- `lo-872a` — D-2: Claude artifact enrichment silently skips on DOM/API shape mismatch (console.warn only) (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/44
+- `lo-630d` — D-3: Standalone images are silently dropped by html-content-parser (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/43
+- `lo-31e6` — D-4: Reconcile PRIVACY.md and listings with actual network calls; audit Claude parser favicon path (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/49
+- `lo-4b7f` — PDF export hangs forever on a ChatGPT answer containing an SVG artifact (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/29
+- `lo-9ddf` — D-5: Integration suite pins pre-PR-14 behaviour; assertions break when PR #14 merges (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/39
+- `lo-c418` — CRITICAL: ChatGPT parser extracts nothing - turn wrapper moved from article to section (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/30
+- `lo-5a16` — ChatGPT code blocks are CodeMirror now: nested pre, language lost, virtualization risk (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/36
+- `lo-725a` — KaTeX is triplicated on ChatGPT and lost on Gemini: collapse .katex to one representation (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/31
+- `lo-37b2` — Citation-pill favicons are collected as conversation images (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/32
+- `lo-62ce` — Copy buttons inside .markdown leak SVG sprite chrome into exported htmlContent (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/34
+- `lo-4cdc` — ChatGPT parser hardcodes turn selectors instead of reading its SelectorSet (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/45
+- `lo-d88c` — Reimplement the Gemini parser from scratch (previous WIP was destroyed) (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/41
+- `lo-2416` — D-6: Every payload's mechanical gate passes vacuously (0/70 have a fenced gate block) (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/88
+- `lo-5835` — D-7: Anchor-wrapped images (<a><img></a>) are still dropped by html-content-parser (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/60
+- `lo-5796` — D-8: Popup shows v1.0.0 while the extension ships 1.1.1 (version drift in 2 files) (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/51
+- `lo-3c90` — D-9: Gemini getTitle/getModel selectors match zero elements on the live page (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/138
+- `lo-f132` — ChatGPT Deep Research exports as "ChatGPT said:" — report lives in a cross-origin iframe (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/140
+- `lo-2478` — Claude: capture and support all artifact types, thinking panel and web search end to end (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/139
+- `lo-5d45` — Exporters: link destinations are discarded by txt and pdf (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/78
+- `lo-5970` — Exporters: metadata.research is parsed but rendered by no format (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/104
+- `lo-6fe5` — Model: no representation for generated video or audio (Gemini Create video / Create music) (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/99
+- `lo-880d` — Per-message timestamps: 5 of 6 exporters ignore includeTimestamps (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/84
+- `lo-0e58` — D-10: html-exporter syntax highlighter corrupts every code block with a keyword (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/95
+- `lo-aaa8` — D-11: docx table headers are silently not bold (bold spread onto Paragraph, not TextRun) (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/94
+- `lo-82e7` — C-1: Shared typography token layer for exporters (no shared styling exists today) (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/87
+- `lo-83c3` — C-2: Heading-level mapping is inconsistent across formats (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/109
+- `lo-ca56` — C-3: docx has no platform brand colour (pdf and html both have one) (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/131
+- `lo-2ae9` — C-4: Three-step font-size option to reduce page count (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/136
+- `lo-e836` — C-5: Typographic polish: orphans/widows, keep-with-next, unbroken tables (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/129
+- `lo-320b` — C-6: Math is unrepresentable end to end (parser collapses LaTeX, no model type, no renderer) (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/127
+- `lo-d0f0` — D-13: ChatGPT and Claude parsers silently mis-pair Q&A turns on a dropped message (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/96
+- `lo-f3ba` — Unify the duplicated UserPreferences / DEFAULT_PREFERENCES definitions (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/92
+- `lo-8c3a` — Enforce the Node engines floor so package.json, CI and BUILD_INSTRUCTIONS cannot drift (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/93
+- `lo-fbe0` — Finish the lint gate: 189 no-non-null-assertion warnings + format:check red on 40 files (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/134
+- `lo-c39f` — R1: popup shell — fixed 48+260 box, design tokens, view router (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/107
+- `lo-a748` — R2: popup main 'ready' view — conversation block, setting rows, split action bar (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/111
+- `lo-18d4` — R7: popup secondary states — detecting, no selection, warnings, unsupported, reload (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/115
+- `lo-e6b9` — R3: popup format menu — floating over main, keyboard and outside-click dismissal (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/117
+- `lo-656b` — R4: popup 'Contenido' submenu — pair chooser with day separators and expand (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/118
+- `lo-1789` — R5: popup 'Opciones' submenu — three prefs, changed-from-default dot, footer (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/120
+- `lo-aa0c` — R6: filename builder — filenameTemplate preference, drag-reorder pieces, live preview (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/124
+- `lo-3900` — R9: export header gains date range + URL; timestamps emit day separators (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/110
+- `lo-d438` — R8: i18n audit — every new popup key present in all 7 locales, none unused (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/126
+- `lo-3e45` — R10: brand assets — official Claude logo + final extension logo choice (human) (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/106
+- `lo-19c0` — D-14: gate_run.sh reports pass when pnpm is missing from the hardened PATH (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/123
+- `lo-2d8a` — D-15: design spec's secondary text #6E7C77 fails the repo's own 4.5:1 contrast gate (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/130
+- `lo-db20` — Popup: 'Receiving end does not exist' — recover from a missing content script instead of asking for a reload (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/116
+- `lo-1c7d` — i18n: add metadataFieldDateRange to all 7 locales and drop the English fallback (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/133
+- `lo-8e3d` — Close the matrix gaps: image URL dropped in txt/docx, linkUrl unread, media duration unrendered (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/113
+- `lo-f827` — Web-search marker duplicates the Sources section every exporter already renders (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/114
+- `lo-a7ac` — PDF image-failure placeholder drops the URL when alt text exists (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/119
+- `lo-f1e6` — R11: scale the popup up — type scale tokens, wider box, taller body (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/121
+- `lo-78c0` — Chevrons use --color-text-muted at 2.54:1, under even the 3:1 non-text bar (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/132
+- `lo-7372` — Context-menu export dies silently on a tab with no content script — reuse sendTabMessage (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/122
+- `lo-fabc` — D-16: release.sh skips the gate entirely when the payload is not in the tree (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/125
+- `lo-766f` — Port the gate_run.sh and release.sh fixes upstream to the claude-arsenal plugin (human) (merged) — https://github.com/nuncaeslupus/claude-arsenal/pull/133
+- `lo-43c2` — D-17: getPlatformName/getRoleName capitalizer can never match platformChatGPT (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/135
+- `lo-4ab2` — D-18: exports fabricate per-message timestamps (capture time, in UTC) — no platform exposes real ones (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/141
+- `lo-72f5` — ChatGPT pages report 'no conversation to export' — and that screen conflates two causes (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/142
+- `lo-66fa` — pagination.test.ts times out under parallel load and blocks releases (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/150
+- `lo-9001` — Read the ChatGPT Deep Research report out of its cross-origin iframe (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/153
+- `lo-64fa` — SD-1: drift detection primitives (types, fingerprint, selector health, output sanity) (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/143
+- `lo-a66b` — SD-2: leak-proof DOM skeleton builder (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/145
+- `lo-0ac3` — SD-3: attach DriftReport to ParseResult in BaseParser (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/147
+- `lo-2eb2` — SD-4: format a drift report into the previewed and copied text (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/148
+- `lo-811f` — SD-5: plumb drift and on-demand skeletons to the popup (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/149
+- `lo-e938` — SD-6: drift suppression store keyed by fingerprint (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/146
+- `lo-4143` — SD-7: drift report strings in all seven locales (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/151
+- `lo-8775` — SD-8: drift report view and amber drift row (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/151
+- `lo-e18b` — SD-9: wire drift behaviour in the popup (copy, report, suppress) (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/152
+- `lo-280b` — D-19: a parse that finds zero pairs still reports success, so the popup paints a normal ready screen (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/144
+- `lo-e2d1` — D-20: drift detection sweeps every selector on every parse, costing ~33% of parse time (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/154
+- `lo-f804` — D-21: heavy jsdom tests still flake under load; lo-66fa only covered three pdf tests (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/157
+- `lo-37cc` — R-1: shared type system — new scale, neutral ink, role label demoted, code token palette (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/160
+- `lo-2fa9` — R-2: PDF — embed Source Sans 3 + IBM Plex Mono, R2 role label, running head, footer, respect pageSize (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/174
+- `lo-834c` — R-3: DOCX — own ChatTitle/ChatBody/ChatRole/ChatCode styles, Calibri+Consolas, explicit page size (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/173
+- `lo-9ad7` — R-4: Markdown — bold role label, blockquote question, metadata table, body headings from ## (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/163
+- `lo-a060` — R-5: plain text — 72 columns, three underline levels, indented question, ASCII tables (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/166
+- `lo-daa7` — R-6: HTML — new scale, small-caps role label, brand rule, turn fill moves to the question (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/168
+- `lo-2cb3` — R-7: JSON — schemaVersion 2, 2-space indent, stable key order, ISO-8601 with offset (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/164
+- `lo-5db5` — R-8: five-token syntax highlighting via highlight.js in pdf, docx and html (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/170
+- `lo-bc72` — R-9: contrast gate — new ink palette, five code tokens on the code background, greyscale separation (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/170
+- `lo-611c` — R-0: merge includeMetadata + includeTimestamps into showMetaInfo (touches popup — hold until popup work settles) (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/178
+- `lo-27b3` — D-22: lo-c03f is stale — exporters are already lazy-loaded (57KB eager vs 300KB gate); close it (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/155
+- `lo-25e5` — Vite 8 swaps Rollup for Rolldown, which has no renderDynamicImport hook (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/188
+- `lo-3cae` — D-23: raw DOM whitespace leaks into paragraph text around citation pills in every format (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/176
+- `lo-3fc9` — D-24: pnpm validate omits format:check, so CI fails after a green local run (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/172
+- `lo-4393` — D-25: Claude org-ID scrape is dead, so artifacts and real timestamps are silently lost (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/169
+- `lo-5d7a` — D-26: the degraded-export warning is English-only, clipped at two lines, and its Retry cannot work (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/167
+- `lo-b02a` — R-2b: PDF embedded fonts, question turn fill, table rules and code-language tab (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/186
+- `lo-6fbb` — D-25: pnpm test:coverage exits 1 with every test passing, so validate reads red on a clean main (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/185
+- `lo-a948` — P-1: popup needs more horizontal breathing room; widen it if that is what it takes (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/183
+- `lo-737a` — P-2: row chevrons sit too close to the right edge of the popup (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/183
+- `lo-4d34` — P-3: replace the OS scrollbar in the format menu with an integrated slim one (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/183
+- `lo-f061` — P-4: settings gear for theme (light/dark/auto) and About, moving them out of Options (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/187
+- `lo-cfc2` — A-1: render prose artifacts as prose in pdf and docx, and stop treating markdown CODE as prose (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/184
+- `lo-5373` — Upgrade vitest 3.2.4 -> 4.x to regain per-error unhandled-error filtering (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/185
+- `lo-0fe9` — D-27: vitest 4 drops coverage.all, so untested files vanish from the report instead of diluting it (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/189
+- `lo-6333` — D-28: ChatGPT Deep Research still exports the placeholder on a live page — the sandbox-iframe relay never delivers (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/194
+- `lo-f341` — P-5: popup spacing overhaul — wider insets, taller box, redistribute vertical rhythm, fix Options submenu alignment (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/193
+- `lo-dbc4` — D-29: single-tilde strikethrough — marked eats ~ used as 'approximately', corrupting md/docx/html/pdf (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/191
+- `lo-21e5` — D-30: txt exporter never wraps artifact content to 72 columns, unlike prose (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/228
+- `lo-7aca` — P-6: popup spacing round 3 — chevron gaps both sides, action-bar insets, back-arrow alignment, tighter label-to-control grouping (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/195
+- `lo-b4cd` — D-31: captured Deep Research report is plain text — no headings/tables, plus odometer digits, duplicated title, mermaid axis dump and literal \uXXXX escapes (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/196
+- `lo-0d91` — D-32: body headings render at #### instead of ## — bodyHeadingLevel offsets absolutely instead of normalising to the spec's level 2 (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/199
+- `lo-01f4` — P-7: back-arrow glyph off-centre in its box, main-view rows flush to the left border, theme/size pills stretched too far apart (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/197
+- `lo-cfc6` — P-8: ChatGPT platform logo renders black and is invisible on the popup's dark surface (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/200
+- `lo-5955` — D-33: re-land Deep Research HTML fidelity (reverted in #198 for losing the report body) with a body-survives guard (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/201
+- `lo-4190` — D-34: COLOR.brand.claude (#cc7b58) disagrees with claude-logo.svg (#D97757), so one document shows two shades of the same brand (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/223
+- `lo-a23a` — D-35 CRITICAL: textContent flattening concatenates block elements with no separator, destroying Gemini tables into unreadable runs (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/205
+- `lo-2909` — D-36: PDF question-turn grey fill stops mid-question instead of covering the whole turn (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/217
+- `lo-c0b1` — D-37: renderWebSearches prepends a bullet to every wrapped title line, so sources look like extra entries (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/208
+- `lo-565f` — SEC-1 (CRITICAL): sanitizeHtml is a denylist with a bypassable javascript: check — rewrite as an allowlist (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/203
+- `lo-709f` — EXP-1 (CRITICAL): DOCX writes XML-illegal control characters, producing a file Word refuses to open (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/202
+- `lo-64c9` — EXP-2 (CRITICAL): PDF silently deletes CJK / Arabic / Hebrew / Cyrillic text with no glyph, placeholder or warning (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/204
+- `lo-8bc9` — EXP-3: Markdown structural escaping — code-fence breakout, unescaped metacharacters, non-Latin-1 SVG failure (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/206
+- `lo-c09d` — EXP-4: table fidelity — two-row thead flattened, colspan/rowspan ignored, so values land under the wrong column (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/210
+- `lo-fd8e` — EXP-5: remaining export-hardening findings from the hostile-input review (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/227
+- `lo-41c9` — PAR-1: parser robustness — Claude fabricates message dates, Gemini keeps only the first content block, turns dropped silently (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/207
+- `lo-852d` — TYPE-1: failures are reported to the user as success — parse, print, context-menu and preference writes (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/209
+- `lo-5ebc` — SEC-2: keyboard-shortcut export injects content scripts into any site, contradicting the documented privacy claim (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/212
+- `lo-648d` — I18N-1: exported documents mix localised metadata with hardcoded English section labels in 5 of 6 formats (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/219
+- `lo-4faf` — A11Y-1: accessibility — focus lost on every view change, drag-only reordering, missing lang, menu ARIA (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/216
+- `lo-2849` — POPUP-1: popup UI consistency — the error state has no CSS, focus rings clipped, hardcoded values duplicating tokens (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/221
+- `lo-ed64` — DEAD-1: dead code — an entire dead button-injection feature, html2canvas shipping unused, 3 EXPORT_FORMATS, 4 HTML escapers (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/230
+- `lo-f356` — CONSIST-1: txt and docx diverge from the other four exporters — bypassed i18n helpers, duplicated methods, competing message-type conventions (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/231
+- `lo-2a39` — DOCS-1: documentation truthfulness — README lists four shipped features as missing, store listings omit two permissions (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/233
+- `lo-db60` — TEST-1: test quality — pdf/docx excluded from the rich-content matrix, markdown tables untested, a test that passes with the exporter deleted (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/213
+- `lo-1e2f` — BUILD-1: the documented release process packages without building, so the zip can ship the previous build (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/218
+- `lo-164e` — D-38: capture Gemini's real table DOM markup so tables become table blocks instead of separated text (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/214
+- `lo-41b1` — D-39: ParseResult.warnings is produced by all three parsers and read by nobody (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/232
+- `lo-caa4` — SEC-3: deep-research-frame posts the report with wildcard targetOrigin — scope it to the ChatGPT parent origins (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/215
+- `lo-9d7f` — TEST-2: handleClaudeOrganizationsFetch is unreachable from any test (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/229
+- `lo-c7ad` — A11Y-2: print-window code blocks are not keyboard-focusable (WCAG 2.1.1) (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/224
+- `lo-58d3` — PAR-2: long Claude conversations export only the virtual-scroll window — silent loss of most turns (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/225
+- `lo-302a` — UX-1: 'Copy & report' opens a blank GitHub issue — no title, no template, no labels (merged) — https://github.com/nuncaeslupus/ai-chat-exporter/pull/226
