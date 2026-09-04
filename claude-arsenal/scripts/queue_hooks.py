@@ -195,6 +195,39 @@ def plan_pr_closed(
                     ),
                 }
             ]
+        # No handle — but the task id is already resolved, and the ARCHIVE does
+        # not need an issue number; only the issue close does. Doing half the
+        # reconciliation is what makes the keyword guard's non-blocking pass
+        # honest: that guard lets a handle-less task PR through on the stated
+        # grounds that "`plan_pr_closed` still reconciles on merge", and until
+        # this branch existed it did not — it returned here having closed
+        # nothing and archived nothing. The task file stayed live, and the next
+        # session's `handle_sync.py` proposed a fresh handle for work that had
+        # already merged: the drift the queue exists to prevent, arriving
+        # through the door the guard was told to watch.
+        if merged and into_default:
+            task = next((t for t in tasks if t["id"] == task_id), None)
+            if task and task.get("status") not in TERMINAL and "_history" not in task["path"]:
+                return [
+                    {"kind": "archive-task", "task": task_id, "path": task["path"]},
+                    {
+                        "kind": "note",
+                        "message": (
+                            f"PR {url}: task {task_id} archived on merge. It has no issue "
+                            "handle, so there is no issue to close — if one is opened later "
+                            "it will not be claimed by this task."
+                        ),
+                    },
+                ]
+            return [
+                {
+                    "kind": "note",
+                    "message": (
+                        f"PR {url}: task {task_id} has no issue handle and is already "
+                        "terminal — nothing to update"
+                    ),
+                }
+            ]
         return [
             {
                 "kind": "note",
@@ -326,8 +359,13 @@ def check_keyword(
             )
         # No handle to point at yet. Failing here would block the PR on
         # something the author cannot fix from the PR, so it is a pass with a
-        # note; `sync-handles` opens the issue and `plan_pr_closed` still
-        # reconciles on merge.
+        # note; `sync-handles` opens the issue, and `plan_pr_closed` archives the
+        # task file on merge whether or not one exists by then.
+        #
+        # That second half is what makes this pass honest, and it has to keep
+        # being true: the note the guard prints is the reason nobody re-checks
+        # it. Reconciliation here means the ARCHIVE only — with no handle there
+        # is no issue to close, and none is invented.
         #
         # Only sound because the listing was WHOLE: "not in a complete listing"
         # really does mean "does not exist".

@@ -369,6 +369,32 @@ def migrate(
     for _row in [*live, *finished]:
         payload_for(_row)
 
+    # The merge-policy substitution is resolved here, beside the payloads, for
+    # the same reason: it can raise, and everything below this line writes. Run
+    # from the config block it sat after the task files, the history files and
+    # _migrated-history.md were already on disk, so main() caught the
+    # MigrateError and printed `nothing was written` over a half-migrated tree.
+    config = home / "config.toml"
+    config_body: str | None = None
+    if not config.exists():
+        _template = config_template(repo_root)
+        if _template is not None:
+            # subn, not sub: the anchored pattern can miss a template whose
+            # spacing drifted (`merge-policy  =  "x"`), and `sub` returns the
+            # text unchanged when it matches nothing. The report then announced
+            # the policy it meant to write while the file on disk kept another
+            # one — a config that lies about the merge policy an agent goes on
+            # to enforce.
+            config_body, _subs = _MERGE_POLICY_LINE.subn(
+                f'merge-policy = "{merge_policy}"', _template, count=1
+            )
+            if _subs != 1:
+                raise MigrateError(
+                    "init.py's config template has no `merge-policy = \"...\"` line to set "
+                    f"(matched {_subs} times) — refusing to write a config whose reported "
+                    "merge policy is not the one in the file"
+                )
+
     created = skipped = 0
     for row in live:
         # `read_rows` already refused an unusable id; contained again here
@@ -477,34 +503,18 @@ def migrate(
         if not carried and not declined:
             report.append(f"state: {src} is empty — nothing to carry across")
 
-    config = home / "config.toml"
     if not config.exists():
-        template = config_template(repo_root)
-        if template is None:
+        if config_body is None:
             report.append(
                 f"config: {config} NOT created — init.py was not found, and it owns the "
                 "template. Run /init; then set merge-policy = "
                 f'"{merge_policy}" to keep the policy this queue was using.'
             )
         else:
-            # subn, not sub: the anchored pattern can miss a template whose
-            # spacing drifted (`merge-policy  =  "x"`), and `sub` returns the
-            # text unchanged when it matches nothing. The report then announced
-            # the policy it meant to write while the file on disk kept another
-            # one — a config that lies about the merge policy an agent goes on
-            # to enforce.
-            body, _subs = _MERGE_POLICY_LINE.subn(
-                f'merge-policy = "{merge_policy}"', template, count=1
-            )
-            if _subs != 1:
-                raise MigrateError(
-                    "init.py's config template has no `merge-policy = \"...\"` line to set "
-                    f"(matched {_subs} times) — refusing to write a config whose reported "
-                    "merge policy is not the one in the file"
-                )
+            # Resolved and validated in pre-flight; only the write is left here.
             if apply:
                 home.mkdir(parents=True, exist_ok=True)
-                config.write_text(body, encoding="utf-8")
+                config.write_text(config_body, encoding="utf-8")
             report.append(f"config: create {config} (merge-policy = {merge_policy})")
     else:
         report.append(f"config: {config} already exists — left alone")

@@ -267,7 +267,10 @@ working = sys.argv[3] if len(sys.argv) > 3 else ""
 if working and is_placeholder(cmd):
     try:
         wcmd = gate_command(gate_section(pathlib.Path(working).read_text(encoding="utf-8")))
-    except OSError:
+    except (OSError, UnicodeDecodeError):
+        # UnicodeDecodeError derives from ValueError, not OSError, so a non-UTF-8
+        # task file used to escape here as a traceback — from a branch that only
+        # prints a diagnostic, long after the gate decision was made.
         wcmd = None
     if wcmd and not is_placeholder(wcmd):
         print(
@@ -285,7 +288,10 @@ elif working:
     # code against a test that no longer exists. Say which command ran and why.
     try:
         wcmd = gate_command(gate_section(pathlib.Path(working).read_text(encoding="utf-8")))
-    except OSError:
+    except (OSError, UnicodeDecodeError):
+        # UnicodeDecodeError derives from ValueError, not OSError, so a non-UTF-8
+        # task file used to escape here as a traceback — from a branch that only
+        # prints a diagnostic, long after the gate decision was made.
         wcmd = None
     if wcmd and wcmd != cmd:
         print(

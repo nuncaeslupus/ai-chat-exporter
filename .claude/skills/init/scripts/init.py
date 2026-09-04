@@ -1179,7 +1179,15 @@ def _retire_shadow_handover(bundle_dir: Path, home: Path, repo_path: Path) -> No
         return
     rel = shadow.relative_to(repo_path)
     if _handover_is_untouched(text):
-        shadow.unlink()
+        # Every other failure in this function is non-fatal; an unguarded unlink
+        # (a read-only checkout, a permission) propagated out of init_base and
+        # aborted the install before _vendor_skills ever ran. Tidying up a shadow
+        # copy is not a reason to leave a repo half-installed.
+        try:
+            shadow.unlink()
+        except OSError as exc:
+            print(f"  note: could not remove {rel} ({exc}) — delete it by hand")
+            return
         with contextlib.suppress(OSError):
             shadow.parent.rmdir()
         print(f"  removed: {rel} (shadowed {home.name}/session/handover.md)")

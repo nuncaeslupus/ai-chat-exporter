@@ -5,7 +5,8 @@
 # and decides whether the loop may dispatch more workers.
 #
 # Exit:
-#   3 — either window's used_percentage is at/above ARSENAL_QUOTA_STOP_PCT
+#   3 — a window reports a REFUSAL (`status` present and not "allowed"), OR
+#       either window's used_percentage is at/above ARSENAL_QUOTA_STOP_PCT
 #       (default 90), OR this session has dispatched ARSENAL_MAX_ITERATIONS
 #       rounds (default 50). Loud and distinct so the loop STOPS and writes a
 #       handover.
@@ -13,6 +14,28 @@
 #       missing-data case is a deliberate FAIL-OPEN for the QUOTA check only:
 #       the loop keeps running where quota is not observable (API/metered usage,
 #       non-Pro/Max plan, before the first response, or older Claude Code).
+#
+# A REFUSAL IS NOT A PERCENTAGE. `status` and `used_percentage` answer different
+# questions and are checked separately, on purpose. A percentage is a forecast:
+# 88% means the next call will probably work, and the threshold is a judgement
+# about how much headroom a fleet should keep. `status: "rejected"` is a fact
+# already established about a call that was made — the next one fails now,
+# whatever any percentage says, and no threshold setting should be able to talk
+# the loop past it. So the refusal check runs FIRST and ignores
+# ARSENAL_QUOTA_STOP_PCT entirely; mapping one onto the other (a refusal
+# synthesised as "100%") would let ARSENAL_QUOTA_STOP_PCT=101 disable it.
+#
+# It also reaches a surface the percentage cannot. `get_session` on a cloud
+# session returns `rate_limit_info` with `status` and no `used_percentage`, so a
+# document carrying only what that surface can supply used to hit the
+# "no used_percentage" fail-open and guard nothing. Any value other than
+# "allowed" stops — including `null`, `false` and a number: the field's vocabulary
+# names the permitting value, and anything else, malformed or merely unfamiliar,
+# is not a permission to continue. The check is keyed on the KEY being present,
+# never on the value being well-formed. That direction
+# is deliberate — the field is written only by a host that chose to write it, so
+# an unrecognised value is a misconfiguration worth halting loudly over rather
+# than a guard that quietly does nothing.
 #
 # rate_limits.json is Pro/Max-only, so on API/metered billing the quota guard
 # always fails open. The per-session dispatch-round cap is the ALWAYS-AVAILABLE
@@ -100,17 +123,90 @@ except Exception:
     print("budget_check: rate_limits.json unparseable or invalid — failing open", file=sys.stderr)
     sys.exit(0)
 
+def _resets(d):
+    # `resets_at` is this file's spelling; `resetsAt` is what `get_session`
+    # returns, and an orchestrator copying that object verbatim is the whole
+    # point of accepting the status shape.
+    if not isinstance(d, dict):
+        return None
+    return d.get("resets_at") or d.get("resetsAt")
+
+
+# A refusal, at either level. Top level too: `rate_limit_info` is a flat object
+# naming its own window in `rateLimitType`, so a host that writes it through
+# unchanged has no per-window key to nest it under.
+_ABSENT = object()
+
+
+def _status_of(d):
+    """The `status` a document declares, or `_ABSENT` when it declares none.
+
+    Keyed on the KEY being present, not on the value being a string. `null`,
+    `false` and `0` are all present statuses that are not "allowed", and typing
+    the check meant each of them fell through to the no-percentage fail-open —
+    the one outcome the polarity below forbids. A malformed status is an
+    unrecognised status.
+    """
+    return d.get("status", _ABSENT) if isinstance(d, dict) else _ABSENT
+
+
+refused = []
+allowed = []
+for window in ("five_hour", "seven_day"):
+    w = data.get(window) or {}
+    st = _status_of(w)
+    if st is _ABSENT:
+        continue
+    if st == "allowed":
+        allowed.append(st)
+    else:
+        refused.append((window, st, _resets(w)))
+
+st = _status_of(data)
+if st is not _ABSENT:
+    if st == "allowed":
+        allowed.append(st)
+    else:
+        refused.append((data.get("rateLimitType") or "session", st, _resets(data)))
+
+if refused:
+    for window, status, resets in refused:
+        shown = status if isinstance(status, str) else f"{status!r} (not a string)"
+        msg = f"budget_check: {window} reports status={shown} — quota refused, not a threshold"
+        if resets:
+            msg += f" (resets_at={resets})"
+        print(msg, file=sys.stderr)
+    print(
+        "budget_check: a refusal is a fact about the next call, so "
+        "ARSENAL_QUOTA_STOP_PCT does not apply — stopping",
+        file=sys.stderr,
+    )
+    sys.exit(3)
+
 worst = None
 over = []
 for window in ("five_hour", "seven_day"):
     w = data.get(window) or {}
+    # A window that is not an object at all — `{"five_hour": "nonsense"}` —
+    # used to raise AttributeError here and escape as exit 1, which is the
+    # loud "stop" code, from a document this script's own contract says it
+    # should fail open on. Unreadable is unreadable, whatever its shape.
+    if not isinstance(w, dict):
+        continue
     v = w.get("used_percentage")
     if isinstance(v, (int, float)):
         worst = v if worst is None else max(worst, v)
         if v >= stop:
-            over.append((window, v, w.get("resets_at")))
+            over.append((window, v, _resets(w)))
 
 if worst is None:
+    if allowed:
+        # A document that carried a status and said "allowed" is not missing
+        # data — it answered, in the only vocabulary its surface has. Calling
+        # that a fail-open would tell an operator the guard did not run on the
+        # exact surface this shape was added to reach.
+        print(f"budget_check: ok (status={allowed[0]!r}, no used_percentage on this surface)")
+        sys.exit(0)
     print("budget_check: no used_percentage in rate_limits.json — failing open", file=sys.stderr)
     sys.exit(0)
 

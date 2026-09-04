@@ -94,15 +94,31 @@ TITLE=""
 TYPE=""
 BODY_FILE=""
 _positional=()
+
+# The count check above is not the invariant this comment claims. `--title
+# --body-file x.md` satisfies `$# -ge 2`, so TITLE became `--body-file` and
+# `x.md` fell through to positional — the #352 subject bug, reachable again
+# through the option form that was added to fix it. A value is rejected here
+# when it is empty or starts with `-`, in both the spaced and the `=` form.
+# Returns non-zero rather than exiting: this script runs without `set -e`, and
+# called as `TITLE="$(_check ...)"` the exit would have ended only the command
+# substitution's subshell — leaving TITLE empty and the run going, which is a
+# quieter version of the bug being fixed. Callers pair it with `|| exit 1`.
+_reject_optionlike() {  # _reject_optionlike <option> <value>
+    case "$2" in
+        "")  echo "open_task_pr: $1 needs a non-empty value" >&2; _usage >&2; return 1 ;;
+        -*)  echo "open_task_pr: $1 got '$2', which starts with '-' and is rejected as an option — quoting does not change that, the shell strips the quotes before this sees the value. Pass one that does not start with '-'; for a file that really is named that way, prefix the path: ./$2" >&2; _usage >&2; return 1 ;;
+    esac
+}
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -h|--help) _usage; exit 0 ;;
-        --title)      [[ $# -ge 2 ]] || { echo "open_task_pr: --title needs a value" >&2; _usage >&2; exit 1; }; TITLE="$2"; shift 2 ;;
-        --title=*)    TITLE="${1#--title=}"; shift ;;
-        --type)       [[ $# -ge 2 ]] || { echo "open_task_pr: --type needs a value" >&2; _usage >&2; exit 1; }; TYPE="$2"; shift 2 ;;
-        --type=*)     TYPE="${1#--type=}"; shift ;;
-        --body-file)  [[ $# -ge 2 ]] || { echo "open_task_pr: --body-file needs a value" >&2; _usage >&2; exit 1; }; BODY_FILE="$2"; shift 2 ;;
-        --body-file=*) BODY_FILE="${1#--body-file=}"; shift ;;
+        --title)      [[ $# -ge 2 ]] || { echo "open_task_pr: --title needs a value" >&2; _usage >&2; exit 1; }; _reject_optionlike --title "$2" || exit 1; TITLE="$2"; shift 2 ;;
+        --title=*)    _reject_optionlike --title "${1#--title=}" || exit 1; TITLE="${1#--title=}"; shift ;;
+        --type)       [[ $# -ge 2 ]] || { echo "open_task_pr: --type needs a value" >&2; _usage >&2; exit 1; }; _reject_optionlike --type "$2" || exit 1; TYPE="$2"; shift 2 ;;
+        --type=*)     _reject_optionlike --type "${1#--type=}" || exit 1; TYPE="${1#--type=}"; shift ;;
+        --body-file)  [[ $# -ge 2 ]] || { echo "open_task_pr: --body-file needs a value" >&2; _usage >&2; exit 1; }; _reject_optionlike --body-file "$2" || exit 1; BODY_FILE="$2"; shift 2 ;;
+        --body-file=*) _reject_optionlike --body-file "${1#--body-file=}" || exit 1; BODY_FILE="${1#--body-file=}"; shift ;;
         --) shift; while [[ $# -gt 0 ]]; do _positional+=("$1"); shift; done ;;
         -*) echo "open_task_pr: unknown option: $1" >&2; _usage >&2; exit 1 ;;
         *) _positional+=("$1"); shift ;;

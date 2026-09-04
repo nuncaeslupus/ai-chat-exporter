@@ -18,6 +18,97 @@ being a changelog nobody reads.
 
 Format: `## [X.Y.Z] - YYYY-MM-DD`, newest first, plain bullets below.
 
+## [3.7.1] - 2026-09-04
+
+- **Four helpers that aborted or lied instead of degrading.** All four share a
+  shape: the guard already exists a line away, and the path that skipped it is
+  the one nobody exercises.
+  - `open_task_pr.sh` took an option as a value. `--title --body-file x.md`
+    satisfies the `$# -ge 2` count check, so `TITLE` became `--body-file` and
+    `x.md` fell through to positional — the #352 subject bug, reachable again
+    through the option form added to fix it, and the comment above the parser
+    already claimed it could not happen. The subject survives a squash, so a
+    wrong one is only fixable by rewriting shared history. Empty and `-`-leading
+    values are now rejected in both the spaced and `=` forms.
+  - `gate_run.sh` caught only `OSError` around a `read_text`. `UnicodeDecodeError`
+    derives from `ValueError`, so a non-UTF-8 task file escaped as a traceback —
+    out of a branch that only prints a diagnostic, after the gate decision was
+    already made.
+  - `arsenal_migrate.py` raised its merge-policy `MigrateError` from the config
+    block, which runs after the task files, the history files and
+    `_migrated-history.md` are on disk. `main()` then printed `nothing was
+    written` over a half-migrated tree. The check moves to pre-flight, beside
+    the payload resolution that is there for exactly this reason.
+  - `init.py` left one `shadow.unlink()` unguarded while the read either side of
+    it and the following `rmdir` were both non-fatal. A read-only checkout or a
+    permission ended `init_base` before `_vendor_skills`, `_register_gate_hook`
+    and `_inject_claude_md` ran — a half-installed repo, to tidy up a file
+    nothing reads.
+
+  `vendored_robustness_test.sh` pins all four; every one of its gates fails
+  against 3.6.3.
+## [3.7.0] - 2026-09-04
+
+### The quota guard now stops on a refusal, not only on a percentage
+
+`budget_check.sh` accepts a second shape in `rate_limits.json`: a `status` field,
+nested under a window or flat, exactly as `get_session` returns it. Any value
+other than `"allowed"` stops the loop (exit 3); `"allowed"` passes and is
+reported as a pass rather than as missing data.
+
+This is what makes the guard reachable on a cloud session at all. That surface
+runs no statusLine, so it has no `used_percentage` to give — a document carrying
+only what it *can* supply used to hit the "fields absent" fail-open and guard
+nothing, on the one surface that runs unattended fleets.
+
+`ARSENAL_QUOTA_STOP_PCT` does **not** apply to the refusal check and cannot
+disable it. A percentage is a forecast about the next call; a refusal is a fact
+already established about one that was made. Do not translate a refusal into a
+synthesised `"used_percentage": 100` — `ARSENAL_QUOTA_STOP_PCT=101` would then
+silently switch off a guard reporting a wall already hit.
+
+### A task's gate is fixed for the life of the task — now stated, not discovered
+
+The gate is read from the default branch, so a task's own PR can never amend its
+own acceptance criteria. That property is deliberate (a worker whose branch
+supplies the gate it is held to is certifying itself) but it was written down
+only in the source, and several task texts invited exactly the amendment it
+refuses — costing a worker a whole session chasing a missing test that was really
+a gate it had edited and could not use.
+
+Now in `AGENTS.md` § Task format, with the full rule, the wording to avoid, and
+the recovery in `references/evidence-gates.md`. **Do not write a task that tells
+its implementer to update the gate block in the same diff.** A gate that needs to
+change is a board-side edit merged first, or a new task.
+
+The gate-only soft-fail some hosts have asked for is deliberately *not* shipped:
+letting a branch weaken its own acceptance criteria mid-flight reopens the
+self-certification hole the default-branch read exists to close.
+
+### A merged task PR with no issue handle now archives its task file
+
+`queue_hooks.py pr-closed` reconciles a merged task PR even when the task has no
+issue handle yet. The keyword guard passes such a PR on the stated grounds that
+pr-closed "still reconciles on merge" — and it did not: the work merged, the task
+file stayed live, and the next `handle_sync.py` proposed a fresh handle for work
+that had already landed.
+
+With no handle there is no issue to close, and none is invented — the archive is
+the whole of the reconciliation, and it is reported as such.
+
+### Why `/init` does not seed `permissions.allow`
+
+`references/github-automation.md` now explains why an unattended run stops on a
+permission prompt, and why a seeded permissions block is not the fix — it would
+look like one while changing nothing.
+
+Short version: the `mcp__github__*` calls the protocol makes already pass
+silently (the account's GitHub connector grants them, outside `settings.json`).
+The session tools that *do* prompt cannot be pre-approved from a committed file
+at all, for either of two reasons the doc tells you how to distinguish. The one
+thing that measurably helps is dispatching **one `create_session` per message** —
+a batch of them reads as a single refusable action and is refused as one.
+
 ## [3.6.3] - 2026-09-04
 
 - **A non-subtree install no longer reads as a broken one.** With no `arsenal`
