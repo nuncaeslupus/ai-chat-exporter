@@ -80,10 +80,26 @@ Before writing anything, run every candidate against the live page and record ma
 counts. Zero-match selectors are the defect; theorising about double-matches without
 measuring wastes a session.
 
+`pnpm probe` generates `dist-probe/selector-probe.js` for this: paste it into the
+console and it reports a match count for **every** selector the parsers declare, the
+class names of the page's real scroll containers, and a census of the `data-*`
+attribute names actually in the DOM. It reads the selector values out of
+`src/core/parsers/*/selectors.ts` at generation time, so it can never test a stale
+transcription of them — which is the failure mode a hand-written probe has.
+
+Hand-rolling one is still fine for a platform with no parser yet:
+
 ```js
 const q = s => { try { return document.querySelectorAll(s).length } catch (e) { return 'ERR' } };
 ({ container: q('main#main'), turns: q('[data-turn]'), content: q('.markdown') })
 ```
+
+Whichever you use, the output is counts and class names only — no message text — and
+`pnpm probe` redacts every path segment of the URL it reports, so it is safe to paste
+into an issue and safe to ask a *user* to run when the broken page is theirs and not
+reachable from here. A probe you hand-roll carries whatever you put in it: if you add
+the URL, redact it the same way, because a workspace slug or a username identifies a
+person as surely as a session id does.
 
 Scope every probe to one turn — `[...document.querySelectorAll('[data-turn="assistant"]')].pop()`
 — then query inside it. A page-wide `querySelector` in a multi-turn document returns
@@ -156,10 +172,54 @@ can parse correctly and still vanish from five exporters. Finally return to the 
 page and confirm the real thing works: the fixture only proves the absence of a
 regression against the past.
 
+### 8. Reconcile the count against the network truth
+
+Both headline rules above describe the same failure: the parser drops something and
+nothing complains. Steps 1-7 defend against that by enumerating widgets *by eye*,
+which catches what you thought to look for. A HAR capture closes the rest, because
+the transcript arrives over the network as JSON before the page renders any of it —
+so the response body is an independent count of what the conversation actually
+contains.
+
+Load the `har` skill and reconcile. Two conditions have to hold before a number from
+the capture means anything:
+
+- **The response is actually there.** A capture can hold the transcript request with a
+  null response, an empty body, or a body it cannot decode — a streamed or compressed
+  response the recorder truncated. None of those is a count of zero; they are a capture
+  that failed and has to be retaken. Check the body before comparing.
+- **Both sides count the same thing.** The API's message array is not the parser's Q&A
+  pairs: one pair spans two messages, and branches, edited turns, deleted turns and
+  non-text records inflate the API side without owing the parser anything. Normalise to
+  the same unit — active-branch messages on both sides, or pairs on both — before
+  calling a difference a gap.
+
+Once both hold, a residual gap is the bug, and you have it as a number rather than as a
+suspicion. It is the only check here that does not depend on having anticipated the
+widget.
+
+The same capture answers what the DOM never renders — per-message timestamps, model
+ids, edit history — which is where a parser has to go when the visible page simply
+does not carry the field.
+
+Be clear about what it does **not** do: **a HAR contains no DOM.** These are SPAs;
+the markup is assembled client-side and never crosses the wire. Selector drift is
+invisible in a capture, so step 3 stays the tool for that — the two are complements,
+not alternatives.
+
+The capture has to come from a browser logged in to the site. `capture_har.py` opens
+a **fresh context by design** (no cookies, so a capture is safe to attach to an
+issue), and a cloud session additionally cannot reach these hosts at all. So for
+this project the HAR comes from a person: DevTools → Network → *Export HAR*. Ask for
+one rather than assuming it can be taken here.
+
+→ [HAR reconciliation](references/har-reconciliation.md) for the commands.
+
 ## References — load on demand
 
 - [Widget coverage matrix](references/widget-coverage-matrix.md) — load before capturing anything: the per-platform list of widgets to exercise, and why one conversation is never enough.
 - [Live verification](references/live-verification.md) — load when driving the browser: capture recipes, reachability greps, and the end-to-end export check.
+- [HAR reconciliation](references/har-reconciliation.md) — load at step 8: turning a user's HAR export into a message count to check the parser against, and into the endpoint behind a field the DOM never shows.
 - [Content type checklist](references/content-type-checklist.md) — load when deciding what a parser must handle: maths, code, tables, images, citations, and the trap in each.
 
 ## Gotchas
