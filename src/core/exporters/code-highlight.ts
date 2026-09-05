@@ -129,8 +129,13 @@ export function classForScope(classAttr: string): CodeTokenClass {
  * part, not the surrounding quote.
  */
 export function tokenizeHighlighted(html: string, doc: Document): CodeToken[] {
-  const container = doc.createElement('div');
-  container.innerHTML = html;
+  // Parsed rather than assigned to `innerHTML`: this was already inert -- a
+  // detached div that is never inserted, so nothing executes and no resource
+  // loads -- but AMO's linter flags every `innerHTML` assignment on sight, and
+  // `DOMParser` is inert by construction (#258). Parsed in `doc`'s own realm,
+  // which is what the div did.
+  const parser = new (doc.defaultView ?? window).DOMParser();
+  const container = parser.parseFromString(html, 'text/html').body;
 
   const tokens: CodeToken[] = [];
   const walk = (node: Node, inherited: CodeTokenClass): void => {
