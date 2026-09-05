@@ -70,3 +70,21 @@ export function setMockUrl(url: string) {
 beforeEach(() => {
   vi.clearAllMocks();
 });
+
+// TEST-3: `vi.waitFor` does not honour `testTimeout` -- it has its own 1000ms
+// default. So the 15s ceiling vitest.config.ts sets for CPU starvation (see the
+// comment there: tests measured at 2.6s alone and up to 6.6s while another run
+// shares the machine) never applied to a single `waitFor`, and every one of them
+// kept a 1s budget inside a suite that tolerates 15. Under a full-suite run
+// `popup-states.test.ts` gave up while the popup was still in `detecting` --
+// nothing was hung, the state machine simply had not been scheduled yet.
+//
+// Defaulting it here rather than per call site, for the reason vitest.config.ts
+// already records: PR #150 opted in test-by-test and the flakes moved elsewhere.
+// An explicit `timeout` at a call site still wins.
+const waitForWithSuiteTimeout = vi.waitFor.bind(vi);
+vi.waitFor = ((callback: never, options?: number | object) =>
+  waitForWithSuiteTimeout(
+    callback,
+    typeof options === 'number' ? options : { timeout: 15_000, ...options }
+  )) as typeof vi.waitFor;
