@@ -682,12 +682,14 @@ export class ChatGPTParser extends BaseParser {
 
     const reportHtml = frame.getAttribute(EMBEDDED_FRAME_REPORT_HTML_ATTR)?.trim();
     if (reportHtml) {
-      const container = frame.ownerDocument.createElement('div');
       // Re-sanitize even though deep-research-frame.ts already sanitized before
       // relaying: this string is about to become live DOM in the page's own
       // content-script context, and that's a security-sensitive spot worth a
       // second, cheap pass rather than trusting the relay unconditionally.
-      container.innerHTML = sanitizeHtml(reportHtml);
+      // Parsed rather than assigned to `innerHTML` so AMO's linter has nothing
+      // to flag (#258); `DOMParser` is inert by construction.
+      const parser = new (frame.ownerDocument.defaultView ?? window).DOMParser();
+      const container = parser.parseFromString(sanitizeHtml(reportHtml), 'text/html').body;
       this.replaceDiagramsWithMarker(container);
       this.stripDigitOdometerRuns(container);
       this.stripResearchStatsHeader(container);
