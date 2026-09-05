@@ -38,9 +38,17 @@ Create in `docs/store-listings/`:
 - `chrome-web-store-v{VERSION}.txt` (plain text, no markdown)
 - `firefox-addons-v{VERSION}.txt` (plain text, no markdown)
 
-Use previous version as template, update "What's New" section.
+**Copy the previous version's file verbatim and change only three things**: the
+version on line 1, the "What's New" block, and the "Version History" list. The
+shipped texts are a reviewed baseline — do not reword, expand or "improve" the
+rest of them.
 
-**Important**: Keep format lists concise ("PDF, Markdown, Word and other formats") to avoid Chrome Web Store "spammy text" flags.
+**Important**: Keep format lists concise ("PDF, Markdown, Word and other
+formats") to avoid Chrome Web Store "spammy text" flags. A listing that repeats
+DOCX / PDF / MD / TXT across sections reads as keyword stuffing and has cost us
+a review round. Use friendly names ("Word", not "DOCX"), name each format once,
+and never add format keywords to a listing while editing it — the running total
+across the whole file is what gets flagged.
 
 ## Pre-Release Checklist
 
@@ -91,3 +99,13 @@ git push origin v${VERSION}
 **Firefox source validation fails**: Test the build steps in [building.md](building.md) on a clean machine (`pnpm install && pnpm build`)
 
 **Store listing rejected**: Use concise format lists, friendly names ("Word" not "DOCX")
+
+**Chrome Web Store flags obfuscated code ("Red Titanium")**: this was jsPDF's
+optional dependencies (canvg, html2canvas, dompurify), which it lazily imports
+from code paths we never use. The bundler still emitted them, and canvg's
+inlined core-js builds the string `"java" + "script" + ":"`, which the review
+scanner flags. `build/jspdf-optional-stub.js` aliases all three away at build
+time. **Do not remove that alias or restore the full jsPDF dependency set** to
+"fix" a bundling error — the ~380 KB it drops is dead weight, and bringing it
+back re-triggers the flag. If a future code path genuinely needs one of them,
+the stub throws a named error rather than failing silently.

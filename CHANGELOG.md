@@ -2,6 +2,50 @@
 
 All notable changes to AI Chat Exporter are recorded here.
 
+## [1.3.0] — 2026-09-05
+
+### Added
+
+- **A language setting.** The extension only ever spoke the browser's language.
+  A new setting in the gear view pins one instead — for the popup *and* for the
+  exported file — defaulting to "Browser language", which is what every install
+  does today. An untranslated key falls back to English rather than showing a
+  raw key.
+- **`pnpm probe`.** Generates a DevTools-console snippet from the selector
+  modules themselves, so selector drift on a login-walled site can be diagnosed
+  by whoever has the page open. Its report is match counts, class names and
+  attribute names only — safe to paste into a public issue.
+
+### Fixed
+
+- **Claude conversations parse against the 2026 markup again.** Extraction still
+  walked `div[data-test-render-count]` alone while detection had already moved to
+  seven independent signals, so stripping that render-debug attribute produced an
+  empty export on a page the popup reported as supported — and no drift warning,
+  because the count used the old walk too. Turns now fall back to the same
+  turn-level role markers detection trusts, with artifact panels excluded and
+  nested matches filtered so a turn is never counted twice. Asymmetric threads
+  (an unanswered turn, a regenerated one) parse correctly.
+- **Claude pages are detected reliably again.** Detection required a Tailwind
+  utility chain on a layout div, so any spacing tweak on claude.ai retired it and
+  the popup reported the page as unsupported — the one drift a report cannot warn
+  about, because no other selector is ever consulted. Detection now ORs several
+  independent turn-level signals.
+- **The popup no longer opens with the Export button looking half-pressed.**
+  Painting the closed format menu restored focus to its chevron before anything
+  had been touched, and Chrome's first programmatic focus matches
+  `:focus-visible`.
+- **One way back out of a submenu.** The header chevron and the footer Done
+  button both did nothing but return to the parent view; Done and its footer band
+  are gone.
+
+### Changed
+
+- **The PDF library's optional dependencies are stubbed at build time.** jsPDF
+  lazily imports canvg, html2canvas and dompurify from code paths this extension
+  never uses; the bundler still emitted ~380 KB of chunks, one of which builds a
+  `javascript:` string that the Chrome Web Store scanner flags as obfuscated code.
+
 ## [1.2.0] — 2026-07-31
 
 The headline is **Gemini support**, a **rebuilt popup**, **complete exports of long
