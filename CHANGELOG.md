@@ -41,6 +41,11 @@ All notable changes to AI Chat Exporter are recorded here.
 
 ### Changed
 
+- **Highlighter and deep-research HTML is parsed, not assigned.** Two detached
+  elements were built with `innerHTML` — inert already, since neither is ever
+  inserted — and now go through `DOMParser`, which is inert by construction and
+  leaves the add-on reviewers' linter nothing to flag. The sanitizer still runs
+  exactly where it did.
 - **The PDF library's optional dependencies are stubbed at build time.** jsPDF
   lazily imports canvg, html2canvas and dompurify from code paths this extension
   never uses; the bundler still emitted ~380 KB of chunks, one of which builds a
