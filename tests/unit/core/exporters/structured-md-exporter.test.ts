@@ -434,12 +434,14 @@ describe('EXP-3: Markdown structural escaping', () => {
       ).toBe(false);
 
       const middle = outer?.items[0]?.tokens.find((t) => t.type === 'list') as
-        Tokens.List | undefined;
+        | Tokens.List
+        | undefined;
       expect(middle).toBeDefined();
       expect(middle?.items).toHaveLength(1);
 
       const inner = middle?.items[0]?.tokens.find((t) => t.type === 'list') as
-        Tokens.List | undefined;
+        | Tokens.List
+        | undefined;
       expect(inner).toBeDefined();
       expect(inner?.items).toHaveLength(1);
       expect(inner?.items[0]?.text).toBe('L3');

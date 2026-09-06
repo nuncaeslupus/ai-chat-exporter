@@ -30,7 +30,13 @@ export interface FilenameVariables {
  * `text` belongs to `literal` alone — the free-text chip.
  */
 export type FilenamePieceType =
-  'platform' | 'model' | 'title' | 'date' | 'time' | 'pairCount' | 'literal';
+  | 'platform'
+  | 'model'
+  | 'title'
+  | 'date'
+  | 'time'
+  | 'pairCount'
+  | 'literal';
 
 export interface FilenamePiece {
   type: FilenamePieceType;

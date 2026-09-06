@@ -43,12 +43,59 @@ version on line 1, the "What's New" block, and the "Version History" list. The
 shipped texts are a reviewed baseline — do not reword, expand or "improve" the
 rest of them.
 
-**Important**: Keep format lists concise ("PDF, Markdown, Word and other
-formats") to avoid Chrome Web Store "spammy text" flags. A listing that repeats
-DOCX / PDF / MD / TXT across sections reads as keyword stuffing and has cost us
-a review round. Use friendly names ("Word", not "DOCX"), name each format once,
-and never add format keywords to a listing while editing it — the running total
-across the whole file is what gets flagged.
+### Keyword density — the #1 reason this extension gets rejected
+
+Read this before touching a word of a listing. It is the most common rejection
+we get, it has cost multiple review rounds, and it is now enforced:
+
+```bash
+node build/check-release.cjs keywords
+```
+
+CI runs it too. It fails on the two shapes that have actually been rejected.
+
+**v1.3.0 was refused on 2026-09-06** — violation "Yellow Argon", *Spam and
+Placement in the Store*, "excessive keywords in the item's description" — and
+the reviewer quoted this back verbatim:
+
+```
+• PDF - Paginated documents with page numbers, code highlighting and embedded images
+• Markdown - Clean, readable text with full formatting support
+• Word - Microsoft Word documents with proper structure
+• HTML, JSON, Plain text
+```
+
+Nothing about that is unusual prose, which is the trap: it reads as a feature
+list to us and as a keyword list to the reviewer. The rules:
+
+- **Never open a bullet with a format name and then describe it.** That
+  enumerate-and-expand shape is the one that gets quoted back. Describe the
+  capability instead: "Six formats to choose from, including PDF, Markdown and
+  Word".
+- **No format name more than four times in the whole description.** The store
+  counts the file as a whole, not per section, so a mention added in one place
+  can tip a listing that was fine.
+
+Measured across every listing this project has shipped — which is where those
+rules come from, rather than taste:
+
+| listing | total format mentions | most-used name | enumerate bullets | outcome |
+|---|---|---|---|---|
+| v1.0.0 | 7 | 3× | 0 | accepted |
+| v1.1.0 | 14 | — | 3 | |
+| v1.1.1 | 16 | — | 3 | |
+| v1.2.0 | 17 | 5× | 3 | |
+| v1.3.0 | (carried v1.2.0's block) | | | **rejected** |
+
+The per-format bullet list entered in v1.1.0 and grew from there. **v1.0.0 is
+the shape known to pass**: one inline phrase, "Export to PDF, Markdown, Word and
+other formats" — naming three and saying "and other formats" for the rest,
+rather than enumerating all six. Copy that shape.
+- **Use friendly names** — "Word", not "DOCX".
+- **Never add format keywords while editing a listing for other reasons.**
+
+A rejection on description text does **not** need a new package: fix the
+listing, resubmit the same version.
 
 ## Pre-Release Checklist
 

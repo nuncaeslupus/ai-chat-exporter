@@ -278,6 +278,98 @@ function checkPermissions() {
   console.log(`Permissions OK: every manifest permission is justified in the v${version} listings.`);
 }
 
+/**
+ * Keyword density in the store listings.
+ *
+ * This is the single most common reason the Chrome Web Store rejects this
+ * extension. v1.3.0 was refused on 2026-09-06 (violation "Yellow Argon",
+ * "Spam and Placement in the Store"), and the reviewer quoted this block back
+ * verbatim:
+ *
+ *     • PDF - Paginated documents with page numbers, code highlighting ...
+ *     • Markdown - Clean, readable text with full formatting support
+ *     • Word - Microsoft Word documents with proper structure
+ *     • HTML, JSON, Plain text
+ *
+ * Two rules come out of that, and this enforces both so the next listing
+ * cannot reintroduce them by hand:
+ *
+ *  - No bullet that opens with a format name and then describes it. That
+ *    enumerate-and-expand shape is what reads as a keyword list.
+ *  - No format name more than MAX_MENTIONS times across the whole file. The
+ *    reviewer counts the description as a whole, not one section.
+ */
+const FORMAT_WORDS = ['PDF', 'Markdown', 'Word', 'DOCX', 'HTML', 'JSON', 'TXT', 'plain text'];
+
+/*
+ * Measured, not guessed. Counting the description prose of every listing this
+ * project has shipped:
+ *
+ *   v1.0.0  accepted   7 mentions total, most-used name 3x, 0 enumerate bullets
+ *   v1.1.0             14                                  3
+ *   v1.1.1             16                                  3
+ *   v1.2.0             17               most-used name 5x, 3
+ *   v1.3.0  REJECTED   (carried v1.2.0's block forward)
+ *
+ * The per-format bullet list entered in v1.1.0 and density climbed from there.
+ * 4 sits above the accepted listing's 3 and below the rejected one's 5.
+ */
+const MAX_MENTIONS = 4;
+
+function checkKeywords() {
+  const version = readJson('manifests/manifest.base.json').version;
+  const listings = [
+    `docs/store-listings/chrome-web-store-v${version}.txt`,
+    `docs/store-listings/firefox-addons-v${version}.txt`,
+  ];
+
+  const errors = [];
+  for (const listingPath of listings) {
+    let text;
+    try {
+      text = readFileSync(resolve(ROOT, listingPath), 'utf-8');
+    } catch {
+      errors.push(`${listingPath}: no store listing for the current manifest version (${version}).`);
+      continue;
+    }
+
+    // The TAGS block is a keyword field by design -- the store asks for a
+    // comma-separated list there. It is not part of the description prose.
+    const prose = text.split(/^TAGS$/m)[0];
+
+    for (const word of FORMAT_WORDS) {
+      const hits = prose.match(new RegExp(word.replace(/ /g, '\\s+'), 'gi'))?.length ?? 0;
+      if (hits > MAX_MENTIONS) {
+        errors.push(
+          `${listingPath}: "${word}" appears ${hits} times (max ${MAX_MENTIONS}). ` +
+            'The store counts the description as a whole.'
+        );
+      }
+    }
+
+    for (const line of prose.split('\n')) {
+      const bullet = /^\s*[•\-*]\s*(PDF|Markdown|Word|DOCX|HTML|JSON|TXT)\b\s*[-–—:]/i.exec(line);
+      if (bullet) {
+        errors.push(
+          `${listingPath}: bullet describes a format by name -- ${JSON.stringify(line.trim().slice(0, 60))}. ` +
+            'This exact shape was quoted in the "Yellow Argon" rejection.'
+        );
+      }
+    }
+  }
+
+  if (errors.length > 0) {
+    console.error(
+      'Store listing reads as keyword stuffing:\n' +
+        errors.join('\n') +
+        '\nSee docs/dev/releasing.md -- this is the top recurring rejection cause.'
+    );
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`Keyword density OK: v${version} listings name each format sparingly.`);
+}
+
 const mode = process.argv[2];
 if (mode === 'version') {
   checkVersion();
@@ -289,7 +381,11 @@ if (mode === 'version') {
   checkPipeline();
 } else if (mode === 'permissions') {
   checkPermissions();
+} else if (mode === 'keywords') {
+  checkKeywords();
 } else {
-  console.error('Usage: node build/check-release.cjs <version|manifest|node|pipeline|permissions>');
+  console.error(
+    'Usage: node build/check-release.cjs <version|manifest|node|pipeline|permissions|keywords>'
+  );
   process.exitCode = 2;
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Self-checking test for the `node`/`permissions` modes of
+# Self-checking test for the `node`/`permissions`/`keywords` modes of
 # build/check-release.cjs (DOCS-1).
 #
 # The repo has no shell-test framework (vitest only covers .ts), so this is a
@@ -103,6 +103,59 @@ if ! grep -q '"scripting"' "${WORK}/perm.out"; then
 else
     echo "  ok   missing-scripting error names the permission"
 fi
+
+# --- keywords ----------------------------------------------------------------
+
+# kw_fixture <listing-body> -> $WORK/kw-fixture with a v9.9.9 manifest and that
+# body as both listings.
+kw_fixture() {
+    local dir="${WORK}/kw-fixture"
+    rm -rf "${dir}"
+    mkdir -p "${dir}/manifests" "${dir}/docs/store-listings"
+    printf '{\n  "version": "9.9.9"\n}\n' >"${dir}/manifests/manifest.base.json"
+    printf '%s' "$1" >"${dir}/docs/store-listings/chrome-web-store-v9.9.9.txt"
+    printf '%s' "$1" >"${dir}/docs/store-listings/firefox-addons-v9.9.9.txt"
+}
+
+echo "check-release.cjs keywords mode:"
+
+kw_fixture "Six formats to choose from, including PDF, Markdown and Word.
+Code highlighting, images and tables are kept in every one."
+CHECK_RELEASE_ROOT="${WORK}/kw-fixture" node "${CHECKER}" keywords >/dev/null 2>&1
+check "prose naming each format once exits 0" 0 "$?"
+
+# The exact block the Chrome Web Store quoted back in the v1.3.0 rejection
+# (violation "Yellow Argon", 2026-09-06). This is the regression under test:
+# it shipped because a listing that had passed before was treated as a safe
+# baseline.
+kw_fixture "Multiple Export Formats:
+
+• PDF - Paginated documents with page numbers, code highlighting and embedded images
+• Markdown - Clean, readable text with full formatting support
+• Word - Microsoft Word documents with proper structure
+• HTML, JSON, Plain text"
+CHECK_RELEASE_ROOT="${WORK}/kw-fixture" node "${CHECKER}" keywords >"${WORK}/kw.out" 2>&1
+check "the rejected enumerate-and-describe block is refused" 1 "$?"
+if ! grep -q 'Yellow Argon' "${WORK}/kw.out"; then
+    echo "  FAIL refusal cites the rejection it came from"
+    FAILURES=$((FAILURES + 1))
+else
+    echo "  ok   refusal cites the rejection it came from"
+fi
+
+# Density is counted over the whole description, which is how a listing with no
+# offending bullet can still be refused.
+kw_fixture "$(for i in 1 2 3 4 5 6; do echo "Export the conversation as a PDF document."; done)"
+CHECK_RELEASE_ROOT="${WORK}/kw-fixture" node "${CHECKER}" keywords >"${WORK}/kw2.out" 2>&1
+check "a format named six times in plain prose is refused" 1 "$?"
+
+# The TAGS block is a keyword field by design and must not count against prose.
+kw_fixture "Export your conversations.
+
+TAGS
+chatgpt, claude, pdf, pdf, pdf, pdf, pdf, pdf, markdown, markdown, markdown"
+CHECK_RELEASE_ROOT="${WORK}/kw-fixture" node "${CHECKER}" keywords >/dev/null 2>&1
+check "keywords in the TAGS field do not count as description prose" 0 "$?"
 
 if [[ "${FAILURES}" -ne 0 ]]; then
     echo "${FAILURES} check(s) failed"
