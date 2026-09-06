@@ -20,6 +20,7 @@ jobs:
       - run: node build/check-release.cjs node
       - run: node build/check-release.cjs pipeline
       - run: node build/check-release.cjs permissions
+      - run: node build/check-release.cjs keywords
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck
