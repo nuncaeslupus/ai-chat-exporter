@@ -1034,7 +1034,9 @@ export class ChatGPTParser extends BaseParser {
 
       // Check if there's a rendered image (SVG preview)
       const imgElement = codeElement.querySelector('img');
-      let content = '';
+      // Assigned by both branches below; ESLint 10's `no-useless-assignment`
+      // flags an initializer nothing can read.
+      let content: string;
       let type = 'code';
 
       if (imgElement) {

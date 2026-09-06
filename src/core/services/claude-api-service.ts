@@ -401,7 +401,10 @@ export class ClaudeApiService {
           const input = content.input;
 
           // Map Claude API artifact type to our artifact type
-          let type = 'unknown';
+          // The chain below ends in an `else`, so every path assigns before
+          // this is read -- an initializer here is dead (ESLint 10's
+          // `no-useless-assignment`).
+          let type: string;
           let language: string | undefined;
 
           if (input.type.includes('svg')) {
