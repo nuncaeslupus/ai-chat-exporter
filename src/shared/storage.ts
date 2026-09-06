@@ -49,8 +49,7 @@ export class StorageService {
         STORAGE_KEYS.USER_PREFERENCES
       );
       const stored = result[STORAGE_KEYS.USER_PREFERENCES] as
-        | (Partial<UserPreferences> & LegacyMetaPreferences)
-        | undefined;
+        (Partial<UserPreferences> & LegacyMetaPreferences) | undefined;
       if (!stored) return DEFAULT_PREFERENCES;
       return { ...stored, showMetaInfo: migrateShowMetaInfo(stored) } as UserPreferences;
     } catch (error) {
