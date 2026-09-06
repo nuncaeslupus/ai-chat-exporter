@@ -817,7 +817,15 @@ body {
   left: var(--pad-x);
   right: var(--pad-x);
   bottom: 120px;
-  max-height: 207px;
+  /*
+   * Was a flat `max-height: 207px`, which is 51px less than the list needs:
+   * JSON never rendered at all and "Plain text" was sliced in half, with no
+   * scrollbar to say so -- a format you cannot see is a format you do not
+   * know exists. The cap now follows the space the menu actually has (the
+   * body, less this 120px offset and the 12px it keeps off the header), so a
+   * seventh format scrolls instead of vanishing.
+   */
+  max-height: calc(100% - 132px);
   flex-direction: column;
   border-radius: var(--radius-lg);
   background: var(--color-surface);
@@ -827,6 +835,17 @@ body {
 
 .popup-body[data-format-menu-open='true'] .format-menu {
   display: flex;
+}
+
+/*
+ * The popup sizes itself to its content, and on a short conversation that
+ * left only 220px above the action bar for a menu whose six formats need
+ * 258px. The menu cannot move down -- below it is the Export button it
+ * belongs to. So the popup grows for as long as the menu is open: 258px of
+ * menu + the 132px of offsets above, rounded up for slack.
+ */
+.popup-body[data-format-menu-open='true'] {
+  min-height: 396px;
 }
 
 /* Everything behind the menu steps back and stops taking clicks — without
@@ -975,7 +994,14 @@ section {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 9px;
+  /*
+   * No gap, deliberately: the back button's box is shifted left so its glyph
+   * lands on the band edge (26px) and its footprint still ends on the label
+   * column (54px) -- see `.submenu-back`. A gap here pushed every submenu
+   * title to 63px, which matched neither column, so "Options", "Settings"
+   * and "Choose pairs" each sat 9px right of the labels underneath them.
+   */
+  gap: 0;
   padding: 13px var(--pad-x) 9px;
 }
 

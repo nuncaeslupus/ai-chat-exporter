@@ -50,6 +50,11 @@ const POPUP_HTML = readFileSync(
   .replace(/<\/body>[\s\S]*/, '')
   .replace(/<script[\s\S]*?<\/script>/g, '');
 
+const POPUP_CSS = readFileSync(
+  resolve(__dirname, '../../../../src/extension/popup/popup.css'),
+  'utf-8'
+);
+
 function pairAt(index: number): QAPair {
   return {
     id: `pair-${String(index)}`,
@@ -382,5 +387,40 @@ describe('popup format menu accessibility', () => {
     expect(directChildren.every((child) => child.getAttribute('role') === 'menuitemradio')).toBe(
       true
     );
+  });
+});
+
+/** A rule's declarations with its comments stripped -- prose mentioning an old
+ *  value must not satisfy (or defeat) an assertion about the live one. */
+function declarations(rule: RegExp): string {
+  return (rule.exec(POPUP_CSS)?.[1] ?? '').replace(/\/\*[\s\S]*?\*\//g, '');
+}
+
+/*
+ * jsdom computes no layout, so these guard the two CSS facts that made the
+ * menu clip rather than the pixels themselves -- measured in Chrome at 436px:
+ * the six-format list needs 258px and a short conversation leaves 220px.
+ */
+describe('popup format menu fits its formats', () => {
+  it('caps the menu against the space it has, not a fixed pixel height', () => {
+    const menu = declarations(/\.format-menu \{([^}]*)\}/);
+    expect(menu).toMatch(/max-height:\s*calc\(100% -/);
+    // A flat px cap is what hid JSON entirely and sliced "Plain text".
+    expect(menu).not.toMatch(/max-height:\s*\d+px/);
+  });
+
+  it('grows the popup while the menu is open so nothing is cut off', () => {
+    expect(POPUP_CSS).toMatch(
+      /\.popup-body\[data-format-menu-open='true'\]\s*\{[^}]*min-height:\s*\d+px/
+    );
+  });
+});
+
+describe('popup submenu headers', () => {
+  it('puts the title on the label column instead of a third edge', () => {
+    // The back button already lands its glyph on the band edge and ends its
+    // footprint on the label column, so any gap here moves the title off both.
+    const header = declarations(/\.submenu-header \{([^}]*)\}/);
+    expect(header).toMatch(/gap:\s*0\b/);
   });
 });
