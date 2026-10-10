@@ -12,7 +12,7 @@ CDP_PORT        ?= 9333
 # manifest.base.json agree, so all three move together or the tag refuses.
 VERSION         := $(shell node -p "require('./package.json').version")
 
-.PHONY: help install dev build test lint typecheck validate package release-check tag tag-push clean chrome update-skills update-arsenal
+.PHONY: help install dev build test lint typecheck validate package release-check tag tag-push clean chrome update-skills update-arsenal hero
 
 help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -70,6 +70,9 @@ chrome: ## Launch headless Chrome with the unpacked extension (CDP on $(CDP_PORT
 	google-chrome --headless=new --remote-debugging-port=$(CDP_PORT) \
 	  --user-data-dir=$$(mktemp -d) --no-first-run \
 	  --disable-extensions-except=$(PWD)/$(EXT_DIR) --load-extension=$(PWD)/$(EXT_DIR) about:blank
+
+hero: ## Redraw the README banner, docs/hero.svg and docs/hero.png (needs Chromium)
+	uv run --with pillow python scripts/hero.py
 
 clean: ## Remove build output
 	rm -rf dist build/.vite

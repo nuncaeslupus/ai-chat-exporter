@@ -1,5 +1,9 @@
 # AI Chat Exporter
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/nuncaeslupus/ai-chat-exporter/main/docs/hero.png" width="100%" alt="AI Chat Exporter: a conversation from ChatGPT, Claude or Gemini, with one question-and-answer pair selected and one left out, goes through the extension's download icon, triggered by Ctrl+Shift+E, the popup or a right-click, and comes out as Markdown, PDF, HTML, Word, plain text or JSON">
+</p>
+
 A browser extension to export your AI chatbot conversations from ChatGPT, Claude, and Gemini to multiple formats.
 
 ![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)
