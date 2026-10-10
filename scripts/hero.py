@@ -90,20 +90,40 @@ def sheet() -> list[str]:
         x = 30 + zw * i
         if i:
             out.append(f'<line x1="{x}" y1="16" x2="{x}" y2="30" stroke="{FRAME}"/>')
-            out.append(f'<line x1="{x}" y1="{H - 30}" x2="{x}" y2="{H - 16}" stroke="{FRAME}"/>')
+            out.append(
+                f'<line x1="{x}" y1="{H - 30}" x2="{x}" y2="{H - 16}" stroke="{FRAME}"/>'
+            )
         for y in (27, H - 19):
             out.append(
-                text(x + zw / 2, y, str(8 - i), size=9, fill=DIM, family=MONO, anchor="middle")
+                text(
+                    x + zw / 2,
+                    y,
+                    str(8 - i),
+                    size=9,
+                    fill=DIM,
+                    family=MONO,
+                    anchor="middle",
+                )
             )
     zh = (H - 60) / 4
     for i in range(4):
         y = 30 + zh * i
         if i:
             out.append(f'<line x1="16" y1="{y}" x2="30" y2="{y}" stroke="{FRAME}"/>')
-            out.append(f'<line x1="{W - 30}" y1="{y}" x2="{W - 16}" y2="{y}" stroke="{FRAME}"/>')
+            out.append(
+                f'<line x1="{W - 30}" y1="{y}" x2="{W - 16}" y2="{y}" stroke="{FRAME}"/>'
+            )
         for x in (23, W - 23):
             out.append(
-                text(x, y + zh / 2 + 3, "ABCD"[i], size=9, fill=DIM, family=MONO, anchor="middle")
+                text(
+                    x,
+                    y + zh / 2 + 3,
+                    "ABCD"[i],
+                    size=9,
+                    fill=DIM,
+                    family=MONO,
+                    anchor="middle",
+                )
             )
     for cx, cy in ((48, 48), (48, H - 48)):
         out += [
@@ -131,7 +151,13 @@ def wordmark() -> list[str]:
         f'<text x="160" y="118" font-family="{DISPLAY}" font-size="66" font-weight="800" '
         f'letter-spacing="-1.5"><tspan fill="{INK}">AI Chat </tspan>'
         f'<tspan fill="{MINT}">Exporter</tspan></text>',
-        text(66, 172, "Your AI conversations, exported the way you want them.", size=25, fill=SOFT),
+        text(
+            66,
+            172,
+            "Your AI conversations, exported the way you want them.",
+            size=25,
+            fill=SOFT,
+        ),
         text(
             66,
             200,
@@ -156,8 +182,19 @@ def title_block() -> list[str]:
         text(x + 10, y + 30, "ai-chat-exporter", size=14, weight=700, family=MONO),
     ]
     for cx, label, value in cells:
-        out.append(text(x + cx + 10, y + 47, label, size=8, fill=DIM, family=MONO, spacing=1.5))
-        out.append(text(x + cx + 10, y + 61, value, size=11, family=MONO, fill=MINT if cx else INK))
+        out.append(
+            text(x + cx + 10, y + 47, label, size=8, fill=DIM, family=MONO, spacing=1.5)
+        )
+        out.append(
+            text(
+                x + cx + 10,
+                y + 61,
+                value,
+                size=11,
+                family=MONO,
+                fill=MINT if cx else INK,
+            )
+        )
     return out
 
 
@@ -189,7 +226,12 @@ def chat() -> list[str]:
             f'<rect x="{tx}" y="{y + 8}" width="{tw}" height="20" rx="10" '
             f'fill="{LOGO if active else "none"}" stroke="{MINT if active else FRAME}"/>',
             text(
-                tx + tw / 2, y + 22, name, size=11.5, fill=INK if active else DIM, anchor="middle"
+                tx + tw / 2,
+                y + 22,
+                name,
+                size=11.5,
+                fill=INK if active else DIM,
+                anchor="middle",
             ),
         ]
         tx += tw + 8
@@ -206,7 +248,13 @@ def chat() -> list[str]:
             fill=INK,
             anchor="end",
         ),
-        text(x + 40, py + 48, "Use datetime.strptime with the format:", size=12, fill=SOFT),
+        text(
+            x + 40,
+            py + 48,
+            "Use datetime.strptime with the format:",
+            size=12,
+            fill=SOFT,
+        ),
         f'<rect x="{x + 40}" y="{py + 58}" width="{w - 56}" height="26" rx="4" fill="#0a1813" '
         f'stroke="{FRAME}" stroke-width="0.8"/>',
         f'<text x="{x + 50}" y="{py + 75}" font-family="{MONO}" font-size="11.5" '
@@ -215,7 +263,9 @@ def chat() -> list[str]:
         f'<tspan fill="{INK}">)</tspan></text>',
         f'<rect x="{x + 40}" y="{py + 94}" width="118" height="18" rx="9" fill="none" '
         f'stroke="{FRAME}"/>',
-        text(x + 99, py + 107, "↗ docs.python.org", size=10.5, fill=DIM, anchor="middle"),
+        text(
+            x + 99, py + 107, "↗ docs.python.org", size=10.5, fill=DIM, anchor="middle"
+        ),
     ]
     # Pair 2, left out of the export: dimmed.
     qy = y + 182
@@ -223,8 +273,22 @@ def chat() -> list[str]:
     out += [
         f'<rect x="{x + w - 168}" y="{qy}" width="156" height="24" rx="12" fill="none" '
         f'stroke="{FRAME}"/>',
-        text(x + w - 24, qy + 16.5, "Thanks! And a joke?", size=12, fill=DIM, anchor="end"),
-        text(x + 40, qy + 48, "left out of this export", size=11.5, fill=FRAME, italic=True),
+        text(
+            x + w - 24,
+            qy + 16.5,
+            "Thanks! And a joke?",
+            size=12,
+            fill=DIM,
+            anchor="end",
+        ),
+        text(
+            x + 40,
+            qy + 48,
+            "left out of this export",
+            size=11.5,
+            fill=FRAME,
+            italic=True,
+        ),
     ]
     return out
 
@@ -281,8 +345,25 @@ def formats() -> list[str]:
             f'<path d="M{x + 14},{y + 12} h{40 - fold} l{fold},{fold} v{52 - fold} h-40 z" '
             f'fill="{INK}"/>',
             f'<path d="M{x + 54 - fold},{y + 12} v{fold} h{fold}" fill="#c9d6d0"/>',
-            text(x + 34, y + 54, ext, size=10, weight=800, family=MONO, fill=LOGO, anchor="middle"),
-            text(x + 70, y + 34, f".{ext.lower()}", size=17, weight=700, family=MONO, fill=INK),
+            text(
+                x + 34,
+                y + 54,
+                ext,
+                size=10,
+                weight=800,
+                family=MONO,
+                fill=LOGO,
+                anchor="middle",
+            ),
+            text(
+                x + 70,
+                y + 34,
+                f".{ext.lower()}",
+                size=17,
+                weight=700,
+                family=MONO,
+                fill=INK,
+            ),
             text(x + 70, y + 56, sub, size=12.5, fill=SOFT),
         ]
     return out
@@ -309,8 +390,33 @@ def strip() -> list[str]:
     return out
 
 
+#: claude-arsenal's own logo, for the "powered by" stamp on the frame.
+ARSENAL_LOGO = ROOT / "docs" / "claude-arsenal-logo.svg"
+
+
+def powered_by() -> list[str]:
+    """A "powered by claude-arsenal" stamp breaking the frame's bottom edge, on the 2|1 tick."""
+    src = ARSENAL_LOGO.read_text().strip()
+    inner = src[src.index(">") + 1 : src.rindex("</svg>")]
+    label, size, tile, pad = "powered by claude-arsenal", 7.5, 12, 6
+    width = pad + tile + 5 + len(label) * size * 0.602 + pad
+    cx, cy = 30 + 7 * (W - 60) / 8, H - 30
+    x = cx - width / 2
+    return [
+        f'<rect x="{x:.1f}" y="{cy - 8}" width="{width:.1f}" height="16" rx="8" '
+        f'fill="{GROUND}" stroke="{FRAME}"/>',
+        f'<svg x="{x + pad:.1f}" y="{cy - tile / 2}" width="{tile}" height="{tile}" '
+        f'viewBox="0 0 64 64">{inner}</svg>',
+        f'<text x="{x + pad + tile + 5:.1f}" y="{cy + 2.7}" font-family="{MONO}" '
+        f'font-size="{size}" fill="{DIM}">{label}</text>',
+    ]
+
+
 def svg() -> str:
-    parts = sheet() + wordmark() + title_block() + chat() + exporter() + formats() + strip()
+    parts = (
+        sheet() + wordmark() + title_block() + chat() + exporter() + formats() + strip()
+    )
+    parts += powered_by()
     body = "\n  ".join(parts)
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" '
@@ -334,7 +440,9 @@ def main() -> None:
     OUT_SVG.write_text(svg())
     with tempfile.TemporaryDirectory() as tmp:
         page = Path(tmp) / "hero.html"
-        page.write_text(f'<html><body style="margin:0;overflow:hidden">{svg()}</body></html>')
+        page.write_text(
+            f'<html><body style="margin:0;overflow:hidden">{svg()}</body></html>'
+        )
         subprocess.run(
             [
                 chromium(),
