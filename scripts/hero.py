@@ -395,20 +395,22 @@ ARSENAL_LOGO = ROOT / "docs" / "claude-arsenal-logo.svg"
 
 
 def powered_by() -> list[str]:
-    """A "powered by claude-arsenal" stamp breaking the frame's bottom edge, on the 2|1 tick."""
+    """A "powered by" stamp for claude-arsenal, set on the frame's bottom edge at the right."""
     src = ARSENAL_LOGO.read_text().strip()
     inner = src[src.index(">") + 1 : src.rindex("</svg>")]
-    label, size, tile, pad = "powered by claude-arsenal", 7.5, 12, 6
-    width = pad + tile + 5 + len(label) * size * 0.602 + pad
-    cx, cy = 30 + 7 * (W - 60) / 8, H - 30
-    x = cx - width / 2
+    lead, name = "powered by github.com/nuncaeslupus/", "claude-arsenal"
+    size, tile, pad, gap = 9.5, 16, 8, 6
+    width = pad + tile + gap + (len(lead) + len(name)) * size * 0.602 + pad
+    right, cy = W - 30 - 24, H - 30
+    x = right - width
     return [
-        f'<rect x="{x:.1f}" y="{cy - 8}" width="{width:.1f}" height="16" rx="8" '
+        f'<rect x="{x:.1f}" y="{cy - 11}" width="{width:.1f}" height="22" rx="11" '
         f'fill="{GROUND}" stroke="{FRAME}"/>',
         f'<svg x="{x + pad:.1f}" y="{cy - tile / 2}" width="{tile}" height="{tile}" '
         f'viewBox="0 0 64 64">{inner}</svg>',
-        f'<text x="{x + pad + tile + 5:.1f}" y="{cy + 2.7}" font-family="{MONO}" '
-        f'font-size="{size}" fill="{DIM}">{label}</text>',
+        f'<text x="{x + pad + tile + gap:.1f}" y="{cy + 3.4}" font-family="{MONO}" '
+        f'font-size="{size}" fill="{DIM}">{lead}'
+        f'<tspan font-weight="700" fill="{INK}">{name}</tspan></text>',
     ]
 
 
