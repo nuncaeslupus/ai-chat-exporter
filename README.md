@@ -288,3 +288,7 @@ MIT License - see [LICENSE](./LICENSE) file for details
 ---
 
 **Note**: This extension is not affiliated with or endorsed by OpenAI, Anthropic, or Google.
+
+## Built with claude-arsenal
+
+This repository is developed with [claude-arsenal](https://github.com/nuncaeslupus/claude-arsenal), a Claude Code plugin marketplace for spec-driven work: specs before code, failing tests first, acceptance gates with numbers. The vendored skills live in `claude-arsenal/`.
