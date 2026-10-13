@@ -64,7 +64,7 @@ jobs:
     steps:
       # The BASE ref, never the PR head: this job runs with a write token, so it
       # must not execute code the pull request could have changed.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.base.ref }}
       - name: Apply the merge (or the abandonment) to the queue
@@ -82,7 +82,7 @@ jobs:
       contents: read
       issues: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Create any missing issue handle
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -97,7 +97,7 @@ jobs:
       issues: write
       pull-requests: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Release claims with no open PR behind them
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -123,7 +123,7 @@ jobs:
       # The BASE ref, never the PR head: this reads the queue's own task files
       # to resolve which issue the PR must close, so it must not run a version
       # of them the pull request could have rewritten.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.base_ref }}
       - name: Require the Closes keyword to name THIS task's issue
