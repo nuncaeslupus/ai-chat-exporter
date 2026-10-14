@@ -376,7 +376,8 @@ def strip() -> list[str]:
         ("filename", "drag-and-drop builder"),
         ("languages", "the UI speaks yours"),
     ]
-    x0, y, w, h, gap = 64, 548, 278, 40, 12
+    # Clear of the claude-arsenal badge on the frame's bottom edge.
+    x0, y, w, h, gap = 64, 544, 278, 40, 12
     out = []
     for i, (name, sub) in enumerate(items):
         x = x0 + i * (w + gap)
@@ -390,27 +391,62 @@ def strip() -> list[str]:
     return out
 
 
-#: claude-arsenal's own logo, for the "powered by" stamp on the frame.
+#: claude-arsenal's own logo, for the "built with" stamp on the frame.
 ARSENAL_LOGO = ROOT / "docs" / "claude-arsenal-logo.svg"
+#: claude-arsenal's orange (#c4623f), lifted a step so it reads on the dark ground.
+ARSENAL = "#e07a45"
+#: DejaVu Sans Mono's advance, in em.
+MONO_EM = 0.602
+
+
+def width(s: str, size: float, face: str) -> float:
+    """Advance of `s` in an installed face (an fc-match pattern)."""
+    from PIL import ImageFont  # type: ignore[import-not-found, unused-ignore]
+
+    path = subprocess.run(
+        ["fc-match", "-f", "%{file}", face], capture_output=True, text=True, check=True
+    ).stdout
+    return float(ImageFont.truetype(path, 100).getlength(s)) * size / 100
 
 
 def powered_by() -> list[str]:
-    """A "powered by" stamp for claude-arsenal, set on the frame's bottom edge at the right."""
+    """A "built with" badge for claude-arsenal, set on the frame's bottom edge at the right."""
     src = ARSENAL_LOGO.read_text().strip()
     inner = src[src.index(">") + 1 : src.rindex("</svg>")]
-    lead, name = "powered by github.com/nuncaeslupus/", "claude-arsenal"
-    size, tile, pad, gap = 9.5, 16, 8, 6
-    width = pad + tile + gap + (len(lead) + len(name)) * size * 0.602 + pad
+    lead, name, url = (
+        "built with",
+        "claude-arsenal",
+        "github.com/nuncaeslupus/claude-arsenal",
+    )
+    tile, pad, gap = 22, 8, 8
+    lead_w = width(lead, 12, "Inter")
+    name_w = width(name, 15, "Inter:bold")
+    url_w = len(url) * 10 * MONO_EM
+    total = pad + tile + gap + lead_w + 6 + name_w + 12 + url_w + pad + 6
     right, cy = W - 30 - 24, H - 30
-    x = right - width
+    x = right - total
+    tx = x + pad + tile + gap
     return [
-        f'<rect x="{x:.1f}" y="{cy - 11}" width="{width:.1f}" height="22" rx="11" '
-        f'fill="{GROUND}" stroke="{FRAME}"/>',
-        f'<svg x="{x + pad:.1f}" y="{cy - tile / 2}" width="{tile}" height="{tile}" '
-        f'viewBox="0 0 64 64">{inner}</svg>',
-        f'<text x="{x + pad + tile + gap:.1f}" y="{cy + 3.4}" font-family="{MONO}" '
-        f'font-size="{size}" fill="{DIM}">{lead}'
-        f'<tspan font-weight="700" fill="{INK}">{name}</tspan></text>',
+        (
+            f'<rect x="{x:.1f}" y="{cy - 16}" width="{total:.1f}" height="32" rx="16" '
+            f'fill="{GROUND}" stroke="{ARSENAL}" stroke-width="1.5"/>'
+        ),
+        (
+            f'<svg x="{x + pad:.1f}" y="{cy - tile / 2}" width="{tile}" height="{tile}" '
+            f'viewBox="0 0 64 64">{inner}</svg>'
+        ),
+        text(round(tx, 1), cy + 4.3, lead, size=12, fill=DIM),
+        text(
+            round(tx + lead_w + 6, 1), cy + 5.3, name, size=15, fill=ARSENAL, weight=700
+        ),
+        text(
+            round(tx + lead_w + 6 + name_w + 12, 1),
+            cy + 3.6,
+            url,
+            size=10,
+            fill=DIM,
+            family=MONO,
+        ),
     ]
 
 

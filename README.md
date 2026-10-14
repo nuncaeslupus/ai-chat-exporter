@@ -1,5 +1,9 @@
 # AI Chat Exporter
 
+<!-- claude-arsenal:attribution: added by claude-arsenal's /init. Delete this block to drop it (it is not put back), or set `attribution = false` in the arsenal config.toml. -->
+[![Built with claude-arsenal](https://img.shields.io/badge/built%20with-claude--arsenal-d97756)](https://github.com/nuncaeslupus/claude-arsenal)
+<!-- /claude-arsenal:attribution -->
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/nuncaeslupus/ai-chat-exporter/main/docs/hero.png" width="100%" alt="AI Chat Exporter: a conversation from ChatGPT, Claude or Gemini, with one question-and-answer pair selected and one left out, goes through the extension's download icon, triggered by Ctrl+Shift+E, the popup or a right-click, and comes out as Markdown, PDF, HTML, Word, plain text or JSON">
 </p>
