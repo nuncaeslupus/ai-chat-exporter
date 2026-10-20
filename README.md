@@ -116,7 +116,7 @@ the conversation as text. The JSON layout is documented in
 - **Formats**: Markdown, PDF (paginated, syntax-highlighted, page numbers), standalone HTML, Word (.docx), plain text, JSON.
 - **Content kept**: code blocks, tables, lists, headings, blockquotes, inline formatting, images, artifacts and canvas content, web search citations (link, title, domain), math as its LaTeX source.
 - **Q&A selection**: pick which question/answer pairs to export instead of all or nothing.
-- **Three ways to export**: toolbar popup, right-click **Export** / **Print** menus, `Ctrl+Shift+E`.
+- **Ways to export**: toolbar popup, right-click **Export** / **Print** menus, `Ctrl+Shift+E`.
 - **Print**: every format except DOCX can be sent to the browser print dialog.
 - **Options**: metadata/timestamp toggle, text size, drag-and-drop filename builder, dark mode in the popup and in exported HTML.
 - **Languages**: English, Spanish, French, German, Italian, Portuguese, Catalan; a setting pins the language of both the popup and the exported file.
@@ -153,7 +153,7 @@ pnpm build:chrome    # or: pnpm build:firefox
 - **Chrome / Edge**: `chrome://extensions/` -> enable Developer mode -> **Load unpacked** -> `dist/chrome`.
 - **Firefox**: `about:debugging#/runtime/this-firefox` -> **Load Temporary Add-on** -> `dist/firefox/manifest.json`.
 
-Supported browsers: Chrome/Edge 88+, Firefox 112+.
+Supported browsers: Chrome, Edge and Firefox (minimum versions are set in `manifests/`).
 
 ## Privacy and permissions
 
