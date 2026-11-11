@@ -59,6 +59,7 @@
 - [ ] Database migration forward-compatible
 - [ ] Feature flag off-state safe (if applicable)
 - [ ] New environment variables documented and configured
+- [ ] Client notification sent (if public API changes)
 
 ### Tests
 
@@ -68,22 +69,28 @@
 - [ ] Manual verification completed
 - [ ] All existing tests still green
 - [ ] CI checks passing
+- [ ] No flaky tests introduced
 
 ### Adversarial review
 
-- [ ] Adversarial reviewer gate passed — VERDICT: CLEAR (<one-line reason from sub-agent>)
+- [ ] VERDICT: CLEAR, reused or new (<one-line reason>), or override + what was checked
 
 ### Observability
 
 - [ ] Tracing instrumented (if applicable)
 - [ ] Metrics exposed
 - [ ] Structured logging in place
+- [ ] Error conditions produce meaningful log entries
+- [ ] Business metrics updated (if applicable)
 - [ ] No sensitive data in logs
 - [ ] Alerts cover new functionality (or new alerts created)
 
 ### Mitigation and rollback
 
 - [ ] Rollback strategy defined
+- [ ] Deployment order defined (if multi-service)
+- [ ] Data migration tested (if applicable)
+- [ ] On-call team aware (if high-risk)
 - [ ] Database migration reversible (or forward-fix plan documented)
 - [ ] Blast radius identified
 - [ ] Feature flag available (if applicable)

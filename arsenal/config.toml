@@ -93,11 +93,14 @@ listing-budget = 8000
 # lands inside the table instead of at the top level.
 queue-automation = true
 
+attribution = true
+
 [models]
 orchestrator = ""
 workers = "sonnet"
 
 [skills]
+android = false
 extract = true
 python = true
 workflow = true

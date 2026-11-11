@@ -136,11 +136,18 @@ for i in range(1, len(parts), 2):
         if body:
             entries.append((v, parts[i], body))
 entries.sort(reverse=True)
-for _, ver, body in entries:
+# Capped: --check-only runs at every session start while an update is pending,
+# and a consumer a month behind would otherwise reprint tens of thousands of
+# tokens of release notes each time.
+shown, rest = entries[:5], entries[5:]
+for _, ver, body in shown:
     print()
     print(f'  --- new in {ver} ---')
     for line in body.splitlines():
         print(f'  {line}')
+if rest:
+    print()
+    print(f'  … {len(rest)} older entries (back to {rest[-1][1]}) — see CHANGELOG.md at v{sys.argv[2]}')
 " "${installed}" "${latest}" 2>/dev/null || true
 }
 
@@ -253,13 +260,25 @@ _report_skill_skew "${installed}"
 # concluded upgrades had to be done by copying files in, which is the exact
 # failure `verify-subtree` exists to catch, arrived at by trusting the tool
 # whose job is to know.
-_nonsubtree_route="if you have the CLI plugin, /plugin update claude-arsenal then /init; if you do not (cloud-only, CI, a fresh container), re-clone upstream at the newer tag and run its plugins/core/skills/init/scripts/init.py --repo-path . — see docs/INSTALL.md. Either way, finish with: python3 .claude/skills/init/scripts/init.py --repo-path . --silent"
+# Where this tree was installed from, as recorded by init.py in the manifest.
+# This is the text a consumer is reading at the exact moment they need the URL:
+# a non-subtree install has no `arsenal` remote by definition, so without this
+# the message below could only say "<marketplace-url>" and leave them to ask.
+_source_url() {
+    # `|| true`: set -e + pipefail, and a missing manifest is the normal state
+    # on a first run. No URL just means the message falls back to a placeholder.
+    sed -n 's/^# source: //p' "${PREFIX}/.arsenal-manifest" 2>/dev/null | head -1 || true
+}
+_url="$(_source_url || true)"
+_url_hint="${_url:-<marketplace-url>}"
+
+_nonsubtree_route="if you have the CLI plugin, /plugin update claude-arsenal then /init; if you do not (cloud-only, CI, a fresh container), re-clone upstream (${_url_hint}) at the newer tag and run its plugins/core/skills/init/scripts/init.py --repo-path . — see docs/INSTALL.md. Either way, finish with: python3 .claude/skills/init/scripts/init.py --repo-path . --silent"
 
 if ! git remote get-url "${REMOTE}" >/dev/null 2>&1; then
     if _is_subtree; then
-        _warn "no '${REMOTE}' remote configured — update checking is INERT for this repo. '${PREFIX}' IS a git subtree here; only the remote is missing, which is expected on a fresh clone. Wire it up with: git remote add ${REMOTE} <marketplace-url>"
+        _warn "no '${REMOTE}' remote configured — update checking is INERT for this repo. '${PREFIX}' IS a git subtree here; only the remote is missing, which is expected on a fresh clone. Wire it up with: git remote add ${REMOTE} ${_url_hint}"
     else
-        _warn "no '${REMOTE}' remote configured and '${PREFIX}' has no subtree merge in this history — which is what a NON-SUBTREE install looks like, not a broken one. Two installs land in this same git state: the marketplace plugin, and running init.py straight from a clone (docs/INSTALL.md), which is the cloud/CI route and has no plugin to update. This script only reports drift for a subtree install, so INERT is the correct steady state for both, and step 0(a) has nothing to act on. To update: ${_nonsubtree_route}. Adding the remote is optional and buys drift REPORTING only (it cannot merge without a subtree): git remote add ${REMOTE} <marketplace-url>"
+        _warn "no '${REMOTE}' remote configured and '${PREFIX}' has no subtree merge in this history — which is what a NON-SUBTREE install looks like, not a broken one. Two installs land in this same git state: the marketplace plugin, and running init.py straight from a clone (docs/INSTALL.md), which is the cloud/CI route and has no plugin to update. This script only reports drift for a subtree install, so INERT is the correct steady state for both, and step 0(a) has nothing to act on. To update: ${_nonsubtree_route}. Adding the remote is optional and buys drift REPORTING only (it cannot merge without a subtree): git remote add ${REMOTE} ${_url_hint}"
     fi
     exit 0
 fi
@@ -397,8 +416,15 @@ fi
 # one, and nothing fails.
 now_installed="$(cat "${VERSION_FILE}" 2>/dev/null || echo "0.0.0")"
 if [[ "${now_installed}" != "${latest}" ]]; then
-    _warn "subtree merged to v${latest} but ${VERSION_FILE} still reads ${now_installed} — the bundle was NOT upgraded. Re-vendor the skills and re-run init.py:
-    bash ${PREFIX}/scripts/vendor-skills.sh --src ${PREFIX} --dest .claude/skills --plugins all
+    # The remedy has to match the layout. `vendor-skills.sh` was the separate
+    # vendoring step before v2.0.0 and is not shipped any more — printing it
+    # unconditionally sent every modern install after a file that is not there,
+    # and the real remedy (init.py, which vendors) read like an afterthought to
+    # it. So name it only where the find above actually located one.
+    _revendor=""
+    [[ -n "${vendor_sh}" ]] && _revendor="
+    bash ${vendor_sh} --src ${PREFIX} --dest .claude/skills --plugins all"
+    _warn "subtree merged to v${latest} but ${VERSION_FILE} still reads ${now_installed} — the bundle was NOT upgraded. Re-vendor the skills and re-run init.py:${_revendor}
     python3 .claude/skills/init/scripts/init.py --repo-path . --silent"
     exit 0
 fi

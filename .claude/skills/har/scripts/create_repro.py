@@ -163,7 +163,8 @@ def main(argv: list[str] | None = None) -> int:
         "--format", choices=("curl", "python"), default="curl", help="output language"
     )
     parser.add_argument(
-        "--secrets", action="store_true",
+        "--secrets",
+        action="store_true",
         help="emit real credentials, userinfo and fragment — a working reproduction needs them",
     )
     parser.add_argument("--output", type=Path, metavar="PATH", help="write to a file")
@@ -221,4 +222,9 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    # Windows consoles default to a legacy codepage (cp1252 and friends);
+    # a non-ASCII line must degrade to "?", never take the process down.
+    for _stream in (sys.stdout, sys.stderr):
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(encoding="utf-8", errors="replace")
     raise SystemExit(main())

@@ -1,108 +1,148 @@
 ---
 name: init
-description: When the user needs claude-arsenal/ set up in a host repo, or wants to register a workspace via --workspace. Re-running is safe (refreshes stale bundle files only). Do NOT use to add tasks (see queue-add) or resume the worker loop (see continue).
+description: Installs or refreshes claude-arsenal/ in a host repo, or adds a workspace. Use when the user wants the arsenal set up, updated or a workspace added. Not for queueing tasks.
 user-invocable: true
-argument-hint: "[--repo-path PATH] [--profile NAME] [--sections A,B] [--workspace NAME] [--root PATH] [--spec PATH] [--plan PATH]"
+argument-hint: "[--repo-path PATH] [--profile NAME] [--sections A,B] [--no-branch-protection] [--interview] [--workspace NAME] [--root PATH] [--spec PATH] [--plan PATH]"
 ---
 
 # init
 
-Bootstraps the `claude-arsenal/` framework in the host repository. After init, every
-session automatically seeds the queue from workspace plans (if present) and starts
-workers — no commands needed. Run once per repo to initialize; re-run to add workspaces
-or refresh the bundle scripts.
+Bootstraps the `claude-arsenal/` framework in the host repository. Run once per repo;
+re-run to add workspaces or refresh the bundle. The script prints what it created,
+refreshed and skipped, so relay its output rather than re-describing it. The parts
+below are the ones that need the user.
 
 CANARY: init-loaded-2026-06-13-fb78d23e-a1b2c3d4e5f6a7b8
 
 ## When to load
 
-Load this skill when:
-
-- A repo needs the task queue set up for the first time.
-- The user asks to "init the arsenal", "set up the task queue", "install the orchestrator", or "/init".
+- A repo needs the task queue set up for the first time ("init the arsenal", "/init").
 - Adding a new workspace to an existing `claude-arsenal/` setup.
 
-## How to use
+## First install — ask for the profile
 
-**First-time init — ask before installing.**
-
-Every installed skill costs a row in the resident skills listing of every
-session in this repo from now on, whether or not it ever triggers. So a first
-install asks one question before running anything:
+Every installed skill adds a row to the skills listing of every future session in
+this repo, so ask before installing, when `arsenal/config.toml` has no `[skills]`
+table yet:
 
 > What kind of project is this? **python** (adds the Python toolchain skills),
 > **general** (spec/design/execute/review/ship), or **minimal** (queue and
 > GitHub only)?
 
-Pass the answer as the profile:
-
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" --repo-path . --profile general
 ```
 
-Ask only when `arsenal/config.toml` has no `[skills]` table. With one, the repo
-has already answered, and re-asking every session is noise. Never infer the
-answer from the file tree: a repo containing `.py` files is not necessarily one
-whose release process this bundle should be advising on.
+Take the answer from the user rather than the file tree: a repo with `.py` files is
+not necessarily one whose release process this bundle should advise on. The profile
+is written as an editable `[skills]` table; `--sections workflow,python` names
+sections directly instead.
 
-The chosen profile is written out as an editable `[skills]` table, so the answer
-is a starting point rather than a one-time decision. `--sections workflow,python`
-names sections directly instead, for a user who would rather skip the profiles.
+## Setup interview
 
-**The capability map (read-only):**
+On a first install, whenever init prints `SETUP INTERVIEW PENDING` (no
+`setup-interview` in `arsenal/config.toml`, on any run, `--silent` included), or when
+the user asks to redo setup (`/init --interview`), ask these in one AskUserQuestion
+with the defaults first, before picking up other work. Answering records
+`setup-interview` with the date; a user who skips it gets `--interview-declined`,
+which records `"declined"`, and neither is asked again.
+
+1. How often should a session stop to ask? `ask-when-blocked` (default), `ask-often`,
+   `autonomous`.
+2. How deep should local verification go? `balanced` (default), `fast`, `strict`.
+3. Minutes per review round (10) and minutes to wait on a silent review bot (20)?
+4. Which review bots post on this repo's PRs (`review-bots`; none means CI-only)? Then
+   which manual review triggers to post: offer what `init.py --suggest-bot-triggers`
+   prints for them. CodeRabbit skips auto-review on repos under 10
+   stars; on a public repo recommend `@coderabbitai review` (about one on-demand
+   review per hour). On a private Free-plan repo it posts only a summary, so the
+   local adversarial review stands in.
+5. Who approves what, by risk tier? `solo-trust` (agent merges all; high-risk flagged
+   to ratify), `solo-gated` (a human approves medium and high), `team` (0/1/2 humans),
+   `manual`, or skip to keep merge-policy alone. Optionally, paths that always need a human.
+   With `solo-trust` or `solo-gated`, also ask whether a digest approval counts as the
+   user's (`--digest-decisions true`): needed when PRs are opened with their own account.
+6. How far must a PR get before the agent merges it (`--merge-policy`)? `always` (the
+   local gates are the bar), `after-ci` (default: every required check reported green),
+   `after-review` (a review landed and its comments are answered; CI not consulted),
+   `after-ci-and-review` (both), `never` (a human merges). Say that whichever is chosen,
+   the agent merges by itself once `merge_ready.sh` passes, without asking.
+
+Pass only what was answered; a skipped question writes nothing and keeps its default:
+
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" --repo-path . --list-sections
-python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" --repo-path . --section python
+python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" --repo-path . --autonomy autonomous \
+  --verification balanced --review-budget-min 10 --bot-wait-min 20 \
+  --review-bots "reviewbot[bot]" --bot-triggers "reviewbot[bot]=@reviewbot review" --review-preset solo-trust \
+  --merge-policy after-ci-and-review
+python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" --repo-path . --interview-declined  # skipped
 ```
-`--list-sections` names every section this bundle ships and whether it is
-installed here — including the skills of the ones that are not, which appear
-nowhere else in a repo that skipped them. `--section NAME` adds their full
-descriptions. The session-start protocol runs the first on every session, so a
-task that a skipped section would handle properly gets said out loud instead of
-being done the long way. Neither flag writes anything.
 
-**Auto-refresh (session start — silent):**
-```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" --repo-path . --silent
-```
-Refreshes stale bundle scripts without the "up to date" noise. Prints an upgrade
-banner when the installed bundle version is behind the plugin source, and reports
-any files it refreshed. The session-start protocol runs this automatically.
+## After a first install — questions init prints
 
-**Register a workspace:**
+Init runs non-interactively, so it prints what is undecided and the session asks:
+
+- `HOST-GATE UNSET` — ask what must pass before a PR opens, offering init's
+  suggestion, and write it as `host-gate` in `arsenal/config.toml`. "No gate" is a
+  valid answer, recorded as `host-gate = "none"`; an empty value means nobody
+  decided, and init keeps asking.
+- `PREFLIGHT-GATE UNSET` — ask for the fast, change-scoped slice (lint/typecheck the
+  changed files, the tests the change selects) and write it as `preflight-gate`.
+  Review rounds run it instead of the full `host-gate`.
+- `MERGE-POLICY is …` — confirm the value against the repo's real CI and review
+  tooling in the same question; a repo with no CI should not stay on `after-ci`.
+  For a private repo or one with no CI, init recommends `always` with a real
+  `host-gate` and `pre-pr-review = "required"`; say the trade-off (nothing
+  independent re-runs the local gates) and change only what the user confirms.
+  Load `claude-arsenal:core:init § references/ci-minutes.md` when the user asks
+  about CI cost or the per-PR trigger block.
+- **Branch protection** — a deliberate run protects the default branch once and
+  records the outcome as `branch-protection`. When it cannot, it prints the reason
+  and the manual step; pass both to the user. `branch_protection.py` (in
+  `claude-arsenal/scripts/`) re-runs it: `--dry-run` previews, `--force` adds to an
+  existing rule.
+- **`repo_health: GAP …`** — that first run also lists repository housekeeping that is
+  missing (description, topics, homepage, a `main` default branch, secret
+  scanning, a release for the newest tag, a PyPI page that links back), each with
+  its fix command. Show the list and run only the fixes the user confirms; a
+  `NOTE` line is a decision for them, not a fix. `repo_health.py` re-runs it.
+  Load `claude-arsenal:core:init § references/repo-housekeeping.md` when a gap is
+  a missing license (the user chooses it; the reference has the questions to ask)
+  or names a package index, and before a package's first publish.
+- **A skill folder "is not arsenal-vendored — left alone"** — init replaces and
+  prunes only folders carrying the `.arsenal-vendored` marker, so a same-named
+  folder without it keeps the shipped skill out. Ask the user whether to remove or
+  rename theirs, then re-run.
+
+## Other invocations
+
 ```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" --workspace FRONTEND
+python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" --repo-path . --silent         # session-start refresh
+python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" --repo-path . --list-sections  # capability map, read-only
+python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" --repo-path . --section python  # one section's skills
 python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" --workspace BACKEND --root ./backend/
 ```
 
-The script:
-1. Creates the `claude-arsenal/` bundle structure: `bin/`, `scripts/`, `agents/`, `references/`. The host-owned `project/`, `queue/` and `session/` state does **not** live here — it is scaffolded under `arsenal/` by item 3.
-2. Copies bundle scripts from the plugin into `claude-arsenal/bin/` (checksum-based; refreshes stale files only).
-3. Scaffolds the host-owned `arsenal/` tree — `tasks/`, `specs/`, `plans/`, `session/handover.md` — and seeds `arsenal/config.toml`. Upstream owns `claude-arsenal/` and may overwrite it on every re-run; it never writes into `arsenal/` again, so an upgrade cannot touch the host repo's tasks or settings.
-4. Vendors the skills for the chosen sections into `.claude/skills/` — `core` always, plus `workflow` and/or `python`. Flipping a section to `false` in `arsenal/config.toml` prunes its skills on the next run and keeps them pruned; an upgrade of a repo that predates sections keeps whatever it already had.
-5. Writes a deny-by-default `surface_profile.json` (gitignored): surface `unknown`, no capabilities. Tasks with no `requires:` stay eligible everywhere; a task that declares one waits until `detect_surface.sh` records what this surface actually offers, rather than being handed to a surface that cannot run it.
-6. Adds `.gitignore` entries for `surface_profile.json` and the statusLine-written `rate_limits.json`.
-7. Registers `statusline_capture.sh` as the host `statusLine` command (skipped if one already exists) so `budget_check.sh` can read quota.
-8. Injects the session-start protocol block + `@claude-arsenal/AGENTS.md` import into `CLAUDE.md`.
-9. Registers the skill-edit **gate hooks** in `.claude/settings.json` (`check_skill_workshop_loaded.sh` and its two marker hooks) — a plugin ships these as plugin hooks, but plugin hooks do not travel with a clone, and settings hooks do. It no longer writes a marketplace **declaration**: the web runtime never fetches a git marketplace, so the skills are **vendored** into `.claude/skills/` (item 4) where every surface reads them from the clone itself.
-
-**Retiring vendored skill copies:**
-```bash
-python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" --repo-path . --migrate-plugins yes
-```
-A repo set up before plugins reached cloud sessions has copies of these skills under `.claude/skills/`, each carrying a `.arsenal-vendored` marker. Once the plugin is declared, both sets are live at once: the plugin's are namespaced (`core:specify`), the vendored ones are not (`specify`), so every skill answers twice and costs listing budget twice.
-
-Init never removes them on its own. When it finds them it prints what it found and stops — **ask the user** whether to remove the vendored copies, then re-run with `--migrate-plugins yes` (or `no` to keep them and stop being asked). The choice is recorded as `plugin-migration` in `arsenal/config.toml`. Only folders carrying the marker are ever removed; a skill the consumer authored is never touched.
-
-With `--workspace NAME`, additionally:
-- Creates `arsenal/project/<NAME>/` with `spec.md`, `plan.md`, `context.md`, `handover.md` stubs.
-- Upserts `arsenal/project/overview.md` workspace index.
+`--silent` is what the session-start protocol runs; it refreshes stale bundle
+files and prints an upgrade banner when the plugin is newer. `--workspace NAME`
+creates `arsenal/project/<NAME>/` stubs and updates `arsenal/project/overview.md`.
 
 ## Gotchas
 
-- **Bundle scripts are authoritative.** Re-running `init` refreshes any `claude-arsenal/bin/` file whose checksum differs from the plugin bundle. Project data (`project/`, `queue/`, `session/handover.md`) is never touched on re-run.
-- **Cloud sessions need the commit, not an install.** A cloud session (web, desktop and mobile apps, Claude Tag, routines) runs on a fresh clone and never sees `~/.claude/`, so a plugin installed with `/plugin install` does not reach it — that install state is user-scoped. What reaches it is what the clone carries: the vendored skills under `.claude/skills/` and the hooks in `.claude/settings.json`. Both are plain files in the commit, so they need no marketplace fetch and no network at session start.
-- **Shared project settings outrank user settings.** `.claude/settings.json` in the repo wins over the user's own `~/.claude/settings.json`, so a host's hooks are what run even where a developer has their own configured.
-- **CC Web without hooks**: `detect_surface.sh` won't auto-run on web, and the profile init writes grants nothing — so tasks that declare `requires:` sit unselected there until `detect_surface.sh` is run by hand from the installed bundle. Tasks with no `requires:` are eligible either way, which is most boards. The selector names what it held back rather than reporting an empty queue.
-- **CLAUDE.md block must be at root.** The injected block appears in the host root `CLAUDE.md`, not a nested file.
-- **Auto-refresh on session start.** The session-start protocol (AGENTS.md step 0) runs `init.py --silent` automatically. When the plugin is updated to a new version, the next session start detects the version mismatch, refreshes the stale scripts, and reports what changed. No manual `/init` is required for bundle-script updates — only for new workspace registration or major changes to `CLAUDE.md`. A refresh only ever moves **forward**: when the host's committed bundle is newer than this skill's vendored copies, init writes nothing and says so, because the checksum comparison cannot tell a stale file from an upstream fix that has not reached the plugin yet. Update the plugin instead; `--allow-downgrade` overwrites the newer install and is for recovering a broken one.
+- **Upstream owns `claude-arsenal/`, the host owns `arsenal/`.** Re-runs overwrite
+  stale bundle files by checksum and never touch `arsenal/` (tasks, project data,
+  settings). A file or vendored skill with *uncommitted* changes is left as is and
+  reported `MODIFIED LOCALLY`; relay that line, since the user must commit or discard it.
+- **Cloud sessions need the commit.** A cloud session runs on a fresh clone and
+  never sees `~/.claude/`, so what reaches it is the vendored `.claude/skills/`
+  and the hooks in `.claude/settings.json` — commit both.
+- **Web without hooks.** `detect_surface.sh` does not run there, so tasks that
+  declare `requires:` wait until it is run by hand; tasks without `requires:` are
+  eligible everywhere.
+- **The injected block belongs in the root `CLAUDE.md`**, not a nested one.
+- **README credit.** Init adds a "built with claude-arsenal" badge under
+  `README.md`'s title once and records `attribution = true`; a host that deletes
+  the block keeps it deleted, and `attribution = false` stops it being added.
+- **Refresh only moves forward.** When the host's bundle is newer than this
+  skill's copy, init writes nothing and says so; update the plugin instead.
+  `--allow-downgrade` is for recovering a broken install.

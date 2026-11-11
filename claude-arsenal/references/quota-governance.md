@@ -1,7 +1,36 @@
 # Quota governance — the token-budget stop
 
-Read this when the loop stopped before dispatch, or when tuning how much a
-session is allowed to spend.
+Read this when the loop stopped before dispatch, when tuning how much a session
+is allowed to spend, or when a window went and nobody knows where.
+
+---
+
+## Where the window went — `scripts/usage_report.py`
+
+Everything below is *forward-looking*: may this session dispatch again? It reads
+a percentage remaining and can say nothing about what consumed the rest. The
+backward question has its own script:
+
+```bash
+python3 claude-arsenal/scripts/usage_report.py --since 2026-09-14
+```
+
+Per session and **per model**: turns, average and peak context, output, cache
+read, and the busiest hour. Reads the transcripts Claude Code already writes
+(`~/.claude/projects/`), so it needs no setup and works after the fact.
+
+Two things it is built to show, because both hid a real problem:
+
+- **Cost is `turns x context`, not output.** A fleet that read 438M tokens to
+  write 1.3M is not fixed by shorter answers. The lever is `context-window` in
+  `arsenal/config.toml` (written by `/init` into `.claude/settings.json` as
+  `autoCompactWindow`) — raising it to "avoid filling up" raises the floor every
+  turn pays. Set it too low, though, and sessions compact mid-task and re-read
+  what they dropped, paying in turns instead. Measure, then move it.
+- **Dispatched turns are listed separately**, and they are the only direct
+  evidence of what model your workers actually ran as. `models.workers` says what
+  *should* have been used; this says what was. That gap once cost two exhausted
+  five-hour windows with nothing misconfigured anywhere a person could see.
 
 ---
 
@@ -15,8 +44,8 @@ that data arrives on. Before every dispatch, the loop runs `budget_check.sh`:
 - Either window (`five_hour` / `seven_day`) at/above `ARSENAL_QUOTA_STOP_PCT`
   (default 90) → exit `3`: stop, write `handover.md`, report the reset time.
 - File missing / fields absent (non-Pro/Max plan, before the first response,
-  older Claude Code) → exit `0`, **fail-open**: the loop runs where quota is not
-  observable.
+  Claude Code older than v2.1.172, which has no `statusLine.rate_limits`) →
+  exit `0`, **fail-open**: the loop runs where quota is not observable.
 
 `rate_limits` is a snapshot at the last message and is **Pro/Max only**; on
 API/metered usage the quota check always fails open. So `budget_check.sh` also
@@ -95,5 +124,31 @@ Anything carrying **neither** signal is "fields absent" and fails open
 **silently**: `{"five_hour": {}}`, or a `used_percentage` sent as a string. That
 is still the trap to watch for — a document that describes exhaustion in a third
 vocabulary buys nothing and says nothing about it.
+
+### What the guard above still cannot see — other sessions
+
+Every check above is **per session**: this session's `rate_limits.json`, this
+session's round counter. Nine independent orchestrators each saw a compliant
+budget and shared one five-hour window between them, because nothing compared
+notes. There is no API a script can poll for "how many sessions are live", so
+`budget_check.sh` does the next-best thing: it lists `~/.claude/projects/<project
+dir>/<session id>.jsonl` transcripts (one file per top-level session, written
+continuously while that session runs) modified in the last
+`ARSENAL_CONCURRENCY_WINDOW_MIN` minutes (default 15; `0` disables) that belong
+to a session id other than its own, and — only when it finds at least one —
+prints how many on stderr:
+
+```
+budget_check: 3 other session(s) touched a transcript in the last 15m — this account's quota window is shared across all of them
+```
+
+This is a **report, not a gate** — it never changes the exit code, because
+recent activity is not the same fact as "still running" and turning it into a
+stop would be inventing a threshold nobody asked for. It is also **CLI-only in
+practice**: on a cloud session each container has its own filesystem, so there
+are never any sibling transcripts to find, and the check stays silent — the
+same silence as a healthy single-session run. Treat its silence on a cloud
+surface as "not observable", the same reading `budget_check.sh`'s own header
+gives a missing `rate_limits.json` — not as "confirmed alone".
 
 ---

@@ -12,16 +12,33 @@
 #                 immediately, so the next session finds a complete board rather
 #                 than a chore list.
 #   sweep-claims  a claim held with no open PR for a day belonged to a session
-#                 that crashed; it is released.
+#                 that crashed; it is released. The same job deletes the claim
+#                 refs of tasks that are finished — a sandboxed session is
+#                 refused every ref write by its proxy, so a prune that depends
+#                 on one is a prune most consumers can never run.
 #   keyword-guard a task PR that would merge without closing anything fails its
 #                 check BEFORE the merge, not after.
 #
 # Delete this file if you would rather run those steps by hand — the queue still
 # works, it just goes back to needing a tidy end to every session.
 #
+# What it bills (#463). Every trigger below is one a job needs: `pull_request_target`
+# is the only event that sees a PR closed WITHOUT merging, with a token that may
+# write; `push` is the only one that sees a task file land by any route, a direct
+# push included. What keeps them cheap is that a job whose `if:` is false never
+# gets a runner, and a skipped job bills nothing — an ordinary PR closing, or a
+# push to a feature branch, shows up as a skipped run and costs zero minutes.
+# What does bill is keyword-guard, once per push to a task PR, because a pushed
+# commit can carry the `Closes` line. A draft cannot merge, so the guard waits
+# for `ready_for_review`; a newer push cancels the older run instead of queueing
+# behind it; and every job has a timeout, so a hung runner costs minutes, not
+# hours. The host's own CI is where the real saving is:
+# claude-arsenal/references/ci-minutes.md.
+#
 # Permissions: `issues: write` to close/label/comment on task issues,
-# `contents: write` only so pr-closed can archive a merged task file that its PR
-# did not archive itself. It never checks out or runs code from a pull request.
+# `contents: write` so pr-closed can archive a merged task file that its PR did
+# not archive itself, and so sweep-claims can delete a finished task's claim ref.
+# It never checks out or runs code from a pull request.
 
 name: arsenal queue
 
@@ -29,7 +46,7 @@ on:
   pull_request_target:
     types: [closed]
   pull_request:
-    types: [opened, edited, synchronize, reopened]
+    types: [opened, edited, synchronize, reopened, ready_for_review]
   push:
     branches-ignore: ['arsenal/**']
     paths: ['arsenal/tasks/**']
@@ -39,7 +56,9 @@ on:
 
 concurrency:
   group: arsenal-queue-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  # Only the read-only guard is superseded by a newer event on the same PR; the
+  # jobs that write to the board always run to completion.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   pr-closed:
@@ -58,13 +77,14 @@ jobs:
         contains(github.event.pull_request.body, 'arsenal-task:')
       )
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: write
       issues: write
     steps:
       # The BASE ref, never the PR head: this job runs with a write token, so it
       # must not execute code the pull request could have changed.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.event.pull_request.base.ref }}
       - name: Apply the merge (or the abandonment) to the queue
@@ -78,30 +98,44 @@ jobs:
       github.event_name == 'push' &&
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       issues: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Create any missing issue handle
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 claude-arsenal/scripts/queue_hooks.py sync-handles
 
   sweep-claims:
-    name: release abandoned claims
+    name: release abandoned claims, prune finished ones
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    # Longer than the rest: the first prune on an old board deletes one ref per
+    # task ever claimed, one API call each.
+    timeout-minutes: 15
     permissions:
-      contents: read
+      # write, not read: the prune below deletes refs.
+      contents: write
       issues: write
       pull-requests: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Release claims with no open PR behind them
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 claude-arsenal/scripts/queue_hooks.py sweep-claims --max-age-hours 24
+      # The claim ref of a finished task is not a lock any more, it is litter —
+      # roughly one per task ever claimed. This is the only place the bundle can
+      # sweep it: the proxy in front of a sandboxed session refuses every ref
+      # write, by git and by API alike, so "prune from a CLI session" was advice
+      # a web-only consumer had no way to take.
+      - name: Delete the claim refs of finished tasks
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 claude-arsenal/scripts/queue_hooks.py prune-claims
 
   keyword-guard:
     name: task PR closes its task
@@ -111,10 +145,11 @@ jobs:
     # a PR merge without anyone checking that its `Closes #...` names the task's own
     # issue — so it could close an unrelated one.
     if: >-
-      github.event_name == 'pull_request' &&
+      github.event_name == 'pull_request' && !github.event.pull_request.draft &&
       (startsWith(github.head_ref, 'arsenal/') ||
        contains(github.event.pull_request.body, 'arsenal-task:'))
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       issues: read
@@ -123,7 +158,7 @@ jobs:
       # The BASE ref, never the PR head: this reads the queue's own task files
       # to resolve which issue the PR must close, so it must not run a version
       # of them the pull request could have rewritten.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.base_ref }}
       - name: Require the Closes keyword to name THIS task's issue

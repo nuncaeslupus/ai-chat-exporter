@@ -8,6 +8,16 @@
 **Date**: YYYY-MM-DD
 **Specification**: `status/specification.md`
 **Author**: <name>
+**Revision**: 1
+**Status**: draft
+**Revision log**:
+- r1 — first draft
+
+> Review record, kept the way the spec keeps its own: each round of notes bumps
+> **Revision** with a log line naming the `<repo>-plan-v<N>-<date>-notes.md`
+> export it applied, committed beside this file in the same commit. Approval is
+> `approved (YYYY-MM-DD, revision N)`, plus `— without annotations` when there
+> were none.
 
 ---
 
@@ -55,6 +65,26 @@ The **Gate** column is required: a measurable acceptance condition `<metric> <op
 **Merge order**: T1 first, then T2/T3 (parallel), then T4
 **Branch pattern**: `<ticket-id>-T<N>-description` from the default branch
 
+### Dependency graph
+
+Generated from the **Depends** column — never drawn by hand. After editing the task table, rerun `sync_plan_graph.py --input <plan> --apply` (beside `validate_plan.py`, which fails when the two disagree).
+
+```drawspec
+{"version": 1, "kind": "flow", "title": "Task dependencies",
+ "nodes": [
+  {"id": "T1", "text": "T1\n<description>"},
+  {"id": "T2", "text": "T2\n<description>"},
+  {"id": "T3", "text": "T3\n<description>"},
+  {"id": "T4", "text": "T4\n<description>"}
+ ],
+ "edges": [
+  {"from": "T1", "to": "T2"},
+  {"from": "T1", "to": "T3"},
+  {"from": "T2", "to": "T4"},
+  {"from": "T3", "to": "T4"}
+ ]}
+```
+
 ## Evidence log
 
 `execution` appends one row per task as it lands (RED → GREEN → RECORD): the measured value, the exact command that produced it, the commit SHA, and the environment provenance. `review` / `ship` audit this table; `gate-check`'s `run_gate.py` reads it. A gated task is not "done" until its row is complete and the measured value meets the gate.
@@ -62,13 +92,6 @@ The **Gate** column is required: a measurable acceptance condition `<metric> <op
 | T# | Gate | Measured | Command | SHA | Env | Date |
 |----|------|----------|---------|-----|-----|------|
 | T1 | `<metric> <op> <threshold>` | <number> | `<command run>` | <sha> | <ci / local / [HERE]> | YYYY-MM-DD |
-
-### Dependency graph
-
-```text
-T1 ──┬─> T2 ──┐
-     └─> T3 ──┴─> T4
-```
 
 ---
 

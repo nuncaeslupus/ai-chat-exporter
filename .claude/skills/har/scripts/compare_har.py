@@ -119,11 +119,7 @@ def pair(left: Rows, right: Rows) -> tuple[Pairs, Rows, Rows]:
         else:
             only_left.append(row)
 
-    only_right += [
-        row
-        for key, rows in buckets.items()
-        for row in rows[consumed[key] :]
-    ]
+    only_right += [row for key, rows in buckets.items() for row in rows[consumed[key] :]]
     return pairs, only_left, only_right
 
 
@@ -170,9 +166,7 @@ def parameter_changes(only_left: Rows, only_right: Rows) -> list[str]:
     # plain http->https move produces one left-only key and one right-only key,
     # and reporting "removed a=1 / added a=1" for those describes a parameter
     # change that never happened.
-    present: dict[tuple[str, str, str, str, str], list[bool]] = defaultdict(
-        lambda: [False, False]
-    )
+    present: dict[tuple[str, str, str, str, str], list[bool]] = defaultdict(lambda: [False, False])
     for side, rows in ((0, only_left), (1, only_right)):
         for row in rows:
             key = (
@@ -212,7 +206,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--limit", type=int, default=20, help="0 removes the row and byte caps")
     parser.add_argument("--output", type=Path, metavar="PATH", help="write the FULL result")
     parser.add_argument(
-        "--size-tolerance", type=float, default=0.05,
+        "--size-tolerance",
+        type=float,
+        default=0.05,
         help="relative body-size change to ignore (default 0.05 — a response that "
         "differs by a timestamp is not a change worth reading)",
     )
@@ -311,4 +307,9 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    # Windows consoles default to a legacy codepage (cp1252 and friends);
+    # a non-ASCII line must degrade to "?", never take the process down.
+    for _stream in (sys.stdout, sys.stderr):
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(encoding="utf-8", errors="replace")
     raise SystemExit(main())

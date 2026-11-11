@@ -1,0 +1,20 @@
+{
+  "skill": "explore-idea",
+  "canary": "explore-idea-loaded-2026-09-29-fb78d23e-0a0a801de422d737",
+  "negative_control": "this skill writes status/specification.md itself as soon as the user describes the idea",
+  "load_prompts": [
+    "I have an idea for an app that tracks shared household chores — can we talk it through?",
+    "Help me think this through: I want something that reminds clients about unpaid invoices.",
+    "What are my options for turning my recipe notes into something my family can use?",
+    "I'm not technical, but I want to start a new project for my shop. Where do we begin?",
+    "Rough idea: a dashboard for our volunteers. Nothing is decided yet — walk me through it.",
+    "Here are a dozen loose ideas for the side project — sort them and keep them for later."
+  ],
+  "no_load_prompts": [
+    "Customers are missing transactions since Tuesday — scope the problem and propose options.",
+    "The spec is approved; split it into tasks with contracts and a risk register.",
+    "Implement task T3 from the plan and open a PR.",
+    "Review this PR for risks and tech debt.",
+    "Did the parser task pass its gate?"
+  ]
+}

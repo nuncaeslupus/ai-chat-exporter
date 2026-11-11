@@ -6,13 +6,13 @@
 # Background: the orchestrator dispatches each worker as a Task-tool subagent
 # with `isolation: worktree`. On some surfaces (observed on Claude Code on the
 # web) that flag is silently ignored — no worktree is created and the worker
-# runs in the orchestrator's shared tree on the coordination branch, moving HEAD
+# runs in the orchestrator's shared tree on its host branch, moving HEAD
 # and leaving uncommitted edits on the append-only ledger. A shell script cannot
 # interrogate the Task tool, but it CAN test whether git worktrees work here at
 # all. That is a necessary condition for safe parallel fan-out and for option
 # (b) "orchestrator creates the worktree itself"; when it fails the orchestrator
 # must fall back to a serialized, single-worker, in-place mode (ARSENAL_MAX_WORKERS=1)
-# and lean on worker_postcheck.sh to keep the coordination branch invariant.
+# and lean on worker_postcheck.sh to keep the host branch invariant.
 #
 # Stdout: one word — `available` or `unavailable`.
 # Exit:   0 if worktrees are usable, 1 if not. (Always prints the verdict.)

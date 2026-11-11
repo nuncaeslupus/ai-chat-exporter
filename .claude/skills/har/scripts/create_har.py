@@ -143,12 +143,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, required=True, metavar="PATH", help="destination")
     add_selection_args(parser)
     parser.add_argument(
-        "--drop-types", metavar="A,B",
-        nargs="?", const=",".join(DEFAULT_DROP_TYPES),
+        "--drop-types",
+        metavar="A,B",
+        nargs="?",
+        const=",".join(DEFAULT_DROP_TYPES),
         help="drop these resource types; bare flag drops " + ", ".join(DEFAULT_DROP_TYPES),
     )
     parser.add_argument(
-        "--keep-bodies", action="store_true",
+        "--keep-bodies",
+        action="store_true",
         help="keep response and request bodies — the result is as sensitive as the capture",
     )
     parser.add_argument(
@@ -252,12 +255,26 @@ def main(argv: list[str] | None = None) -> int:
     if args.secrets:
         note += "; NOT redacted"
     if args.as_json:
-        print(json.dumps({"output": str(args.output), "entries": len(kept), "bytes": size,
-                          "bodies_kept": args.keep_bodies, "redacted": not args.secrets}))
+        print(
+            json.dumps(
+                {
+                    "output": str(args.output),
+                    "entries": len(kept),
+                    "bytes": size,
+                    "bodies_kept": args.keep_bodies,
+                    "redacted": not args.secrets,
+                }
+            )
+        )
     else:
         print(f"{args.output}: {len(kept)} entries, {size} bytes ({note})")
     return 0
 
 
 if __name__ == "__main__":
+    # Windows consoles default to a legacy codepage (cp1252 and friends);
+    # a non-ASCII line must degrade to "?", never take the process down.
+    for _stream in (sys.stdout, sys.stderr):
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(encoding="utf-8", errors="replace")
     raise SystemExit(main())

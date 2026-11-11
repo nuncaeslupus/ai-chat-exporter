@@ -25,9 +25,18 @@ A gate is the measurable acceptance condition for one task. It lives in the
 - **op** — one comparison operator (see below).
 - **threshold** — a single number (int or float, optional sign). A trailing unit
   is allowed for readers but ignored by the parser (`200ms` parses as `200`).
+  Thousands separators are read in full groups (`1,000` is one thousand,
+  `1,000,000` a million) and scientific notation is accepted (`1e6`).
 
 `run_gate.py` searches the cell for the first `op` followed by a number. Anything
 that does not match that shape is treated as a non-numeric gate.
+
+A number is matched whole or not at all. `>= 1,5` is not a threshold of `1` with
+a stray `,5`; it does not parse, and the gate becomes non-numeric rather than
+quietly meaning something other than what it says. The same grammar is used by
+`gate_evidence.py`, the check that blocks PR creation, so the audit and the gate
+cannot disagree about what a gate asserts — `gate_grammar_test.sh` holds them to
+it.
 
 ## Operators
 
@@ -62,7 +71,11 @@ The plan's `Evidence log` table records, per task, the proof the gate was met:
 
 `run_gate.py` requires four fields to call a row **complete**:
 
-- **measured** — the number the run produced (the parser reads the first number).
+- **measured** — the number the run produced. The cell must *begin* with it; a
+  trailing unit is fine (`42ms`), and surrounding backticks or `**bold**` are
+  stripped. A cell that starts with something else — a date, a label — is not a
+  measurement and reads as `UNKNOWN`, never as a verdict. `2026-09-21: 0.85`
+  once scored as `2026` and passed a `>= 0.90` gate.
 - **command** — the exact command that produced it, so it can be re-run.
 - **sha** — the commit the measurement was taken at.
 - **env** — environment provenance: which machine / runner produced the number.

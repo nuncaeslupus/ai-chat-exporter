@@ -29,8 +29,30 @@ set -euo pipefail
 
 payload="$(cat)"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-file_path="$(printf '%s' "$payload" | python3 "${here}/gate_target.py" 2>/dev/null || true)"
-session_id="$(printf '%s' "$payload" | python3 -c 'import json,sys; print(json.loads(sys.stdin.read()).get("session_id",""))' 2>/dev/null || true)"
+# Git Bash: a native python.exe cannot open a `/c/...` path, and MSYS rewrites
+# one it is handed into a wrong `C:\c\...`. Resolve to `C:/...` once, here, so
+# every path built from here below works for both shells. Identity elsewhere.
+command -v cygpath >/dev/null 2>&1 && here="$(cygpath -m "${here}")"
+# `|| true` used to swallow the exit status here, so ANY crash inside
+# gate_target.py — a NameError, a missing interpreter, a syntax error from a
+# half-applied edit — produced an empty target, which the next line reads as
+# "nothing to gate" and allows. A gate that opens when its own analyser breaks
+# is not a gate, and it fails silently: nothing in the transcript says the
+# check stopped running. gate_target.py's main() returns 0 on every path it
+# handles, including an unparseable payload, so a non-zero status means it
+# crashed and nothing else. Fail CLOSED on that, loudly.
+# No interpreter at all is not a crash: fail closed only when the call could
+# touch a skill, or a host without python3 cannot run a single Bash call.
+command -v python3 >/dev/null 2>&1 || { case "$payload" in *skills/*) ;; *) exit 0 ;; esac; }
+gate_err="$(mktemp)"
+if ! file_path="$(printf '%s' "$payload" | python3 "${here}/gate_target.py" 2>"${gate_err}")"; then
+    echo "check_skill_workshop_loaded: gate_target.py failed — the skill-edit gate cannot" >&2
+    echo "determine what this call writes, so it is refused rather than allowed." >&2
+    sed 's/^/  /' "${gate_err}" >&2
+    rm -f "${gate_err}"
+    exit 2
+fi
+rm -f "${gate_err}"
 
 # Empty target → nothing this call would write inside a skill folder.
 [[ -z "$file_path" ]] && exit 0
@@ -48,6 +70,7 @@ case "$file_path" in
   *) exit 0 ;;
 esac
 
+session_id="$(printf '%s' "$payload" | python3 -c 'import json,sys; print(json.loads(sys.stdin.read()).get("session_id",""))' 2>/dev/null || true)"
 marker_dir="${CLAUDE_PLUGIN_DATA:-${HOME}/.cache/claude-arsenal/skill-workshop}"
 marker="${marker_dir}/loaded-${session_id}"
 [[ -f "$marker" ]] && exit 0

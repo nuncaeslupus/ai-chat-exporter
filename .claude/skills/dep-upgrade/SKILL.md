@@ -1,6 +1,6 @@
 ---
 name: dep-upgrade
-description: Use whenever a uv-managed Python project's dependencies need upgrading safely — the uv lock --upgrade, pip-audit, test-gate, classify-breakage runbook, splitting lockfile churn into direct vs transitive. Triggers — "upgrade the dependencies", "check for vulnerable dependencies". Do NOT use to add one dependency (just uv add), scaffold tooling (see python-bootstrap), or publish (see pypi-release).
+description: Upgrades a uv project's dependencies behind pip-audit and tests. Use when the user wants dependencies upgraded or vuln-checked. Not for adding one (uv add).
 argument-hint: "uv.lock.bak uv.lock"
 user-invocable: true
 metadata:
@@ -9,83 +9,59 @@ metadata:
 
 # dep-upgrade
 
-Upgrade a uv-managed project's dependencies under a safety net: snapshot, lock,
-audit for CVEs, gate on the test suite, then classify whatever broke.
+Upgrades a uv-managed project's dependencies under a safety net: snapshot,
+lock, audit for CVEs, gate on the test suite, then classify what broke.
 
 CANARY: dep-upgrade-loaded-2026-06-04-ea39c2b5-719c61e6e84e1453
 
 ## When to load
 
-Load when the task is a deliberate dependency *upgrade* of a uv project —
-refreshing the lockfile, chasing CVEs, or pulling in newer versions. For adding
-one new package, plain `uv add` is enough; for scaffolding tooling defer to the
-`python-bootstrap` skill.
+Load for a deliberate upgrade of a uv project — refreshing the lockfile,
+chasing CVEs, pulling newer versions. Adding one package is a plain `uv add`;
+tooling scaffolding belongs to `python-bootstrap`.
 
 ## Step 1 — Snapshot, then upgrade
 
-Keep the pre-upgrade lockfile so the change is reviewable and revertible:
-
 ```bash
-cp uv.lock uv.lock.bak
-uv lock --upgrade        # refresh every pin to the latest compatible release
-uv sync                  # install the new resolution into the environment
+cp uv.lock uv.lock.bak   # keeps the change reviewable and revertible
+uv lock --upgrade        # or --upgrade-package NAME for one targeted bump
+uv sync                  # lock rewrites the file only; tests need the new install
 ```
 
-To upgrade a single package instead of everything: `uv lock --upgrade-package NAME`.
+Prefer `--upgrade-package` when chasing one CVE or feature, because a repo-wide
+upgrade folds dozens of changes into one diff and hides the culprit.
 
-## Step 2 — See what actually changed
+## Step 2 — See what changed
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/compare_lockfile.py" uv.lock.bak uv.lock
 ```
 
-The JSON splits `changed` into `direct` (declared in `pyproject.toml`) and
-transitive, with `direct_changes` / `transitive_changes` counts, plus `added`
-and `removed`. Transitive bumps are where "passes locally, breaks on a clean
-install" hides — read them, do not skim.
+It splits `changed` into `direct` (declared in `pyproject.toml`) and transitive,
+with counts, plus `added` and `removed` — read this rather than the raw
+`git diff uv.lock`, which is mostly hash noise. Read the transitive bumps: they
+can pass locally on a cached wheel and fail a clean install, so re-resolve in a
+clean environment before trusting green.
 
 ## Step 3 — Audit for CVEs
 
 ```bash
-uvx pip-audit                 # scans the resolved environment for known CVEs
+uv run --with pip-audit pip-audit
 ```
 
-Treat a finding as a reason to upgrade *further* (to the patched version), not
-to pin backwards onto the vulnerable release. Note any advisory with no fixed
-version as a risk to surface.
+Run it through `uv run` so it audits the project's environment; a bare `uvx
+pip-audit` audits only its own isolated tool environment. Answer a finding by moving forward to the patched release; pinning back onto
+the vulnerable version reintroduces it. Surface any advisory with no fixed
+version as a risk.
 
-## Step 4 — Test gate + classify
-
-Run the project's full suite against the new resolution:
+## Step 4 — Test gate and classify
 
 ```bash
 make test        # or: uv run pytest
 ```
 
-If green, report the upgrade with the direct/transitive breakdown and any CVE
-findings. If red, classify each failure: a behavior change in a direct dep
-(read its changelog), a transitive bump that surfaced a latent bug, or a real
-incompatibility that needs a constraint. Pin the minimum necessary in
-`pyproject.toml`, re-lock, and re-run — never weaken the test to pass.
-
-## Gotchas
-
-- **Transitive churn breaks clean installs only.** A transitive bump can pass
-  every local test yet fail `uv sync` on a fresh machine or minimal CI image,
-  because the local cache still holds the old wheel. Always check
-  `transitive_changes` and re-resolve in a clean environment before trusting
-  green.
-- **`uv lock --upgrade` moves everything at once.** A repo-wide upgrade folds
-  dozens of changes into one diff, making the culprit of a new failure hard to
-  isolate. Prefer `--upgrade-package NAME` for a targeted bump when chasing a
-  specific CVE or feature.
-- **Pinning backwards to dodge a CVE.** Constraining a package to an old,
-  vulnerable version to "make pip-audit quiet" reintroduces the vulnerability.
-  Move forward to the fixed release; only pin backwards with an explicit,
-  documented reason.
-- **Lockfile churn buries the signal.** `git diff uv.lock` after an upgrade is
-  enormous and mostly hash noise. Use the script's direct/transitive summary to
-  find the handful of changes that matter rather than reading the raw diff.
-- **Skipping `uv sync` after `uv lock`.** `uv lock --upgrade` rewrites the
-  lockfile but does not touch the environment; tests run against the *old*
-  installed versions and falsely pass. Always `uv sync` before the test gate.
+Green: report the upgrade with the direct/transitive breakdown and any CVE
+findings. Red: classify each failure as a behaviour change in a direct dep (read
+its changelog), a transitive bump exposing a latent bug, or a real
+incompatibility. Pin the minimum necessary in `pyproject.toml`, re-lock and
+re-run; fix the code or the pin rather than the test.

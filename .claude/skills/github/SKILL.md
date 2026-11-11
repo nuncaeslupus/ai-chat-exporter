@@ -1,35 +1,39 @@
 ---
 name: github
-description: Use whenever the user is creating commits, opening pull requests, or waiting on PR review/CI feedback — applies Conventional Commits + branch naming, then polls the PR for review-bot comments and CI status until it is ready to merge. Triggers — "open a PR", "address review comments". Do NOT use for engineering review of a diff (see review) or generic git mechanics (see execution).
+description: Applies commit and PR conventions, then polls review bots and CI until the PR can merge. Use when the user commits, opens a PR or handles review feedback. Not for judging a diff.
 metadata:
   type: workflow
 ---
 
 # github
 
-Apply Conventional Commits + PR conventions, then run a tight, automated review loop instead of asking the user to relay bot comments by hand. After a PR is opened, this skill keeps an eye on the four things that gate a merge — **CI status, review-bot reactions (agents signal `:eyes:` → comments → `:+1:`/`:rocket:`), human/bot review comments, and merge-conflict state**; it addresses or pushes back on each comment, flags a conflicted branch for a rebase, then tells the user when the PR is ready to merge.
+Apply commit and PR conventions, then run an automated review loop instead of asking
+the user to relay bot comments. After a PR opens, the loop watches what gates a merge
+— CI, review-bot reactions and comments, and merge conflicts — answers each comment,
+and tells the user when the PR is ready.
 
 CANARY: github-loaded-2026-05-20-d436255c-54a7f770e04e4983
 
 ## When to load
 
-After activation, confirm the task fits:
+- The user asks to commit, open a PR, or amend a PR body.
+- The user asks whether CI is done, what a review bot said, or to address the review.
+- A `/loop` cycle is checking PR state.
 
-- The user asks to make a commit, open a PR, or amend a PR body.
-- The user asks "is CI done?", "what did Gemini say?", or "address the review".
-- A `/loop` cycle is checking PR state — see [pr-review-loop](references/pr-review-loop.md).
-
-If the task is the *substance* of the review (judging whether a diff is correct, designing the fix), defer to the review or execution skill — this skill owns the *mechanics* of the review-bot dance, not the semantics of the change.
+Judging whether a diff is correct belongs to `review` or `execution`; this skill owns
+the mechanics of the review loop.
 
 ## Commit conventions
 
-Conventional Commits: `<type>(scope): description`. Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `ci`. Scope is the module or domain. Imperative voice, no trailing period, first line ≤72 chars. Body separated by a blank line; explain *why*, not *what*.
+Conventional Commits: `<type>(scope): description`. Types: `feat`, `fix`, `refactor`,
+`test`, `docs`, `chore`, `ci`. Scope is the module or domain. Imperative voice, no
+trailing period, first line ≤72 chars. Body after a blank line explains *why*.
 
-Always end the commit with `Co-Authored-By: <ACTIVE-MODEL-NAME> <noreply@anthropic.com>`. **Never hardcode a model name** in skill prose, scripts, templates, or examples. The active model identity is supplied by the harness's git commit instructions — use that value verbatim. If a port from an older skill shows `Claude Opus 4.5` / `4.6` etc., strip the literal and replace with the live identity at commit time.
+End the commit with the `Co-Authored-By:` line the harness's git instructions supply,
+copied verbatim; add no other model name to commits, PR bodies, prose or
+examples, because the harness value is the one that stays current.
 
 ## PR conventions
-
-Body template:
 
 ```markdown
 ## Summary
@@ -39,82 +43,77 @@ Body template:
 - [ ] <verifiable check>
 ```
 
-Branches: `feat/<short-description>`, `fix/<short-description>`. Main branch is `main`. The same dynamic Co-Authored-By rule applies inside the PR body (do not hardcode a model name there either).
+Branches: `feat/<short-description>`, `fix/<short-description>`. Main branch is `main`.
+For several PRs that merge in sequence, load
+[stacking](references/stacking.md) before creating the second branch.
 
-## Pre-PR gate — lint, then an independent read, before `gh pr create`
+## Pre-PR gate
 
-Before any `gh pr create` invocation, run the host repo's full lint/format/test gate (whatever the project's Makefile / package.json exposes — e.g. `make lint`, `make smoke`, `npm run lint`). Pre-commit hooks do not always cover the same checks CI runs; relying on them alone is how PRs land red. Treat a clean local lint as a non-negotiable precondition for opening the PR — the agile review loop assumes CI was green at push time.
-
-If the host project has no lint target, document that gap (propose a Makefile addition to the user) and proceed; but the omission is the proposal, not a license to skip.
-
-A green lint says the change does not break the repo. It says nothing about whether it is the change that was asked for, and the session that just wrote it is the wrong reader for that question. So the second half of the gate is an adversarial review by a subagent with no history of the work:
-
-```bash
-REVIEW="${CLAUDE_SKILL_DIR}/../init/assets/bin/adversarial_review.sh"
-bash "$REVIEW" emit      # prints the packet's absolute path
-# spawn a subagent whose whole prompt is: read THAT path, reply into verdict.md beside it
-bash "$REVIEW" verdict   # 0 CLEAR · 1 BLOCK · 2 no usable verdict · 3 the tree moved mid-review
-```
-
-Neither 2 nor 3 is a pass: 2 means no verdict came back, 3 means the answer describes a tree that no longer exists. Pass `--intent <file>` when the change has a written intent other than `status/specification.md`, which is what auto-discovery reaches for. Pass the reviewer nothing but the packet path — a summary of what the change was meant to do hands it the author's blind spot. On BLOCK, fix and re-emit rather than opening the PR with the findings unaddressed. Full protocol, override rules, and the form for a repo without the vendored bundle: `claude-arsenal:core:init § references/pre-pr-review.md`.
-
-## The agile review loop
-
-After `gh pr create` returns the PR number, immediately enter the polling loop. **Inline the action rubric in the `/loop` prompt** — a bare `query_pr_state.py` invocation produces a JSON snapshot each tick and forces the LLM to re-derive what to do every time. Pass `--unresolved-only` so the loop does not re-trigger on already-addressed comments.
+Before `gh pr create`, run the host repo's lint/format/test gate (`make lint`,
+`npm run lint`, …), since the review loop assumes CI was green at push time. If the
+project has no lint target, say so, propose one, and proceed.
 
 ```bash
-/loop 90s python3 "${CLAUDE_SKILL_DIR}/scripts/query_pr_state.py" --pr <PR_NUMBER> --unresolved-only — if state is bot_commented, address per the rubric (agree → fix + push + reply "addressed in <sha>" via gh api repos/<owner>/<repo>/pulls/<PR_NUMBER>/comments/<id>/replies; disagree → reply with rationale on the same endpoint; ambiguous → reply asking for clarification + ping the user). If conflicts, rebase onto (or merge) the base branch, resolve, and push; loop continues. If ci_failed, fetch the failing job log and fix + reply on any related comments. Every fix or dismissal MUST be paired with a reply on the thread — that is what makes --unresolved-only filter the comment on the next tick. Only stop the loop on ready_to_merge, merged, or closed — bot_approved still waits for the quiet window. When stopping, CronDelete <job-id> and hand back to user to merge.
+FAST=claude-arsenal/bin/fast_gate.sh
+bash "$FAST"          # each review round: `preflight-gate` over the changed files
+bash "$FAST" --full   # before merge, only if no receipt or green CI covers the tree
 ```
 
-`/loop` rounds `90s` up to `*/2 * * * *` (every 2 min) because cron has no sub-minute granularity. Stop early with `CronDelete <job-id>` — `/loop` prints the ID at scheduling time, and `CronList` recovers it later.
+`--full` writes a receipt reused while the tree is unchanged. Review rounds run the
+fast gate once, then push once, because every push is a CI run. Load
+`claude-arsenal:core:init § references/ci-minutes.md` when CI minutes are a concern.
 
-The script returns JSON to stdout and exits with:
+A green gate says the change does not break the repo, not that it is the change that
+was asked for; run the independent review before opening the PR, and on the open PR
+when its decision line calls for one: `claude-arsenal:core:init § references/pre-pr-review.md`.
 
-| Exit | State |
-|---|---|
-| 0 | `bot_commented` (any bot line-comments — Claude judges per-comment) OR `ready_to_merge` OR `merged` / `closed` (PR no longer open — short-circuit, nothing to do) |
-| 1 | `waiting` / `bot_eyeing` / `ci_running` / `bot_approved` (loop continues) |
-| 2 | `conflicts` (merge conflict — rebase/resolve) OR `ci_failed` (Claude must act) |
+## The review loop
 
-Handle each state per the rubric in [pr-review-loop](references/pr-review-loop.md):
+**In a cloud session that offers PR activity events** (`subscribe_pr_activity` is in
+its tools), subscribe to the PR instead of starting `/loop`, then end the turn: CI
+results, reviews, comments and conflicts each wake the session, so polling only spends
+turns on what is already pushed. On each wake, run `query_pr_state.py --pr <N>
+--unresolved-only --trigger` once and act on its state as listed below and per the
+rubric in the loop command. Some changes send no event (a silent bot, a reaction, the
+quiet window, mergeability), so whenever the script exits 1 in a state other than
+`ci_running`, schedule one check-in rather than a loop. If the subscription result says
+another agent already receives the events, run the loop instead. Everywhere else, run
+the loop.
 
-- `bot_eyeing` → loop continues. Bot owns clearing `:eyes:` by acting again. Exception: with `--unresolved-only`, when every comment the bot wrote is filtered out and the bot did review at some point, the script promotes the state to `bot_approved` / `ready_to_merge` — the loop has done its part and stale eyes lose their blocking force.
-- `bot_commented` → for each comment in `bot_line_comments`, judge: **already addressed** (reply "addressed in <sha>"), **agree** (fix + push + **reply** "addressed in <sha>" — the reply is what `--unresolved-only` anchors on), **disagree** (reply with rationale via `gh api .../pulls/<N>/comments/<id>/replies`), or **ambiguous** (reply asking for clarification + ping the user). Loop continues after action. A fix or dismissal without a reply leaves the thread unresolved, so the next pass re-reads a comment that has already been handled — pair every one with a reply.
-- `conflicts` → the PR branch conflicts with its base. Rebase onto (or merge) the base branch, resolve the conflicts, and push. Loop continues. A conflicted PR cannot merge regardless of CI/review state, so this is surfaced first. When the branch is stacked on a PR that already merged, use `rebase_stack.sh` (see *Multi-PR stacking* below) rather than replaying by hand — it skips the merged commits and knows which conflicts are regenerable.
-- `ci_failed` → fetch the failed log via `gh run view --log-failed <run-id>`, fix, push. Reply on any comments the fix relates to. Loop continues.
-- `ready_to_merge` → exit the loop, tell the user "PR #N ready to merge". In a repo carrying `arsenal/config.toml`, handing back is not automatically the right ending: `merge-policy` there is the host's standing answer to whether an agent may merge it, and the vendored protocol's completion step gives the rule for each value. Read it before asking a question the host already answered.
-- `merged` / `closed` → exit the loop immediately. PR is no longer open; nothing to do.
-
-## Multi-PR stacking — autonomous sequential work
-
-When a plan produces **N PRs that will be merged in sequence**, stack the branches from the start: each branch based on the previous (`fix/iss-B` branched from `fix/iss-A`), not all branched from `main`.
-
-Rationale: if all branches share the same base, every PR that bumps `.bundle-version` creates a merge conflict for every subsequent PR — the three-way merge base is an ancestor commit that predates the previous PR's bump, so both sides appear to have changed the version. With stacking, only the first PR ever conflicts with `main`; the rest inherit the correct version from their parent.
-
-**Version bump rule**: only the **last** PR in a stack bumps `.bundle-version`. Intermediate PRs ship content at the current version; the bump rides on the final PR so there is exactly one version-bump commit per release, never one-per-PR.
-
-After each merge, immediately rebase the next waiting branch onto `main` to skip the now-merged commits:
+After `gh pr create` returns the PR number, start the loop. Each tick's output carries its own instructions in `next`, and with `--unresolved-only`, so handled
+comments drop out:
 
 ```bash
-# After fix/iss-A merges into main:
-bash "${CLAUDE_SKILL_DIR}/../init/assets/bin/rebase_stack.sh" fix/iss-B fix/iss-A
+/loop 90s python3 "${CLAUDE_SKILL_DIR}/scripts/query_pr_state.py" --pr <PR_NUMBER> --unresolved-only --trigger — do what its "next" field says for the printed state (bot_approved still waits for the quiet window); on ready_to_merge, merged or closed, CronDelete <job-id> and hand back to the user.
 ```
 
-`rebase_stack.sh <branch> <old-base>` computes the fork point, runs `git rebase --onto origin/main`, runs the repo's `host-gate`, and force-pushes with lease in one step. Cascade it down the remaining stack (B→C, C→D, …) after each merge. `--no-push` rebases only.
+`/loop` rounds `90s` up to every 2 minutes. Stop early with `CronDelete <job-id>`
+(`CronList` recovers the ID).
 
-A repo that uses evidence gates conflicts on its own evidence files on almost every replay — both sides moved, and hand-merging two measurements of a tree is meaningless. When every conflicted path is one a task declares as `evidence:`, the script takes the branch's side, re-runs `host-gate` to regenerate, and continues. Anything outside that set stops the rebase and is named: that is a real conflict, and a human resolves it.
+The script prints JSON and exits 0 when there is something to act on or the loop is
+done, 1 while waiting, 2 on `conflicts` or `ci_failed`. Exit 2 with any other state
+(authentication, repo not found) is permanent: stop and tell the user.
 
-## Project type — Classic vs v2
+- `conflicts` — rebase onto the base branch, resolve, push. When the parent PR of a
+  stacked branch merged, use `rebase_stack.sh` from [stacking](references/stacking.md).
+- `ci_failed` — `gh run view --log-failed <run-id>`, fix, push, reply on related comments.
+- `ready_to_merge` — tell the user "PR #N ready to merge". In a repo with
+  `arsenal/config.toml`, read `merge-policy` and the vendored protocol's completion
+  step first: the host may already have answered whether an agent merges.
 
-GitHub's Projects Classic silently breaks a few `gh` paths (notably `gh pr view --comments` and `gh pr edit --body`). On first use in a repo, run the detector:
+Load [pr-review-loop](references/pr-review-loop.md) when a state is unclear
+(`bot_eyeing` that persists, a bot that never reviews), when configuring watched
+bots or `bot-triggers`, or when judging a comment the inline rubric does not settle.
+
+## Projects Classic vs v2
+
+Projects Classic breaks `gh pr view --comments` and `gh pr edit --body`. On first use
+in a repo:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/query_project_type.py" --write-claude-md
 ```
 
-Output: `classic` / `v2` / `none`. With `--write-claude-md`, the detector appends `<!-- github-skill: projects=v2 -->` (or `classic`) to the repo's `CLAUDE.md` if no such marker exists. Future sessions read the marker and skip re-detection. When the marker says `classic`, follow the workarounds in [projects-detection](references/projects-detection.md).
-
-## References
-
-- [projects-detection](references/projects-detection.md) — Projects Classic detection signal + Classic-only `gh` gotchas (load when the detector returns `classic`).
-- [pr-review-loop](references/pr-review-loop.md) — bot state-machine table, default watched-bot list, comment-handling rubric (load when entering the loop).
+It prints `classic` / `v2` / `none` and records `<!-- github-skill: projects=… -->`
+in `CLAUDE.md` so later sessions skip detection. When it says `classic`, load
+[projects-detection](references/projects-detection.md) for the workarounds.

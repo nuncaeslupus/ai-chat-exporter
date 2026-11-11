@@ -27,15 +27,19 @@ whether that is fatal); 2 on unreadable input.
 from __future__ import annotations
 
 import argparse
-import json
-import os
 import sys
 from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from task_select import load_tasks, task_id_from_issue, title_index
+from task_select import (
+    default_tasks_dir,
+    load_tasks,
+    read_issue_payload,
+    task_id_from_issue,
+    title_index,
+)
 
 
 def issue_number_for(
@@ -51,26 +55,41 @@ def issue_number_for(
     right answer: the closed one is already in its terminal state, and pointing
     `Closes` at it would close nothing that was not closed already.
     """
-    best: int | None = None
+    return issue_numbers_by_task(issues, titles=titles).get(task_id)
+
+
+def issue_numbers_by_task(
+    issues: list[dict[str, Any]],
+    *,
+    titles: dict[str, str | None] | None = None,
+) -> dict[str, int]:
+    """Every task's handle, from ONE pass over the issue list.
+
+    `issue_number_for` scans the whole list per task, and `query_status.py`
+    called it twice for every task on the board: O(tasks x issues) on the path
+    the session-start protocol runs, which is ~40,000 title-and-marker matches
+    at the 200-task scale the queue is designed for. Resolving the board is one
+    pass over the issues, so it is done once here and the answers looked up.
+
+    Same preference as `issue_number_for`, which is now a lookup into this: an
+    open handle always wins over a closed one, and the first open one wins, so
+    the answer does not depend on the order GitHub returned the list.
+    """
+    best: dict[str, int] = {}
+    decided: set[str] = set()
     for issue in issues:
-        if task_id_from_issue(issue, titles=titles) != task_id:
+        task_id = task_id_from_issue(issue, titles=titles)
+        if task_id is None or task_id in decided:
             continue
         number = issue.get("number")
         if not isinstance(number, int):
             continue
         if str(issue.get("state", "open")).lower() == "open":
-            return number
-        if best is None:
-            best = number
+            best[task_id] = number
+            decided.add(task_id)
+        elif task_id not in best:
+            best[task_id] = number
     return best
-
-
-def load_issues(source: Path) -> list[dict[str, Any]]:
-    text = sys.stdin.read() if str(source) == "-" else source.read_text(encoding="utf-8")
-    payload = json.loads(text)
-    if isinstance(payload, dict):
-        payload = payload.get("issues", [])
-    return [i for i in payload if isinstance(i, dict)]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -85,15 +104,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--tasks-dir",
         type=Path,
-        default=Path(os.environ.get("ARSENAL_HOME", "arsenal")) / "tasks",
+        default=default_tasks_dir(),
         help="task files, used to resolve an issue that carries no body",
     )
     args = parser.parse_args(argv)
 
-    try:
-        issues = load_issues(args.issues)
-    except (OSError, json.JSONDecodeError) as exc:
-        print(f"issue_for_task: cannot read --issues — {exc}", file=sys.stderr)
+    issues = read_issue_payload(args.issues, "issue_for_task")
+    if issues is None:
         return 2
 
     # The saved snapshot this reads is the one the session-start protocol
@@ -115,4 +132,9 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    # Windows consoles default to a legacy codepage (cp1252 and friends);
+    # a non-ASCII line must degrade to "?", never take the process down.
+    for _stream in (sys.stdout, sys.stderr):
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(encoding="utf-8", errors="replace")
     raise SystemExit(main())
