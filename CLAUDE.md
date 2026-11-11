@@ -17,6 +17,13 @@ pnpm validate    # Check all
 
 Documentation: `docs/README.md`
 
+## Reviewing and merging
+
+Every PR needs green CI and a review before it merges. CodeRabbit does not review this
+repo on its own, so ask it with a `@coderabbitai review` comment on each PR; its plan
+allows about one review an hour. If it will not review, review the diff yourself and
+record that review as a PR comment. Then merge: do not wait for the owner.
+
 <!-- claude-arsenal: auto-managed -->
 ## Automatic session protocol
 
