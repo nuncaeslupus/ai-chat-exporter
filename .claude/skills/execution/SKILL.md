@@ -1,6 +1,6 @@
 ---
 name: execution
-description: When the user is implementing code changes from a design — code change, tests, merge-ready output. Do NOT use for investigation (see specify), design (see design), or routine one-off scripts that bypass the design step.
+description: Implements a planned task test-first, through to a merge-ready PR. Use when the user is building what a plan describes. Not for one-off scripts.
 metadata:
   section: workflow
   type: workflow
@@ -10,28 +10,29 @@ metadata:
 
 CANARY: execution-loaded-2026-05-19-4597aff5bb98dd36
 
-Reads `status/specification.md` and `status/plan.md`. Updates `status/plan.md` task statuses as work progresses. Per-task notes (decisions, deviations) go in `tmp/<task-id>-notes.md` (gitignored by the host repo, never committed).
+Reads `status/specification.md` and `status/plan.md` and updates the plan's task
+statuses as work progresses. Per-task notes go in `tmp/<task-id>-notes.md`
+(gitignored); load `references/template.md` when creating one.
 
-Load `references/template.md` when writing `tmp/<task-id>-notes.md` for a task.
+Keep the notes' **Resume** section (Decided / Ruled out / Next step) current after
+RED, after GREEN, and after each decision: it is what the session reads back after
+context compaction.
+
+Work through every task in the plan and on to the PR without pausing between tasks
+for confirmation; stop only when blocked or before a step that is hard to undo.
+Deliver the scope the plan asks for, and list pre-existing bugs and unrequested
+cleanup as follow-ups in the PR description rather than fixing them in this diff.
 
 ## Steps
 
-### Step 1: Prepare implementation plan
+### Step 1: Prepare
 
-#### 1a. Verify prerequisites
-- [ ] Design document exists and is approved
-- [ ] Engineering gates are complete (if applicable)
-- [ ] Workspace chosen (see 1a.1)
-- [ ] Branch created from the default branch in the chosen workspace
-- [ ] Local environment running (if applicable)
-
-#### 1a.1 Workspace — main checkout or worktree?
-
-Before creating the branch, decide where the work lives. From the repo root, run `git status --short` and check the current branch:
-
-- **Clean tree on the default branch** → work in the main checkout. Create the branch in place.
-- **Clean tree on an unrelated branch** that the user is no longer touching (confirm if unsure) → fast-forward to the default branch and continue in the main checkout.
-- **Dirty tree, OR an in-flight branch the user might still be working on, OR a long-running stack (container, dev server, watcher) pinned to the main checkout path** → do NOT switch the main checkout's HEAD. Create a worktree instead:
+- The design is approved and the branch is created from the default branch.
+- **Where the work lives.** Run `git status --short` and check the branch. A clean
+  tree on the default branch (or on a finished, unrelated branch) works in place.
+  A dirty tree, an in-flight branch the user may still be using, or a long-running
+  process pinned to the checkout gets a worktree, because a worktree never
+  destroys state:
 
   ```bash
   REPO=$(git rev-parse --show-toplevel)
@@ -40,127 +41,89 @@ Before creating the branch, decide where the work lives. From the repo root, run
   git -C "$REPO" worktree add "../${TICKET}-worktree" -b "${TICKET}-short-description" "$DEFAULT"
   ```
 
-  Then run all subsequent steps (branch, commits, tests, PR) from that worktree path. When in doubt, prefer creating the worktree: it never destroys state. Ask the user only when the path is genuinely ambiguous (e.g. they may want to abandon the in-flight branch).
-
-  For container-bound work, the container has to be rebound to the worktree path; consult the host repo's container / compose documentation for the exact recipe.
-
-Remove the worktree with `git worktree remove <worktree-path>` once the PR is merged.
-
-#### 1b. Review task scope
-- What files will be created or modified (list before starting)
-- What tests will be created or modified
-- What order to implement (dependencies first)
-
-#### 1c. Identify existing patterns
-- Read existing code in affected files/services
-- Identify patterns to follow (naming, structure, error handling)
-- Note any deviations from standard patterns and why
+  Run every later step from the worktree; remove it with `git worktree remove`
+  once the PR merges. Ask the user only when the choice is genuinely ambiguous.
+- List the files and tests to create or change, in dependency order, and read the
+  surrounding code for the patterns to follow (naming, structure, error handling).
 
 ### Step 2: Implement each task — RED → GREEN → RECORD
 
-For each task from the design, work its **Gate** (the measurable acceptance condition in `status/plan.md`) through three motions: make the gate fail first (RED), implement until it passes (GREEN), then record the evidence (RECORD) before starting the next task.
+Each task's **Gate** in `status/plan.md` is its measurable acceptance condition.
 
-#### 2a. Make the gate fail first (RED)
+**RED.** Before changing production code, write the check that proves the gate and
+see it fail for the expected reason: a regression test that reproduces the bug, a
+test that specifies the missing behaviour, or, for a metric gate, the measurement
+showing the current value misses the threshold. Cover new branches, endpoints and
+edge cases (null/empty, boundaries, error paths). Name tests
+`test_<what>_<condition>_<expected_result>`. Put a new test in a file that is not
+already the suite's slowest, since the longest file sets the parallel suite's wall
+clock; load `claude-arsenal:core:init § references/performance-tuning.md` (§ The
+long pole) when a test file needs splitting. With `<!-- test-discipline: test-after -->` in the host `CLAUDE.md`, write
+the test alongside the change instead.
 
-Before changing production code, write the check that proves the task meets its Gate, and confirm it currently fails for the expected reason:
+A test is owed per failure mode of logic that branches, parses, has boundaries or
+can lose data, not per function; a module with such logic and no test file gets one.
+Write none that greps prose, re-runs a measurement a gate already runs, or pins a
+constant or glue. Build an expensive fixture once per module, and give a test slower
+than about a second a stated reason or a slow tier that does not run on every push.
+Load `references/test-cost.md` when a task adds more than a handful of tests or one
+of them is slow. When a task writes or changes a CI workflow, load
+`claude-arsenal:core:init § references/ci-minutes.md` (§ CI defaults) first.
 
-- **Bug fix**: write a regression test that reproduces the failure first. Run it and confirm it fails for the expected reason — the bug itself, not an unrelated error.
-- **New feature**: write a test that specifies the contract or acceptance criterion the task must satisfy. Run it and confirm it fails because the behavior does not exist yet.
-- **Metric gate**: wire the measurement the gate names (latency benchmark, coverage run, error-rate probe) and confirm the current value misses the threshold — a measured value short of the gate is the RED for a metric, just as a failing test is the RED for behavior.
-- **Coverage**: unit tests for new functions and logic branches; integration tests for new endpoints, queries, or inter-service calls; edge cases for null/empty inputs, boundary values, and error conditions.
+**GREEN.** Implement until the check passes:
 
-Name each test with the convention `test_<what>_<condition>_<expected_result>`.
+- Read the target code first and match its style, naming and structure.
+- Write the smallest change that passes the gate: needed at all → stdlib → already in
+  the repo → minimal new code (`claude-arsenal:core:init § references/lean-code.md`).
+- One concern per commit; type hints or strict types; handle errors explicitly;
+  configuration through environment variables or constants.
+- Comments: match the file's density, default to none, and add one only for a *why*
+  the code cannot show (a hidden invariant, a surprising edge case). Leave task and
+  PR references out of the source.
+- When the fix is an API-contract mismatch (arity, kwargs, return shape), pin the
+  contract on the interface itself, so the next caller making the same mistake is
+  caught too.
 
-If the host repo's `CLAUDE.md` contains `<!-- test-discipline: test-after -->`, write the test alongside the change instead.
+**RECORD.** Add the gate evidence to the plan's **Evidence log**: measured value,
+exact command, commit SHA and environment provenance (`ci`, `local`, or a project
+tag). The `gate-check` skill's `run_gate.py --id <task> <measured>` reports PASS/FAIL. A task is done when its gate passes and the row is recorded; a
+plan with no Gate column predates the convention, so skip the record there.
 
-#### 2b. Implement to green
+### Step 3: Check
 
-1. **Read before writing**: always read the existing code in the target file/module first
-2. **Follow existing patterns**: match the style, naming, and structure of surrounding code
-3. **One concern per change**: each commit should do one thing
-4. **Type safety**: use type hints (Python) or strict types (TypeScript)
-5. **Error handling**: handle errors explicitly, never silently swallow exceptions
-6. **No hardcoded values**: configuration via environment variables or constants
-7. **Comments**: match the file's existing comment density and docstring style. Default to no comment. Earn one only when the *why* is non-obvious — a hidden invariant, a non-obvious edge case, a workaround for a specific bug, behavior that would surprise the reader. Don't explain *what* the code does (well-named identifiers handle that). Don't reference the current task, PR, or caller — that belongs in the PR description, not the source, and rots as the codebase evolves. Multi-line comments (3-4 lines or more) need genuinely unexpected behavior the code cannot convey on its own.
-8. **Re-run the test from 2a (or the test written alongside the change under `test-after`); do not proceed until it passes.**
+Run the host repo's lint and the tests for the affected area once
+(`make lint`, `make test`, `pytest <path>`, …) and fix what fails; this is the real
+check behind reporting the code done. When a check cannot run here, say which and
+why. Refactor with the green suite as the safety net, then confirm:
 
-After each significant change:
-- Run linting (use the host repo's lint command — e.g. `make lint`, `ruff check`, `eslint`)
-- Run relevant tests (use the host repo's test command — e.g. `make test`, `pytest <path>`)
-- Fix issues before proceeding
+- no debug code, commented-out blocks or stray TODOs;
+- no hardcoded secrets, URLs or credentials;
+- the diff matches the design scope;
+- the PR description says what changed, why, and how to test it.
 
-#### 2c. Record the gate evidence (RECORD)
+### Step 4: Independent review
 
-Once the task is green, record its gate evidence in `status/plan.md`'s **Evidence log** before starting the next task: the measured value, the exact command that produced it, the commit SHA, and the environment provenance (which machine or runner — `ci`, `local`, or a project tag). Confirm the measured value meets the gate; the `gate-check` skill's `run_gate.py --input status/plan.md --id <task> <measured>` reports PASS/FAIL with the numbers and flags an incomplete row. A task is not done until its gate passes and its evidence is recorded — that recorded trail is what `review` and `ship` audit. (For a plan with no Gate column — predating this convention — keep the green-tests bar from Step 2b and skip the record.)
+Before opening the PR, run the pre-PR review: one cold reviewer subagent that sees
+only the packet. Protocol, exits and round cap:
+`claude-arsenal:core:init § references/pre-pr-review.md`.
 
-### Step 3: Verify and refactor
+### Step 5: Create the PR
 
-Re-run the full lint and test suite for the affected area. With the test from 2a green as a safety net, refactor for clarity — rename, extract, deduplicate — re-running the tests after each step to confirm nothing breaks.
-
-- **API-contract bugs lock the regression at the API level**: when the fix is a signature mismatch — wrong arity, wrong kwargs, wrong return shape — the regression test asserts the API contract on the interface itself (the logger's signature, the emitter's signature, the HTTP client's response shape), not just the one call site that triggered the report. A test that pins the contract catches the next caller that makes the same mistake, before it reaches production.
-
-### Step 4: Self-review before PR
-
-Before creating the PR, verify:
-
-- [ ] All tests pass
-- [ ] Linting passes with no warnings
-- [ ] No debug code, commented-out blocks, or TODO items left behind
-- [ ] No hardcoded secrets, URLs, or credentials
-- [ ] Changes match the design scope (no scope creep)
-- [ ] PR description prepared: what changes, why, how to test
-
-Every box above is ticked by the session that wrote the code, against the
-understanding that wrote it. Step 4b covers what that cannot reach.
-
-#### 4b. Adversarial review by a session that has never seen the change
-
-Before Step 5, put the change in front of a reviewer with no history of it:
-
-```bash
-bash "${CLAUDE_SKILL_DIR}/../init/assets/bin/adversarial_review.sh" emit
-# prints the packet's absolute path — intent, full diff, rubric
-```
-
-Spawn a subagent whose **entire prompt** is to read the path `emit` printed and
-write its reply to `verdict.md` in that same directory. Pass nothing else: no summary of the
-change, no account of the approach taken, no conversation history. Every such
-addition transplants the blind spot this step exists to escape — a reviewer
-told "this refactor preserves behaviour" checks a different question than one
-that had to work it out. Then record the answer:
-
-```bash
-bash "${CLAUDE_SKILL_DIR}/../init/assets/bin/adversarial_review.sh" verdict
-```
-
-Exit 0 clears Step 5. Exit 1 is a BLOCK — show the findings verbatim, fix them,
-and re-emit, since a review of the tree before the fix does not cover the tree
-after it. Exit 2 means no usable verdict came back, which is not a pass. Exit 3
-means the tree changed while the review ran, so the answer describes code that
-no longer exists: re-emit and review what is actually there.
-
-Pass `--intent <file>` when the change has a written statement of intent that is
-not `status/specification.md`. Auto-discovery reaches for that file, and a repo
-that keeps an archived one hands the reviewer a specification nobody is
-implementing.
-
-Load `claude-arsenal:core:init § references/pre-pr-review.md` for the full
-protocol, how to handle a BLOCK that looks wrong, and the manual form for a repo
-with no vendored bundle.
-
-### Step 5: Create PR
-
-- Write clear PR description linking to ticket/design
-- Add reviewers
-- Ensure CI passes
-- **When opening multiple PRs in a planned sequence**, follow the stacking rule in `github` — branches must stack, and only the last PR in the sequence bumps `.bundle-version`.
+Write the description (linking the ticket or design), add reviewers, and see CI
+pass. For several PRs that merge in sequence, follow the `github` skill's stacking
+reference.
 
 ---
 
 ## Abbreviation
 
-**Abbreviated execution** = Step 2a + Step 2b + Step 2c + Step 4 + Step 4b (tests, gate evidence and the independent adversarial review are not optional in abbreviation — abbreviating is about skipping ceremony, not about skipping the only check the author cannot perform on their own work). Whether abbreviation is allowed depends on project conventions documented in the host repo's `CLAUDE.md`; that same file can declare `<!-- test-discipline: test-after -->` to fall back to write-tests-after (see Step 2a).
+**Abbreviated execution** = Steps 2, 3 and 4, where the host repo's `CLAUDE.md`
+allows it. Tests, gate evidence and the independent review stay, because
+abbreviating skips ceremony, not the checks the author cannot do on their own work.
 
 ## Workspace-aware paths
 
-When `arsenal/project/<WORKSPACE>/` exists, read the spec and plan from there (`spec.md`, `plan.md`, `context.md`) and record gate evidence in the workspace's `plan.md` instead of `status/`. Otherwise read `status/specification.md` and `status/plan.md` as above. When running under the task queue, the claimed task's payload at `arsenal/tasks/<id>.md` carries the acceptance gate, which the queue's gate runner executes before the task is released.
+When `arsenal/project/<WORKSPACE>/` exists, read `spec.md`, `plan.md` and
+`context.md` from there and record gate evidence in that `plan.md`. Under the task
+queue, the claimed task's payload at `arsenal/tasks/<id>.md` carries the acceptance
+gate, which the queue's gate runner executes before the task is released.

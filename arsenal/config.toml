@@ -22,7 +22,7 @@
 # and stopping to ask a question this file already answers. Do not set a policy
 # nothing in the repo can ever satisfy — it gets waved through, and then it
 # stays waved through on the day it starts meaning something again.
-merge-policy = "after-ci"
+merge-policy = "after-ci-and-review"
 
 # Shell command run before any task PR is opened; a non-zero exit means no PR.
 # Empty = no host gate. Point it at everything your repo actually checks, not
@@ -93,11 +93,20 @@ listing-budget = 8000
 # lands inside the table instead of at the top level.
 queue-automation = true
 
+attribution = true
+
+bot-triggers = ["coderabbitai[bot]=@coderabbitai review"]
+
+review-bots = ["coderabbitai[bot]"]
+
+setup-interview = "2026-11-11"
+
 [models]
 orchestrator = ""
 workers = "sonnet"
 
 [skills]
+android = false
 extract = true
 python = true
 workflow = true

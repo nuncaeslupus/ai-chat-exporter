@@ -1,0 +1,12 @@
+# SHA-256 (newlines normalised to LF) of every arsenal-queue.yml ever shipped.
+# init.py refreshes an installed copy that matches one of these: it is an older
+# shipped version nobody edited, not a local change (#470). A copy matching none
+# is the user's and is left alone. queue_workflow_refresh_test.sh fails when the
+# current workflow is missing — append its line whenever the workflow changes.
+d40eee8296faef993ced4033ba7ac149dba064e98b7b777209ecc4c9dc246ef1
+28dfde0e521e57910061c9cd8caaa941c84a3af8732c3bb63ad0eb882ffce30a
+69acc84b24c43bbce26d8cc1f1bcae86a23ad2b8660b570f3591cc3bb63398e0
+b15b53de14f0f13797ef75b8389c1ce176167f38965e6e2ab90cca5b212fb78c
+b5199e17e79ae81ca4a13a88c39fa0fa3a29dfc949f020a5a5430fa2fe2e36fc
+914ceaeec25a813229e5045361881e3893fe7c4070e5e227105997b2c6251b3f
+1106f2c3512f690bbed8c02edc112272776e7569070a722187dd3f0a22d1ff1b

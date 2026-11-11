@@ -1,18 +1,31 @@
 # Claude Arsenal
 
-<!-- claude-arsenal v3.9.1 — imported via @claude-arsenal/AGENTS.md -->
+<!-- claude-arsenal v5.26.0 — imported via @claude-arsenal/AGENTS.md -->
 
-This file is imported by the host repo's `CLAUDE.md` via the session-protocol block
-that `/init` injects, so it sits in context on **every turn of every session**. It
-therefore carries only what a session needs before it knows what kind of session it is:
-how to start, what a task is, how a claim is decided, and how a task finishes.
+This file is in context on every turn, so it holds only what a session needs before it
+knows what kind of session it is. The rest lives in `claude-arsenal/references/`: plain
+paths, opened on demand (table at the end).
 
-The rest of the protocol lives in `claude-arsenal/references/`, read **on demand**.
-Those are plain paths, never `@` imports — nothing here pulls them into context. The
-table at the end says which file answers what.
+Paths starting `arsenal/` are the host-owned tree; setting `ARSENAL_HOME` relocates all of
+them. `claude-arsenal/` is the vendored bundle and never moves.
 
-Paths starting `arsenal/` are the host-owned tree, and a host that sets `ARSENAL_HOME`
-relocates all of them at once. `claude-arsenal/` is the vendored bundle and never moves.
+---
+
+## How to work
+
+- **Finish the task.** On an unattended run, carry the work through to its end; put status
+  notes alongside the next tool call rather than ending the turn on them. Stop only when
+  blocked or before a risky or irreversible action. When the request is a question or a
+  problem description, the assessment is the deliverable — answer it before changing code.
+- **How often to ask** is `autonomy` in `arsenal/config.toml`: `ask-often` (confirm each step),
+  `ask-when-blocked` (default), `autonomous` (never wait on the user for reversible work).
+- **Reports lead with the outcome.** Add sections (done / not done / questions / next) only
+  when they have content, and keep the whole report short.
+- **Batch independent tool calls** into one response; sequence only calls that depend on
+  each other.
+- **Edit surgically.** Change the lines that need changing rather than rewriting a file.
+- **Name tasks by label.** When you mention a task to the user, write its label followed by
+  the id, e.g. `tag only green CI (t-1a2b3c4d)`; a bare id tells them nothing.
 
 ---
 
@@ -21,150 +34,87 @@ relocates all of them at once. `claude-arsenal/` is the vendored bundle and neve
 At the start of every session (fresh start, context compaction, or cold restart):
 
 0. **Refresh the bundle.**
-   a. If `claude-arsenal/bin/check_update.sh` exists, run it **with `--check-only`** and
-      surface whatever it reports: current, a missing `arsenal` remote, a bundle ahead of
-      the newest tag, an `UPDATE AVAILABLE`, or — the one that has bitten consumers — an
-      `UNTAGGED UPSTREAM RELEASE`, where upstream's default branch ships a version whose
-      tag was never pushed. The fix for that one is upstream (`make tag`), not here.
-      **On a non-subtree install the report is INERT, and that is the correct answer, not
-      a finding.** No remote and no subtree merge is what both `/init` from the plugin and
-      `init.py` run from a clone leave behind; the script reports drift for subtree
-      installs only. Say it once if it has not been said this session, and do not open work
-      on it — updating means refreshing the plugin or the clone and re-running `init.py`,
-      never a merge. Reporting it as a defect each session is the recurring false alarm
-      this note exists to stop.
-      `--check-only` matters: without it the script merges the new subtree and commits,
-      which is a history-writing side effect from a step described as a report, landing in
-      the same main working tree the worker loop requires to be clean.
-   b. Run `python3 .claude/skills/init/scripts/init.py --repo-path . --silent` to refresh
-      any stale bundle script, and report anything it refreshes. It writes nothing when
-      the installed bundle is NEWER than the skill's copies — report that line as-is and
-      update the plugin; never pass `--allow-downgrade` to get past it. If (a) reported
-      `VENDORED SKILL BEHIND BUNDLE`, skip (b): a skill that old can predate the guard and
-      rewrite the bundle backwards. Skip (a) and (b) when that script is not present.
-   c. **Read the capability map** — `python3 .claude/skills/init/scripts/init.py --list-sections`
-      names every skill section this marketplace ships and whether it is installed here. Read
-      it, do not file it: when a later task is squarely covered by a section this repo did
-      **not** install, say so once, then do what was asked.
-      → `claude-arsenal/references/capability-map.md`
+   a. If `claude-arsenal/bin/check_update.sh` exists, run it with `--check-only` (without
+      it the script merges and commits) and surface what it reports. An
+      `UNTAGGED UPSTREAM RELEASE` is fixed upstream (`make tag`), not here. On a
+      non-subtree install the report is `INERT` — the expected answer: say so once per
+      session and open no work on it.
+   b. Run `python3 .claude/skills/init/scripts/init.py --repo-path . --silent` and report
+      anything it refreshes, and each `NEW SETTING` line once (`config-acknowledged` in
+      `arsenal/config.toml` silences them). On `SETUP INTERVIEW PENDING`, ask the init skill's
+      setup interview with AskUserQuestion before picking up work. If it says the installed
+      bundle is newer, report that and update the plugin; never pass `--allow-downgrade`. Skip (b) if (a) reported
+      `VENDORED SKILL BEHIND BUNDLE`. Skip (a) and (b) when the script is absent.
+   c. Read the capability map: `python3 .claude/skills/init/scripts/init.py --list-sections`.
+      When a task is squarely covered by a section this repo did not install, say so once,
+      then do what was asked. → `claude-arsenal/references/capability-map.md`
 
 1. **Establish the GitHub channel** — `bash claude-arsenal/bin/github_channel.sh --detect`
-   prints `gh`, `rest`, or `none`. **`none` is not a failure**: it means no scriptable
-   channel exists on this surface, so every GitHub step below is performed with your own
-   built-in GitHub tools instead. What must not happen is skipping those steps. The
-   previous protocol gated them on `command -v gh`, which turned required work into silent
-   no-ops on Claude Code on the web, where `gh` is absent.
+   prints `gh`, `rest`, or `none`. `none` means: perform every GitHub step below with your
+   own GitHub tools. Skipping those steps is the one wrong answer.
 
-2. **Fetch the task issues** — list issues labelled `arsenal:task`, **open and closed**,
-   and save the JSON (e.g. to `/tmp/arsenal-issues.json`). Closed ones are not optional: a
-   closed-as-completed issue is what marks a dependency satisfied.
-   > Ask for **`number`, `title`, `state`, `labels`, `assignees` — not `body`.** Nothing
-   > below reads a body, and a 40-issue board costs ~9k tokens with them and ~1.2k
-   > without, charged every session. MCP: the `fields` argument. `gh`: `--json
-   > number,title,state,labels,assignees`.
+2. **Fetch the task issues** — issues labelled `arsenal:task`, open and closed (a closed
+   issue is what marks a dependency satisfied), saved as JSON (e.g.
+   `/tmp/arsenal-issues.json`). Request `number,title,state,labels,assignees` and not
+   `body`: the `arsenal-id:<id>` label pairs an issue to its task. Also save open issues
+   carrying neither `arsenal:task` nor `arsenal:queue` (`number,title`) for `--open-issues`.
 
 3. **Read the board** — `git fetch --quiet origin`, then
-   `python3 claude-arsenal/scripts/query_status.py --issues /tmp/arsenal-issues.json`.
-   Report anything it flags: a task with no fenced gate block, a task file with no issue
-   handle, a dep that no task file declares, or a working tree behind the remote.
-   > The issues are fetched fresh; the task files are as old as your last pull, and a
-   > stale one reads exactly like an open task. `query_status` reports the drift — the
-   > fetch is what removes it. If the fetch fails, say so and treat the counts as
-   > unverified.
+   `python3 claude-arsenal/scripts/query_status.py --issues /tmp/arsenal-issues.json \
+   --open-issues /tmp/arsenal-unfiled.json`. Report everything it flags. If the fetch
+   fails, say so and treat the counts as unverified.
 
-4. **Create any missing handles** (usually a no-op — `.github/workflows/arsenal-queue.yml`
-   opens them when the task file lands) —
-   `python3 claude-arsenal/scripts/handle_sync.py --issues /tmp/arsenal-issues.json`
-   prints one JSON object per task file that has no issue yet; create those issues with the
-   `arsenal:task` label and a **visible** `` `arsenal-task: <id>` `` line in the body —
-   visible text, never an HTML comment.
-   A row carrying an `ambiguous` key is a collision to resolve first,
-   not an issue to create. This is the only sync in the system: one-directional and
-   idempotent, so a failure delays work rather than corrupting it.
-
-4b. **Import issues filed between sessions** — list open issues carrying the import label
-   (default `arsenal:queue`; `import-label` in `arsenal/config.toml` changes it), save the
-   JSON, then
-   `python3 claude-arsenal/scripts/issue_import.py --issues /tmp/arsenal-import.json --apply`.
-   > **This fetch must include `body`**, unlike step 2. The body *is* the seeded task's
-   > content, and it is also where an existing `arsenal-task:` marker lives — omit it and
-   > every task file is written empty and every already-imported issue is imported again
-   > as a second task.
-   Apply everything each row prints — the `arsenal-task: <id>` line into the body, plus
-   the `add_label` / `remove_label` swap onto `arsenal:task`; an issue left on the import
-   label is invisible to step 2 and `handle_sync.py` proposes a duplicate for it next
-   session. Then commit the new task files.
+4. **Create missing handles** —
+   `python3 claude-arsenal/scripts/handle_sync.py --issues /tmp/arsenal-issues.json`;
+   create each printed issue with every label the row lists and a visible
+   `` `arsenal-task: <id>` `` body line. Resolve an `ambiguous` row before creating anything.
    → `claude-arsenal/references/queue-seeding.md`
 
-5. **Read handover** — if `arsenal/session/handover.md` has content beyond the template
-   placeholder, read it for the previous session's context.
-   > The handover is a snapshot from compaction time, not current state. Never resume a
-   > task named there without re-reading the board first — the queue is the truth.
+4b. **Import issues filed between sessions** — fetch open issues with the import label
+   (default `arsenal:queue`, set by `import-label`), **including `body`**, then
+   `python3 claude-arsenal/scripts/issue_import.py --issues /tmp/arsenal-import.json --apply`.
+   Apply every change each row prints and commit the new task files.
+   → `claude-arsenal/references/queue-seeding.md`
+
+5. **Read handover** — read `arsenal/session/handover.md` if it has real content; it is a
+   snapshot, so re-read the board before resuming anything it names. Also
+   `status/ideas.md` when the board's `ideas:` line counts exploring rows.
+   **After compaction mid-task**, the task's `tmp/<id>-notes.md` and `git status` are the state.
+   So keep that file on any work longer than a few steps, queue task or not
+   (`tmp/<id-or-slug>-notes.md`): a `## Resume` section with Decided / Ruled out / Next step,
+   refreshed after each decision. A hook re-injects that section after compaction.
 
 6. **Pick up work** — `claude-arsenal/references/worker-loop.md`. If the selector returns
    nothing and a plan exists, seed the queue from it
-   (`claude-arsenal/references/queue-seeding.md`); if there is no plan either, report done
-   or ask the user.
+   (`claude-arsenal/references/queue-seeding.md`); otherwise report done or ask the user.
+   Pass each dispatch the model from `arsenal_config.py --get models.workers` as its own
+   `model` argument; if `models.orchestrator` names a different model than yours, say so
+   once. → `claude-arsenal/references/worker-loop.md` § Credit guards
 
-   Which model runs what is the host's setting, not this file's:
-   `python3 claude-arsenal/scripts/arsenal_config.py --get models.workers` is what the
-   orchestrator exports as `CLAUDE_CODE_SUBAGENT_MODEL` before any dispatch. If
-   `models.orchestrator` is set and is not the model you are running as, say so once —
-   nothing can switch it from inside the session, so noticing is the whole of the check.
-
-7. **Before ending a session with open work** — audit every task whose issue is claimed or
-   whose PR is open (CI, reviews, mergeability), print the table for the user, then write
-   `arsenal/session/handover.md`. `/session-end` does this in full; defer to it when loaded.
-
-   Reporting, not repair — nothing the next session needs depends on it running.
-   → `claude-arsenal/references/github-automation.md`
+7. **Before ending a session with open work** — audit every claimed task and open PR (CI,
+   reviews, mergeability), print the table, then write `arsenal/session/handover.md`.
+   `/session-end` does this in full. → `claude-arsenal/references/github-automation.md`
 
 ---
 
 ## Task format
 
-A task is a file — `arsenal/tasks/<id>.md` — with YAML-ish front matter and a body:
+A task is a file — `arsenal/tasks/<id>.md` — with front matter (`id`, `title`, optional
+`label`, `priority`, `deps`, `requires`, `tags`, `workspace`, `max-attempts`) and an
+`## Acceptance gate` section. `/queue-add` writes one; a full example is in
+`claude-arsenal/references/state-layout.md` § Task format.
 
-````markdown
----
-id: t-3f8a91c2
-title: "Extract the surface probe into its own script"
-priority: 5
-deps: [t-aaaa1111, t-bbbb2222]
-requires: [surface:cli]
-tags: [CLI]
-workspace: BACKEND
-max-attempts: 3
----
-
-## Acceptance gate
-```bash
-bash tests/surface_probe_test.sh
-```
-````
-
-`deps` is the dependency graph, so the graph is versioned with the code and changes
-through a pull request like anything else. **Task files are read from the default
-branch**, never the session's working branch — that is what makes every agent compute the
-same order regardless of what it is working on. `priority` encodes **task size** — S=10,
-M=5, L=1, larger runs sooner — and nothing else; build order belongs in `deps`.
-
-**The gate must be a fenced ` ```bash ` block.** Prose, and inline `single-backtick`
-commands, are never executed: a gate that runs nothing passes everything. `query_status.py`
-and `task_select.py` both report a task with no block, because an entire gate layer can go
-inert without anyone noticing — one consumer audit found 0 of 70 payloads carried one.
-
-**The gate is fixed for the life of the task** — read from the default branch, so a task's
-own PR can never amend its own acceptance criteria. Never write a task that says otherwise.
+Task files are read from the **default branch**, so every agent computes the same order.
+`deps` is the build order; `priority` encodes task size only (S=10, M=5, L=1, larger runs
+sooner). The gate must be a fenced ` ```bash ` block — prose and inline commands never run
+— and it is fixed for the life of the task: a task's own PR cannot amend it.
 → `claude-arsenal/references/evidence-gates.md`
 
 ---
 
 ## Claiming — the contract
 
-A claim is decided by GitHub, not by agreement between sessions: creating a ref is a
-compare-and-swap, so exactly one caller wins and there is no window in which two agents
-both believe they did.
+GitHub decides a claim: creating a ref is a compare-and-swap, so exactly one caller wins.
 
 ```bash
 bash claude-arsenal/bin/claim_task.sh <task-id>
@@ -175,52 +125,55 @@ bash claude-arsenal/bin/claim_task.sh <task-id>
 #   error:      → misconfiguration; stop and surface it
 ```
 
-**Never route around a `lost` or an `error`** — claiming a different ref, pushing `-u` to
-give your branch its own, or bumping the attempt number to "win" recreates exactly the
-double-claims this exists to prevent. Obey the result.
-
-After winning, mark the issue so a human can see who holds it: self-assign, add
+Obey the result: claiming another ref, pushing `-u`, or bumping the attempt number to win
+recreates the double-claims this prevents. After winning, self-assign, add
 `arsenal:claimed`, and comment with the session id from `CLAUDE_CODE_REMOTE_SESSION_ID`
-(a `cse_…` value that is also a session URL, so the claim is clickable), falling back to
-`CLAUDE_CODE_SESSION_ID`. **Do not invent an id.**
+(falling back to `CLAUDE_CODE_SESSION_ID`); never invent one.
 → `claude-arsenal/references/claiming-internals.md`
 
 ---
 
 ## Completion — merging is the update
 
-**No step in this protocol asks anyone to finish a task.** `open_task_pr.sh` resolves the
-task's issue number, writes `Closes #<issue>` into the PR body *and* the commit message,
-and moves the task file into `tasks/_history/` with `status: merged` inside the same diff.
-So one merge closes the issue, archives the file, and unblocks the dependents. The body
-form fires on a merge into the **default** branch; the commit form survives a squash and is
-what closes the issue for a **stacked** PR whose base is another branch.
+Every change reaches the default branch through a PR, ad hoc work included; never push to
+it directly. Open a task's PR with `open_task_pr.sh`: it writes `Closes #<issue>` and
+archives the task file in the same diff, so the merge alone finishes the task. If it
+refuses for want of an issue, pass `ARSENAL_TASK_ISSUE=<n>` or run `handle_sync.py` —
+not `ARSENAL_ALLOW_UNLINKED_PR=1`.
 
-If the helper refuses, it found no resolvable issue handle — a PR that would merge closing
-nothing. Pass `ARSENAL_TASK_ISSUE=<n>` or create the handle with `handle_sync.py`; do not
-reach for `ARSENAL_ALLOW_UNLINKED_PR=1`, which is the old silent failure, opted into.
-
-**Merging is the one step with a configured answer.** Before merging, run
-`python3 claude-arsenal/scripts/arsenal_config.py --get merge-policy` and do not merge
-beyond what it allows — nor ask the user a question the host already answered there.
+Before merging, run `bash claude-arsenal/bin/merge_ready.sh <pr>`: it checks what the
+host's `merge-policy` requires against the head SHA. Exit 0 means merge, without asking
+the user a question the host already answered.
 → `claude-arsenal/references/github-automation.md`
+
+---
+
+## Specs and plans
+
+Idea work goes through `explore-idea`, spec work through `specify`, plan work through
+`design`; another plugin's brainstorming or planning skill does not replace them, and no
+plan is written before the annotated spec is approved. Hand every spec or plan to the user
+as the HTML from `create_reader.py`. A diagram is a ```drawspec fence, not hand-drawn SVG
+or ASCII art → `claude-arsenal/references/diagrams.md`.
 
 ---
 
 ## References — read the one you need, when you need it
 
-Each is a plain file to open, not an import. Nothing below is in context until you read it.
-
 | File | Read it when |
 |---|---|
-| `references/worker-loop.md` | Dispatching workers: the loop, worktree isolation, `worker_postcheck.sh`, per-task PRs, credit guards, every `ARSENAL_*` knob |
-| `references/orchestrator-tick.md` | Running the board unattended: one tick's steps, the merge preconditions, why a tick is not portable |
-| `references/queue-seeding.md` | The queue is empty: seeding from a plan table, importing filed issues, seeding a `D-N` divergence |
-| `references/evidence-gates.md` | Writing or trusting a gate: the fence rule, hardened execution, numeric evidence, `unmeasured` |
-| `references/claiming-internals.md` | A claim misbehaves: why ref creation is the lock, attempt refs, ref accumulation, `on: push` cost |
-| `references/github-automation.md` | Completion: what `merge-policy` requires, the five transitions GitHub runs, opting out |
-| `references/quota-governance.md` | The loop stopped before dispatch: quota windows, fail-open, the round cap |
-| `references/pre-pr-review.md` | About to open a PR: the cold-start adversarial review, its verdicts, `pre-pr-review` modes |
-| `references/state-layout.md` | A lookup: where a file lives, what a task state means |
-| `references/annotatable-reader.md` | Handing over a spec or plan: which documents need a reader, and why the work that consumes them waits for the annotations |
-| `references/capability-map.md` | A task looks like something a skill would do: what the map says, when to volunteer an uninstalled section, and when not to |
+| `references/worker-loop.md` | Dispatching workers |
+| `references/orchestrator-tick.md` | Running the board unattended |
+| `references/queue-seeding.md` | The queue is empty, or filed issues need importing |
+| `references/evidence-gates.md` | Writing or trusting a gate |
+| `references/claiming-internals.md` | A claim misbehaves |
+| `references/github-automation.md` | Completing work or ending a session (Actions minutes short → `references/ci-minutes.md`) |
+| `references/quota-governance.md` | The loop stopped before dispatch |
+| `references/pre-pr-review.md` | About to open a PR |
+| `references/lean-code.md` | Implementing a task, or reviewing a diff for code it did not need |
+| `references/digest.md` | A PR opened or got a new head; ending a session; digest decisions came back |
+| `references/performance-tuning.md` | The loop feels slow, or an `ARSENAL_*` knob is needed |
+| `references/state-layout.md` | Looking up where a file lives, what a task state means, or the task-file format |
+| `references/repo-housekeeping.md` | Choosing a license, or publishing a package |
+| `references/annotatable-reader.md` | Handing over a spec or plan |
+| `references/capability-map.md` | A task looks like something a skill would do |

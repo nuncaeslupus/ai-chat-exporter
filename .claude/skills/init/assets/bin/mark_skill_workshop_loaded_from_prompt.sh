@@ -22,6 +22,8 @@
 set -euo pipefail
 
 payload="$(cat)"
+# Cheap pre-filter: this runs on every prompt, and almost none name the skill.
+case "$payload" in *skill-workshop*|*skill-creator*) ;; *) exit 0 ;; esac
 prompt="$(printf '%s' "$payload" | python3 -c 'import json,sys; print(json.loads(sys.stdin.read()).get("prompt",""))' 2>/dev/null || true)"
 session_id="$(printf '%s' "$payload" | python3 -c 'import json,sys; print(json.loads(sys.stdin.read()).get("session_id",""))' 2>/dev/null || true)"
 

@@ -123,16 +123,12 @@ def redact_cookie_header(value: str, salt: str) -> str:
 
 
 # Set-Cookie attribute names, which are not cookies and hold nothing secret.
-_COOKIE_ATTRIBUTE = re.compile(
-    r"(?i)^(path|domain|expires|max-age|samesite|priority|partitioned)$"
-)
+_COOKIE_ATTRIBUTE = re.compile(r"(?i)^(path|domain|expires|max-age|samesite|priority|partitioned)$")
 
 _COOKIE_HEADERS = frozenset({"cookie", "set-cookie"})
 
 
-def redact_pairs(
-    pairs: list[tuple[str, str]], salt: str, *, headers: bool
-) -> list[list[str]]:
+def redact_pairs(pairs: list[tuple[str, str]], salt: str, *, headers: bool) -> list[list[str]]:
     """Redact a list of name/value pairs, keeping order and repeats.
 
     Pairs, not a dict: `?tag=a&tag=b` is two values for one name and `Set-Cookie`

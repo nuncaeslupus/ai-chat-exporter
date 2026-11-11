@@ -2,181 +2,245 @@
 
 Read this when a merge did not close its task, when a PR check about the closing
 keyword fails, when an unattended run stopped on a permission prompt, or when
-deciding whether to install / remove `.github/workflows/arsenal-queue.yml`.
+deciding whether to install or remove `.github/workflows/arsenal-queue.yml`.
+
+## Contents
+
+- [Why an unattended run stops on a permission prompt](#why-an-unattended-run-stops-on-a-permission-prompt)
+- [Completion — merging is the update](#completion--merging-is-the-update)
+- [Ending a session is reporting, not repair](#ending-a-session-is-reporting-not-repair)
+- [Merge policy — the host's standing answer to "may I merge this?"](#merge-policy--the-hosts-standing-answer-to-may-i-merge-this)
+- [A fleet that stopped — `scripts/pr_audit.py`](#a-fleet-that-stopped--scriptspr_auditpy)
+- [Reviewing the same head twice — `bin/claim_review.sh`](#reviewing-the-same-head-twice--binclaim_reviewsh)
+- [Upkeep GitHub does — `.github/workflows/arsenal-queue.yml`](#upkeep-github-does--githubworkflowsarsenal-queueyml)
 
 ---
 
 ## Why an unattended run stops on a permission prompt
 
-An orchestrator on a cloud surface can sit for hours waiting on a prompt nobody
-is there to answer. `/init` deliberately writes **no** `permissions.allow` block
-to try to prevent that, because a seeded block does not fix it — and shipping one
-would look like a fix while changing nothing.
+`/init` writes no `permissions.allow` block, because a seeded block would not
+stop these prompts. The `mcp__github__*` tools already pass silently where the
+account's GitHub connector grants them. The session tools (`create_session`,
+`get_session` and siblings) are what prompt, for two reasons a committed file
+cannot reach:
 
-**The GitHub tools are not the problem.** On the surfaces where this was
-measured, `mcp__github__*` calls — listing issues, creating a branch, opening and
-updating a PR, commenting, merging — passed silently already: the account's
-GitHub connector grants them, outside `settings.json` entirely. Seeding grants
-that are already held buys nothing and widens the file for no reason.
+- A tool the server marks as requiring user interaction prompts on every call, in
+  every permission mode, whatever the allow rules say.
+- Project `permissions.allow` entries apply only once the user has trusted the
+  workspace, which is stored outside the clone. A startup line reading
+  `Ignoring N permissions.allow entries … this workspace has not been trusted`
+  identifies this case.
 
-**The session tools are the problem, and an allow rule cannot clear them.**
-`create_session`, `get_session` and their siblings prompted in a repo whose
-committed `.claude/settings.json` carried them spelled exactly right, and
-prompted again on the next call — no sticky approval. Two mechanisms produce
-that, and both are outside a repository's reach:
-
-- A tool the server marks as requiring user interaction prompts on **every**
-  call, in every permission mode, and a matching allow rule does not skip it.
-- Project `permissions.allow` entries grant capability, so they apply only after
-  the workspace is **trusted** — a per-user acceptance stored outside the clone.
-  Until then the entries are ignored and the prompts continue. Look for a startup
-  line reading `Ignoring N permissions.allow entries … this workspace has not
-  been trusted` to tell the two apart.
-
-Neither is reachable from a committed file, which is why this is documentation
-and not a `/init` step.
-
-**What actually helps: dispatch one session per message.** Three `create_session`
-calls sent in a single message were refused together — a batch reads as one
-refusable action — while the same three sent one per message were each approved.
-An orchestrator that fans out serially gets through; one that fans out in a
-single turn stops on the first refusal and loses the whole round.
-
-Do not try to route around any of this by having a session widen its own
-permissions. Writing to `.claude/` is checked before allow rules are read, on
-purpose, and that check is load-bearing. A permission a fleet needs is a decision
-its owner makes once, not something a session grants itself at 3am.
-
----
+What does help is dispatching one session per message
+(`references/orchestrator-tick.md` § Dispatching a worker to another session).
+Do not have a session widen its own permissions: writes to `.claude/` are checked
+before allow rules on purpose, and a permission a fleet needs is its owner's
+decision.
 
 ## Completion — merging is the update
 
-The failure the previous design could not fix: merging a PR and updating the queue were
-two separate acts, and the second got forgotten. Worse, `reconcile_merged.sh` — the script
-meant to catch that — was `gh`-gated and so never ran on the web at all.
-
-Merging is now the whole of it, and **no step in this protocol asks anyone to finish a
-task**. `open_task_pr.sh` resolves the task's issue number, writes `Closes #<issue>` into
-the PR body *and* the commit message, and moves the task file into `tasks/_history/` with
-`status: merged` inside the same diff. So one merge closes the issue, archives the file,
-and unblocks the dependents.
-
-Writing the keyword in both places is not belt-and-braces for its own sake — each covers
-a case the other does not. The body form fires on a merge into the **default** branch; the
-commit form survives a squash and is what closes the issue for a **stacked** PR whose base
-is another branch, when that commit eventually lands.
-
-> The keyword used to be prose here and in `worker.md` — "make sure the body carries
-> `Closes #<issue>`" — while nothing anywhere computed which issue that was and
-> `open_task_pr.sh` wrote a body without it. An instruction with no data path behind it is
-> a step that does not happen, so every task PR merged closing nothing. If you are reading
-> a protocol that asks you to remember a completion step, that is the bug.
-
-**When the helper refuses.** No resolvable issue handle means a PR that would merge
-without closing anything, so it stops before touching git, leaving the worker's edits
-intact. Pass `ARSENAL_TASK_ISSUE=<n>` (the orchestrator has the number from step 2 of the
-session-start protocol in `AGENTS.md`) or create the handle with `handle_sync.py`. Do not reach for
-`ARSENAL_ALLOW_UNLINKED_PR=1` to get past it — that is the old silent failure, opted into.
-
----
+No step asks anyone to finish a task. `open_task_pr.sh` resolves the task's issue,
+writes `Closes #<issue>` into the PR body and the commit message, and moves the
+task file into `tasks/_history/` with `status: merged` in the same diff, so one
+merge closes the issue, archives the file and unblocks dependents. The body form
+fires on a merge into the default branch; the commit form survives a squash and
+closes the issue for a stacked PR when that commit lands. When it refuses for
+want of an issue, follow `AGENTS.md` § Completion.
 
 ## Ending a session is reporting, not repair
 
-`AGENTS.md` step 7 asks a session with open work to audit it and write a
-handover before ending. That step is a **report for the human**, not a repair
-the queue depends on.
+`AGENTS.md` step 7 (audit open work, write a handover) is a report for the human;
+nothing the next session needs depends on it. A merged PR has already closed and
+archived its task, and an abandoned PR has released its claim, so a session that
+ends abruptly still leaves the queue correct.
 
-Nothing the next session needs is produced by it. A merged PR has already closed
-and archived its task — GitHub did that, per the transitions above. An abandoned
-PR has already released its claim. So a session that ends abruptly, on a quota
-stop, a crash, or a closed window, leaves the queue correct anyway.
+The one gap is a session that dies after claiming and before opening its PR: no
+PR transition will release that claim. The `sweep-claims` job in
+`arsenal-queue.yml` (`queue_hooks.py sweep-claims --max-age-hours 24`, daily)
+does. Without the workflow nothing sweeps, and `query_status` counts the task
+`claimed`, indistinguishable from live work. Release it by hand:
 
-**With one window, and it is worth knowing where it is.** A session that dies
-*after* claiming and *before* opening its PR leaves a claim behind that no PR
-transition will ever release, because there is no PR. What repairs it is the
-`sweep-claims` job — `queue_hooks.py sweep-claims --max-age-hours 24` on the
-daily cron — so the queue is self-correcting there rather than immediately
-correct, and the task is unavailable until the sweep runs. Without
-`.github/workflows/arsenal-queue.yml` installed, nothing sweeps at all: the next
-session repairs stale claims and unhandled task files itself before starting.
+```bash
+python3 claude-arsenal/scripts/queue_hooks.py sweep-claims \
+    --repo <owner>/<name> --dry-run     # then drop --dry-run to apply
+```
 
-That is the property the whole design is aiming at, and it is worth stating as a
-rule for anything added later:
-
-> If you find yourself writing "remember to X before the session ends", X belongs
-> in a workflow or a script, not in a protocol. The sessions that most need
-> cleaning up are exactly the ones that ended badly and will never read it.
+It needs `GH_TOKEN` or `GITHUB_TOKEN`; without one it says so and does nothing.
+The rule for anything added later: a step that must happen before a session ends
+belongs in a workflow or a script, because the sessions that most need it are the
+ones that ended badly.
 
 ## Merge policy — the host's standing answer to "may I merge this?"
 
 `arsenal/config.toml` carries `merge-policy`, and this is the step that reads it:
 
 ```bash
-python3 claude-arsenal/scripts/arsenal_config.py --get merge-policy
+bash claude-arsenal/bin/merge_ready.sh <pr>     # 0 ready · 1 not · 3 policy is `never`
+bash claude-arsenal/bin/merge_ready.sh <pr> --body   # ...and the merge commit body
+python3 claude-arsenal/scripts/arsenal_config.py --get merge-policy   # the bare word
 ```
 
-One bare word, one of five. It is a decision the host already made and wrote down, so
-both directions are failures: merging past what it allows, and stopping to ask a
-question the file answers.
+`merge_ready.sh` fetches the PR, the check runs for its head SHA and the reviews,
+and hands them to `scripts/pr_audit.py` for the verdict. Use it rather than a
+hand-written query, which tends to read an absent check as green or a summary
+line as the finding list. Without a scriptable GitHub channel it prints the exact
+calls to make and the command to pipe them into.
+
+Run it last: second reader on the head, then the full gate once that reader
+returns CLEAR on the same head, then `merge_ready.sh` (`references/orchestrator-tick.md`
+§ Review before the full gate).
+
+The host already decided, so both merging past the policy and asking a question
+it answers are failures:
 
 | Value | Merge when |
 |---|---|
 | `always` | The PR is open and `open_task_pr.sh`'s gates passed. Nothing further to wait for. |
 | `after-ci` | Every required check on the head commit has **reported**, and is green. |
-| `after-review` | A review has landed **and** every comment it raised is fixed or answered. CI is **not** consulted — this is the value for a repo with no CI, or whose CI is unavailable rather than failing. |
-| `after-ci-and-review` | Both rows above: green checks **and** a review whose comments are all addressed. What "wait for green, answer the bot, then merge" means. |
+| `after-review` | A review has landed **and** every comment it raised is fixed or answered. CI is not consulted — this is the value for a repo with no CI, or whose CI is unavailable rather than failing. |
+| `after-ci-and-review` | Both rows above: green checks on the head **and** either a bot/human review whose comments are all addressed, or — when none is available on the head — a clearing adversarial-review verdict recorded for the head SHA. |
 | `never` | Never, by an agent. Report the PR as ready and stop; the human merges. |
 
-**What counts as a review.** Whatever GitHub reports on the PR itself: a review submitted
-by a human collaborator, or by any review bot installed on the repo. Read the PR's
-reviews — do not match a name. A policy that names its reviewer in prose goes stale the
-day the repo swaps one bot for another, and then blocks forever on a reviewer nobody has
-installed. A PR with no reviews at all does not satisfy `after-review`, and waiting is the
-correct behaviour.
+On a private repo with metered Actions minutes, or no CI, `after-ci` waits
+forever once checks stop reporting; the local-gates setting for that case is in
+`references/ci-minutes.md`.
 
-"Fixed or answered" is the bar the review loop already enforces: a fix paired with a reply,
-or a reply explaining the disagreement. An unresolved thread is an unmet policy, not a
-judgement call.
+**Risk tiers — who approves.** With `[review] preset` set, `merge_ready.sh` also
+asks `scripts/review_policy.py` what the PR's tier requires; `review_policy.py
+explain` prints the effective flow. The tier comes from the changed files: `high`
+on a `risk-paths` or `always-human-paths` match or more than `risk-lines` lines,
+`low` when every file is in `low-paths` (default: docs/config), else `medium`.
 
-**Who fixes, and who merges.** The findings are the session's work, not a handoff. Read
-every finding the review raised, verify each against the code, fix the real ones, and reply
-saying what changed and what was rejected and why. Under `after-review` that closing loop
-is the whole gate: merge on it, with no further human sign-off. Under
-`after-ci-and-review` the CI row above must be satisfied too. Under `never` the human
-merges whatever the threads say. Stopping to ask permission once the active policy's
-conditions are met is the same failure as merging before they are — the file already
-answered the question.
+| preset | low | medium | high |
+|---|---|---|---|
+| `solo-trust` | auto | agent | human-after |
+| `solo-gated` | auto | human:1 | human:1 |
+| `team` | agent | human:1 | human:2 |
+| `manual` | — no agent merges — | | |
 
-**A summary line is not the finding list.** A review bot can report an overall status of
-"passed" or "review completed" on the PR while leaving unresolved comments on individual
-lines. Read the review comments themselves, not the rollup — merging on a green summary
-with open threads breaks the policy while appearing to satisfy it.
+`agent` is a review clear on the head (bot review or adversarial CLEAR marker);
+`human:N` adds N approvals **on the head SHA** from distinct trusted non-bot users
+other than the author — a bot's or the author's approval counts zero, and an
+approval of an older commit is stale (so when the agent opens PRs with the
+owner's own account, `human:N` needs the agent on a separate GitHub identity);
+`human:N` also needs the agent review itself, not just N humans; `human-after` merges on the agent review and
+writes `Ratify: pending` for the human to confirm later. `approval-<tier>`
+overrides one row; an `always-human-paths` match always needs one human.
+`merge_ready.sh --body` carries the verdict as trailers on the merge commit:
+`Risk-tier`, `Reviewed-by`, `Approved-by`, `Ratify`. A waiting PR is not a
+blocked worker: report it and take the next task that does not depend on it.
 
-**When CI cannot report at all.** Absent is not green. A repo out of runner minutes, with
-no workflows, or whose jobs die in seconds with no runner assigned has produced no
-evidence — so `after-ci` and `after-ci-and-review` are unsatisfied, and stay that way for
-as long as the outage lasts. Do not read "no failures" as success. Say what is missing and
-stop: that state is precisely why `after-review` exists, and the fix is the host changing
-one line in `arsenal/config.toml`, not an agent deciding at merge time that today the gate
-did not mean anything.
+**Branch protection is the other half.** `merge-policy` governs what an agent
+waits for; it cannot stop a push that skips the PR. `/init` protects the default
+branch once (`scripts/branch_protection.py`, recorded as `branch-protection`),
+requiring only checks that reported on recent PRs, so both agree on "required".
 
-**The same shape shows up on the review side.** A review-bot vendor that caps how many
-reviews it runs per hour is a second, independent kind of platform quota — not a defect in
-the PR, just an external usage limit, same as the CI case above but affecting the review
-half of `after-review` / `after-ci-and-review` instead of the CI half. See
-`plugins/core/skills/github/references/pr-review-loop.md`, section "When the review bot
-rate-limits itself", for the retry pattern. Neither kind of quota is a reason to weaken the policy or to merge
-past what it requires — it is a reason to wait, requeue, and keep working whatever PRs have
-already cleared the bar while the clock runs out on the rest.
+**What counts as a review.** Whatever GitHub reports on the PR: a review from a
+human collaborator or from any review bot installed on the repo. Read the PR's
+reviews rather than matching a name, because a named reviewer goes stale when the
+repo changes bots. **When no bot or human review is available** — the bot is
+rate-limited, over a free-tier cap, skipped the repo ("fewer than N stars"), or
+silent past `bot-wait-min` — the pre-PR adversarial review is the review: a
+CLEAR published for the head SHA (§ A second reader that cannot approve)
+satisfies `after-review` and `after-ci-and-review`. A PR with neither does not. "Fixed or
+answered" means a fix paired with a reply, or a reply explaining the
+disagreement; an unresolved thread is an unmet policy.
+
+**A second reader that cannot approve.** GitHub refuses an approval from the PR's
+author, so a reviewer posting with the author's credential (every session in a
+one-account fleet) records its verdict as a marker comment instead:
+`adversarial_review.sh marker --post <pr>`, run in the reviewer's own checkout of
+the head after its `verdict`. It writes
+`<!-- arsenal-review: verdict=CLEAR head=<sha> session=<id> -->` for the
+committed head. Only markers from an OWNER/MEMBER/COLLABORATOR commenter or an App
+are read; a BLOCK on the head blocks. Whether a CLEAR from the author's own login
+counts is `[review] reviewer-identity`:
+
+| Value | A CLEAR from the PR author's login |
+|---|---|
+| `distinct-login` | never counts — the marker must come from another login |
+| `distinct-session` (default) | counts when its `session=` is none of the `Claude-Session:` trailers on the PR's commits; no session, a match, or no trailer to compare against is `unresolvable`, never clear, and the reason says the head was cleared via distinct-session |
+
+Known gap: a subagent reports its parent's session id, so a reviewer spawned as a
+subagent of the implementing session is refused. Run the reviewer as its own
+session (claim the head with `claim_review.sh`).
+
+**Who fixes, and who merges.** The findings are the session's work: verify each
+against the code, fix the real ones, and reply with what changed and what was
+rejected and why. Under `after-review` that loop is the whole gate, so merge
+without further sign-off; `after-ci-and-review` needs the CI row too; under
+`never` the human merges. Once the policy's conditions hold, stopping to ask is
+as wrong as merging early.
+
+**A summary line is not the finding list.** A bot can report "passed" or "review
+completed" while leaving unresolved line comments. Read the comments themselves.
+
+**When CI cannot report at all.** Absent is not green. A repo out of runner
+minutes, with no workflows, or whose jobs die with no runner has produced no
+evidence, so `after-ci` and `after-ci-and-review` stay unsatisfied. Say what is
+missing and stop; the remedy is the host switching to `after-review` in
+`arsenal/config.toml`, not an agent deciding at merge time.
+
+**A conflicting PR produces no run either, and that is not an outage.** A
+workflow on `pull_request` builds `refs/pull/<n>/merge`, which cannot be computed
+while the PR conflicts, so no run, check or status appears at all. Ask before
+concluding CI is unavailable:
+
+```bash
+gh pr view <n> --json mergeable,mergeStateStatus
+# {"mergeable":"CONFLICTING","mergeStateStatus":"DIRTY"}
+```
+
+Waiting does not help here and `after-review` is not the escape hatch: merge the
+base and resolve. `pr_audit.py` and `merge_ready.sh` already read `mergeable`;
+do not read their blank CI column as an outage.
+
+**Resolve the conflict last.** Merging the base moves the head, and every piece
+of evidence (the review claim, the checks) is bound to a head. On a PR under
+review, take the reader reports, fix the findings, then resolve the conflict, then
+run the gate and re-read once on the final head.
+
+**A rate-limited review bot is the same shape on the review side**: an external
+quota, not a defect in the PR. `review_sources.py --pr <N>` reports such a bot as
+`unavailable`, never `pending`, so the decision goes straight to the local
+review; that review's published CLEAR is the review for the merge
+(`references/pre-pr-review.md` § 5). Neither quota is a reason to weaken the
+policy. **A bot review that arrives after the merge still counts as findings**:
+fix or answer each one in a follow-up PR, as you would have before merging.
 
 ---
 
+## A fleet that stopped — `scripts/pr_audit.py`
+
+The policy answers "may I merge this PR?" but cannot see a stalled fleet: PRs
+open with CI green, claims held and issues assigned, and no session working on
+any of them.
+
+```bash
+python3 claude-arsenal/scripts/pr_audit.py --prs open-prs.json --claims claims.json
+```
+
+One row per open PR (head SHA, age, CI, review, and the one next action), plus
+the claim refs with no open PR behind them, since a sandboxed session cannot
+delete a claim ref and nothing else reports one that outlived its work. `--json`
+for a machine, `--pr <n> --require-ready` for one PR's exit code. It does no
+network I/O: hand it the payload GitHub returned, as with `query_status.py`, so it
+works where `gh` does not.
+
+## Reviewing the same head twice — `bin/claim_review.sh`
+
+```bash
+bash claude-arsenal/bin/claim_review.sh <pr> <head-sha>   # 0 won · 1 lost · 5 manual
+```
+
+The same compare-and-swap as `claim_task.sh`, under `arsenal/reviews/<pr>-<sha>`,
+so two sessions do not both pay for a review of one tree. The head SHA is part of
+the key because a review is about one tree: a new push is a new unit of work,
+claimable by whoever gets there first.
+
 ## Upkeep GitHub does — `.github/workflows/arsenal-queue.yml`
 
-Merging covers a task that finished. Four things it cannot cover happen when **no session
-is running**, and each used to be a line asking an agent to tidy up at the end — the least
-reliable place to put anything, since the sessions that most need cleaning up are the ones
-that ended badly:
+These events happen when no session is running, so the workflow handles them:
 
 | Event | What GitHub does |
 |---|---|
@@ -186,15 +250,12 @@ that ended badly:
 | Claim held >24h with no open PR | Releases it — the session holding it crashed. This sweep is the only sanctioned way a claim is released; nothing else should decide a claim looks abandoned |
 | Task PR opened with no closing keyword | Fails its check **before** the merge |
 
-`/init` installs the workflow and prints what it does and what it can touch. It never runs
-code from a pull request, and only a merge into the **default** branch completes a task —
-a stacked PR merging into another branch is not done yet, exactly as the keyword itself
-behaves. Deleting the file opts out for good: `/init` records `queue-automation = false` in
-`arsenal/config.toml` rather than reinstalling it on the next session start.
+`/init` installs the workflow and prints what it does and can touch. It never runs
+code from a pull request, and only a merge into the default branch completes a
+task, as with the keyword itself. Deleting the file opts out for good: `/init`
+records `queue-automation = false` rather than reinstalling it.
 
-A repo without the workflow still works — the merge path is unchanged — but a session there
-has to expect stale claims and unhandled task files, and fix them before starting.
-
-So the session-start protocol's job is genuinely to read the board and pick up work. If
-step 3 or 4 reports problems in a repo that has the workflow, that is a signal something
-is wrong, not the normal cost of starting.
+Without the workflow the merge path still works, but stale claims and unhandled
+task files must be fixed by hand (§ Ending a session is reporting, not repair).
+In a repo that has it, problems reported at session-start steps 3–4 signal that
+something is wrong, not the normal cost of starting.

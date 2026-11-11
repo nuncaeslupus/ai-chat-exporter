@@ -6,7 +6,7 @@ task's state means. Nothing here has to be in context to start a session.
 ## Contents
 
 - [Task lifecycle](#task-lifecycle) — the states, and why none of them is stored
-- [Task format — the rest of it](#task-format--the-rest-of-it)
+- [Task format — the rest of it](#task-format--the-rest-of-it) — a full example, and the field rules
 - [State directory layout](#state-directory-layout)
 
 ---
@@ -28,6 +28,25 @@ to detect.
 
 ## Task format — the rest of it
 
+````markdown
+---
+id: t-3f8a91c2
+label: "extract surface probe"
+title: "Extract the surface probe into its own script"
+priority: 5
+deps: [t-aaaa1111, t-bbbb2222]
+requires: [surface:cli]
+tags: [CLI]
+workspace: BACKEND
+max-attempts: 3
+---
+
+## Acceptance gate
+```bash
+bash tests/surface_probe_test.sh
+```
+````
+
 `priority` encodes **task size** — S=10, M=5, L=1, larger runs sooner — and nothing
 else. Build order belongs in `deps`. Only `id` and `title` are required.
 
@@ -39,7 +58,9 @@ coordination, which is what lets several agents add tasks at once.
 ## State directory layout
 
 ```
-claude-arsenal/        ← upstream. /init owns it and may overwrite it freely
+claude-arsenal/        ← upstream. /init refreshes what it ships and retires what
+                         it no longer ships. A file YOU add here is left alone.
+  .arsenal-manifest    ← what this install wrote; only these are ever retired
   AGENTS.md            ← the session protocol; imported via @claude-arsenal/AGENTS.md
   references/          ← the rest of the protocol, read on demand (never imported)
   agents/worker.md     ← worker subagent definition
@@ -50,12 +71,14 @@ claude-arsenal/        ← upstream. /init owns it and may overwrite it freely
     worktree_probe.sh  ← probes whether git worktrees work here (fan-out safety)
     worker_postcheck.sh ← restores a clean tree after each worker
     rescue_snapshot.sh ← snapshots a dirty tree before any forced restore
+    park_task.sh      ← pushes a stopped task's uncommitted work to arsenal/wip/<id>
     host_setup.sh      ← runs the host's install command in a fresh worktree
     open_task_pr.sh    ← worker-side; branch → commit → push → PR
     adversarial_review.sh ← pre-PR review packet, verdict, and freshness receipt
     gate_run.sh        ← runs the task's fenced gate block
     budget_check.sh    ← quota stop + per-session round cap
     check_update.sh    ← bundle freshness against the upstream tag
+    reader_hook.sh     ← PostToolUse: a spec or plan changed, its reader is stale
     statusline_capture.sh, detect_surface.sh, workspace_list.sh
   workflows/
     arsenal-queue.yml  ← installed to .github/workflows/ by /init
@@ -69,16 +92,32 @@ claude-arsenal/        ← upstream. /init owns it and may overwrite it freely
     arsenal_config.py  ← reads arsenal/config.toml
     arsenal_migrate.py ← one-time move from the old coordination-branch queue
     gate_evidence.py
+    reader_check.py    ← which spec/plan lacks a current reader; exports left in Downloads
+    ideas_log.py       ← parses/checks status/ideas.md; the board's one `ideas:` line
 
 arsenal/               ← yours. Scaffolded once, then never written by an upgrade
-  config.toml          ← merge-policy, test-discipline, listing budget…
+  config.toml          ← merge-policy, host-gate, listing budget…
   tasks/<id>.md        ← the tasks; their front matter is the DAG
-  specs/ plans/        ← specifications and plans
-  project/             ← workspace overview + per-workspace context
+  project/             ← workspace overview + per-workspace context (<ws>/spec.md, plan.md)
   session/
     handover.md        ← live; updated each session
     surface_profile.json, rate_limits.json, budget_iterations.json  ← gitignored
 ```
+
+`surface_profile.json` is what `task_select.py` offers against `requires:`, with any
+`--capability` added. `detect_surface.sh` writes it at session start: `surface:cli` or
+`surface:cloud`+`surface:web`, reachable services, and every host probe declared in
+`config.toml` that exits 0 here (5 s each):
+
+```toml
+[capabilities]
+"net:example.com" = "curl -sf -o /dev/null --max-time 5 https://example.com/"
+"data"            = "test -d data/raw"
+```
+
+`requires:` also gates on things that are not the surface — `[human:gate]` for "not for
+the worker loop", a name nobody grants for "not yet". A task asking for a capability no
+surface offers is listed in the selector's warning, never dispatched.
 
 The split is the point: upstream owns exactly one directory, so an upgrade can never touch
 your tasks, plans, or settings — and the vendored prefix contains only upstream content,

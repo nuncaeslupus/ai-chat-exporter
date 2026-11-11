@@ -47,7 +47,10 @@ from analyze_har import ensure_index, verify_for_seek
 # Windows device names, which are reserved as filenames on that platform
 # whatever extension follows them.
 _RESERVED_STEMS = {
-    "con", "prn", "aux", "nul",
+    "con",
+    "prn",
+    "aux",
+    "nul",
     *(f"com{i}" for i in range(1, 10)),
     *(f"lpt{i}" for i in range(1, 10)),
 }
@@ -169,9 +172,7 @@ def _text_from_html(html: str, selector: str) -> list[str]:
                 return
             values = dict(attrs)
             by_tag = want_tag is not None and tag == want_tag
-            by_attr = want_attr is not None and want_value in (
-                values.get(want_attr) or ""
-            ).split()
+            by_attr = want_attr is not None and want_value in (values.get(want_attr) or "").split()
             if by_tag or by_attr:
                 self.depth = 1
 
@@ -223,9 +224,7 @@ def show_entry(entry: dict[str, Any], row: dict[str, Any], max_body: int) -> lis
         lines.append("query:")
         lines += [f"  {name} = {value}" for name, value in row["query"]]
     lines.append("request headers:")
-    lines += [
-        f"  {h.get('name')}: {h.get('value')}" for h in (request.get("headers") or [])
-    ]
+    lines += [f"  {h.get('name')}: {h.get('value')}" for h in (request.get("headers") or [])]
     post = request.get("postData") or {}
     if post.get("text"):
         decoded = decode_body(post)
@@ -253,8 +252,14 @@ def main(argv: list[str] | None = None) -> int:
     add_selection_args(parser)
 
     show = parser.add_argument_group("output")
-    show.add_argument("--list-only", action="store_true", help="one line per entry (default)")
-    show.add_argument("--show", type=int, metavar="IDX", help="one entry in full")
+    # `--list-only` was parsed and never read: listing is already the default, so
+    # the flag existed only to be ignored by a caller who expected it to mean
+    # something. Paired with `--show` it has the job it reads as — asking for
+    # both is a contradiction, and argparse now says so instead of silently
+    # showing one entry in full.
+    form = show.add_mutually_exclusive_group()
+    form.add_argument("--list-only", action="store_true", help="one line per entry (default)")
+    form.add_argument("--show", type=int, metavar="IDX", help="one entry in full")
     show.add_argument("--json", action="store_true", dest="as_json", help="machine-readable")
     show.add_argument("--fields", metavar="A,B", help="restrict --json to these row fields")
     show.add_argument("--limit", type=int, default=20, help="row cap; 0 removes both caps")
@@ -271,7 +276,8 @@ def main(argv: list[str] | None = None) -> int:
     extract.add_argument("--xpath", metavar="EXPR", help="ElementTree path from an XML body")
     extract.add_argument("--schema", action="store_true", help="print a JSON body's shape")
     extract.add_argument(
-        "--secrets", action="store_true",
+        "--secrets",
+        action="store_true",
         help="answer value patterns against redacted headers by reading the capture",
     )
     args = parser.parse_args(argv)
@@ -464,10 +470,7 @@ def _json_payload(
     fields: list[str] | None,
     uncapped: bool,
 ) -> dict[str, Any]:
-    rows = [
-        {key: row.get(key) for key in fields} if fields else row
-        for row in limited
-    ]
+    rows = [{key: row.get(key) for key in fields} if fields else row for row in limited]
     return {
         "entries": rows,
         "shown": len(rows),
@@ -517,4 +520,9 @@ def _emit(
 
 
 if __name__ == "__main__":
+    # Windows consoles default to a legacy codepage (cp1252 and friends);
+    # a non-ASCII line must degrade to "?", never take the process down.
+    for _stream in (sys.stdout, sys.stderr):
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(encoding="utf-8", errors="replace")
     raise SystemExit(main())

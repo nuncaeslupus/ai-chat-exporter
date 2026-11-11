@@ -19,9 +19,9 @@
 
 ## 3. Risks
 
-| Risk | Severity | Description | Recommendation |
-|------|----------|-------------|----------------|
-| | Low/Med/High | | |
+| Risk | Severity | Confidence | Description | Recommendation |
+|------|----------|------------|-------------|----------------|
+| | Low/Med/High | Low/Med/High | | |
 
 ## 4. Observations
 
@@ -59,11 +59,11 @@
 
 ## 5. Blockers
 
-- <Issues that MUST be resolved before merge. Empty if none.>
+- <Issues to resolve before merge. Empty if none.>
 
 ## 6. Recommendations
 
-- <Suggestions for improvement that do NOT block merge>
+- <Suggestions for improvement that do not block merge>
 
 ## 7. Verdict
 
