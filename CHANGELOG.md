@@ -22,6 +22,10 @@ All notable changes to AI Chat Exporter are recorded here.
 - **Preferences, theme and language now stay on the device** (`storage.local`), as
   the privacy policy says. Values an earlier version synced to your browser
   account are moved over once and removed from the account.
+- **A failed Claude organization lookup is retried** on the next export instead of
+  being remembered until the page reloads.
+- **Settings saved by an older version are filled in with defaults** for options
+  added since.
 
 ## [1.3.0] — 2026-09-05
 

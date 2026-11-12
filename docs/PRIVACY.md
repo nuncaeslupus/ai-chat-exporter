@@ -37,13 +37,19 @@ the chat provider whose page you are already on:
   (`https://claude.ai/api/organizations/.../chat_conversations/...`) using your
   existing logged-in session, to retrieve message content the page does not
   fully render in the DOM. This is the same request the page itself makes, it
-  uses your own Claude session, and it goes only to `claude.ai`. Exports from
-  other platforms make no API call at all.
+  uses your own Claude session, and it goes only to `claude.ai`. When the page
+  does not reveal which organization the conversation belongs to, the extension
+  first asks `https://claude.ai/api/organizations` for your organization list
+  (account membership data) to pick the right one; nothing from that response is
+  stored or sent anywhere else. Exports from other platforms make no API call at
+  all.
 - **Images already in the conversation.** If your conversation contains images
   (uploads, generated images, images in the assistant's reply), a **PDF** export
   downloads them from wherever the chat page already loads them from — the
-  provider's own servers — so it can embed them in the file. This happens while
-  you are on that page, under that page's session.
+  provider's own servers — so it can embed them in the file. The request is made
+  without your cookies (anonymous cross-origin), so an image the host only serves
+  to a logged-in session, or without CORS headers, is left out of the file. This
+  happens while you are on that page.
 
 ## What the exported files do when you open them
 

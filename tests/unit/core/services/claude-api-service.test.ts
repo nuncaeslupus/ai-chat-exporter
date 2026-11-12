@@ -238,6 +238,19 @@ describe('ClaudeApiService', () => {
       });
     });
 
+    it('retries the organizations call after a transient failure instead of caching it for the page', async () => {
+      const doc = makeBlankDocument();
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      mockSendMessage().mockRejectedValueOnce(new Error('service worker restarted'));
+      mockSendMessage().mockResolvedValueOnce({ success: true, data: [{ uuid: 'api-org-1' }] });
+
+      expect(await ClaudeApiService.extractIdsFromPage(url, doc)).toBeNull();
+      expect((await ClaudeApiService.extractIdsFromPage(url, doc))?.organizationId).toBe(
+        'api-org-1'
+      );
+      warnSpy.mockRestore();
+    });
+
     it('never uses the numeric "id" field in place of "uuid" (id is a number, not the API uuid)', async () => {
       const doc = makeBlankDocument();
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);

@@ -35,6 +35,14 @@ describe('StorageService export options round-trip', () => {
     expect((await StorageService.getUserPreferences()).showMetaInfo).toBe(true);
   });
 
+  it('fills keys missing from an older stored object with their defaults', async () => {
+    await chrome.storage.local.set({ user_preferences: { fontScale: 'large' } });
+    const prefs = await StorageService.getUserPreferences();
+
+    expect(prefs.fontScale).toBe('large');
+    expect(prefs.filenameTemplate).toBe(DEFAULT_PREFERENCES.filenameTemplate);
+  });
+
   it('defaults showMetaInfo to true when nothing has been saved yet', async () => {
     const prefs = await StorageService.getUserPreferences();
     expect(prefs.showMetaInfo).toBe(true);
