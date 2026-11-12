@@ -363,6 +363,72 @@ describe('ClaudeApiService', () => {
       expect(warning).toBeUndefined();
     });
 
+    it('matches the branch the page shows when the tree response also holds a regenerated answer', () => {
+      const conversation = makeConversation([makePair(0, 'Q1', 'A1'), makePair(1, 'Q2', 'A2')]);
+      const withParent = (m: ClaudeApiChatMessage, parent?: string): ClaudeApiChatMessage => ({
+        ...m,
+        ...(parent && { parent_message_uuid: parent }),
+      });
+
+      const apiData: ClaudeApiConversationResponse = {
+        uuid: 'conv-1',
+        name: 'Test',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        current_leaf_message_uuid: 'a2-regenerated',
+        chat_messages: [
+          withParent(makeApiMessage('u1', 0, 'human')),
+          withParent(
+            makeApiMessage('a1', 1, 'assistant', [artifactContent('Doc A', 'content A')]),
+            'u1'
+          ),
+          withParent(makeApiMessage('u2', 2, 'human'), 'a1'),
+          withParent(
+            makeApiMessage('a2', 3, 'assistant', [artifactContent('Old', 'old content')]),
+            'u2'
+          ),
+          withParent(
+            makeApiMessage('a2-regenerated', 4, 'assistant', [
+              artifactContent('Doc B', 'content B'),
+            ]),
+            'u2'
+          ),
+        ],
+      };
+
+      const result = ClaudeApiService.enrichConversation(conversation, apiData);
+
+      expect(result.warning).toBeUndefined();
+      expect(result.conversation.pairs[0]?.answer.metadata?.artifacts?.[0]?.content).toBe(
+        'content A'
+      );
+      expect(result.conversation.pairs[1]?.answer.metadata?.artifacts?.[0]?.content).toBe(
+        'content B'
+      );
+    });
+
+    it('ignores current_leaf_message_uuid when parent links are missing (a one-message "branch")', () => {
+      const conversation = makeConversation([makePair(0, 'Q1', 'A1')]);
+      const apiData: ClaudeApiConversationResponse = {
+        uuid: 'conv-1',
+        name: 'Test',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        current_leaf_message_uuid: 'a1',
+        chat_messages: [
+          makeApiMessage('u1', 0, 'human'),
+          makeApiMessage('a1', 1, 'assistant', [artifactContent('Doc A', 'content A')]),
+        ],
+      };
+
+      const result = ClaudeApiService.enrichConversation(conversation, apiData);
+
+      expect(result.warning).toBeUndefined();
+      expect(result.conversation.pairs[0]?.answer.metadata?.artifacts?.[0]?.content).toBe(
+        'content A'
+      );
+    });
+
     it('does not misattribute artifacts when the DOM pair count and API assistant-message count diverge (edited/regenerated turn)', () => {
       // DOM scraped 2 pairs, but the API reports 3 assistant messages
       // (e.g. a regenerated turn). There is no stable id shared between

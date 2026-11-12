@@ -111,17 +111,19 @@ export class FilenameService {
   static generateFilename(template: string, variables: FilenameVariables): string {
     let filename = template;
 
-    // Replace all variables
-    filename = filename.replace(/{platform}/g, variables.platform);
-    filename = filename.replace(/{title}/g, variables.title);
-    filename = filename.replace(/{date}/g, variables.date);
-    filename = filename.replace(/{time}/g, variables.time);
-    filename = filename.replace(/{datetime}/g, variables.datetime);
-    filename = filename.replace(/{pairCount}/g, variables.pairCount ?? '');
+    // Replace all variables. Function replacers, because a scraped title is
+    // data: as a replacement *string* its "$&" / "$$" would be expanded.
+    filename = filename.replace(/{platform}/g, () => variables.platform);
+    filename = filename.replace(/{title}/g, () => variables.title);
+    filename = filename.replace(/{date}/g, () => variables.date);
+    filename = filename.replace(/{time}/g, () => variables.time);
+    filename = filename.replace(/{datetime}/g, () => variables.datetime);
+    filename = filename.replace(/{pairCount}/g, () => variables.pairCount ?? '');
 
     // Handle optional model - remove if not present
     if (variables.model) {
-      filename = filename.replace(/{model}/g, variables.model);
+      const model = variables.model;
+      filename = filename.replace(/{model}/g, () => model);
     } else {
       filename = filename.replace(/_{model}/g, '');
       filename = filename.replace(/{model}_/g, '');
@@ -141,7 +143,13 @@ export class FilenameService {
    */
   static sanitizeFilename(filename: string): string {
     // Remove forbidden characters: / \ : * ? " < > |
-    let sanitized = filename.replace(/[/\\:*?"<>|]/g, '');
+    // Also control characters and bidi/format overrides (U+202E would
+    // reorder the visible name).
+    let sanitized = filename.replace(
+      // eslint-disable-next-line no-control-regex
+      /[/\\:*?"<>|\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g,
+      ''
+    );
 
     // Replace spaces with hyphens
     sanitized = sanitized.replace(/\s+/g, '-');
@@ -149,8 +157,13 @@ export class FilenameService {
     // Remove multiple consecutive hyphens
     sanitized = sanitized.replace(/-+/g, '-');
 
-    // Trim leading and trailing hyphens
-    sanitized = sanitized.replace(/^-+|-+$/g, '');
+    // Trim leading/trailing hyphens and trailing dots (Windows drops them)
+    sanitized = sanitized.replace(/^-+|[-.]+$/g, '');
+
+    // Windows device names are unusable as a file stem, with any extension
+    if (/^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(sanitized)) {
+      sanitized = `_${sanitized}`;
+    }
 
     // Truncate to the byte budget (filesystem limits are in bytes, not
     // UTF-16 code units — a 200-char CJK title is ~600 bytes).
@@ -212,21 +225,13 @@ export class FilenameService {
   }
 
   /**
-   * Add extension to filename (replacing existing extension if present)
+   * Append the extension to a stem. The stem is never stripped: it is built
+   * from a conversation title, so a '.' in it ("Fix main.py error") is part of
+   * the name, not an old extension.
    */
   static addExtension(filename: string, extension: string): string {
-    // Remove leading dot from extension if present
     const ext = extension.startsWith('.') ? extension.substring(1) : extension;
-
-    // Remove existing extension
-    const withoutExt = filename.replace(/\.[^.]*$/, '');
-
-    // Handle empty filename
-    if (withoutExt === '') {
-      return `.${ext}`;
-    }
-
-    return `${withoutExt}.${ext}`;
+    return `${filename}.${ext}`;
   }
 
   /**

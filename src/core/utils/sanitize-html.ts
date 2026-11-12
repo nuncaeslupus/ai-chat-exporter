@@ -61,6 +61,12 @@ const ALLOWED_TAGS = new Set([
   'b',
   'i',
   'u',
+  's',
+  'mark',
+  'kbd',
+  'details',
+  'summary',
+  'input', // only a disabled checkbox survives; see below
   'svg',
   'title',
   'desc',
@@ -75,7 +81,35 @@ const ALLOWED_ATTRS: Record<string, Set<string>> = {
   // mirrors the `tabindex="0"` the html-exporter's own <pre> already carries
   // (A11Y-1/#216); this is the sanitizer both paths share.
   pre: new Set(['tabindex']),
+  // Inert structure that markdown renders: a list resuming at 3., task-list
+  // checkboxes, table spans and alignment.
+  ol: new Set(['start']),
+  th: new Set(['colspan', 'rowspan', 'align']),
+  td: new Set(['colspan', 'rowspan', 'align']),
+  input: new Set(['type', 'checked', 'disabled']),
+  details: new Set(['open']),
 };
+
+/**
+ * Elements dropped together with their content. Every other element that is
+ * not allowlisted is unwrapped (its children are kept and sanitised in turn),
+ * so inline HTML like `<font>` or `<center>` no longer takes its text with it.
+ * These are the ones whose content is code, a fallback payload or not prose.
+ */
+const DROP_WITH_CONTENT = new Set([
+  'script',
+  'style',
+  'template',
+  'iframe',
+  'object',
+  'embed',
+  'noscript',
+  'noembed',
+  'noframes',
+  'select',
+  'textarea',
+  'button',
+]);
 
 /** Attributes validated with `safeUrl` rather than kept verbatim. */
 const URL_ATTRS = new Set(['href', 'src']);
@@ -160,6 +194,7 @@ export function sanitizeHtml(html: string): string {
 
   const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_ELEMENT);
   const toRemove: Element[] = [];
+  const toUnwrap: Element[] = [];
 
   let node = walker.nextNode() as Element | null;
   while (node) {
@@ -171,7 +206,14 @@ export function sanitizeHtml(html: string): string {
       // DocumentFragment that a TreeWalker over the outer fragment never
       // descends into, so a <script> hidden inside it could otherwise
       // survive untouched. Dropping the <template> node itself sidesteps
-      // that: its `.content` goes with it.
+      // that: its `.content` goes with it. Inside an <svg> the drawing
+      // elements are dropped whole too, as the <svg> is only a size marker.
+      if (DROP_WITH_CONTENT.has(tag) || node.closest('svg')) {
+        toRemove.push(node);
+      } else {
+        toUnwrap.push(node);
+      }
+    } else if (tag === 'input' && (node as HTMLInputElement).type !== 'checkbox') {
       toRemove.push(node);
     } else {
       const allowedForTag = ALLOWED_ATTRS[tag];
@@ -199,6 +241,9 @@ export function sanitizeHtml(html: string): string {
 
   toRemove.forEach((el) => {
     el.remove();
+  });
+  toUnwrap.forEach((el) => {
+    el.replaceWith(...Array.from(el.childNodes));
   });
 
   return template.innerHTML;

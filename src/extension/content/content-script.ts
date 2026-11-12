@@ -81,6 +81,10 @@ class ContentScript {
     // Don't use the initialized flag to skip
     const parsed = this.parseConversation();
     if (!parsed) {
+      // The page no longer has a readable conversation (SPA navigation to a
+      // settings/projects view): drop the previous chat, or GET_CONVERSATION
+      // would keep answering with it.
+      this.conversation = null;
       this.notifyPageReadyState(false);
       return;
     }
@@ -107,6 +111,7 @@ class ContentScript {
   } | null {
     const parser = detectParser();
     if (!parser) {
+      this.drift = undefined;
       console.log(`[${EXTENSION_NAME}] No parser found for current page`);
       return null;
     }

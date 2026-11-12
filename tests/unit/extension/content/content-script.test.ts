@@ -890,6 +890,25 @@ describe('content-script get_conversation response strips htmlContent', () => {
     // The rest of the message survives -- this is a strip, not a truncation.
     expect(response.data.pairs[0]?.question.content).toBe('Q');
   });
+
+  it('stops answering with the previous chat once a re-parse finds nothing (SPA navigation)', async () => {
+    mockParse.mockReturnValue({
+      success: true,
+      conversation: createTestConversation([createTestQAPair(0, 'Q', 'A')]),
+    });
+    const listener = await loadMessageListener();
+    const ask = async (): Promise<{ data?: unknown }> => {
+      const sendResponse = vi.fn();
+      listener({ type: 'get_conversation' }, {}, sendResponse);
+      await vi.waitFor(() => expect(sendResponse).toHaveBeenCalled());
+      return sendResponse.mock.calls[0]?.[0] as { data?: unknown };
+    };
+
+    expect((await ask()).data).toBeTruthy();
+
+    mockParse.mockReturnValue({ success: false, error: 'no container' });
+    expect((await ask()).data).toBeFalsy();
+  });
 });
 
 // lo-9001: the sandboxed Deep Research frame's own content script relays its
@@ -1006,12 +1025,12 @@ describe('content-script export language', () => {
   });
 
   /**
-   * Answers every `storage.sync.get` with this one key. Harmless for the other
+   * Answers every `storage.local.get` with this one key. Harmless for the other
    * reads in this path: `getUserPreferences` looks up `user_preferences`, finds
    * nothing, and falls back to its defaults exactly as it does elsewhere here.
    */
   function storedLanguage(value: string | undefined): void {
-    (chrome.storage.sync.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (chrome.storage.local.get as ReturnType<typeof vi.fn>).mockResolvedValue({
       language_preference: value,
     });
   }

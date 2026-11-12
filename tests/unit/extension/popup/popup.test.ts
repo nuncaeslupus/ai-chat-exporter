@@ -82,14 +82,14 @@ const POPUP_DOM = `
 `;
 
 /**
- * Swap the stateless chrome.storage.sync stub (vitest.setup.ts always
+ * Swap the stateless chrome.storage.local stub (vitest.setup.ts always
  * resolves get() to {}) for a real in-memory store, so preferences set via
  * one call are visible to a later get() within the same test — the same
  * round-trip a real browser restart relies on.
  */
 function mockStatefulSyncStorage() {
   const store: Record<string, unknown> = {};
-  Object.assign(chrome.storage.sync, {
+  Object.assign(chrome.storage.local, {
     get: (key: string) => Promise.resolve({ [key]: store[key] }),
     set: (items: Record<string, unknown>) => {
       Object.assign(store, items);
@@ -240,7 +240,7 @@ describe('popup export options', () => {
   });
 
   it('reflects the persisted metadata/timestamp preferences in the toggles on load', async () => {
-    await chrome.storage.sync.set({
+    await chrome.storage.local.set({
       user_preferences: { showMetaInfo: false },
     });
 
@@ -259,13 +259,13 @@ describe('popup export options', () => {
     toggle.dispatchEvent(new Event('change'));
 
     await vi.waitFor(async () => {
-      const stored = await chrome.storage.sync.get('user_preferences');
+      const stored = await chrome.storage.local.get('user_preferences');
       expect((stored.user_preferences as { showMetaInfo: boolean }).showMetaInfo).toBe(false);
     });
   });
 
   it('reflects the persisted text-size step on load', async () => {
-    await chrome.storage.sync.set({ user_preferences: { fontScale: 'compact' } });
+    await chrome.storage.local.set({ user_preferences: { fontScale: 'compact' } });
 
     await loadPopup();
 
@@ -285,20 +285,20 @@ describe('popup export options', () => {
     large.dispatchEvent(new Event('change'));
 
     await vi.waitFor(async () => {
-      const stored = await chrome.storage.sync.get('user_preferences');
+      const stored = await chrome.storage.local.get('user_preferences');
       expect((stored.user_preferences as { fontScale: string }).fontScale).toBe('large');
     });
   });
 
   // TYPE-1 (medium/low): a rejected preference write left the checkbox
   // showing the new value forever — the DOM flip happens before the (now
-  // failing) write, and nothing put it back. `chrome.storage.sync` rethrows
+  // failing) write, and nothing put it back. `chrome.storage.local` rethrows
   // on failure (signed out of sync, an enterprise policy, a quota limit).
   it('reports a failure and resnaps the toggle when the preference write fails', async () => {
     await loadPopup();
 
-    const realSet = chrome.storage.sync.set.bind(chrome.storage.sync);
-    chrome.storage.sync.set = vi.fn().mockRejectedValueOnce(new Error('quota exceeded'));
+    const realSet = chrome.storage.local.set.bind(chrome.storage.local);
+    chrome.storage.local.set = vi.fn().mockRejectedValueOnce(new Error('quota exceeded'));
 
     const toggle = document.getElementById('option-show-meta-info') as HTMLInputElement;
     expect(toggle.checked).toBe(true); // default before the failed flip below
@@ -311,7 +311,7 @@ describe('popup export options', () => {
     // The toggle must not keep showing a value that was never actually saved.
     expect(toggle.checked).toBe(true);
 
-    chrome.storage.sync.set = realSet;
+    chrome.storage.local.set = realSet;
   });
 });
 

@@ -637,6 +637,35 @@ export class ClaudeApiService {
   }
 
   /**
+   * Restrict a `tree=True` response to the branch the page is showing: walk
+   * from `current_leaf_message_uuid` up through `parent_message_uuid`. The DOM
+   * only ever holds that branch, so counting every branch's messages (an
+   * edited prompt, a regenerated answer) made the positional match fail.
+   * Without a usable leaf or parent links the response is returned as-is.
+   */
+  private static activeBranch(
+    apiData: ClaudeApiConversationResponse
+  ): ClaudeApiConversationResponse {
+    const leaf = apiData.current_leaf_message_uuid;
+    if (!leaf) return apiData;
+    const byUuid = new Map(apiData.chat_messages.map((m) => [m.uuid, m]));
+    const branch: ClaudeApiChatMessage[] = [];
+    const seen = new Set<string>();
+    let current = byUuid.get(leaf);
+    while (current && !seen.has(current.uuid)) {
+      seen.add(current.uuid);
+      branch.push(current);
+      current = current.parent_message_uuid ? byUuid.get(current.parent_message_uuid) : undefined;
+    }
+    // A leaf with no parent links yields a one-message "branch": that is not a
+    // branch, it is missing data, so leave the response untouched.
+    if (branch.length === 0 || (branch.length === 1 && apiData.chat_messages.length > 1)) {
+      return apiData;
+    }
+    return { ...apiData, chat_messages: branch.reverse() };
+  }
+
+  /**
    * Enrich conversation with artifact content and per-message timestamps
    * from the API.
    *
@@ -661,8 +690,9 @@ export class ClaudeApiService {
    */
   static enrichConversation(
     conversation: Conversation,
-    apiData: ClaudeApiConversationResponse
+    fullApiData: ClaudeApiConversationResponse
   ): EnrichmentResult {
+    const apiData = this.activeBranch(fullApiData);
     const artifactsByMessageUuid = this.extractArtifacts(apiData);
 
     // PAR-2: claude.ai's virtual-scroll DOM can capture far fewer turns than

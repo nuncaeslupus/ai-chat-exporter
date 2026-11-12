@@ -13,8 +13,8 @@ import {
 /**
  * Preferences written before `includeMetadata` and `includeTimestamps` merged.
  *
- * Read-only shape: nothing writes these any more, but stored preferences sync
- * across devices and outlive an update, so they keep arriving.
+ * Read-only shape: nothing writes these any more, but stored preferences
+ * outlive an update, so they keep arriving.
  */
 interface LegacyMetaPreferences {
   includeMetadata?: boolean;
@@ -37,6 +37,40 @@ function migrateShowMetaInfo(stored: Partial<UserPreferences> & LegacyMetaPrefer
 }
 
 /**
+ * Read a preference from `storage.local`, moving it over once if an earlier
+ * build left it in `storage.sync`.
+ *
+ * Preferences used to live in `storage.sync`, which uploads them to the user's
+ * browser account; the privacy policy says they stay on the device, so they are
+ * local now. The synced copy is removed after it is copied across, so nothing
+ * stays behind in the account. A failure on the sync side never blocks a read.
+ */
+async function readPreference(key: string): Promise<unknown> {
+  const local: Record<string, unknown> = await chrome.storage.local.get(key);
+  if (local[key] !== undefined) return local[key];
+
+  let value: unknown;
+  try {
+    const synced: Record<string, unknown> = await chrome.storage.sync.get(key);
+    value = synced[key];
+    if (value === undefined) return undefined;
+    await chrome.storage.local.set({ [key]: value });
+    try {
+      await chrome.storage.sync.remove(key);
+    } catch (error) {
+      // Leave no half-migration: with the local copy present the next read
+      // would never come back to clear the account copy. Undo it so that read
+      // migrates (and cleans up) again.
+      await chrome.storage.local.remove(key).catch(() => undefined);
+      throw error;
+    }
+  } catch (error) {
+    console.error('Failed to migrate preference from sync storage:', error);
+  }
+  return value;
+}
+
+/**
  * Storage service for managing extension data
  */
 export class StorageService {
@@ -45,10 +79,7 @@ export class StorageService {
    */
   static async getUserPreferences(): Promise<UserPreferences> {
     try {
-      const result: Record<string, unknown> = await chrome.storage.sync.get(
-        STORAGE_KEYS.USER_PREFERENCES
-      );
-      const stored = result[STORAGE_KEYS.USER_PREFERENCES] as
+      const stored = (await readPreference(STORAGE_KEYS.USER_PREFERENCES)) as
         (Partial<UserPreferences> & LegacyMetaPreferences) | undefined;
       if (!stored) return DEFAULT_PREFERENCES;
       return { ...stored, showMetaInfo: migrateShowMetaInfo(stored) } as UserPreferences;
@@ -65,7 +96,7 @@ export class StorageService {
     try {
       const current = await this.getUserPreferences();
       const updated = { ...current, ...preferences };
-      await chrome.storage.sync.set({
+      await chrome.storage.local.set({
         [STORAGE_KEYS.USER_PREFERENCES]: updated,
       });
     } catch (error) {
@@ -84,11 +115,9 @@ export class StorageService {
    */
   static async getThemePreference(): Promise<ThemePreference> {
     try {
-      const result: Record<string, unknown> = await chrome.storage.sync.get(
-        STORAGE_KEYS.THEME_PREFERENCE
-      );
       return (
-        (result[STORAGE_KEYS.THEME_PREFERENCE] as ThemePreference | undefined) ?? DEFAULT_THEME
+        ((await readPreference(STORAGE_KEYS.THEME_PREFERENCE)) as ThemePreference | undefined) ??
+        DEFAULT_THEME
       );
     } catch (error) {
       console.error('Failed to get theme preference:', error);
@@ -101,7 +130,7 @@ export class StorageService {
    */
   static async setThemePreference(theme: ThemePreference): Promise<void> {
     try {
-      await chrome.storage.sync.set({
+      await chrome.storage.local.set({
         [STORAGE_KEYS.THEME_PREFERENCE]: theme,
       });
     } catch (error) {
@@ -119,16 +148,13 @@ export class StorageService {
    * reason -- see `getThemePreference`.
    *
    * A stored value naming a locale this build no longer ships falls back to
-   * `auto`: preferences sync across devices and outlive an update, so a bundle
+   * `auto`: preferences outlive an update, so a bundle
    * that has been dropped must not leave the extension asking for a file that
    * isn't there.
    */
   static async getLanguagePreference(): Promise<LanguagePreference> {
     try {
-      const result: Record<string, unknown> = await chrome.storage.sync.get(
-        STORAGE_KEYS.LANGUAGE_PREFERENCE
-      );
-      const stored = result[STORAGE_KEYS.LANGUAGE_PREFERENCE];
+      const stored = await readPreference(STORAGE_KEYS.LANGUAGE_PREFERENCE);
       return typeof stored === 'string' && isLanguagePreference(stored) ? stored : DEFAULT_LANGUAGE;
     } catch (error) {
       console.error('Failed to get language preference:', error);
@@ -141,7 +167,7 @@ export class StorageService {
    */
   static async setLanguagePreference(language: LanguagePreference): Promise<void> {
     try {
-      await chrome.storage.sync.set({
+      await chrome.storage.local.set({
         [STORAGE_KEYS.LANGUAGE_PREFERENCE]: language,
       });
     } catch (error) {
