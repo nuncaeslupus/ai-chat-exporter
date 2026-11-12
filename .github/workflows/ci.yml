@@ -5,10 +5,10 @@ on:
     branches: [main]
   pull_request:
 
-# A newer push to the same ref supersedes a run still in flight.
+# A newer push to the same PR supersedes a run still in flight (main pushes always finish).
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate:
