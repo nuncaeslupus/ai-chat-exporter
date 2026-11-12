@@ -3,6 +3,7 @@ id: t-dc9b5d05
 title: "review: Popup keeps showing the previous conversation after SPA navigation to a non-chat page"
 priority: 5
 requires: [human:gate]
+status: merged
 ---
 
 Imported from issue #282

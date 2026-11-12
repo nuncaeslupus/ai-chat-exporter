@@ -1195,7 +1195,7 @@ class PopupController {
   /**
    * Free text edits in place. Keystrokes only move the previews — repainting
    * the field would drop the caret, and a write per character would burn
-   * through chrome.storage.sync's quota. The write lands on `change`.
+   * through the storage quota. The write lands on `change`.
    */
   private literalInput(piece: FilenamePiece): HTMLInputElement {
     const input = document.createElement('input');
