@@ -204,9 +204,9 @@ export class ClaudeApiService {
    * DOM scrape (`findOrganizationId`) when neither resolves — strictly
    * additive, so a page where scraping still works is unaffected.
    *
-   * Cached per document/session: a failed resolution (`null`) is cached too,
-   * so it costs at most one cookie read + one network call per page session,
-   * not one per export.
+   * Cached per document/session once the API has answered (even with no match),
+   * so a successful lookup costs at most one cookie read + one network call per
+   * page session. A failed call is retried on the next export.
    *
    * The API response shape is unverified against the live service from this
    * environment. Confirmed live: `uuid` (string) is the conversation-API
@@ -226,6 +226,9 @@ export class ClaudeApiService {
     }
 
     let resolved: string | null = null;
+    // Only an answer is cached, never a failure: one service-worker restart or
+    // network blip must not disable API resolution until the page reloads.
+    let answered = false;
     try {
       const response = await chrome.runtime.sendMessage<unknown, MessageResponse<unknown>>({
         type: 'fetch_claude_organizations',
@@ -233,12 +236,13 @@ export class ClaudeApiService {
 
       if (response.success && response.data) {
         resolved = this.pickOrganizationId(this.parseOrganizations(response.data), document);
+        answered = true;
       }
     } catch (error) {
       console.warn('[Claude API Service] Failed to fetch organizations from API:', error);
     }
 
-    this.apiOrganizationIdCache.set(document, resolved);
+    if (answered) this.apiOrganizationIdCache.set(document, resolved);
     return resolved;
   }
 

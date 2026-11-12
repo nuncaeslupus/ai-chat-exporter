@@ -82,7 +82,13 @@ export class StorageService {
       const stored = (await readPreference(STORAGE_KEYS.USER_PREFERENCES)) as
         (Partial<UserPreferences> & LegacyMetaPreferences) | undefined;
       if (!stored) return DEFAULT_PREFERENCES;
-      return { ...stored, showMetaInfo: migrateShowMetaInfo(stored) } as UserPreferences;
+      // Defaults underneath, so a key added after the user's first save is
+      // never undefined at runtime despite the type.
+      return {
+        ...DEFAULT_PREFERENCES,
+        ...stored,
+        showMetaInfo: migrateShowMetaInfo(stored),
+      };
     } catch (error) {
       console.error('Failed to get user preferences:', error);
       return DEFAULT_PREFERENCES;

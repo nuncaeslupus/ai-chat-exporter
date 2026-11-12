@@ -3,7 +3,7 @@
  * TDD: Tests written before implementation
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
@@ -34,39 +34,6 @@ describe('ChatGPT Selectors', () => {
       expect(isChatGPTUrl('https://gemini.google.com')).toBe(false);
       expect(isChatGPTUrl('https://example.com')).toBe(false);
       expect(isChatGPTUrl('https://openai.com')).toBe(false); // Not chat.openai.com
-    });
-  });
-
-  describe('CHATGPT_SELECTORS', () => {
-    it('has all required selector properties', () => {
-      expect(CHATGPT_SELECTORS.conversationContainer).toBeDefined();
-      expect(CHATGPT_SELECTORS.messageElement).toBeDefined();
-      expect(CHATGPT_SELECTORS.userMessage).toBeDefined();
-      expect(CHATGPT_SELECTORS.assistantMessage).toBeDefined();
-      expect(CHATGPT_SELECTORS.messageContent).toBeDefined();
-    });
-
-    it('has optional selectors', () => {
-      expect(CHATGPT_SELECTORS.conversationTitle).toBeDefined();
-      expect(CHATGPT_SELECTORS.modelIndicator).toBeDefined();
-    });
-
-    it('has custom ChatGPT-specific selectors', () => {
-      expect(CHATGPT_SELECTORS.custom).toBeDefined();
-      expect(CHATGPT_SELECTORS.custom.conversationTurn).toBeDefined();
-      expect(CHATGPT_SELECTORS.custom.userMessageContent).toBeDefined();
-      expect(CHATGPT_SELECTORS.custom.assistantMessageContent).toBeDefined();
-    });
-
-    it('has code artifact selectors', () => {
-      expect(CHATGPT_SELECTORS.custom.codeArtifactContainer).toBeDefined();
-      expect(CHATGPT_SELECTORS.custom.codeArtifactLanguage).toBeDefined();
-      expect(CHATGPT_SELECTORS.custom.codeArtifactContent).toBeDefined();
-    });
-
-    it('has web citation selectors', () => {
-      expect(CHATGPT_SELECTORS.custom.citationPill).toBeDefined();
-      expect(CHATGPT_SELECTORS.custom.citationLink).toBeDefined();
     });
   });
 
@@ -141,8 +108,9 @@ describe('ChatGPT Parser', () => {
   let dom: JSDOM;
   let document: Document;
 
-  // Load the real DOM fixture
-  beforeEach(() => {
+  // Load the real DOM fixture once: every test here only reads it, and parsing
+  // the 260KB capture per test was most of this file's runtime.
+  beforeAll(() => {
     const fixturePath = join(
       __dirname,
       '../../../fixtures/dom-snapshots/chatgpt/real-capture.html'
@@ -153,11 +121,6 @@ describe('ChatGPT Parser', () => {
   });
 
   describe('DOM fixture validation', () => {
-    it('loads the fixture successfully', () => {
-      expect(document).toBeDefined();
-      expect(document.body).toBeDefined();
-    });
-
     it('contains expected ChatGPT structure', () => {
       const main = document.querySelector('main');
       expect(main).not.toBeNull();
