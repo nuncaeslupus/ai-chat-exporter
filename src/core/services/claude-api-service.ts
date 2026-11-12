@@ -657,7 +657,11 @@ export class ClaudeApiService {
       branch.push(current);
       current = current.parent_message_uuid ? byUuid.get(current.parent_message_uuid) : undefined;
     }
-    if (branch.length === 0) return apiData;
+    // A leaf with no parent links yields a one-message "branch": that is not a
+    // branch, it is missing data, so leave the response untouched.
+    if (branch.length === 0 || (branch.length === 1 && apiData.chat_messages.length > 1)) {
+      return apiData;
+    }
     return { ...apiData, chat_messages: branch.reverse() };
   }
 

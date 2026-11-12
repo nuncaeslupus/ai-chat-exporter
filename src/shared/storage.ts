@@ -55,7 +55,15 @@ async function readPreference(key: string): Promise<unknown> {
     value = synced[key];
     if (value === undefined) return undefined;
     await chrome.storage.local.set({ [key]: value });
-    await chrome.storage.sync.remove(key);
+    try {
+      await chrome.storage.sync.remove(key);
+    } catch (error) {
+      // Leave no half-migration: with the local copy present the next read
+      // would never come back to clear the account copy. Undo it so that read
+      // migrates (and cleans up) again.
+      await chrome.storage.local.remove(key).catch(() => undefined);
+      throw error;
+    }
   } catch (error) {
     console.error('Failed to migrate preference from sync storage:', error);
   }

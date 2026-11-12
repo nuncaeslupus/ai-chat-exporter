@@ -13,8 +13,9 @@ All notable changes to AI Chat Exporter are recorded here.
   (`CON`, `NUL`, ...) are now cleaned out of them.
 - **The popup no longer lists the previous chat** after you navigate in-app to a
   page with no conversation.
-- **Claude artifacts and timestamps survive an edited prompt or a regenerated
-  answer.** Messages are matched on the branch the page is showing.
+- **Claude artifacts and timestamps can survive an edited prompt or a regenerated
+  answer.** When Claude's response says which branch the page is showing, messages
+  are matched on that branch only; without that information nothing changes.
 - **Printing Markdown keeps list numbering, task checkboxes, table spans and
   inline HTML such as `<mark>`/`<kbd>`/`<s>`.** Unknown elements are unwrapped
   instead of deleted with their text.
@@ -27,7 +28,7 @@ All notable changes to AI Chat Exporter are recorded here.
 ### Added
 
 - **A language setting.** The extension only ever spoke the browser's language.
-  A new setting in the gear view pins one instead — for the popup *and* for the
+  A new setting in the gear view pins one instead — for the popup _and_ for the
   exported file — defaulting to "Browser language", which is what every install
   does today. An untranslated key falls back to English rather than showing a
   raw key.

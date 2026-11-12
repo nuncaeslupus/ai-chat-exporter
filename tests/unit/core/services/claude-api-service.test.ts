@@ -407,6 +407,28 @@ describe('ClaudeApiService', () => {
       );
     });
 
+    it('ignores current_leaf_message_uuid when parent links are missing (a one-message "branch")', () => {
+      const conversation = makeConversation([makePair(0, 'Q1', 'A1')]);
+      const apiData: ClaudeApiConversationResponse = {
+        uuid: 'conv-1',
+        name: 'Test',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+        current_leaf_message_uuid: 'a1',
+        chat_messages: [
+          makeApiMessage('u1', 0, 'human'),
+          makeApiMessage('a1', 1, 'assistant', [artifactContent('Doc A', 'content A')]),
+        ],
+      };
+
+      const result = ClaudeApiService.enrichConversation(conversation, apiData);
+
+      expect(result.warning).toBeUndefined();
+      expect(result.conversation.pairs[0]?.answer.metadata?.artifacts?.[0]?.content).toBe(
+        'content A'
+      );
+    });
+
     it('does not misattribute artifacts when the DOM pair count and API assistant-message count diverge (edited/regenerated turn)', () => {
       // DOM scraped 2 pairs, but the API reports 3 assistant messages
       // (e.g. a regenerated turn). There is no stable id shared between

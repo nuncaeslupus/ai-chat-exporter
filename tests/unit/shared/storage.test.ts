@@ -7,7 +7,7 @@
  * carries state across sessions).
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { StorageService } from '../../../src/shared/storage';
 import { DEFAULT_PREFERENCES } from '../../../src/shared/constants';
 
@@ -157,6 +157,24 @@ describe('preferences live in storage.local (the privacy policy says they stay o
     expect(await StorageService.getLanguagePreference()).toBe('es');
 
     expect(local.store.user_preferences).toMatchObject({ fontScale: 'large' });
+    expect(sync.store).toEqual({});
+  });
+
+  it('retries the cleanup of the synced copy when removing it failed once', async () => {
+    const local = memoryArea();
+    const sync = memoryArea({ theme_preference: 'dark' });
+    const realRemove = sync.remove;
+    let failures = 1;
+    sync.remove = (key: string) =>
+      failures-- > 0 ? Promise.reject(new Error('offline')) : realRemove(key);
+    Object.assign(chrome.storage.local, local);
+    Object.assign(chrome.storage.sync, sync);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    expect(await StorageService.getThemePreference()).toBe('dark');
+    expect(sync.store.theme_preference).toBe('dark');
+
+    expect(await StorageService.getThemePreference()).toBe('dark');
     expect(sync.store).toEqual({});
   });
 
