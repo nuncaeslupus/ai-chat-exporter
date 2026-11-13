@@ -442,6 +442,21 @@ drift net assumed every pair has two sides:
   carries that answer twice. The pre-rebuild shell has no sub-turn index, so there
   the opening turn (`data-testid="conversation-turn-1"`) is the nearest available
   fact and a greeting mid-thread drops with `turns-dropped` to report it.
+- **One turn can deliver several assistant units**, and the index is not an
+  alternating 0/2: deep research and a two-part scheduled report number theirs
+  `:0:`/`:1:` or `:1:`/`:2:`. Walking units one at a time pairs only the first and
+  drops the rest in silence — `turns-dropped` counts message *units*
+  (`BaseParser.countTurnContainers` reads `selectors.messageElement`, which for
+  ChatGPT is the unit), so two units against one pair cannot fire it, and a
+  question-less turn also suppresses the required-selector path. `extractQAPairs`
+  groups a unit's siblings by their shared `[data-turn-key]` wrapper, builds the
+  answer from all of them, and skips the ones already read. Extracting from the
+  wrapper needs no new combining code — `extractAssistantMessageFromTurn` already
+  combines every `assistantMessage` element beneath whatever it is handed, and that
+  selector is role-scoped, so the question sharing the wrapper cannot leak in. Feed
+  `turnLengths` the *units'* length, though, never the wrapper's: the wrapper holds
+  the question too, and a long question with a short answer then reads as a
+  `content-shortfall`.
 - Only a *question* is ever synthesised. A user turn still waiting for its reply is
   skipped as pending by `extractQAPairs`, so an empty **answer** is always a read
   failure and must stay reportable.

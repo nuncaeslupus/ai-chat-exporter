@@ -56,7 +56,7 @@ export class ChatGPTParser extends BaseParser {
     // Deliberately NOT keyed off the user selectors themselves, which would
     // measure the suppression with the very thing it vouches for. The walk
     // reaches this state only by reading unit INDEXES (see
-    // `isFirstUnitOfTurn`), so a rename that killed `userTurn` on an ordinary
+    // `turnNeverHadQuestion`), so a rename that killed `userTurn` on an ordinary
     // conversation leaves its answers at a non-zero index, synthesises nothing,
     // and leaves both keys required -- drift fires, loudly.
     return keys.filter((key) => key !== 'userMessage' && key !== 'custom.userTurn');
@@ -197,11 +197,22 @@ export class ChatGPTParser extends BaseParser {
       // above this window -- and keeping that one emits a pair
       // `scroll-to-load.ts` cannot stitch onto the window above, which exports
       // the answer twice.
+      // One turn can deliver SEVERAL assistant units -- deep research, a
+      // scheduled task reporting in two parts. The first mounted one builds
+      // the pair, out of the content of all of them; the rest are skipped
+      // here, having already been read. Handling each unit on its own instead
+      // dropped every later one outright, since a later unit has neither a
+      // pending question nor an index-0 key.
+      const units = this.assistantUnitsOfTurn(turn);
+      if (units[0] !== turn) {
+        return;
+      }
+
       if (!hasPendingQuestion && !this.turnNeverHadQuestion(turn)) {
         return;
       }
 
-      const answer = this.extractAssistantMessageFromTurn(turn, config);
+      const answer = this.extractAssistantUnits(units, config);
       if (!hasPendingQuestion) {
         this.inventedQuestions.push(pairs.length);
       }
@@ -212,7 +223,12 @@ export class ChatGPTParser extends BaseParser {
           answer ?? this.createMessage('assistant', '')
         )
       );
-      this.turnLengths.push(turn.textContent?.length ?? -1);
+      // The units' own length, never the wrapper's: a wrapper also holds the
+      // question, and a long question with a short answer would then read as a
+      // `content-shortfall`.
+      this.turnLengths.push(
+        units.reduce((total, unit) => total + (unit.textContent?.length ?? 0), 0) || -1
+      );
       pendingQuestion = null;
       hasPendingQuestion = false;
     });
@@ -317,6 +333,40 @@ export class ChatGPTParser extends BaseParser {
   private extractUserMessageFromTurn(turn: Element, config: ParserConfig): Message | null {
     const messageElement = turn.querySelector(this.selectors.userMessage);
     return this.extractUserMessage(messageElement ?? turn, config);
+  }
+
+  /**
+   * The mounted assistant message units of this unit's own turn, in document
+   * order. Just the unit itself on the pre-rebuild shell, where a turn is one
+   * article with no sub-units and so no wrapper to group them by.
+   */
+  private assistantUnitsOfTurn(unit: Element): Element[] {
+    const wrapper = unit.closest('[data-turn-key]');
+    const units = wrapper
+      ? [...wrapper.querySelectorAll<Element>(this.selectors.custom.assistantTurn)]
+      : [];
+    return units.length > 0 ? units : [unit];
+  }
+
+  /**
+   * One answer out of every assistant unit of a turn.
+   *
+   * For several units that means extracting from their shared wrapper, which
+   * needs no new code: `extractAssistantMessageFromTurn` already combines
+   * every `assistantMessage` element it finds beneath whatever it is handed,
+   * and that selector is role-scoped (`[data-chatgpt-selection-message-id]`,
+   * `[data-message-author-role="assistant"]`), so the question sharing that
+   * wrapper cannot leak into the answer.
+   */
+  private extractAssistantUnits(units: Element[], config: ParserConfig): Message | null {
+    const first = units[0];
+    if (!first) {
+      return null;
+    }
+    if (units.length === 1) {
+      return this.extractAssistantMessageFromTurn(first, config);
+    }
+    return this.extractAssistantMessageFromTurn(first.closest('[data-turn-key]') ?? first, config);
   }
 
   /**

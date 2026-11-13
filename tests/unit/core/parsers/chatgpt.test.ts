@@ -1161,4 +1161,69 @@ describe('ChatGPT Parser - scheduled-task conversation (2026-11)', () => {
     expect(result.warnings).toContain('Turn 2: the question could not be read');
     expect(result.warnings).not.toContain('Turn 1: the question could not be read');
   });
+
+  it('keeps every part of a question-less turn that reports in two units', () => {
+    // A scheduled task can report in more than one unit. Pairing only the
+    // index-0 one exported PART ONE and silently dropped the rest: nothing
+    // notices, because `turns-dropped` counts message UNITS (two of them
+    // against one pair, so it cannot fire) and a question-less turn also
+    // suppresses the required-selector path.
+    const parent = doc.querySelector('[data-turn-key]')?.parentElement;
+    const twoPart = doc.createElement('div');
+    twoPart.setAttribute('data-turn-key', 'two-part');
+    twoPart.innerHTML = `
+      <div data-content-search-unit-key="two-part:0:assistant">
+        <div data-chatgpt-selection-message-id="p1">
+          <div data-markdown-text-style=""><p>PART ONE of the report.</p></div>
+        </div>
+      </div>
+      <div data-content-search-unit-key="two-part:1:assistant">
+        <div data-chatgpt-selection-message-id="p2">
+          <div data-markdown-text-style=""><p>PART TWO of the report.</p></div>
+        </div>
+      </div>`;
+    parent?.appendChild(twoPart);
+
+    const result = new ChatGPTParser(doc).parse();
+    const pairs = result.conversation?.pairs ?? [];
+
+    expect(pairs).toHaveLength(2);
+    expect(pairs[1]?.answer.content).toContain('PART ONE');
+    expect(pairs[1]?.answer.content).toContain('PART TWO');
+    expect(result.drift).toBeUndefined();
+  });
+
+  it('keeps a second assistant unit that follows a question in the same turn', () => {
+    // The unit index is not an alternating 0/2: this turn numbers its answer
+    // units 1 and 2, the shape the synthetic fixture does not carry. Reading
+    // only the first assistant unit exported half the answer, silently.
+    const parent = doc.querySelector('[data-turn-key]')?.parentElement;
+    const graft = doc.createElement('div');
+    graft.setAttribute('data-turn-key', 'sequential');
+    graft.innerHTML = `
+      <div data-content-search-unit-key="sequential:0:user">
+        <div data-user-message-bubble="">
+          <div class="whitespace-pre-wrap">Report in two parts, please.</div>
+        </div>
+      </div>
+      <div data-content-search-unit-key="sequential:1:assistant">
+        <div data-chatgpt-selection-message-id="s1">
+          <div data-markdown-text-style=""><p>FIRST half of the answer.</p></div>
+        </div>
+      </div>
+      <div data-content-search-unit-key="sequential:2:assistant">
+        <div data-chatgpt-selection-message-id="s2">
+          <div data-markdown-text-style=""><p>SECOND half of the answer.</p></div>
+        </div>
+      </div>`;
+    parent?.appendChild(graft);
+
+    const result = new ChatGPTParser(doc).parse();
+    const pairs = result.conversation?.pairs ?? [];
+
+    expect(pairs).toHaveLength(2);
+    expect(pairs[1]?.question.content).toBe('Report in two parts, please.');
+    expect(pairs[1]?.answer.content).toContain('FIRST half');
+    expect(pairs[1]?.answer.content).toContain('SECOND half');
+  });
 });
