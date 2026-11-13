@@ -4,8 +4,20 @@ All notable changes to AI Chat Exporter are recorded here.
 
 ## [Unreleased]
 
+## [1.3.1] — 2026-11-13
+
 ### Fixed
 
+- **ChatGPT conversations export correctly again.** chatgpt.com's November 2026 app
+  shell moved the conversation into `[data-turn-key]` turns whose messages are
+  `[data-content-search-unit-key]` units, which the parser did not recognise: the
+  popup reported no conversation, or the export came out empty.
+- **A scheduled task's result exports too.** A chat whose only content is ChatGPT's
+  own answer, with no question from you, produced nothing at all.
+- **Long conversations export in full.** chatgpt.com and claude.ai mount and unmount
+  turns as you scroll, so an export saw only the rendered window and silently
+  dropped the older messages. The export now walks the conversation first, and falls
+  back to the plain parse whenever the walk would hold less than it already had.
 - **A chat title containing a dot no longer truncates the filename.** "Fix main.py
   error" was saved as `Fix-main.pdf`, losing the rest of the title and the date.
 - **Titles containing `$` (such as `$&` or `$$`) are kept literally** in filenames;
