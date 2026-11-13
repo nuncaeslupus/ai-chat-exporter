@@ -157,10 +157,13 @@ export class ChatGPTParser extends BaseParser {
 
       // Assistant turn.
       const answer = this.extractAssistantMessageFromTurn(turn, config);
-      if (!hasPendingQuestion) {
-        // Orphan assistant turn with no preceding question; nothing to pair.
-        return;
-      }
+      // An assistant turn with no preceding question is still content the user
+      // can see, so it is paired with an empty question rather than dropped --
+      // the mirror of the orphan-user branch above. Measured live on
+      // 2026-11-13: a scheduled-task conversation is ONE assistant-only turn,
+      // so dropping orphans made every one of them export as nothing and show
+      // the popup's "no conversation" state. Reverses PAR-1's drop-and-warn,
+      // whose complaint was that the turn went missing in the first place.
       pairs.push(
         this.createQAPair(
           pairs.length,

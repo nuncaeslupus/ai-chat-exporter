@@ -401,12 +401,15 @@ describe('ChatGPTParser implementation', () => {
       expect(pairs[2]?.answer.content).toBe('Third answer');
     });
 
-    it('signals turns-dropped when a leading orphan assistant turn is silently skipped (PAR-1)', () => {
+    it('keeps a leading orphan assistant turn instead of dropping it (PAR-1)', () => {
       // A custom-GPT greeting opens the conversation with an assistant turn
-      // before any question -- extractQAPairs has nothing to pair it with and
-      // drops it. Before the turns-dropped rule this produced success:true,
-      // warnings:undefined, drift:undefined with the greeting gone and no
-      // signal anywhere.
+      // before any question. PAR-1 originally made that drop non-silent by
+      // firing turns-dropped; it is now not dropped at all -- it is paired
+      // with an empty question, the mirror of the orphan-user branch. The
+      // reversal is deliberate: a scheduled-task conversation on the 2026-11
+      // shell is a single assistant-only turn (measured live 2026-11-13), so
+      // dropping orphans exported those as nothing at all. Keeping the turn
+      // serves PAR-1's actual complaint -- that the content went missing.
       const html = `
         <html><body><main>
           <article data-testid="conversation-turn-1" data-turn="assistant">
@@ -430,10 +433,13 @@ describe('ChatGPTParser implementation', () => {
       const result = new ChatGPTParser(dom.window.document).parse();
 
       const pairs = result.conversation?.pairs ?? [];
-      expect(pairs).toHaveLength(1);
-      expect(pairs[0]?.question.content).toBe('question two');
-      expect(pairs[0]?.answer.content).toBe('answer two');
-      expect(result.drift?.sanityFindings?.map((f) => f.rule)).toContain('turns-dropped');
+      expect(pairs).toHaveLength(2);
+      expect(pairs[0]?.question.content).toBe('');
+      expect(pairs[0]?.answer.content).toBe('GREETING FROM A CUSTOM GPT');
+      expect(pairs[1]?.question.content).toBe('question two');
+      expect(pairs[1]?.answer.content).toBe('answer two');
+      // Nothing was dropped, so the rule that reports drops must stay quiet.
+      expect(result.drift?.sanityFindings?.map((f) => f.rule) ?? []).not.toContain('turns-dropped');
     });
 
     it('signals content-shortfall when the answer is a sliver of the turn text (PAR-1)', () => {
@@ -1055,5 +1061,42 @@ describe('ChatGPT Parser - app-shell markup (2026-11)', () => {
     // An absent field, not a wrong one: nothing in the new markup names the
     // model. `modelIndicator` is optional, so this is not drift.
     expect(parser.getModel()).toBeNull();
+  });
+});
+
+describe('ChatGPT Parser - scheduled-task conversation (2026-11)', () => {
+  let parser: ChatGPTParser;
+
+  beforeEach(() => {
+    const fixturePath = join(
+      __dirname,
+      '../../../fixtures/dom-snapshots/chatgpt/scheduled-task-2026-11.html'
+    );
+    const html = readFileSync(fixturePath, 'utf-8');
+    const dom = new JSDOM(html, { url: 'https://chatgpt.com/c/scheduled' });
+    parser = new ChatGPTParser(dom.window.document);
+  });
+
+  it('exports an assistant-only conversation instead of nothing', () => {
+    // The whole conversation is one orphan assistant turn. Dropping orphans
+    // made this yield zero pairs, which the popup renders as "no conversation
+    // found" -- indistinguishable, to the user, from the parser being broken.
+    const pairs = parser.parse().conversation?.pairs ?? [];
+
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0]?.question.content).toBe('');
+    expect(pairs[0]?.answer.content).toContain('Three new roles matched');
+    expect(pairs[0]?.answer.content).toContain('Developer experience lead');
+  });
+
+  it('fires no sanity rule on an assistant-only conversation', () => {
+    const rules = parser.parse().drift?.sanityFindings?.map((f) => f.rule) ?? [];
+
+    // `no-question` is expected to stay quiet here only if it tolerates a
+    // deliberately empty question; if it ever fires, the rule needs to learn
+    // about this shape rather than this test being relaxed.
+    expect(rules).not.toContain('no-pairs');
+    expect(rules).not.toContain('turns-dropped');
+    expect(rules).not.toContain('empty-answer');
   });
 });

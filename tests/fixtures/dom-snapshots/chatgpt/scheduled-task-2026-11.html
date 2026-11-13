@@ -1,0 +1,49 @@
+<!doctype html>
+<!--
+  ChatGPT 2026-11 app shell, scheduled-task conversation.
+
+  Synthetic, mirroring the structure measured live on chatgpt.com on
+  2026-11-13 (no capture of a real conversation is committed). The shape that
+  matters: a scheduled task's conversation is ONE assistant-only turn. There is
+  no `:user` unit anywhere, and the unit index starts at 0, so the whole
+  conversation hangs on whether an orphan assistant turn is kept.
+-->
+<html lang="en">
+  <head>
+    <title>Recurring job search</title>
+  </head>
+  <body>
+    <nav>
+      <a href="/c/fixture-scheduled" data-active="">
+        <div class="truncate"><span>Recurring job search</span></div>
+      </a>
+    </nav>
+    <main>
+      <div class="thread-scroll-container">
+        <div data-turn-key="fallback-turn-0">
+          <div data-content-search-turn-key="fallback-turn-0">
+            <div data-talvt-turn-state="complete">
+              <div
+                data-chatgpt-search-unit-key="fallback-turn-0:0:assistant"
+                data-chatgpt-search-message-ids="s1"
+              >
+                <div data-content-search-unit-key="fallback-turn-0:0:assistant">
+                  <h4 data-conversation-role="assistant" class="sr-only">ChatGPT said:</h4>
+                  <div data-chatgpt-selection-message-id="s1">
+                    <div data-markdown-text-style="default">
+                      <p>Three new roles matched your saved search this morning.</p>
+                      <ul>
+                        <li>Tooling engineer, remote</li>
+                        <li>Developer experience lead, hybrid</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>

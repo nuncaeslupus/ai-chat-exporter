@@ -1,6 +1,6 @@
 /**
  * ChatGPT DOM selectors
- * Based on real DOM capture from 2026-01-01
+ * Last live survey: chatgpt.com, 2026-11-13 (the 2026-11 app-shell rebuild)
  */
 
 import type { SelectorSet } from '../../types';
@@ -84,12 +84,18 @@ export const CHATGPT_SELECTORS = {
     // Code artifact content (CodeMirror 6 viewer, 2026-07+): <code> has no
     // class at all, so scope to the editor's own content pre specifically
     codeArtifactCodeMirrorCode: '.cm-content code, #code-block-viewer code',
-    // Web citation pill container. The 2026-11 shell renders citations as
-    // plain anchors inside a `data-dil-response` block with no pill testid, so
-    // the second spelling is what matches there.
-    citationPill: '[data-testid="webpage-citation-pill"], [data-dil-response] a[href^="http"]',
+    // Web citation pill container. Pre-rebuild spelling only, deliberately:
+    // the 2026-11 shell exposes no citation hook at all. `[data-dil-response]
+    // a[href^="http"]` looked like one and is NOT -- measured live on
+    // 2026-11-13, that block's anchors are the ordinary inline markdown links
+    // of the answer body ("Ver oferta y presentar candidatura"), so matching
+    // them would publish every inline link as a cited source in all six
+    // exporters, and would also drop any linked inline image via the
+    // image-exclusion list below. An absent Sources list beats a fabricated
+    // one; restore this when a real citation hook is found on a live page.
+    citationPill: '[data-testid="webpage-citation-pill"]',
     // Web citation link
-    citationLink: '[data-testid="webpage-citation-pill"] a, [data-dil-response] a[href^="http"]',
+    citationLink: '[data-testid="webpage-citation-pill"] a',
     // Sidebar title fallbacks, tried in order after `conversationTitle`
     conversationTitleFallback:
       'a[data-active="true"] .truncate span, nav a[href*="/c/"] .truncate span',
