@@ -991,3 +991,69 @@ describe('ChatGPT Parser - screenreader labels on the user side', () => {
     expect(result.conversation?.pairs[0]?.question.content).toBe('[Uploaded images: a tide pond]');
   });
 });
+
+// The 2026-11 app-shell rebuild. Every selector this parser relied on went to
+// zero matches at once, so `canParse()` (URL-only) still claimed the page while
+// `extractQAPairs` returned nothing -- the popup's "no conversation" state on
+// every chatgpt.com chat. The liveness sweep above could not catch it: it sums
+// matches across fixtures, and the pre-rebuild captures kept every count above
+// zero. Only parsing new-shell markup end to end does.
+describe('ChatGPT Parser - app-shell markup (2026-11)', () => {
+  let parser: ChatGPTParser;
+
+  beforeEach(() => {
+    const fixturePath = join(
+      __dirname,
+      '../../../fixtures/dom-snapshots/chatgpt/app-shell-2026-11.html'
+    );
+    const html = readFileSync(fixturePath, 'utf-8');
+    const dom = new JSDOM(html, { url: 'https://chatgpt.com/c/app-shell' });
+    parser = new ChatGPTParser(dom.window.document);
+  });
+
+  it('pairs every exchange in the new markup', () => {
+    const pairs = parser.parse().conversation?.pairs ?? [];
+
+    expect(pairs).toHaveLength(2);
+    expect(pairs[0]?.question.content).toContain('What should we plan for Q3?');
+    expect(pairs[0]?.answer.content).toContain('Three themes carry Q3.');
+    expect(pairs[1]?.question.content).toContain('Which one ships first?');
+    expect(pairs[1]?.answer.content).toContain('Reliability first');
+  });
+
+  it('reports no required-selector drift', () => {
+    const missing = (parser.parse().drift?.selectorFindings ?? []).filter(
+      (f) => f.required && f.matched === 0
+    );
+
+    expect(missing.map((f) => f.key)).toEqual([]);
+  });
+
+  it('fires no sanity rule', () => {
+    expect(parser.parse().drift?.sanityFindings?.map((f) => f.rule) ?? []).toEqual([]);
+  });
+
+  it('keeps the screenreader role label out of the question (lo-f132)', () => {
+    // `h4[data-conversation-role="user"]` holds "You said:" and is a SIBLING
+    // placed before the user unit, not a child of it -- so it stays out by
+    // structure here. Asserted anyway: the pre-rebuild markup put the same
+    // label inside the turn, and a future shell could again.
+    const pairs = parser.parse().conversation?.pairs ?? [];
+
+    expect(pairs[0]?.question.content).not.toContain('You said:');
+    expect(pairs[0]?.answer.content).not.toContain('ChatGPT said:');
+  });
+
+  it('carries assistant tables through', () => {
+    const answer = parser.parse().conversation?.pairs[1]?.answer;
+
+    expect(answer?.content).toContain('Reliability');
+    expect(answer?.content).toContain('Q4');
+  });
+
+  it('returns no model, the shell having dropped the attribute', () => {
+    // An absent field, not a wrong one: nothing in the new markup names the
+    // model. `modelIndicator` is optional, so this is not drift.
+    expect(parser.getModel()).toBeNull();
+  });
+});

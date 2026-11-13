@@ -1,0 +1,115 @@
+<!doctype html>
+<!--
+  ChatGPT "app shell" markup, as shipped around 2026-11.
+
+  SYNTHETIC, not a capture: hand-written from the attribute shapes observed on
+  a live chatgpt.com conversation, with invented content. The rebuild dropped
+  every hook the parser used to rely on (`data-message-author-role`,
+  `data-turn`, `data-testid^="conversation-turn-"`, `.markdown.prose`,
+  `data-message-model-slug`), so this fixture is what keeps the NEW spellings
+  in CHATGPT_SELECTORS honest -- the liveness sweep sums matches across all
+  fixtures, so a comma-joined selector that only ever matches the pre-rebuild
+  fixtures would otherwise still pass it.
+
+  Structure worth knowing, because it is not the obvious one:
+  - `[data-turn-key]` wraps one exchange (user + assistant together).
+  - each message is a `[data-content-search-unit-key]` whose VALUE is
+    `<turn>:<index>:<role>` -- that value is the only role discriminator.
+  - the user's `h4[data-conversation-role="user"]` label is a SIBLING placed
+    BEFORE the user unit, while the assistant's sits INSIDE its unit.
+  - for user turns `[data-chatgpt-search-unit-key]` sits on an outer wrapper
+    and `[data-content-search-unit-key]` on the inner node; the parser matches
+    only the latter, so the two do not double-count.
+  - no model attribute exists anywhere any more, so getModel() returns null.
+-->
+<html lang="en">
+  <head>
+    <title>Quarterly planning - ChatGPT</title>
+  </head>
+  <body>
+    <nav>
+      <a href="/c/fixture-app-shell" data-active="true">
+        <div class="truncate"><span>Quarterly planning</span></div>
+      </a>
+    </nav>
+    <main>
+      <div data-turn-key="fallback-turn-0">
+        <div data-content-search-turn-key="fallback-turn-0">
+          <div data-talvt-turn-state="complete">
+            <h4 data-conversation-role="user"><span>You said:</span></h4>
+            <div
+              data-chatgpt-search-unit-key="fallback-turn-0:0:user"
+              data-chatgpt-search-message-ids="u0"
+            >
+              <div data-content-search-unit-key="fallback-turn-0:0:user">
+                <div data-user-message-bubble="">
+                  <div class="whitespace-pre-wrap">What should we plan for Q3?</div>
+                </div>
+              </div>
+            </div>
+            <div data-content-search-unit-key="fallback-turn-0:2:assistant">
+              <h4 data-conversation-role="assistant"><span>ChatGPT said:</span></h4>
+              <div data-chatgpt-selection-message-id="a0">
+                <div data-markdown-text-style="">
+                  <p>Three themes carry Q3.</p>
+                  <h2>Themes</h2>
+                  <ul>
+                    <li>Reliability work</li>
+                    <li>Onboarding</li>
+                  </ul>
+                  <pre><code>pnpm validate</code></pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div data-turn-key="fallback-turn-1">
+        <div data-content-search-turn-key="fallback-turn-1">
+          <div data-talvt-turn-state="complete">
+            <h4 data-conversation-role="user"><span>You said:</span></h4>
+            <div
+              data-chatgpt-search-unit-key="fallback-turn-1:0:user"
+              data-chatgpt-search-message-ids="u1"
+            >
+              <div data-content-search-unit-key="fallback-turn-1:0:user">
+                <div data-user-message-bubble="">
+                  <div class="whitespace-pre-wrap">Which one ships first?</div>
+                </div>
+              </div>
+            </div>
+            <div data-content-search-unit-key="fallback-turn-1:2:assistant">
+              <h4 data-conversation-role="assistant"><span>ChatGPT said:</span></h4>
+              <div data-chatgpt-selection-message-id="a1">
+                <div data-markdown-text-style="">
+                  <p>Reliability first, per the sources below.</p>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Theme</th>
+                        <th>Quarter</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>Reliability</td>
+                        <td>Q3</td>
+                      </tr>
+                      <tr>
+                        <td>Onboarding</td>
+                        <td>Q4</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div data-dil-response="">
+                    <a href="https://example.com/reliability-report">Reliability report</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>
