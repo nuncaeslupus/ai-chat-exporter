@@ -1092,11 +1092,15 @@ describe('ChatGPT Parser - scheduled-task conversation (2026-11)', () => {
   it('fires no sanity rule on an assistant-only conversation', () => {
     const rules = parser.parse().drift?.sanityFindings?.map((f) => f.rule) ?? [];
 
-    // `no-question` is expected to stay quiet here only if it tolerates a
-    // deliberately empty question; if it ever fires, the rule needs to learn
-    // about this shape rather than this test being relaxed.
-    expect(rules).not.toContain('no-pairs');
-    expect(rules).not.toContain('turns-dropped');
-    expect(rules).not.toContain('empty-answer');
+    // Every rule, not a chosen few: a conversation the parser read perfectly
+    // must raise no drift at all. `no-question` in particular -- the DOM held
+    // one message unit, so the empty question was never there to be read.
+    expect(rules).toEqual([]);
+  });
+
+  it('raises no "could not be read" warning for the absent question', () => {
+    // The warning and the sanity rule are separate paths to the same banner:
+    // either one alone tells the user the export is incomplete when it is not.
+    expect(parser.parse().warnings ?? []).toEqual([]);
   });
 });

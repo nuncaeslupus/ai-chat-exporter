@@ -17,6 +17,7 @@ import {
   EMBEDDED_FRAME_REPORT_HTML_ATTR,
   isChatGPTUrl,
 } from './selectors';
+import { synthesizedSideAllowance } from '../../drift';
 import { sanitizeHtml } from '../../utils/sanitize-html';
 
 /**
@@ -187,19 +188,54 @@ export class ChatGPTParser extends BaseParser {
   }
 
   /**
+   * Count the turns `extractQAPairs` actually walks.
+   *
+   * The base implementation counts `selectors.messageElement`, which matches
+   * the message unit *inside* a turn. A turn whose content was gutted -- the
+   * redesign case the drift net exists for -- keeps its container and loses
+   * its unit, so counting units makes the DOM look like it was one message
+   * short all along and hides exactly the breakage worth reporting. The turn
+   * container is what "how many turns did the DOM hold" means, and it is the
+   * same resolution the walk uses.
+   */
+  protected override countTurnContainers(): number {
+    try {
+      return this.document.querySelectorAll(
+        `${this.selectors.custom.userTurn}, ${this.selectors.custom.assistantTurn}`
+      ).length;
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
    * Flag half-empty turns so a partially-read conversation is visible to the
    * user instead of quietly shipping a blank question or answer.
+   *
+   * A side the DOM held no message for at all is not a failure to read one.
+   * `synthesizedSideAllowance` counts exactly those, so a scheduled task --
+   * one assistant turn and no question -- exports without telling the user
+   * the parser is broken on a page it read perfectly.
    */
   protected override collectWarnings(pairs: QAPair[]): string[] | undefined {
     const warnings = super.collectWarnings(pairs) ?? [];
+    let synthesized = synthesizedSideAllowance(pairs.length, this.countTurnContainers());
 
     for (const pair of pairs) {
       const turn = String(pair.index + 1);
       if (!pair.question.content) {
-        warnings.push(`Turn ${turn}: the question could not be read`);
+        if (synthesized > 0) {
+          synthesized -= 1;
+        } else {
+          warnings.push(`Turn ${turn}: the question could not be read`);
+        }
       }
       if (!pair.answer.content) {
-        warnings.push(`Turn ${turn}: the answer could not be read`);
+        if (synthesized > 0) {
+          synthesized -= 1;
+        } else {
+          warnings.push(`Turn ${turn}: the answer could not be read`);
+        }
       }
     }
 

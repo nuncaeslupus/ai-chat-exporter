@@ -24,9 +24,27 @@ export interface SanityInput {
   chromeStrings: readonly string[];
 }
 
+/**
+ * How many pair sides were synthesised because the DOM held no message unit
+ * for them, rather than because reading one failed.
+ *
+ * Every pair carries two sides, so a DOM with fewer message units than
+ * `pairs * 2` was short that many messages to begin with: an assistant-only
+ * conversation (ChatGPT's scheduled tasks) or a user turn whose reply never
+ * arrived. Those empty halves are the conversation's real shape, not drift,
+ * and a rule that calls them a read failure tells the user the parser is
+ * broken on a page it read perfectly.
+ *
+ * `turnCount` 0 means the count is unknown, which allows nothing.
+ */
+export function synthesizedSideAllowance(pairCount: number, turnCount: number): number {
+  return turnCount > 0 ? Math.max(0, pairCount * 2 - turnCount) : 0;
+}
+
 export function checkOutputSanity(input: SanityInput): SanityFinding[] {
   const findings: SanityFinding[] = [];
   const { pairs, turnCount, turnTextLengths, chromeStrings } = input;
+  let synthesized = synthesizedSideAllowance(pairs.length, turnCount);
 
   // The DOM had turns and we produced nothing: the extractor is broken, not
   // the page. An empty page (turnCount 0) is just an empty page.
@@ -79,10 +97,14 @@ export function checkOutputSanity(input: SanityInput): SanityFinding[] {
     }
 
     if ((answer.length === 0) !== (question.length === 0)) {
-      findings.push({
-        rule: 'no-question',
-        detail: question.length === 0 ? `pair ${i}: no question` : `pair ${i}: no answer`,
-      });
+      if (synthesized > 0) {
+        synthesized -= 1;
+      } else {
+        findings.push({
+          rule: 'no-question',
+          detail: question.length === 0 ? `pair ${i}: no question` : `pair ${i}: no answer`,
+        });
+      }
     }
   });
 

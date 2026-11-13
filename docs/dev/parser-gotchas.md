@@ -4,7 +4,8 @@ Field notes from capturing real chatbot DOM. Written for whoever adds or repairs
 platform parser next — and for the parser-generator skill. Every item here cost a
 debugging session or was caught only by looking at a live page.
 
-Last live survey: **chatgpt.com, 2026-07-28** (Free tier, `gpt-5-5`).
+Last live survey: **chatgpt.com, 2026-11-13** (the 2026-11 app-shell rebuild; see #17).
+Previous: chatgpt.com, 2026-07-28 (Free tier, `gpt-5-5`).
 
 ---
 
@@ -28,6 +29,10 @@ from 2026-01 that still had `<article>`.
   turn selector matches zero nodes on a page the URL pattern claims to support.
 - Prefer the most semantically stable attribute available. `data-message-author-role`
   and `data-turn` survived the migration; the *tag name* and Tailwind classes did not.
+- When a rename lands, keep **both spellings** in the load-bearing selector — new
+  one first, pre-rename one second (`'[data-user-message-bubble], [data-message-author-role="user"]'`).
+  The committed fixtures are snapshots of the old DOM, so a selector list is what
+  keeps them parsing without re-capturing every fixture; it costs one comma.
 
 ## 2. Selectors defined in `selectors.ts` but hardcoded in the parser
 
@@ -387,6 +392,46 @@ the same field.
   the subset that happens to pass.
 - Pinning a known gap as an assertion is better than a silent hole, but only if
   the assertion is flipped when the gap closes — the failing test is the point.
+
+## 17. A conversation does not have to contain a question (2026-11, chatgpt.com)
+
+The 2026-11 app-shell rebuild dropped *every* ChatGPT hook at once —
+`data-message-author-role`, `data-turn`, `data-testid^="conversation-turn-"`,
+`.markdown.prose`, `data-message-model-slug` — and replaced the turn wrapper with
+`[data-turn-key]` holding `[data-content-search-unit-key="<turn>:<i>:<role>"]`.
+The role now lives in the unit key's own *value*, so the role is matched by suffix
+rather than by a nearby element: the `h4[data-conversation-role]` label is a
+**sibling** of the unit, not an ancestor or child, so `:has()` cannot reach it.
+
+The expensive part was not the rename. A **scheduled task** renders as one
+assistant turn with no user turn anywhere on the page. Both the parser and the
+drift net assumed every pair has two sides:
+
+- the parser dropped orphan assistant turns, so the whole conversation extracted
+  to zero pairs and the popup showed "no conversation found" — indistinguishable,
+  to the user, from the parser being broken;
+- once the turn was kept, the empty question tripped `no-question` *and*
+  `collectWarnings`, so a perfectly-read page showed "your export may be
+  incomplete".
+
+**Rules:**
+
+- A half-empty pair is only a failure to *read* when the DOM held a message for
+  that side. `synthesizedSideAllowance(pairs, turnCount)` in
+  `src/core/drift/output-sanity.ts` is that distinction; use it anywhere a missing
+  side would otherwise be reported as drift.
+- `countTurnContainers()` must count the same elements the walk iterates. The base
+  implementation counts `messageElement`, which is the unit *inside* a turn — a
+  gutted turn keeps its container and loses its unit, so counting units makes the
+  DOM look one message short all along and hides the breakage worth reporting.
+- Never render a role label without checking the side has blocks. An empty message
+  gets no block at all (`ConversationStructureService.convertMessage`), so
+  `hasContent()` on `BaseExporter` is the single check all five readable exporters
+  share.
+- Not every attribute that looks like a citation hook is one. `[data-dil-response]
+  a[href^="http"]` is the answer body's ordinary inline markdown links; matching it
+  would publish every inline link as a cited source. An absent Sources list beats a
+  fabricated one.
 
 ## Diagnosing selector drift without a browser
 

@@ -82,13 +82,28 @@ describe('checkOutputSanity', () => {
   });
 
   it('fires no-question when a pair is half-formed', () => {
+    // Two turns, one pair: the DOM held a message for each side, so the empty
+    // question is a side that could not be read.
+    const findings = checkOutputSanity({
+      pairs: [pair('', 'A real answer with plenty of text in it.')],
+      turnCount: 2,
+      turnTextLengths: [-1],
+      chromeStrings: chrome,
+    });
+    expect(findings.map((f) => f.rule)).toContain('no-question');
+  });
+
+  it('stays quiet when the DOM held no message for the empty side', () => {
+    // One turn, one pair: ChatGPT's scheduled tasks are a single assistant
+    // turn with no question anywhere on the page. Calling that a read failure
+    // puts "your export may be incomplete" on a perfectly read conversation.
     const findings = checkOutputSanity({
       pairs: [pair('', 'A real answer with plenty of text in it.')],
       turnCount: 1,
       turnTextLengths: [-1],
       chromeStrings: chrome,
     });
-    expect(findings.map((f) => f.rule)).toContain('no-question');
+    expect(findings).toEqual([]);
   });
 
   it('fires turns-dropped when the DOM held more turns than the pairs account for (PAR-1)', () => {

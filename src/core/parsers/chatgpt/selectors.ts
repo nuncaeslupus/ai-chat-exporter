@@ -18,7 +18,8 @@ import type { SelectorSet } from '../../types';
 // "conversation-turn-"`, `.markdown.prose`, `data-message-model-slug`. The new
 // spelling comes first in each list, the pre-rebuild one stays second so the
 // DOM snapshots in tests/fixtures/dom-snapshots/chatgpt/ keep parsing
-// (docs/dev/parser-gotchas.md #1: keep two spellings per load-bearing hook).
+// (docs/dev/parser-gotchas.md #1, last rule: keep two spellings per load-bearing
+// hook; #17 covers this rebuild in full).
 export const CHATGPT_SELECTORS = {
   // Main conversation container (`main#main`'s id is React-generated and gone;
   // bare `main` resolves the same node on both markups)
