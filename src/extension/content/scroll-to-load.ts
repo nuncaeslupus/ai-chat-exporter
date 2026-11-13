@@ -203,11 +203,11 @@ async function walk(parser: IParser, doc: Document): Promise<ParseResult> {
 
   // The "never worse than the plain parse" contract. A walk that resolved the
   // wrong element, or that ran out of steps before reaching the user's own
-  // position, can hold *fewer* exchanges than they already had on screen.
-  if (
-    pairs.length <= base.conversation.pairs.length ||
-    !containsAll(pairs, base.conversation.pairs)
-  ) {
+  // position, can hold *fewer* exchanges than they already had on screen --
+  // which is what `containsAll` catches. Counting as well would discard a walk
+  // that gained no pair but completed one: a lone deep-research exchange taller
+  // than the viewport has one pair either way, and only the walk has all of it.
+  if (!containsAll(pairs, base.conversation.pairs)) {
     return base;
   }
 
