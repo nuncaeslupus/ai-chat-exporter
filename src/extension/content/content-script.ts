@@ -77,10 +77,18 @@ class ContentScript {
   private drift: DriftReport | undefined;
   private initialized = false;
 
-  async initialize(): Promise<void> {
+  /**
+   * @param scroll Whether to scroll virtualized turns into the parse. The
+   *   load-time call passes `false`: that parse is only a warm cache, and
+   *   walking the whole chat would hijack the user's scroll for seconds on
+   *   every page they open, for an export nobody has asked for yet. Every
+   *   caller that actually wants the conversation (GET_CONVERSATION, export,
+   *   print) leaves it on.
+   */
+  async initialize(scroll = true): Promise<void> {
     // Always re-parse for ChatGPT since it's a dynamic SPA
     // Don't use the initialized flag to skip
-    const parsed = await this.parseConversation();
+    const parsed = await this.parseConversation(scroll);
     if (!parsed) {
       // The page no longer has a readable conversation (SPA navigation to a
       // settings/projects view): drop the previous chat, or GET_CONVERSATION
@@ -106,7 +114,7 @@ class ContentScript {
    * (D-39) rides along the same return value for the same reason — a second
    * instance field would reintroduce that race for parser warnings instead.
    */
-  private async parseConversation(): Promise<{
+  private async parseConversation(scroll = true): Promise<{
     conversation: Conversation;
     warnings?: string[] | undefined;
   } | null> {
@@ -121,7 +129,7 @@ class ContentScript {
       console.log(`[${EXTENSION_NAME}] Detected platform: ${parser.platformInfo.name}`);
     }
 
-    const parseResult = await parseAllTurns(parser);
+    const parseResult = scroll ? await parseAllTurns(parser) : parser.parse();
     this.drift = parseResult.drift;
     if (!parseResult.success || !parseResult.conversation) {
       console.error(`[${EXTENSION_NAME}] Failed to parse conversation:`, parseResult.error);
@@ -794,10 +802,10 @@ const contentScript = new ContentScript();
 // Wait for DOM to be ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
-    void contentScript.initialize();
+    void contentScript.initialize(false);
   });
 } else {
-  void contentScript.initialize();
+  void contentScript.initialize(false);
 }
 
 // Set up message listener for communication with popup
