@@ -416,14 +416,24 @@ drift net assumed every pair has two sides:
 
 **Rules:**
 
-- A half-empty pair is only a failure to *read* when the DOM held a message for
-  that side. `synthesizedSideAllowance(pairs, turnCount)` in
-  `src/core/drift/output-sanity.ts` is that distinction; use it anywhere a missing
-  side would otherwise be reported as drift.
-- `countTurnContainers()` must count the same elements the walk iterates. The base
-  implementation counts `messageElement`, which is the unit *inside* a turn — a
-  gutted turn keeps its container and loses its unit, so counting units makes the
-  DOM look one message short all along and hides the breakage worth reporting.
+- A half-empty pair is only a failure to *read* when the conversation had a message
+  for that side, and **only the parser's own walk knows which sides it invented**.
+  `BaseParser.synthesizedSides()` is where it says so; it returns 0, so
+  `no-question` keeps full strength on every platform that cannot tell the two
+  apart. Do not infer the count from `pairs * 2 - turnCount` instead: Gemini emits
+  exactly one pair per turn container, so that expression always covers every
+  finding the rule could raise and silently disables it platform-wide.
+- **An unmounted turn is indistinguishable from one that was never there.** Any
+  allowance that merely compares pairs against turns therefore buys silence for
+  precisely the turns the walk missed — a virtualized page drops the user's
+  questions and reports nothing. ChatGPT's override claims the allowance only when
+  the DOM holds *no* user turn at all, so one surviving user turn makes the
+  conversation loud again. The scroll-to-load pass
+  (`src/extension/content/scroll-to-load.ts`) is what addresses the rest.
+- Only a *question* is ever synthesised. A user turn still waiting for its reply is
+  skipped as pending by `extractQAPairs`, so an empty **answer** is always a read
+  failure and must stay reportable — spending one budget across both sides
+  suppresses the real failure and then blames the wrong turn.
 - Never render a role label without checking the side has blocks. An empty message
   gets no block at all (`ConversationStructureService.convertMessage`), so
   `hasContent()` on `BaseExporter` is the single check all five readable exporters

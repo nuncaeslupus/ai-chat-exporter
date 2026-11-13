@@ -17,7 +17,6 @@ import {
   EMBEDDED_FRAME_REPORT_HTML_ATTR,
   isChatGPTUrl,
 } from './selectors';
-import { synthesizedSideAllowance } from '../../drift';
 import { sanitizeHtml } from '../../utils/sanitize-html';
 
 /**
@@ -188,38 +187,54 @@ export class ChatGPTParser extends BaseParser {
   }
 
   /**
-   * Count the turns `extractQAPairs` actually walks.
+   * Empty questions this walk invented, counted only on a conversation that
+   * holds no user turn whatsoever.
    *
-   * The base implementation counts `selectors.messageElement`, which matches
-   * the message unit *inside* a turn. A turn whose content was gutted -- the
-   * redesign case the drift net exists for -- keeps its container and loses
-   * its unit, so counting units makes the DOM look like it was one message
-   * short all along and hides exactly the breakage worth reporting. The turn
-   * container is what "how many turns did the DOM hold" means, and it is the
-   * same resolution the walk uses.
+   * ChatGPT's scheduled tasks are exactly that page: one assistant turn,
+   * delivering a result nobody asked for in this thread, so the pair's
+   * question side has to be empty and nothing was misread.
+   *
+   * The `userTurnCount === 0` condition is the whole safety of this. An
+   * unmounted user turn looks identical to one that was never there, so any
+   * count that merely compares pairs against turns buys silence for precisely
+   * the turns the walk missed -- a virtualized page would drop the user's
+   * questions and say nothing. Requiring that the DOM hold *no* user turn
+   * keeps a partially-read conversation loud: one surviving user turn and the
+   * allowance is 0 again.
+   *
+   * ponytail: a page whose every user turn is unmounted is still
+   * indistinguishable from a genuine assistant-only thread. The scroll-to-load
+   * pass (src/extension/content/scroll-to-load.ts) mounts the turns before the
+   * parse, which is where that is addressed; if ChatGPT ever marks scheduled
+   * threads in the DOM, key off that marker instead and drop this condition.
+   *
+   * Only questions count. An answer is never synthesised: a user turn still
+   * awaiting its reply is skipped as pending by `extractQAPairs`, so an empty
+   * answer here is always a read failure and must stay reportable.
    */
-  protected override countTurnContainers(): number {
+  protected override synthesizedSides(pairs: QAPair[]): number {
     try {
-      return this.document.querySelectorAll(
-        `${this.selectors.custom.userTurn}, ${this.selectors.custom.assistantTurn}`
-      ).length;
+      if (this.document.querySelectorAll(this.selectors.custom.userTurn).length > 0) {
+        return 0;
+      }
     } catch {
       return 0;
     }
+    return pairs.filter((pair) => !pair.question.content).length;
   }
 
   /**
    * Flag half-empty turns so a partially-read conversation is visible to the
    * user instead of quietly shipping a blank question or answer.
    *
-   * A side the DOM held no message for at all is not a failure to read one.
-   * `synthesizedSideAllowance` counts exactly those, so a scheduled task --
-   * one assistant turn and no question -- exports without telling the user
-   * the parser is broken on a page it read perfectly.
+   * Spends the same budget as the `no-question` sanity rule, and for the same
+   * reason: the two are separate paths to one banner, so suppressing a finding
+   * the conversation's own shape explains while still warning about it would
+   * tell the user the parser is broken on a page it read perfectly.
    */
   protected override collectWarnings(pairs: QAPair[]): string[] | undefined {
     const warnings = super.collectWarnings(pairs) ?? [];
-    let synthesized = synthesizedSideAllowance(pairs.length, this.countTurnContainers());
+    let synthesized = this.synthesizedSides(pairs);
 
     for (const pair of pairs) {
       const turn = String(pair.index + 1);
@@ -231,11 +246,7 @@ export class ChatGPTParser extends BaseParser {
         }
       }
       if (!pair.answer.content) {
-        if (synthesized > 0) {
-          synthesized -= 1;
-        } else {
-          warnings.push(`Turn ${turn}: the answer could not be read`);
-        }
+        warnings.push(`Turn ${turn}: the answer could not be read`);
       }
     }
 

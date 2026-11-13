@@ -82,8 +82,6 @@ describe('checkOutputSanity', () => {
   });
 
   it('fires no-question when a pair is half-formed', () => {
-    // Two turns, one pair: the DOM held a message for each side, so the empty
-    // question is a side that could not be read.
     const findings = checkOutputSanity({
       pairs: [pair('', 'A real answer with plenty of text in it.')],
       turnCount: 2,
@@ -93,17 +91,38 @@ describe('checkOutputSanity', () => {
     expect(findings.map((f) => f.rule)).toContain('no-question');
   });
 
-  it('stays quiet when the DOM held no message for the empty side', () => {
-    // One turn, one pair: ChatGPT's scheduled tasks are a single assistant
-    // turn with no question anywhere on the page. Calling that a read failure
-    // puts "your export may be incomplete" on a perfectly read conversation.
-    const findings = checkOutputSanity({
-      pairs: [pair('', 'A real answer with plenty of text in it.')],
+  it('fires no-question unless the parser claims it synthesised the side', () => {
+    // The rule is at full strength for every platform that does not pass
+    // `synthesizedSides`. Inferring the allowance from `turnCount` instead
+    // disabled the rule outright on any parser that emits one pair per turn
+    // container -- Gemini does -- because `pairs * 2 - turnCount` then always
+    // covers every finding the rule could raise.
+    const halfFormed = [pair('', 'A real answer with plenty of text in it.')];
+    const input = {
+      pairs: halfFormed,
       turnCount: 1,
       turnTextLengths: [-1],
       chromeStrings: chrome,
+    };
+
+    expect(checkOutputSanity(input).map((f) => f.rule)).toContain('no-question');
+    expect(checkOutputSanity({ ...input, synthesizedSides: 1 })).toEqual([]);
+  });
+
+  it('spends one synthesised side per finding, no more', () => {
+    // The budget is not a switch: a parser that claims one invented side must
+    // still hear about the second half-formed pair.
+    const findings = checkOutputSanity({
+      pairs: [
+        pair('', 'A real answer with plenty of text in it.'),
+        pair('', 'Another real answer, equally full of text.'),
+      ],
+      turnCount: 2,
+      turnTextLengths: [-1, -1],
+      chromeStrings: chrome,
+      synthesizedSides: 1,
     });
-    expect(findings).toEqual([]);
+    expect(findings.map((f) => f.rule)).toEqual(['no-question']);
   });
 
   it('fires turns-dropped when the DOM held more turns than the pairs account for (PAR-1)', () => {

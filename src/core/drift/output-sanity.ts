@@ -22,29 +22,22 @@ export interface SanityInput {
   turnTextLengths: number[];
   /** Platform UI labels that must never be answer content. */
   chromeStrings: readonly string[];
-}
-
-/**
- * How many pair sides were synthesised because the DOM held no message unit
- * for them, rather than because reading one failed.
- *
- * Every pair carries two sides, so a DOM with fewer message units than
- * `pairs * 2` was short that many messages to begin with: an assistant-only
- * conversation (ChatGPT's scheduled tasks) or a user turn whose reply never
- * arrived. Those empty halves are the conversation's real shape, not drift,
- * and a rule that calls them a read failure tells the user the parser is
- * broken on a page it read perfectly.
- *
- * `turnCount` 0 means the count is unknown, which allows nothing.
- */
-export function synthesizedSideAllowance(pairCount: number, turnCount: number): number {
-  return turnCount > 0 ? Math.max(0, pairCount * 2 - turnCount) : 0;
+  /**
+   * Pair sides the parser synthesised because the conversation genuinely had
+   * no message for them, rather than because reading one failed. Each one
+   * spends a `no-question` finding.
+   *
+   * Only the parser knows the difference, so only the parser may claim it;
+   * this defaults to 0, which keeps the rule at full strength everywhere that
+   * does not override `BaseParser.synthesizedSides`.
+   */
+  synthesizedSides?: number;
 }
 
 export function checkOutputSanity(input: SanityInput): SanityFinding[] {
   const findings: SanityFinding[] = [];
   const { pairs, turnCount, turnTextLengths, chromeStrings } = input;
-  let synthesized = synthesizedSideAllowance(pairs.length, turnCount);
+  let synthesized = input.synthesizedSides ?? 0;
 
   // The DOM had turns and we produced nothing: the extractor is broken, not
   // the page. An empty page (turnCount 0) is just an empty page.

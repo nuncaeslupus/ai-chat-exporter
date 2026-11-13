@@ -10,7 +10,6 @@ export {
   checkOutputSanity,
   CONTENT_SHORTFALL_RATIO,
   CONTENT_SHORTFALL_MIN_TURN_CHARS,
-  synthesizedSideAllowance,
 } from './output-sanity';
 export type { SanityInput } from './output-sanity';
 export { buildSkeleton, SAFE_ATTR_VALUES } from './skeleton';

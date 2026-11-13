@@ -88,7 +88,7 @@ export class ConversationStructureService {
     // page, which made that the normal shape rather than a corner case.
     const blocks: StructuredContentBlock[] = message.htmlContent
       ? HtmlContentParser.parse(message.htmlContent)
-      : message.content
+      : message.content.trim()
         ? [
             {
               type: 'paragraph' as const,

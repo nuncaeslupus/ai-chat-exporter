@@ -360,6 +360,7 @@ export abstract class BaseParser implements IParser {
       turnCount: this.countTurnContainers(),
       turnTextLengths: this.turnTextLengthsFor(pairs),
       chromeStrings: this.chromeStrings,
+      synthesizedSides: this.synthesizedSides(pairs),
     });
 
     // Happy path: only the required selectors decide whether there is drift
@@ -395,6 +396,24 @@ export abstract class BaseParser implements IParser {
       selectorFindings,
       sanityFindings,
     };
+  }
+
+  /**
+   * How many of these pairs' empty sides the conversation never had a message
+   * for, as opposed to having one this parser failed to read.
+   *
+   * A pair always carries two sides, so a parser that keeps a turn with no
+   * counterpart -- ChatGPT's scheduled tasks are one assistant turn and no
+   * question anywhere on the page -- has to put an empty message opposite it.
+   * Calling that a read failure puts "your export may be incomplete" on a
+   * conversation the parser read perfectly.
+   *
+   * 0 by default, so the `no-question` rule keeps its full strength on every
+   * platform that cannot tell the two apart. Override it only where the
+   * extraction walk itself knows which sides it invented.
+   */
+  protected synthesizedSides(_pairs: QAPair[]): number {
+    return 0;
   }
 
   /** How many turn containers the DOM holds, however many pairs came out. */

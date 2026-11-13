@@ -1066,6 +1066,7 @@ describe('ChatGPT Parser - app-shell markup (2026-11)', () => {
 
 describe('ChatGPT Parser - scheduled-task conversation (2026-11)', () => {
   let parser: ChatGPTParser;
+  let doc: Document;
 
   beforeEach(() => {
     const fixturePath = join(
@@ -1074,7 +1075,8 @@ describe('ChatGPT Parser - scheduled-task conversation (2026-11)', () => {
     );
     const html = readFileSync(fixturePath, 'utf-8');
     const dom = new JSDOM(html, { url: 'https://chatgpt.com/c/scheduled' });
-    parser = new ChatGPTParser(dom.window.document);
+    doc = dom.window.document;
+    parser = new ChatGPTParser(doc);
   });
 
   it('exports an assistant-only conversation instead of nothing', () => {
@@ -1102,5 +1104,27 @@ describe('ChatGPT Parser - scheduled-task conversation (2026-11)', () => {
     // The warning and the sanity rule are separate paths to the same banner:
     // either one alone tells the user the export is incomplete when it is not.
     expect(parser.parse().warnings ?? []).toEqual([]);
+  });
+
+  it('still reports a missing question once one user turn survives', () => {
+    // The allowance is only safe because it needs the conversation to hold NO
+    // user turn. An unmounted user turn looks exactly like one that was never
+    // there, so a budget derived from counting turns would buy silence for
+    // precisely the questions a virtualized page dropped. Grafting one intact
+    // exchange onto the scheduled task is that page, and it has to stay loud.
+    // The surviving user turn goes *after* the assistant one, so the walk
+    // still has an orphan answer to pair with an empty question -- a user turn
+    // before it would simply pair up and leave nothing missing.
+    const turn = doc.querySelector('[data-turn-key]');
+    const user = doc.createElement('div');
+    user.setAttribute('data-content-search-unit-key', 'graft:0:user');
+    user.setAttribute('data-user-message-bubble', '');
+    user.innerHTML = '<div class="whitespace-pre-wrap">A question that was really asked</div>';
+    turn?.parentElement?.appendChild(user);
+
+    const result = new ChatGPTParser(doc).parse();
+
+    expect(result.drift?.sanityFindings?.map((f) => f.rule)).toContain('no-question');
+    expect(result.warnings).toContain('Turn 1: the question could not be read');
   });
 });
