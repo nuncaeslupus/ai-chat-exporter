@@ -108,20 +108,56 @@ function overlapLength(incoming: QAPair[], collected: QAPair[]): number {
   return 0;
 }
 
-/** Whether `haystack` holds at least as many of each pair as `needles` does. */
+/**
+ * Whether `whole` is the same exchange as `part`, seen with more of its answer.
+ *
+ * One turn can deliver several assistant units and units unmount
+ * independently, so a window boundary can fall *inside* one answer: the same
+ * exchange is harvested once as `(Q, A1)` and again as `(Q, A1 + A2)`. Two
+ * genuinely distinct exchanges would have to share a question *and* hold one
+ * answer inside the other to be mistaken for that -- the same risk class
+ * `overlapLength` already accepts for identical text.
+ */
+function subsumes(whole: QAPair, part: QAPair): boolean {
+  return (
+    whole.question.content === part.question.content &&
+    whole.answer.content.length > part.answer.content.length &&
+    whole.answer.content.includes(part.answer.content)
+  );
+}
+
+/**
+ * Drop a pair whose neighbour holds the same exchange with more of its answer.
+ *
+ * `pairKey` carries the whole answer text, so the partial copy and the complete
+ * one do not join and `harvest` keeps both: the export printed one question
+ * twice, once truncated. They always land adjacent -- the prepended window's
+ * copy immediately before the collected one -- so looking at neighbours is
+ * enough.
+ */
+function collapsePartials(pairs: QAPair[]): QAPair[] {
+  const subsumed = (part: QAPair, whole: QAPair | undefined): boolean =>
+    whole !== undefined && subsumes(whole, part);
+  return pairs.filter(
+    (pair, index) => !subsumed(pair, pairs[index - 1]) && !subsumed(pair, pairs[index + 1])
+  );
+}
+
+/**
+ * Whether `haystack` holds at least as many of each pair as `needles` does.
+ *
+ * A pair the walk completed counts as holding the partial copy the plain parse
+ * saw, or the contract would reject the very result that fixed it.
+ */
 function containsAll(haystack: QAPair[], needles: QAPair[]): boolean {
-  const available = new Map<string, number>();
-  for (const pair of haystack) {
-    const key = pairKey(pair);
-    available.set(key, (available.get(key) ?? 0) + 1);
-  }
-  for (const pair of needles) {
-    const key = pairKey(pair);
-    const left = available.get(key) ?? 0;
-    if (left === 0) {
+  const left = [...haystack];
+  for (const needle of needles) {
+    const exact = left.findIndex((pair) => pairKey(pair) === pairKey(needle));
+    const at = exact >= 0 ? exact : left.findIndex((pair) => subsumes(pair, needle));
+    if (at < 0) {
       return false;
     }
-    available.set(key, left - 1);
+    left.splice(at, 1);
   }
   return true;
 }
@@ -162,6 +198,8 @@ async function walk(parser: IParser, doc: Document): Promise<ParseResult> {
   } finally {
     scroller.scrollTop = originalScrollTop;
   }
+
+  pairs = collapsePartials(pairs);
 
   // The "never worse than the plain parse" contract. A walk that resolved the
   // wrong element, or that ran out of steps before reaching the user's own

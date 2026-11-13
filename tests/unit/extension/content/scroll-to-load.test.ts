@@ -329,6 +329,60 @@ describe('scroll-to-load', () => {
     ]);
   });
 
+  it('folds a partial grouped answer into the window that saw all of it', async () => {
+    vi.useFakeTimers();
+    // One turn can deliver SEVERAL assistant units, and units unmount
+    // independently (4 of 6 in the DOM at rest, measured live), so a window
+    // boundary can fall INSIDE one answer: one window mounts `question 1` with
+    // only PART ONE, the window above it mounts both parts. `pairKey` carries
+    // the whole answer text, so the two copies did not join and the export
+    // printed that question twice, once truncated.
+    const user = (key: string, text: string): string =>
+      `<div data-content-search-unit-key="${key}"><div data-user-message-bubble="">
+         <div class="whitespace-pre-wrap">${text}</div></div></div>`;
+    const assistant = (key: string, text: string): string =>
+      `<div data-content-search-unit-key="${key}"><div data-chatgpt-selection-message-id="${key}">
+         <div data-markdown-text-style=""><p>${text}</p></div></div></div>`;
+    // Five unit-height slots: question 0, answer 0, question 1, and answer 1 in
+    // two units. The units of one turn share a single `[data-turn-key]`
+    // wrapper, as they do live -- that wrapper is what groups them.
+    const { doc } = buildScroller(
+      {
+        contentHeight: 5 * TURN_HEIGHT,
+        mount: (scrollTop) => {
+          const first = Math.floor(scrollTop / TURN_HEIGHT);
+          const last = Math.floor((scrollTop + VIEWPORT - 1) / TURN_HEIGHT);
+          const on = (slot: number, html: string): string =>
+            slot >= first && slot <= last ? html : '';
+          const wrap = (key: string, units: string): string =>
+            units ? `<div data-turn-key="${key}">${units}</div>` : '';
+          return (
+            wrap(
+              't-0',
+              on(0, user('t-0:0:user', 'question 0')) +
+                on(1, assistant('t-0:2:assistant', 'answer 0'))
+            ) +
+            wrap(
+              't-1',
+              on(2, user('t-1:0:user', 'question 1')) +
+                on(3, assistant('t-1:1:assistant', 'PART ONE of answer 1.')) +
+                on(4, assistant('t-1:2:assistant', 'PART TWO of answer 1.'))
+            )
+          );
+        },
+      },
+      'https://chatgpt.com/c/abc123'
+    );
+    const parser = new ChatGPTParser(doc);
+
+    const result = await run(parser, doc);
+    const pairs = result.conversation?.pairs ?? [];
+
+    expect(pairs.map((pair) => pair.question.content)).toEqual(['question 0', 'question 1']);
+    expect(pairs[1]?.answer.content).toContain('PART ONE');
+    expect(pairs[1]?.answer.content).toContain('PART TWO');
+  });
+
   it('leaves a streaming conversation alone', async () => {
     vi.useFakeTimers();
     const { doc, scroller } = buildVirtualized(6);

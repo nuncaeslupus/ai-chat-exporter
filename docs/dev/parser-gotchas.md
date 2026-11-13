@@ -456,7 +456,13 @@ drift net assumed every pair has two sides:
   selector is role-scoped, so the question sharing the wrapper cannot leak in. Feed
   `turnLengths` the *units'* length, though, never the wrapper's: the wrapper holds
   the question too, and a long question with a short answer then reads as a
-  `content-shortfall`.
+  `content-shortfall`. Grouping also lets a scroll window's edge fall *inside* one
+  answer: the window that mounted only the first unit harvests `(Q, A1)` while the
+  one above it harvests `(Q, A1 + A2)` — different `pairKey`s again — so
+  `scroll-to-load.ts` drops the copy whose answer a neighbour's answer contains
+  (`collapsePartials`), and `containsAll` counts the completed pair as holding the
+  partial one or the "never worse than the plain parse" contract would reject the
+  very result that fixed it.
 - Only a *question* is ever synthesised. A user turn still waiting for its reply is
   skipped as pending by `extractQAPairs`, so an empty **answer** is always a read
   failure and must stay reportable.
