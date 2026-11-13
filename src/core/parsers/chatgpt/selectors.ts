@@ -41,11 +41,12 @@ export const CHATGPT_SELECTORS = {
     // wrapper from <article> to <section> in 2026-07; data-testid survived)
     conversationTurn: '[data-testid^="conversation-turn-"]',
     // The scroll box the turns are virtualized inside, for the scroll-to-load
-    // pass (src/extension/content/scroll-to-load.ts). The live scroller is an
-    // inner `main` descendant, not `document.scrollingElement`; the pass picks
-    // the first of these that is actually taller than its viewport, which is
-    // how it was found when probing the page.
-    scrollContainer: 'main div',
+    // pass (src/extension/content/scroll-to-load.ts). An inner element, not
+    // `document.scrollingElement`. Measured live 2026-11-13: its class
+    // attribute is `scrollContainer-fG6qEo thread-scroll-container pee` -- the
+    // first token is a hashed CSS-module name that churns, so match the stable
+    // semantic one.
+    scrollContainer: '.thread-scroll-container',
     // User turn specifically (tag-agnostic, see above)
     userTurn: '[data-turn="user"]',
     // Assistant turn specifically (tag-agnostic, see above)
