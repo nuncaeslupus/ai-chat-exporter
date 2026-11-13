@@ -25,13 +25,10 @@ _Written 2026-11-13, end of the ChatGPT 2026-11 / v1.3.1 release session._
 | Firefox Add-ons | v1.3.1 **submitted** (version 6706086), source package included; awaiting Mozilla review |
 | AMO listing text | updated to the v1.3.1 "What's New" and version history |
 | Chrome Web Store | **not done** — see below |
-| Tag `v1.3.1` + GitHub release | **not done** — the sandbox denied `git push origin v1.3.1` and `gh release create` |
+| Tag `v1.3.1` + GitHub release | done — tagged at `e0f19c9`, release carries the three zips |
 
 ## Blocked, needs the user
 
-- **Tag and release.** Run:
-  `git tag -a v1.3.1 e0f19c9 -m "v1.3.1" && git push origin v1.3.1`
-  then `gh release create v1.3.1 --generate-notes dist/ai-chat-exporter-v1.3.1-*.zip`.
 - **Chrome Web Store.** Neither browser can drive it: Chrome refuses to script
   `chrome.google.com` (extensions gallery), and the in-app pane cannot load it at all. The
   upload and the listing text are a manual job, or the CWS publishing API
