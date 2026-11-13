@@ -16,7 +16,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { ClaudeParser } from '../../../../src/core/parsers/claude';
 import { ChatGPTParser } from '../../../../src/core/parsers/chatgpt';
-import type { IParser } from '../../../../src/core/types';
+import type { IParser, QAPair } from '../../../../src/core/types';
 import {
   parseAllTurns,
   MAX_SCROLL_STEPS,
@@ -381,6 +381,43 @@ describe('scroll-to-load', () => {
     expect(pairs.map((pair) => pair.question.content)).toEqual(['question 0', 'question 1']);
     expect(pairs[1]?.answer.content).toContain('PART ONE');
     expect(pairs[1]?.answer.content).toContain('PART TWO');
+  });
+
+  it('reconciles a partial grouped answer wherever the windows join', async () => {
+    vi.useFakeTimers();
+    // The partial copy and the complete one need not be adjacent. Scripted
+    // windows, because the arrangement is the point and not the geometry:
+    // `[P, (Q, A1)]` coming in against `[P, (Q, A1 + A2)]` already collected
+    // failed the run match outright on a whole-answer key, so the export
+    // carried P twice AND both copies of Q. The plain parse at rest is the
+    // partial window here too, so the walk gains no pair and must still win.
+    const pair = (question: string, answer: string): QAPair =>
+      ({
+        index: 0,
+        question: { id: `q-${question}`, role: 'user', content: question, timestamp: new Date(0) },
+        answer: { id: `a-${question}`, role: 'assistant', content: answer, timestamp: new Date(0) },
+      }) as QAPair;
+    const partial = [pair('P', 'the P answer'), pair('Q', 'PART ONE.')];
+    const complete = [pair('P', 'the P answer'), pair('Q', 'PART ONE. PART TWO.')];
+    const { doc } = buildVirtualized(6);
+    const parser = new ClaudeParser(doc);
+    const real = parser.parse();
+    // The plain parse, then the bottom window, then the windows above it.
+    const windows = [partial, complete, partial, partial];
+    let call = -1;
+    vi.spyOn(parser, 'parse').mockImplementation(() => {
+      call += 1;
+      return {
+        ...real,
+        conversation: { ...real.conversation, pairs: windows[Math.min(call, windows.length - 1)] },
+      } as typeof real;
+    });
+
+    const result = await run(parser, doc);
+    const pairs = result.conversation?.pairs ?? [];
+
+    expect(pairs.map((item) => item.question.content)).toEqual(['P', 'Q']);
+    expect(pairs[1]?.answer.content).toBe('PART ONE. PART TWO.');
   });
 
   it('leaves a streaming conversation alone', async () => {

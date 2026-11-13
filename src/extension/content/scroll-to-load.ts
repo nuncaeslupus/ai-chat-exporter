@@ -89,6 +89,14 @@ function pairKey(pair: QAPair): string {
   return `${pair.question.content}\u0000${pair.answer.content}`;
 }
 
+/** The same exchange, seen twice -- whole in both windows, or whole in one. */
+function matches(pair: QAPair, other: QAPair | undefined): boolean {
+  if (other === undefined) {
+    return false;
+  }
+  return pairKey(pair) === pairKey(other) || subsumes(pair, other) || subsumes(other, pair);
+}
+
 /**
  * How many of `incoming`'s trailing pairs are already the leading pairs of
  * `collected` -- i.e. where the two overlapping windows join.
@@ -97,11 +105,16 @@ function pairKey(pair: QAPair): string {
  * genuinely distinct exchanges that happen to have identical text ("thanks" /
  * "you're welcome", twice in one chat) from collapsing into one: they are told
  * apart by their position in the sequence, not by their content.
+ *
+ * A pair matches its own partial copy as well, since a boundary can fall inside
+ * one grouped answer. Keying strictly on the answer text failed the join
+ * *outright* there -- the whole run stopped matching, so both copies survived
+ * and so did the pairs around them, which the export then printed twice.
  */
 function overlapLength(incoming: QAPair[], collected: QAPair[]): number {
-  const keys = (list: QAPair[]): string => list.map(pairKey).join('\u0001');
   for (let length = Math.min(incoming.length, collected.length); length > 0; length -= 1) {
-    if (keys(incoming.slice(incoming.length - length)) === keys(collected.slice(0, length))) {
+    const tail = incoming.slice(incoming.length - length);
+    if (tail.every((pair, index) => matches(pair, collected[index]))) {
       return length;
     }
   }
@@ -123,23 +136,6 @@ function subsumes(whole: QAPair, part: QAPair): boolean {
     whole.question.content === part.question.content &&
     whole.answer.content.length > part.answer.content.length &&
     whole.answer.content.includes(part.answer.content)
-  );
-}
-
-/**
- * Drop a pair whose neighbour holds the same exchange with more of its answer.
- *
- * `pairKey` carries the whole answer text, so the partial copy and the complete
- * one do not join and `harvest` keeps both: the export printed one question
- * twice, once truncated. They always land adjacent -- the prepended window's
- * copy immediately before the collected one -- so looking at neighbours is
- * enough.
- */
-function collapsePartials(pairs: QAPair[]): QAPair[] {
-  const subsumed = (part: QAPair, whole: QAPair | undefined): boolean =>
-    whole !== undefined && subsumes(whole, part);
-  return pairs.filter(
-    (pair, index) => !subsumed(pair, pairs[index - 1]) && !subsumed(pair, pairs[index + 1])
   );
 }
 
@@ -182,7 +178,17 @@ async function walk(parser: IParser, doc: Document): Promise<ParseResult> {
     const result = parser.parse();
     const incoming = result.conversation?.pairs ?? [];
     warnings.push(...(result.warnings ?? []));
-    pairs = [...incoming.slice(0, incoming.length - overlapLength(incoming, pairs)), ...pairs];
+    const overlap = overlapLength(incoming, pairs);
+    // Across the join, keep whichever copy of the exchange has more of its
+    // answer: one turn can deliver several assistant units and they unmount
+    // independently, so a window can hold only the first of them.
+    const joined = pairs.slice(0, overlap).map((collected, index) => {
+      const seen = incoming[incoming.length - overlap + index];
+      return seen !== undefined && seen.answer.content.length > collected.answer.content.length
+        ? seen
+        : collected;
+    });
+    pairs = [...incoming.slice(0, incoming.length - overlap), ...joined, ...pairs.slice(overlap)];
   };
 
   try {
@@ -198,8 +204,6 @@ async function walk(parser: IParser, doc: Document): Promise<ParseResult> {
   } finally {
     scroller.scrollTop = originalScrollTop;
   }
-
-  pairs = collapsePartials(pairs);
 
   // The "never worse than the plain parse" contract. A walk that resolved the
   // wrong element, or that ran out of steps before reaching the user's own

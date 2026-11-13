@@ -458,11 +458,15 @@ drift net assumed every pair has two sides:
   the question too, and a long question with a short answer then reads as a
   `content-shortfall`. Grouping also lets a scroll window's edge fall *inside* one
   answer: the window that mounted only the first unit harvests `(Q, A1)` while the
-  one above it harvests `(Q, A1 + A2)` — different `pairKey`s again — so
-  `scroll-to-load.ts` drops the copy whose answer a neighbour's answer contains
-  (`collapsePartials`), and `containsAll` counts the completed pair as holding the
-  partial one or the "never worse than the plain parse" contract would reject the
-  very result that fixed it.
+  one above it harvests `(Q, A1 + A2)`. Different `pairKey`s, so in
+  `scroll-to-load.ts` the *whole run* stopped matching and the export printed the
+  exchanges on both sides of it twice over. The join therefore matches an exchange
+  against its own partial copy (`subsumes`) and keeps whichever copy has more of
+  the answer; reconciling adjacent pairs afterwards instead is not enough, since
+  the two copies need not end up adjacent. `containsAll` reads a completed pair as
+  holding the partial one for the same reason, and the contract is content alone —
+  a walk that gains no pair but completes one is still better than the plain
+  parse, which may itself be the partial window.
 - Only a *question* is ever synthesised. A user turn still waiting for its reply is
   skipped as pending by `extractQAPairs`, so an empty **answer** is always a read
   failure and must stay reportable.
