@@ -84,6 +84,28 @@ function isStreaming(parser: IParser, doc: Document): boolean {
  * Identity of a pair across windows. `pair.id` is regenerated on every parse
  * and `pair.index` is a position within one window, so the content is the only
  * thing that identifies the same exchange seen twice.
+ *
+ * ponytail: content keying drops one of two *adjacent* exchanges whose question
+ * and answer text are both byte-identical, when the two are together taller
+ * than a step so that no window mounts both. The walk then sees windows `[A]`,
+ * `[A]` and cannot tell "the same pair again" from "the next pair, identical" --
+ * they are the same observation. `overlapLength` reads it as the former and
+ * `containsAll` passes it, since the baseline window holds neither copy.
+ *
+ * The upgrade path is per-message identity that survives unmounting, and it is
+ * not available today: a virtualizer remounts a turn as a *fresh node*, so no
+ * DOM-node identity carries over, and only the app's own id attribute does.
+ * ChatGPT has one (`custom.messageIdAttr`, `data-message-id`); Claude's DOM
+ * carries no per-message id at all (its turns expose only `data-testid`,
+ * `data-test-render-count` and `data-is-streaming`). Keying on `message.id`
+ * regardless would be worse, not better: both parsers fall back to
+ * `generateId()` per element when the attribute is missing, and a generated id
+ * never matches across windows, so every such pair would be re-prepended at
+ * every one of the up-to-100 steps -- trading a rare silent drop for frequent
+ * silent duplication.
+ *
+ * Fix it when a platform exposes a stable id for every message, or when the
+ * merge is rebuilt on turn geometry rather than on parsed text.
  */
 function pairKey(pair: QAPair): string {
   return `${pair.question.content}\u0000${pair.answer.content}`;
