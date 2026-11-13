@@ -8,6 +8,7 @@
  * describe blocks in that file.
  */
 import { describe, it, expect, vi } from 'vitest';
+import { CHATGPT_SELECTORS } from '../../../../src/core/parsers/chatgpt/selectors';
 import { createTestQAPair, createTestConversation } from '../../../utils/exporter-helpers';
 import { ERROR_KEYS } from '../../../../src/shared/constants';
 
@@ -16,6 +17,9 @@ const mockParse = vi.fn();
 vi.mock('../../../../src/core/parsers', () => ({
   detectParser: () => ({
     platformInfo: { id: 'chatgpt', name: 'ChatGPT', urlPatterns: [] },
+    // A real parser always carries its selector set, and the scroll-to-load
+    // pass reads it (`custom.scrollContainer`) before parsing.
+    selectors: CHATGPT_SELECTORS,
     parse: mockParse,
   }),
 }));

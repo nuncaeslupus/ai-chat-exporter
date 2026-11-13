@@ -8,7 +8,10 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createTestQAPair, createTestConversation } from '../../../utils/exporter-helpers';
-import { EMBEDDED_FRAME_REPORT_ATTR } from '../../../../src/core/parsers/chatgpt/selectors';
+import {
+  CHATGPT_SELECTORS,
+  EMBEDDED_FRAME_REPORT_ATTR,
+} from '../../../../src/core/parsers/chatgpt/selectors';
 import { WARNING_KEYS, ERROR_KEYS } from '../../../../src/shared/constants';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
@@ -22,6 +25,9 @@ const mockEnrich = vi.fn();
 vi.mock('../../../../src/core/parsers', () => ({
   detectParser: () => ({
     platformInfo: { id: 'chatgpt', name: 'ChatGPT', urlPatterns: [] },
+    // A real parser always carries its selector set, and the scroll-to-load
+    // pass reads it (`custom.scrollContainer`) before parsing.
+    selectors: CHATGPT_SELECTORS,
     parse: mockParse,
   }),
 }));
