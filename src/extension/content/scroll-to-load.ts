@@ -14,35 +14,37 @@
  * Because the turns are *unmounted* rather than hidden, no scroll position
  * leaves them all in the DOM at once: scrolling and then parsing once would
  * still see a window. So the pass walks the scroller from the bottom upwards
- * and harvests each window's pairs as they mount, merging them into one
- * conversation. Walking upwards also gives the page the chance to fetch older
- * turns it had not loaded at all.
+ * and stitches each window's pairs onto the ones already collected. Walking
+ * upwards also gives the page the chance to fetch older turns it had not
+ * loaded at all.
  *
- * Stepping by one viewport at a time is what makes the merge complete: every
- * question/answer boundary in the conversation falls inside some viewport
- * position, and a virtualizer mounts whole items that intersect the viewport,
- * so each pair is fully mounted -- and therefore paired by the parser -- in at
- * least one window, however tall its answer is.
+ * The contract is "never worse than the plain parse": the walk's result is
+ * used only when it contains everything `parser.parse()` already saw (see
+ * `containsAll`). A pass that is cut short by the step cap before it reaches
+ * the user's own position therefore falls back rather than returning a
+ * conversation missing the turns in front of them.
  */
 
 import type { IParser, ParseResult, QAPair } from '../../core/types';
 
 /**
- * Hard cap on scroll steps. An export must finish even on a conversation that
- * keeps loading older turns forever; at `SETTLE_MS` per step this bounds the
- * pass at a few seconds.
+ * Hard cap on scroll steps, each `STEP_FRACTION` of a viewport. An export must
+ * finish even on a conversation that keeps loading older turns forever.
  */
-export const MAX_SCROLL_STEPS = 50;
+export const MAX_SCROLL_STEPS = 100;
 
 /** How long to let the page mount newly revealed turns after each scroll. */
 export const SETTLE_MS = 150;
 
 /**
- * Consecutive steps that may harvest nothing before the pass gives up. One
- * barren step is not the top: a single answer can be taller than the viewport,
- * so a step can land inside one and reveal no turn that was not already seen.
+ * How far to scroll per step, as a fraction of the viewport.
+ *
+ * Successive windows must *overlap*: a pair is only harvested where its
+ * question and its answer are mounted at the same time, so stepping by a whole
+ * viewport drops any pair that straddles a window boundary. Half a viewport
+ * guarantees every pair shorter than that is wholly inside some window.
  */
-const BARREN_STEP_LIMIT = 2;
+const STEP_FRACTION = 0.5;
 
 /**
  * How much taller than its viewport a candidate must be to count as *the*
@@ -54,11 +56,10 @@ const SCROLLABLE_MARGIN_PX = 200;
 /**
  * The first candidate of `custom.scrollContainer` that is actually scrollable.
  *
- * The selector is deliberately loose: the live scroller is an inner element
- * whose utility classes churn (and on ChatGPT is a `main` descendant rather
- * than `document.scrollingElement`), so it is identified by measurement rather
- * than by a class chain that goes stale. No `scrollContainer` -- Gemini, which
- * was not observed virtualizing -- means no pass.
+ * ChatGPT names its scroller (`.thread-scroll-container`); Claude's selector is
+ * a loose candidate list, because the live scroller is an inner element whose
+ * utility classes churn. No `scrollContainer` -- Gemini, which was not observed
+ * virtualizing -- means no pass.
  */
 function findScroller(parser: IParser, doc: Document): HTMLElement | null {
   const selector = parser.selectors.custom?.scrollContainer;
@@ -88,21 +89,48 @@ function pairKey(pair: QAPair): string {
   return `${pair.question.content}\u0000${pair.answer.content}`;
 }
 
+/**
+ * How many of `incoming`'s trailing pairs are already the leading pairs of
+ * `collected` -- i.e. where the two overlapping windows join.
+ *
+ * Matching runs of pairs rather than individual pairs is what keeps two
+ * genuinely distinct exchanges that happen to have identical text ("thanks" /
+ * "you're welcome", twice in one chat) from collapsing into one: they are told
+ * apart by their position in the sequence, not by their content.
+ */
+function overlapLength(incoming: QAPair[], collected: QAPair[]): number {
+  const keys = (list: QAPair[]): string => list.map(pairKey).join('\u0001');
+  for (let length = Math.min(incoming.length, collected.length); length > 0; length -= 1) {
+    if (keys(incoming.slice(incoming.length - length)) === keys(collected.slice(0, length))) {
+      return length;
+    }
+  }
+  return 0;
+}
+
+/** Whether `haystack` holds at least as many of each pair as `needles` does. */
+function containsAll(haystack: QAPair[], needles: QAPair[]): boolean {
+  const available = new Map<string, number>();
+  for (const pair of haystack) {
+    const key = pairKey(pair);
+    available.set(key, (available.get(key) ?? 0) + 1);
+  }
+  for (const pair of needles) {
+    const key = pairKey(pair);
+    const left = available.get(key) ?? 0;
+    if (left === 0) {
+      return false;
+    }
+    available.set(key, left - 1);
+  }
+  return true;
+}
+
 function settle(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
 }
 
-/**
- * Parse the conversation, scrolling virtualized turns into the DOM first.
- *
- * Returns the plain `parser.parse()` result unchanged when there is nothing to
- * do: no scroll container for this platform, the page is not scrollable, a
- * response is streaming, or the pass found no pair the plain parse had missed.
- */
-export async function parseAllTurns(
-  parser: IParser,
-  doc: Document = document
-): Promise<ParseResult> {
+async function walk(parser: IParser, doc: Document): Promise<ParseResult> {
   const base = parser.parse();
   const scroller = findScroller(parser, doc);
   if (!base.success || !base.conversation || !scroller || isStreaming(parser, doc)) {
@@ -110,51 +138,67 @@ export async function parseAllTurns(
   }
 
   const originalScrollTop = scroller.scrollTop;
-  const seen = new Set<string>();
-  const pairs: QAPair[] = [];
+  const warnings = [...(base.warnings ?? [])];
+  let pairs: QAPair[] = [];
 
-  /** Add this window's unseen pairs *above* what earlier windows gave us. */
-  const harvest = (): number => {
-    const fresh = (parser.parse().conversation?.pairs ?? []).filter(
-      (pair) => !seen.has(pairKey(pair))
-    );
-    for (const pair of fresh) {
-      seen.add(pairKey(pair));
-    }
-    pairs.unshift(...fresh);
-    return fresh.length;
+  /** Stitch this window onto the front of what the lower windows gave us. */
+  const harvest = (): void => {
+    const result = parser.parse();
+    const incoming = result.conversation?.pairs ?? [];
+    warnings.push(...(result.warnings ?? []));
+    pairs = [...incoming.slice(0, incoming.length - overlapLength(incoming, pairs)), ...pairs];
   };
 
   try {
+    const step = Math.max(1, Math.round(scroller.clientHeight * STEP_FRACTION));
     scroller.scrollTop = scroller.scrollHeight;
     await settle();
     harvest();
-    let barren = 0;
-    for (
-      let step = 0;
-      step < MAX_SCROLL_STEPS && scroller.scrollTop > 0 && barren < BARREN_STEP_LIMIT;
-      step += 1
-    ) {
-      scroller.scrollTop -= scroller.clientHeight;
+    for (let i = 0; i < MAX_SCROLL_STEPS && scroller.scrollTop > 0; i += 1) {
+      scroller.scrollTop -= step;
       await settle();
-      barren = harvest() === 0 ? barren + 1 : 0;
+      harvest();
     }
   } finally {
     scroller.scrollTop = originalScrollTop;
   }
 
-  // ponytail: a pass that found no more than the plain parse did -- a
-  // scrollContainer that resolved to the wrong element, say -- must never make
-  // the export smaller than it was without it.
-  if (pairs.length <= base.conversation.pairs.length) {
+  // The "never worse than the plain parse" contract. A walk that resolved the
+  // wrong element, or that ran out of steps before reaching the user's own
+  // position, can hold *fewer* exchanges than they already had on screen.
+  if (
+    pairs.length <= base.conversation.pairs.length ||
+    !containsAll(pairs, base.conversation.pairs)
+  ) {
     return base;
   }
 
   return {
     ...base,
+    ...(warnings.length > 0 ? { warnings: [...new Set(warnings)] } : {}),
     conversation: {
       ...base.conversation,
       pairs: pairs.map((pair, index) => ({ ...pair, index })),
     },
   };
+}
+
+/**
+ * Passes run one at a time: export and print can be in flight together
+ * (lo-08b0), and two walks sharing a scroller would interleave their scrolling
+ * and restore each other's stale positions.
+ */
+let queue: Promise<unknown> = Promise.resolve();
+
+/**
+ * Parse the conversation, scrolling virtualized turns into the DOM first.
+ *
+ * Returns the plain `parser.parse()` result unchanged when there is nothing to
+ * do: no scroll container for this platform, the page is not scrollable, a
+ * response is streaming, or the walk did not improve on what was already there.
+ */
+export function parseAllTurns(parser: IParser, doc: Document = document): Promise<ParseResult> {
+  const pass = queue.then(() => walk(parser, doc));
+  queue = pass.catch(() => undefined);
+  return pass;
 }

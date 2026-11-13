@@ -140,7 +140,7 @@ describe('scroll-to-load', () => {
     expect(scroller.scrollTop).toBe(400);
   });
 
-  it('stops once the turn count stops growing', async () => {
+  it('stops when it reaches the top', async () => {
     vi.useFakeTimers();
     // Scrollable, but the same single pair whatever the scroll position: every
     // step after the first harvests nothing new.
@@ -157,10 +157,11 @@ describe('scroll-to-load', () => {
     expect(result.conversation?.pairs).toHaveLength(1);
   });
 
-  it('stops at the step cap when the turn count keeps growing', async () => {
+  it('falls back to the plain parse when the cap stops it short of the user', async () => {
     vi.useFakeTimers();
     // Effectively infinite content, and a fresh pair at every scroll position,
-    // so only the cap can end the pass.
+    // so the cap ends the walk long before it reaches scrollTop 0 -- where the
+    // user is, and where the plain parse read the pairs in front of them.
     const { doc } = buildScroller({
       contentHeight: 1_000_000,
       mount: (scrollTop) =>
@@ -170,13 +171,102 @@ describe('scroll-to-load', () => {
            <div class="standard-markdown"><p>answer ${scrollTop}</p></div></div></div></div>`,
     });
     const parser = new ClaudeParser(doc);
-    const parse = vi.spyOn(parser, 'parse');
 
     const result = await run(parser, doc);
 
-    // One baseline parse, one at the bottom, then one per capped step.
-    expect(parse).toHaveBeenCalledTimes(MAX_SCROLL_STEPS + 2);
-    expect(result.conversation?.pairs).toHaveLength(MAX_SCROLL_STEPS + 1);
+    // A walk that never reached the user's own window must not hand back a
+    // conversation missing the exchanges they can see: never worse than the
+    // plain parse.
+    expect(result.conversation?.pairs).toHaveLength(1);
+    expect(result.conversation?.pairs[0]?.question.content).toBe('question 0');
+  });
+
+  it('keeps a pair that straddles a window boundary', async () => {
+    vi.useFakeTimers();
+    // Eight turns: with whole-viewport steps the sampled windows never mount
+    // both halves of pair 1, and it vanishes from the export. Windows have to
+    // overlap for a pair sitting on a boundary to be seen whole anywhere.
+    const { doc } = buildVirtualized(8);
+    const parser = new ClaudeParser(doc);
+
+    const result = await run(parser, doc);
+
+    expect(result.conversation?.pairs.map((pair) => pair.question.content)).toEqual([
+      'question 0',
+      'question 1',
+      'question 2',
+      'question 3',
+    ]);
+  });
+
+  it('keeps two distinct exchanges that have identical text', async () => {
+    vi.useFakeTimers();
+    // "thanks" / "you're welcome", twice in one conversation. Keyed by content
+    // alone the second one disappears; the windows have to be stitched by
+    // sequence position instead.
+    const { doc } = buildScroller({
+      contentHeight: 6 * TURN_HEIGHT,
+      mount: (scrollTop) => {
+        const first = Math.floor(scrollTop / TURN_HEIGHT);
+        const last = Math.floor((scrollTop + VIEWPORT - 1) / TURN_HEIGHT);
+        return (
+          Array.from({ length: 6 }, (_, index) => index)
+            .filter((index) => index >= first && index <= last)
+            // Turns 0-1 and 4-5 are the same exchange; 2-3 is a different one.
+            .map((index) => turnHtml(index < 2 || index > 3 ? index % 2 : index))
+            .join('')
+        );
+      },
+    });
+    const parser = new ClaudeParser(doc);
+
+    const result = await run(parser, doc);
+
+    expect(result.conversation?.pairs.map((pair) => pair.question.content)).toEqual([
+      'question 0',
+      'question 1',
+      'question 0',
+    ]);
+  });
+
+  it('runs one pass at a time so concurrent exports cannot interleave', async () => {
+    vi.useFakeTimers();
+    // Export and print can be in flight together (lo-08b0). Two walks sharing
+    // a scroller would restore each other's stale position.
+    const { doc, scroller } = buildVirtualized(6);
+    scroller.scrollTop = 400;
+    const parser = new ClaudeParser(doc);
+
+    const first = parseAllTurns(parser, doc);
+    const second = parseAllTurns(parser, doc);
+    await vi.advanceTimersByTimeAsync(SETTLE_MS * (MAX_SCROLL_STEPS + 5) * 2);
+    const results = await Promise.all([first, second]);
+
+    expect(scroller.scrollTop).toBe(400);
+    for (const result of results) {
+      expect(result.conversation?.pairs.map((pair) => pair.question.content)).toEqual([
+        'question 0',
+        'question 1',
+        'question 2',
+      ]);
+    }
+  });
+
+  it('keeps warnings raised by the windows it walked through', async () => {
+    vi.useFakeTimers();
+    const { doc } = buildVirtualized(6);
+    const parser = new ClaudeParser(doc);
+    const real = parser.parse.bind(parser);
+    let call = 0;
+    vi.spyOn(parser, 'parse').mockImplementation(() => {
+      call += 1;
+      const result = real();
+      return call === 2 ? { ...result, warnings: ['a turn failed to read'] } : result;
+    });
+
+    const result = await run(parser, doc);
+
+    expect(result.warnings).toContain('a turn failed to read');
   });
 
   it('leaves a streaming conversation alone', async () => {
