@@ -131,6 +131,19 @@ async function run(parser: IParser, doc: Document) {
   return pending;
 }
 
+/**
+ * A pair as a parser hands it over: `id` is the exchange's identity across
+ * windows (ChatGPT's own `data-turn-key`), which is what tells one exchange
+ * seen twice from two exchanges that read alike.
+ */
+const pair = (id: string, question: string, answer: string): QAPair =>
+  ({
+    id,
+    index: 0,
+    question: { id: `q-${id}`, role: 'user', content: question, timestamp: new Date(0) },
+    answer: { id: `a-${id}`, role: 'assistant', content: answer, timestamp: new Date(0) },
+  }) as QAPair;
+
 describe('scroll-to-load', () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -391,14 +404,8 @@ describe('scroll-to-load', () => {
     // failed the run match outright on a whole-answer key, so the export
     // carried P twice AND both copies of Q. The plain parse at rest is the
     // partial window here too, so the walk gains no pair and must still win.
-    const pair = (question: string, answer: string): QAPair =>
-      ({
-        index: 0,
-        question: { id: `q-${question}`, role: 'user', content: question, timestamp: new Date(0) },
-        answer: { id: `a-${question}`, role: 'assistant', content: answer, timestamp: new Date(0) },
-      }) as QAPair;
-    const partial = [pair('P', 'the P answer'), pair('Q', 'PART ONE.')];
-    const complete = [pair('P', 'the P answer'), pair('Q', 'PART ONE. PART TWO.')];
+    const partial = [pair('t-p', 'P', 'the P answer'), pair('t-q', 'Q', 'PART ONE.')];
+    const complete = [pair('t-p', 'P', 'the P answer'), pair('t-q', 'Q', 'PART ONE. PART TWO.')];
     const { doc } = buildVirtualized(6);
     const parser = new ClaudeParser(doc);
     const real = parser.parse();
@@ -418,6 +425,35 @@ describe('scroll-to-load', () => {
 
     expect(pairs.map((item) => item.question.content)).toEqual(['P', 'Q']);
     expect(pairs[1]?.answer.content).toBe('PART ONE. PART TWO.');
+  });
+
+  it('keeps two exchanges whose question repeats and whose answers nest', async () => {
+    vi.useFakeTimers();
+    // "Continue" -> "Done." sits above "Continue" -> "Done. Next step.": one
+    // answer contains the other, so folding on content alone would read them as
+    // one exchange seen twice and keep only the longer copy -- and the contract
+    // would wave it through, the plain parse at rest holding only the shorter
+    // one. Their turn keys differ, which is the whole of what tells them apart.
+    const above = [pair('t-1', 'Continue', 'Done.')];
+    const below = [pair('t-2', 'Continue', 'Done. Next step.')];
+    const { doc } = buildVirtualized(6);
+    const parser = new ClaudeParser(doc);
+    const real = parser.parse();
+    // The plain parse, then the bottom window, then the windows above it.
+    const windows = [above, below, above, above];
+    let call = -1;
+    vi.spyOn(parser, 'parse').mockImplementation(() => {
+      call += 1;
+      return {
+        ...real,
+        conversation: { ...real.conversation, pairs: windows[Math.min(call, windows.length - 1)] },
+      } as typeof real;
+    });
+
+    const result = await run(parser, doc);
+    const pairs = result.conversation?.pairs ?? [];
+
+    expect(pairs.map((item) => item.answer.content)).toEqual(['Done.', 'Done. Next step.']);
   });
 
   it('leaves a streaming conversation alone', async () => {

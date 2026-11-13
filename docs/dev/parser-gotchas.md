@@ -466,7 +466,11 @@ drift net assumed every pair has two sides:
   the two copies need not end up adjacent. `containsAll` reads a completed pair as
   holding the partial one for the same reason, and the contract is content alone —
   a walk that gains no pair but completes one is still better than the plain
-  parse, which may itself be the partial window.
+  parse, which may itself be the partial window. `subsumes` is gated on the pair
+  *id*, which is why `createQAPair` here is handed the turn's `data-turn-key`:
+  folding on text alone would read "Continue" → "Done." and "Continue" →
+  "Done. Next step." as one exchange seen twice and keep only the longer copy,
+  and `containsAll` would wave that loss through.
 - Only a *question* is ever synthesised. A user turn still waiting for its reply is
   skipped as pending by `extractQAPairs`, so an empty **answer** is always a read
   failure and must stay reportable.

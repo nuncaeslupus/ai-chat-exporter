@@ -216,11 +216,17 @@ export class ChatGPTParser extends BaseParser {
       if (!hasPendingQuestion) {
         this.inventedQuestions.push(pairs.length);
       }
+      // The turn's own key as the pair id, so `scroll-to-load.ts` can tell one
+      // exchange seen twice from two that happen to read alike: a grouped
+      // answer arrives partial in one scroll window and whole in another, and
+      // only a stable identity makes folding those two copies safe.
+      const turnKey = turn.closest('[data-turn-key]')?.getAttribute('data-turn-key');
       pairs.push(
         this.createQAPair(
           pairs.length,
           pendingQuestion ?? this.createMessage('user', ''),
-          answer ?? this.createMessage('assistant', '')
+          answer ?? this.createMessage('assistant', ''),
+          turnKey ?? undefined
         )
       );
       // The units' own length, never the wrapper's: a wrapper also holds the

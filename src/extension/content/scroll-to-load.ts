@@ -126,13 +126,18 @@ function overlapLength(incoming: QAPair[], collected: QAPair[]): number {
  *
  * One turn can deliver several assistant units and units unmount
  * independently, so a window boundary can fall *inside* one answer: the same
- * exchange is harvested once as `(Q, A1)` and again as `(Q, A1 + A2)`. Two
- * genuinely distinct exchanges would have to share a question *and* hold one
- * answer inside the other to be mistaken for that -- the same risk class
- * `overlapLength` already accepts for identical text.
+ * exchange is harvested once as `(Q, A1)` and again as `(Q, A1 + A2)`.
+ * Identity is the pair id -- ChatGPT reads it off the turn's own
+ * `data-turn-key`, so it repeats across windows. Content alone would fold two
+ * *distinct* exchanges together whenever one answer happens to contain the
+ * other ("Continue" -> "Done." beside "Continue" -> "Done. Next step."), and
+ * the one with less of its answer would be the copy thrown away. A parser that
+ * leaves the id regenerated per parse never subsumes, which costs it only the
+ * duplicate this fold removes.
  */
 function subsumes(whole: QAPair, part: QAPair): boolean {
   return (
+    whole.id === part.id &&
     whole.question.content === part.question.content &&
     whole.answer.content.length > part.answer.content.length &&
     whole.answer.content.includes(part.answer.content)
