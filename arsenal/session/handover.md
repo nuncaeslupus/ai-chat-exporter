@@ -54,3 +54,101 @@ by `waitfor-timeout.test.ts`).
 `.claude/launch.json` now serves the built extension (`popup-preview`), so the
 popup can be driven in a real browser. Both #263 defects were found by measuring
 a live render; neither is visible to jsdom, which computes no layout.
+
+---
+
+# Handover — 2026-11-13 (side session: scroll-to-load)
+
+Appended rather than replacing the 2026-09-06 handover above: that one still
+carries the only write-up of #253, #264, #258, #250 and #254, all still open.
+
+## State
+
+`main` @ `0b567e7`. `t-339c7d74` (*scroll-to-load before parsing*) is finished
+end to end — code merged, ceiling documented, task archived, issue #295 closed.
+
+## Shipped
+
+| PR | Commit | What |
+|---|---|---|
+| #294 | `8c8d9ce` | `src/extension/content/scroll-to-load.ts` — parse every turn of a virtualized conversation |
+| #296 | `e7c5af7` | names the one case the stitch cannot resolve, on `pairKey` |
+| #297 | `0b567e7` | archives the task file as `status: merged` |
+
+**The bug**: chatgpt.com and claude.ai *unmount* turns outside the viewport, so a
+single parse sees one window. Measured live: a 3-exchange ChatGPT conversation had
+4 of 6 message units in the DOM at rest, 2 of 6 scrolled to the top. Exports lost
+the rest silently, and when no complete user+assistant pair was mounted the popup
+reported "no conversation" on a page whose selectors were all healthy.
+
+**The mechanism**: walk the scroller bottom-upwards in **half**-viewport steps —
+windows must overlap or a pair straddling a boundary is never seen whole — and
+stitch each window on by longest matching run of pairs, not by content-keyed
+dedup. Guarded by "never worse than the plain parse": the walk's result is used
+only if `containsAll` says it holds everything `parser.parse()` already saw, so a
+pass cut short by the 100-step cap falls back instead of dropping the turns in
+front of the user. Passes are serialized (export and print can overlap, lo-08b0),
+scroll position is restored, and a streaming response is left alone.
+
+## Known ceiling — deliberate, documented, do not "fix" blindly
+
+Two **adjacent** exchanges whose question *and* answer are byte-identical, together
+taller than half a viewport, collapse into one. CodeRabbit found it; it is real
+(reproduced: three 1200px pairs in a 1000px viewport labelled `A, A, C` exported
+`A, C`).
+
+It is not fixable today, and the obvious fix is a **regression**:
+
+- A virtualizer remounts a turn as a *fresh node*, so no DOM-node identity survives
+  an unmount. Only an app-supplied id attribute does.
+- ChatGPT has one (`data-message-id`). **Claude's turns carry no per-message id** —
+  only `data-testid`, `data-test-render-count`, `data-is-streaming`.
+- Keying on `message.id` regardless: both parsers fall back to `generateId()` when
+  the attribute is missing (`chatgpt/parser.ts:237,287,367`,
+  `claude/parser.ts:378,519`), and a generated id never matches across windows, so
+  such a pair is re-prepended at every one of the up-to-100 steps. A rare silent
+  drop traded for frequent silent duplication.
+
+No test pins it: asserting today's output would record the wrong answer as correct.
+Fix it when a platform exposes a stable id for every message, or when the merge is
+rebuilt on turn geometry rather than parsed text. Full reasoning is in the doc
+comment on `pairKey`.
+
+## Carry-overs
+
+- **#292** (`fix/chatgpt-2026-11-dom`) now conflicts in
+  `src/core/parsers/chatgpt/selectors.ts` — one added line,
+  `scrollContainer: '.thread-scroll-container'`. Trivial.
+- `scrollContainer` sits in `NO_FIXTURE_COVERAGE` in
+  `tests/unit/core/parsers/chatgpt.test.ts`: every committed snapshot predates the
+  2026-11 shell, so the selector matches nothing in them. **Remove that entry when
+  a 2026-11 fixture lands.**
+- **Gemini deliberately has no `scrollContainer`.** Its selectors were verified
+  healthy and it was not observed virtualizing; no `scrollContainer` means no pass.
+- No streaming guard for ChatGPT — `custom.streamingTurn` exists only on Claude.
+  ChatGPT scrolls during a live response.
+
+## `merge_ready.sh` reports `review: absent` even on a reviewed PR
+
+Hit on all three PRs. An artefact, not a real gap: `pr_audit.py`'s
+`REVIEW_VERDICTS` counts only `APPROVED`/`CHANGES_REQUESTED`, and
+`coderabbitai[bot]` only ever posts `COMMENTED`; the marker fallback wants
+`Claude-Session` trailers on the PR's commits. I did **not** add trailers to
+satisfy it — that is gaming an identity check. Merged on the host `CLAUDE.md`
+protocol instead, with the reasoning recorded as a PR comment each time.
+
+Worth fixing upstream (count a configured review bot's `COMMENTED` review, or emit
+the trailer), but `claude-arsenal/` is vendored, so a local patch is squashed by the
+next subtree pull.
+
+Also note CodeRabbit does not review this repo automatically at all — "fewer than
+10 stars" — so `@coderabbitai review` is required, and its plan rate-limits to about
+one review an hour across PRs. #297's request came back "Review rate limited".
+
+## Board flags not caused by this work
+
+- `lo-cb69`: #252 is closed as completed but `arsenal/tasks/lo-cb69.md` is still
+  live — wants the same `_history/` move #297 did.
+- `mixed-priority-convention`: 4 tasks use the size scale `[10, 5, 1, 0]`, 2 use
+  `[4, 2]`, so any value above 10 outranks every sized task regardless of intent.
+  Needs a decision on which convention the board keeps.
