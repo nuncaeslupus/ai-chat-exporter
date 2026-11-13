@@ -41,7 +41,25 @@ export class ChatGPTParser extends BaseParser {
     // discriminator there, so a rename that breaks only userTurn previously
     // went unguarded while conversationTurn -- read by no extraction code --
     // was required instead.
-    return [...super.requiredSelectorKeys, 'custom.userTurn', 'custom.assistantTurn'];
+    const keys = [...super.requiredSelectorKeys, 'custom.userTurn', 'custom.assistantTurn'];
+    if (!this.allQuestionsSynthesized) {
+      return keys;
+    }
+    // Every pair on this page is an assistant unit at index 0 of its own turn:
+    // a thread nobody asked a question in, which is what a ChatGPT scheduled
+    // task is. A user-side selector matching nothing is then the page's shape
+    // rather than drift, and requiring it is a third path to the same banner --
+    // `sanityFindings` can be empty and the popup still shows "your export may
+    // be incomplete", with an invitation to file a selector-drift report about
+    // a page the parser read perfectly.
+    //
+    // Deliberately NOT keyed off the user selectors themselves, which would
+    // measure the suppression with the very thing it vouches for. The walk
+    // reaches this state only by reading unit INDEXES (see
+    // `isFirstUnitOfTurn`), so a rename that killed `userTurn` on an ordinary
+    // conversation leaves its answers at a non-zero index, synthesises nothing,
+    // and leaves both keys required -- drift fires, loudly.
+    return keys.filter((key) => key !== 'userMessage' && key !== 'custom.userTurn');
   }
 
   /**
@@ -51,6 +69,18 @@ export class ChatGPTParser extends BaseParser {
    * permanently suppressed -- see base-parser.ts).
    */
   private turnLengths: number[] = [];
+
+  /**
+   * Pair indexes whose empty question this walk invented, as opposed to failed
+   * to read. Set by `extractQAPairs`, the only code that can tell them apart.
+   */
+  private inventedQuestions: number[] = [];
+
+  /**
+   * Whether every pair this walk produced is an orphan assistant unit at index
+   * 0 of its turn -- an assistant-only thread, not a conversation read badly.
+   */
+  private allQuestionsSynthesized = false;
 
   /**
    * Check if this parser can handle the current page
@@ -128,6 +158,8 @@ export class ChatGPTParser extends BaseParser {
   protected extractQAPairs(config: ParserConfig): QAPair[] {
     const pairs: QAPair[] = [];
     this.turnLengths = [];
+    this.inventedQuestions = [];
+    this.allQuestionsSynthesized = false;
     const turns = this.document.querySelectorAll(
       `${this.selectors.custom.userTurn}, ${this.selectors.custom.assistantTurn}`
     );
@@ -156,14 +188,23 @@ export class ChatGPTParser extends BaseParser {
       }
 
       // Assistant turn.
+      // An assistant turn with no preceding question is only content in its own
+      // right when the page never held a question for it. Measured live on
+      // 2026-11-13: a scheduled-task conversation is ONE assistant unit at
+      // index 0 of its turn, so dropping every orphan made all of them export
+      // as nothing and show the popup's "no conversation" state. An orphan at a
+      // NON-zero index is the other cause entirely -- its question is mounted
+      // above this window -- and keeping that one emits a pair
+      // `scroll-to-load.ts` cannot stitch onto the window above, which exports
+      // the answer twice.
+      if (!hasPendingQuestion && !this.turnNeverHadQuestion(turn)) {
+        return;
+      }
+
       const answer = this.extractAssistantMessageFromTurn(turn, config);
-      // An assistant turn with no preceding question is still content the user
-      // can see, so it is paired with an empty question rather than dropped --
-      // the mirror of the orphan-user branch above. Measured live on
-      // 2026-11-13: a scheduled-task conversation is ONE assistant-only turn,
-      // so dropping orphans made every one of them export as nothing and show
-      // the popup's "no conversation" state. Reverses PAR-1's drop-and-warn,
-      // whose complaint was that the turn went missing in the first place.
+      if (!hasPendingQuestion) {
+        this.inventedQuestions.push(pairs.length);
+      }
       pairs.push(
         this.createQAPair(
           pairs.length,
@@ -179,7 +220,50 @@ export class ChatGPTParser extends BaseParser {
     // A trailing pending question (no assistant reply yet) is an in-progress
     // conversation -- skip it, same as before.
 
+    this.allQuestionsSynthesized =
+      pairs.length > 0 && this.inventedQuestions.length === pairs.length;
+
     return pairs;
+  }
+
+  /**
+   * Whether this assistant turn is one the conversation never held a question
+   * for, as opposed to one whose question is simply not mounted right now.
+   *
+   * Everything downstream hangs on that distinction. Keep a turn of the first
+   * kind and a scheduled task exports (measured live 2026-11-13: it is a
+   * single assistant unit, so dropping orphans exported it as nothing and the
+   * popup said "no conversation"). Keep one of the second kind and
+   * `scroll-to-load.ts` gets a pair it cannot stitch onto the window above --
+   * `pairKey` sees `(EMPTY, A)` and `(Q, A)` as different pairs, both survive,
+   * and the export carries that answer twice.
+   */
+  private turnNeverHadQuestion(turn: Element): boolean {
+    // 2026-11 shell: the unit key is `<turn>:<index>:<role>`. An ordinary
+    // exchange puts its question at index 0 and its answer at 2, so an
+    // ASSISTANT unit at index 0 is a turn nobody asked anything in -- true
+    // wherever that turn sits in the thread, and false for an answer whose
+    // question the virtualizer unmounted.
+    //
+    // Read per unit, and that is the point: a single scroll window can
+    // legitimately hold nothing but assistant units (one answer taller than
+    // the viewport), so a page-level "this document has no user turn" would
+    // call that window a scheduled task and keep the unstitchable orphan.
+    const parts = turn.getAttribute('data-content-search-unit-key')?.split(':');
+    if (parts && parts.length >= 2) {
+      return parts[parts.length - 2] === '0';
+    }
+
+    // Pre-rebuild shell: one article per turn and no sub-turn index to read,
+    // so the closest available fact is its conversation-wide ordinal -- is
+    // this the opening turn? That is the custom-GPT greeting PAR-1 was filed
+    // about, and an orphan at any later ordinal is a window cut.
+    // ponytail: the ordinal answers a near-miss question (nothing precedes
+    // this in the CONVERSATION, not in its turn), which is as much as that
+    // markup carries; a greeting mid-thread on the old shell drops, and
+    // `turns-dropped` reports it.
+    const article = turn.closest('[data-testid^="conversation-turn-"]');
+    return article?.getAttribute('data-testid') === 'conversation-turn-1';
   }
 
   protected override turnTextLengthsFor(): number[] {
@@ -187,63 +271,37 @@ export class ChatGPTParser extends BaseParser {
   }
 
   /**
-   * Empty questions this walk invented, counted only on a conversation that
-   * holds no user turn whatsoever.
+   * The pairs whose empty question this walk invented, as opposed to failed to
+   * read.
    *
-   * ChatGPT's scheduled tasks are exactly that page: one assistant turn,
-   * delivering a result nobody asked for in this thread, so the pair's
-   * question side has to be empty and nothing was misread.
-   *
-   * The `userTurnCount === 0` condition is the whole safety of this. An
-   * unmounted user turn looks identical to one that was never there, so any
-   * count that merely compares pairs against turns buys silence for precisely
-   * the turns the walk missed -- a virtualized page would drop the user's
-   * questions and say nothing. Requiring that the DOM hold *no* user turn
-   * keeps a partially-read conversation loud: one surviving user turn and the
-   * allowance is 0 again.
-   *
-   * ponytail: a page whose every user turn is unmounted is still
-   * indistinguishable from a genuine assistant-only thread. The scroll-to-load
-   * pass (src/extension/content/scroll-to-load.ts) mounts the turns before the
-   * parse, which is where that is addressed; if ChatGPT ever marks scheduled
-   * threads in the DOM, key off that marker instead and drop this condition.
-   *
-   * Only questions count. An answer is never synthesised: a user turn still
-   * awaiting its reply is skipped as pending by `extractQAPairs`, so an empty
-   * answer here is always a read failure and must stay reportable.
+   * The walk is the only code that can tell them apart, which is why
+   * `BaseParser.synthesizedQuestions` returns nothing and every platform that
+   * cannot make the distinction keeps `no-question` at full strength. Here it
+   * is a by-product of the pairing itself: `extractQAPairs` records only the
+   * pairs it built from a turn that never held a question, so the allowance
+   * cannot buy silence for a question the virtualizer unmounted -- that unit
+   * is dropped, never paired.
    */
-  protected override synthesizedSides(pairs: QAPair[]): number {
-    try {
-      if (this.document.querySelectorAll(this.selectors.custom.userTurn).length > 0) {
-        return 0;
-      }
-    } catch {
-      return 0;
-    }
-    return pairs.filter((pair) => !pair.question.content).length;
+  protected override synthesizedQuestions(): readonly number[] {
+    return this.inventedQuestions;
   }
 
   /**
    * Flag half-empty turns so a partially-read conversation is visible to the
    * user instead of quietly shipping a blank question or answer.
    *
-   * Spends the same budget as the `no-question` sanity rule, and for the same
+   * Skips the same pairs as the `no-question` sanity rule, and for the same
    * reason: the two are separate paths to one banner, so suppressing a finding
    * the conversation's own shape explains while still warning about it would
    * tell the user the parser is broken on a page it read perfectly.
    */
   protected override collectWarnings(pairs: QAPair[]): string[] | undefined {
     const warnings = super.collectWarnings(pairs) ?? [];
-    let synthesized = this.synthesizedSides(pairs);
 
     for (const pair of pairs) {
       const turn = String(pair.index + 1);
-      if (!pair.question.content) {
-        if (synthesized > 0) {
-          synthesized -= 1;
-        } else {
-          warnings.push(`Turn ${turn}: the question could not be read`);
-        }
+      if (!pair.question.content && !this.inventedQuestions.includes(pair.index)) {
+        warnings.push(`Turn ${turn}: the question could not be read`);
       }
       if (!pair.answer.content) {
         warnings.push(`Turn ${turn}: the answer could not be read`);

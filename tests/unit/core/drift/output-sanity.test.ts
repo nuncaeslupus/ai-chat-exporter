@@ -93,7 +93,7 @@ describe('checkOutputSanity', () => {
 
   it('fires no-question unless the parser claims it synthesised the side', () => {
     // The rule is at full strength for every platform that does not pass
-    // `synthesizedSides`. Inferring the allowance from `turnCount` instead
+    // `synthesizedQuestions`. Inferring the allowance from `turnCount` instead
     // disabled the rule outright on any parser that emits one pair per turn
     // container -- Gemini does -- because `pairs * 2 - turnCount` then always
     // covers every finding the rule could raise.
@@ -106,12 +106,12 @@ describe('checkOutputSanity', () => {
     };
 
     expect(checkOutputSanity(input).map((f) => f.rule)).toContain('no-question');
-    expect(checkOutputSanity({ ...input, synthesizedSides: 1 })).toEqual([]);
+    expect(checkOutputSanity({ ...input, synthesizedQuestions: [0] })).toEqual([]);
   });
 
-  it('spends one synthesised side per finding, no more', () => {
-    // The budget is not a switch: a parser that claims one invented side must
-    // still hear about the second half-formed pair.
+  it('excuses only the pairs the parser named, not one finding per claim', () => {
+    // The allowance is not a switch: a parser that invented the first pair's
+    // question must still hear about the second half-formed pair.
     const findings = checkOutputSanity({
       pairs: [
         pair('', 'A real answer with plenty of text in it.'),
@@ -120,9 +120,46 @@ describe('checkOutputSanity', () => {
       turnCount: 2,
       turnTextLengths: [-1, -1],
       chromeStrings: chrome,
-      synthesizedSides: 1,
+      synthesizedQuestions: [0],
     });
     expect(findings.map((f) => f.rule)).toEqual(['no-question']);
+    expect(findings[0]?.detail).toContain('pair 1');
+  });
+
+  it("cannot spend one pair's allowance on another pair's read failure", () => {
+    // The reason this takes indexes and not a count. ChatGPT's scheduled-task
+    // turn is a genuine question-less pair, and a count would let it buy
+    // silence for the NEXT pair -- a question that really was asked and really
+    // was missed. Order matters to a count and not to indexes, so the
+    // synthesised pair deliberately comes first.
+    const findings = checkOutputSanity({
+      pairs: [
+        pair('', 'The scheduled task fired and here is its report.'),
+        pair('', 'An answer whose question the parser failed to read.'),
+      ],
+      turnCount: 3,
+      turnTextLengths: [-1, -1],
+      chromeStrings: chrome,
+      synthesizedQuestions: [0],
+    });
+    expect(findings.map((f) => f.rule)).toContain('no-question');
+    expect(findings.filter((f) => f.rule === 'no-question')).toHaveLength(1);
+    expect(findings.find((f) => f.rule === 'no-question')?.detail).toContain('pair 1');
+  });
+
+  it('never lets a synthesised question excuse a missing answer', () => {
+    // Only questions are ever synthesised -- a user turn awaiting its reply is
+    // skipped as pending -- so an empty ANSWER is always a read failure. The
+    // pair is listed as synthesised and still has to be reported.
+    const findings = checkOutputSanity({
+      pairs: [pair('A question that was really asked', '')],
+      turnCount: 2,
+      turnTextLengths: [-1],
+      chromeStrings: chrome,
+      synthesizedQuestions: [0],
+    });
+    expect(findings.map((f) => f.rule)).toContain('no-question');
+    expect(findings.find((f) => f.rule === 'no-question')?.detail).toContain('no answer');
   });
 
   it('fires turns-dropped when the DOM held more turns than the pairs account for (PAR-1)', () => {

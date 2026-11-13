@@ -410,6 +410,11 @@ describe('ChatGPTParser implementation', () => {
       // shell is a single assistant-only turn (measured live 2026-11-13), so
       // dropping orphans exported those as nothing at all. Keeping the turn
       // serves PAR-1's actual complaint -- that the content went missing.
+      //
+      // Only the OPENING turn, though. This is pre-rebuild markup, which
+      // carries no sub-turn unit index, so `conversation-turn-1` is the only
+      // evidence available that nothing precedes this answer; an orphan at any
+      // later ordinal is a scroll window's top edge and drops.
       const html = `
         <html><body><main>
           <article data-testid="conversation-turn-1" data-turn="assistant">
@@ -1091,13 +1096,14 @@ describe('ChatGPT Parser - scheduled-task conversation (2026-11)', () => {
     expect(pairs[0]?.answer.content).toContain('Developer experience lead');
   });
 
-  it('fires no sanity rule on an assistant-only conversation', () => {
-    const rules = parser.parse().drift?.sanityFindings?.map((f) => f.rule) ?? [];
-
-    // Every rule, not a chosen few: a conversation the parser read perfectly
-    // must raise no drift at all. `no-question` in particular -- the DOM held
-    // one message unit, so the empty question was never there to be read.
-    expect(rules).toEqual([]);
+  it('raises no drift at all on an assistant-only conversation', () => {
+    // The whole report, not just its sanity findings: there are three paths to
+    // the popup's "your export may be incomplete" banner and a page the parser
+    // read perfectly must take none of them. The third is the required-selector
+    // check -- `userMessage` and `custom.userTurn` match zero units here, which
+    // built a report with an EMPTY `sanityFindings` and still showed the banner,
+    // under an invitation to file a selector-drift issue about nothing.
+    expect(parser.parse().drift).toBeUndefined();
   });
 
   it('raises no "could not be read" warning for the absent question', () => {
@@ -1106,25 +1112,53 @@ describe('ChatGPT Parser - scheduled-task conversation (2026-11)', () => {
     expect(parser.parse().warnings ?? []).toEqual([]);
   });
 
-  it('still reports a missing question once one user turn survives', () => {
-    // The allowance is only safe because it needs the conversation to hold NO
-    // user turn. An unmounted user turn looks exactly like one that was never
-    // there, so a budget derived from counting turns would buy silence for
-    // precisely the questions a virtualized page dropped. Grafting one intact
-    // exchange onto the scheduled task is that page, and it has to stay loud.
-    // The surviving user turn goes *after* the assistant one, so the walk
-    // still has an orphan answer to pair with an empty question -- a user turn
-    // before it would simply pair up and leave nothing missing.
-    const turn = doc.querySelector('[data-turn-key]');
-    const user = doc.createElement('div');
-    user.setAttribute('data-content-search-unit-key', 'graft:0:user');
-    user.setAttribute('data-user-message-bubble', '');
-    user.innerHTML = '<div class="whitespace-pre-wrap">A question that was really asked</div>';
-    turn?.parentElement?.appendChild(user);
+  it('does not invent a question for an answer whose own question is unmounted', () => {
+    // The other cause of an orphan answer, and the reason the rule is read per
+    // unit. This answer sits at index 2 of its turn, so its question exists and
+    // is simply above the mounted window. Pairing it with an empty question
+    // would fabricate an exchange that `scroll-to-load.ts` cannot stitch onto
+    // the window above -- `pairKey` sees `(EMPTY, A)` and `(Q, A)` as different
+    // pairs, both survive the merge, and the export carries that answer twice.
+    const cut = doc.createElement('div');
+    cut.setAttribute('data-turn-key', 'cut-turn');
+    cut.innerHTML = `
+      <div data-content-search-unit-key="cut-turn:2:assistant">
+        <div data-chatgpt-selection-message-id="cut">
+          <div data-markdown-text-style=""><p>An answer from above the window.</p></div>
+        </div>
+      </div>`;
+    doc.querySelector('[data-turn-key]')?.parentElement?.appendChild(cut);
+
+    const pairs = new ChatGPTParser(doc).parse().conversation?.pairs ?? [];
+
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0]?.answer.content).toContain('Three new roles matched');
+  });
+
+  it('still reports a question that was asked but could not be read', () => {
+    // The allowance names the pairs the walk invented, so it cannot be spent on
+    // anything else. Grafting an exchange whose question element is present but
+    // empty is a genuine read failure sitting next to a genuine question-less
+    // turn, and it has to stay loud even though the page also earns an excuse.
+    const parent = doc.querySelector('[data-turn-key]')?.parentElement;
+    const graft = doc.createElement('div');
+    graft.setAttribute('data-turn-key', 'graft');
+    graft.innerHTML = `
+      <div data-content-search-unit-key="graft:0:user">
+        <div data-user-message-bubble=""><div class="whitespace-pre-wrap"></div></div>
+      </div>
+      <div data-content-search-unit-key="graft:2:assistant">
+        <div data-chatgpt-selection-message-id="g">
+          <div data-markdown-text-style=""><p>An answer to the unreadable question.</p></div>
+        </div>
+      </div>`;
+    parent?.appendChild(graft);
 
     const result = new ChatGPTParser(doc).parse();
 
     expect(result.drift?.sanityFindings?.map((f) => f.rule)).toContain('no-question');
-    expect(result.warnings).toContain('Turn 1: the question could not be read');
+    expect(result.drift?.sanityFindings?.filter((f) => f.rule === 'no-question')).toHaveLength(1);
+    expect(result.warnings).toContain('Turn 2: the question could not be read');
+    expect(result.warnings).not.toContain('Turn 1: the question could not be read');
   });
 });

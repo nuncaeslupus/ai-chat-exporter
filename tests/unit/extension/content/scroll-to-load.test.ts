@@ -15,6 +15,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { ClaudeParser } from '../../../../src/core/parsers/claude';
+import { ChatGPTParser } from '../../../../src/core/parsers/chatgpt';
+import type { IParser } from '../../../../src/core/types';
 import {
   parseAllTurns,
   MAX_SCROLL_STEPS,
@@ -26,8 +28,13 @@ const VIEWPORT = 1000;
 /** Height of one turn, so a viewport holds three of them (and two pairs). */
 const TURN_HEIGHT = 400;
 
+// One scroller carrying both platforms' `custom.scrollContainer` classes, and a
+// `<main>` so ChatGPT's `conversationContainer` resolves. `findScroller` reads
+// the selector off the parser it is given, so neither platform sees the other's.
 const PAGE = `<!DOCTYPE html><html><body>
-  <div class="overflow-y-auto overflow-x-hidden pt-6 flex-1" id="scroller"><div id="inner"></div></div>
+  <div class="overflow-y-auto overflow-x-hidden pt-6 flex-1 thread-scroll-container" id="scroller">
+    <main><div id="inner"></div></main>
+  </div>
 </body></html>`;
 
 function turnHtml(index: number): string {
@@ -37,6 +44,25 @@ function turnHtml(index: number): string {
          <p class="whitespace-pre-wrap break-words">question ${pair}</p></div></div></div>`
     : `<div data-test-render-count="1"><div data-is-streaming="false"><div class="font-claude-response">
          <div class="standard-markdown"><p>answer ${pair}</p></div></div></div></div>`;
+}
+
+/**
+ * One ChatGPT message unit, mountable on its own.
+ *
+ * ChatGPT unmounts message UNITS, not whole `[data-turn-key]` exchanges (4 of 6
+ * units in the DOM at rest, measured live), so a window's top edge lands
+ * between a question and its answer rather than between exchanges. Two units
+ * of the same exchange carry the same turn key, as the live page does.
+ */
+function chatgptUnitHtml(index: number): string {
+  const pair = Math.floor(index / 2);
+  return index % 2 === 0
+    ? `<div data-turn-key="t-${pair}"><div data-content-search-unit-key="t-${pair}:0:user">
+         <div data-user-message-bubble=""><div class="whitespace-pre-wrap">question ${pair}</div>
+       </div></div></div>`
+    : `<div data-turn-key="t-${pair}"><div data-content-search-unit-key="t-${pair}:2:assistant">
+         <div data-chatgpt-selection-message-id="a${pair}"><div data-markdown-text-style="">
+         <p>answer ${pair}</p></div></div></div></div>`;
 }
 
 /**
@@ -77,22 +103,29 @@ function buildScroller(
 }
 
 /** The virtualized conversation: `total` turns, only the visible ones mounted. */
-function buildVirtualized(total: number): { doc: Document; scroller: HTMLElement } {
-  return buildScroller({
-    contentHeight: total * TURN_HEIGHT,
-    mount: (scrollTop) => {
-      const first = Math.floor(scrollTop / TURN_HEIGHT);
-      const last = Math.floor((scrollTop + VIEWPORT - 1) / TURN_HEIGHT);
-      return Array.from({ length: total }, (_, index) => index)
-        .filter((index) => index >= first && index <= last)
-        .map(turnHtml)
-        .join('');
+function buildVirtualized(
+  total: number,
+  html: (index: number) => string = turnHtml,
+  url?: string
+): { doc: Document; scroller: HTMLElement } {
+  return buildScroller(
+    {
+      contentHeight: total * TURN_HEIGHT,
+      mount: (scrollTop) => {
+        const first = Math.floor(scrollTop / TURN_HEIGHT);
+        const last = Math.floor((scrollTop + VIEWPORT - 1) / TURN_HEIGHT);
+        return Array.from({ length: total }, (_, index) => index)
+          .filter((index) => index >= first && index <= last)
+          .map(html)
+          .join('');
+      },
     },
-  });
+    url
+  );
 }
 
 /** Drive the pass to completion under fake timers. */
-async function run(parser: ClaudeParser, doc: Document) {
+async function run(parser: IParser, doc: Document) {
   const pending = parseAllTurns(parser, doc);
   await vi.advanceTimersByTimeAsync(SETTLE_MS * (MAX_SCROLL_STEPS + 5));
   return pending;
@@ -267,6 +300,33 @@ describe('scroll-to-load', () => {
     const result = await run(parser, doc);
 
     expect(result.warnings).toContain('a turn failed to read');
+  });
+
+  it('stitches ChatGPT windows that cut between a question and its answer', async () => {
+    vi.useFakeTimers();
+    // ChatGPT keeps an assistant unit that has no question before it -- that is
+    // what makes a scheduled task export at all. But at a window's LEADING edge
+    // that orphan is half of an exchange the next window up produces whole, and
+    // the two cannot be stitched: `pairKey` sees ("", answer) against
+    // (question, answer), the join fails, and both survive. Three exchanges came
+    // out as five pairs with two answers printed twice.
+    const { doc } = buildVirtualized(6, chatgptUnitHtml, 'https://chatgpt.com/c/abc123');
+    const parser = new ChatGPTParser(doc);
+
+    expect(parser.parse().conversation?.pairs.length).toBeLessThan(3);
+
+    const result = await run(parser, doc);
+
+    expect(result.conversation?.pairs.map((pair) => pair.question.content)).toEqual([
+      'question 0',
+      'question 1',
+      'question 2',
+    ]);
+    expect(result.conversation?.pairs.map((pair) => pair.answer.content)).toEqual([
+      'answer 0',
+      'answer 1',
+      'answer 2',
+    ]);
   });
 
   it('leaves a streaming conversation alone', async () => {

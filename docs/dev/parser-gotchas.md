@@ -417,23 +417,42 @@ drift net assumed every pair has two sides:
 **Rules:**
 
 - A half-empty pair is only a failure to *read* when the conversation had a message
-  for that side, and **only the parser's own walk knows which sides it invented**.
-  `BaseParser.synthesizedSides()` is where it says so; it returns 0, so
-  `no-question` keeps full strength on every platform that cannot tell the two
-  apart. Do not infer the count from `pairs * 2 - turnCount` instead: Gemini emits
+  for that side, and **only the parser's own walk knows which questions it invented**.
+  `BaseParser.synthesizedQuestions()` is where it says so; it returns the empty
+  list, so `no-question` keeps full strength on every platform that cannot tell the
+  two apart. Do not infer it from `pairs * 2 - turnCount` instead: Gemini emits
   exactly one pair per turn container, so that expression always covers every
   finding the rule could raise and silently disables it platform-wide.
-- **An unmounted turn is indistinguishable from one that was never there.** Any
-  allowance that merely compares pairs against turns therefore buys silence for
-  precisely the turns the walk missed — a virtualized page drops the user's
-  questions and reports nothing. ChatGPT's override claims the allowance only when
-  the DOM holds *no* user turn at all, so one surviving user turn makes the
-  conversation loud again. The scroll-to-load pass
-  (`src/extension/content/scroll-to-load.ts`) is what addresses the rest.
+- **Pair indexes, never a count.** A count is fungible, so the scheduled task's
+  genuine question-less pair would buy silence for the *next* pair — a question
+  that really was asked and really was missed. Both `checkOutputSanity` and
+  `collectWarnings` skip only the pairs the walk named.
+- **An unmounted turn is indistinguishable from one that was never there**, so the
+  distinction cannot be drawn at page level at all. Keying it off "the DOM holds no
+  user turn" looks safe and is not: a single scroll window can legitimately hold
+  nothing but assistant units (one answer taller than the viewport), which makes
+  that window read as a scheduled task.
+  `ChatGPTParser.turnNeverHadQuestion()` reads the **unit key's own index**
+  instead. An ordinary exchange puts its question at `:0:` and its answer at `:2:`,
+  so an *assistant* unit at index 0 is a turn nobody asked anything in — true
+  wherever that turn sits in the thread, and false for an answer whose question the
+  virtualizer unmounted. That one is dropped rather than paired, which also keeps
+  `scroll-to-load.ts` able to stitch it: a fabricated `(EMPTY, A)` and the real
+  `(Q, A)` have different `pairKey`s, so both survive the merge and the export
+  carries that answer twice. The pre-rebuild shell has no sub-turn index, so there
+  the opening turn (`data-testid="conversation-turn-1"`) is the nearest available
+  fact and a greeting mid-thread drops with `turns-dropped` to report it.
 - Only a *question* is ever synthesised. A user turn still waiting for its reply is
   skipped as pending by `extractQAPairs`, so an empty **answer** is always a read
-  failure and must stay reportable — spending one budget across both sides
-  suppresses the real failure and then blames the wrong turn.
+  failure and must stay reportable.
+- **Required selectors are the third path to the same banner.** `userMessage` and
+  `custom.userTurn` match zero units on a scheduled task, and
+  `hasFailingRequiredSelector` alone builds a report — empty `sanityFindings` and
+  all — which the popup renders as "your export may be incomplete" above an
+  invitation to file a selector-drift issue about nothing. ChatGPT drops both keys
+  when *every* pair came from a question-less turn. Do not key that off the user
+  selectors themselves: that measures the suppression with the very thing it
+  vouches for, and one rename would read every conversation as assistant-only.
 - Never render a role label without checking the side has blocks. An empty message
   gets no block at all (`ConversationStructureService.convertMessage`), so
   `hasContent()` on `BaseExporter` is the single check all five readable exporters
