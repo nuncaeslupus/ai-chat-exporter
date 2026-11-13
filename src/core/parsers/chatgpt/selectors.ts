@@ -51,6 +51,13 @@ export const CHATGPT_SELECTORS = {
     // Conversation turn containers (tag-agnostic: ChatGPT moved the turn
     // wrapper from <article> to <section> in 2026-07; data-testid survived)
     conversationTurn: '[data-turn-key], [data-testid^="conversation-turn-"]',
+    // The scroll box the turns are virtualized inside, for the scroll-to-load
+    // pass (src/extension/content/scroll-to-load.ts). An inner element, not
+    // `document.scrollingElement`. Measured live 2026-11-13: its class
+    // attribute is `scrollContainer-fG6qEo thread-scroll-container pee` -- the
+    // first token is a hashed CSS-module name that churns, so match the stable
+    // semantic one. It survived the 2026-11 app-shell rebuild unchanged.
+    scrollContainer: '.thread-scroll-container',
     // User turn specifically. The 2026-11 shell puts the role in the unit
     // key's own value (`<turn>:<index>:<role>`), which is why this matches on
     // a suffix rather than on a nearby role element: the `h4
