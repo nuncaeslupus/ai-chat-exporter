@@ -54,6 +54,9 @@ describe('ChatGPT Selectors', () => {
     const NO_FIXTURE_COVERAGE: Record<string, string> = {
       canvasContainer: 'no fixture contains a canvas/textdoc turn',
       generatedImageContainer: 'no fixture contains an image-generation turn',
+      scrollContainer:
+        'every committed snapshot predates the 2026-11 app shell, which is ' +
+        'where the scroller got its stable `thread-scroll-container` class',
     };
 
     const documents = readdirSync(FIXTURE_DIR)

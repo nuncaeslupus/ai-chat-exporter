@@ -68,6 +68,16 @@ export const CLAUDE_SELECTORS: SelectorSet = {
     // Per-turn wrapper: every turn (user or assistant) gets one of these;
     // it survives even when a redesign guts the turn's inner content.
     turnContainer: 'div[data-test-render-count]',
+    // The scroll box the turns are virtualized inside, for the scroll-to-load
+    // pass (src/extension/content/scroll-to-load.ts). Loose on purpose: the
+    // pass picks the first candidate that is actually taller than its
+    // viewport, so this does not have to name the exact utility-class chain
+    // `conversationContainer` does -- the chain that has gone stale twice.
+    scrollContainer: 'div.overflow-y-auto, div.overflow-y-scroll',
+    // A response still being written. The scroll-to-load pass skips the whole
+    // conversation while one is live rather than scrolling a streaming turn
+    // out from under the user.
+    streamingTurn: 'div[data-is-streaming="true"]',
     // User turn's inner wrapper -- what tells a user turn apart from an
     // assistant one in `extractQAPairs`.
     //
