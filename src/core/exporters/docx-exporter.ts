@@ -499,18 +499,18 @@ export class DocxExporter extends BaseExporter {
       }
     };
 
-    // User heading
-    pushDaySeparator(pair.question.timestamp);
-    paragraphs.push(
-      this.renderRoleLabel(
-        this.getRoleName('user'),
-        this.formatTimestampSuffix(pair.question.timestamp, options.showMetaInfo),
-        COLOR.link
-      )
-    );
-
-    // User content
-    paragraphs.push(...this.renderBlocks(pair.question.blocks, levelMap));
+    // User heading and content
+    if (this.hasContent(pair.question)) {
+      pushDaySeparator(pair.question.timestamp);
+      paragraphs.push(
+        this.renderRoleLabel(
+          this.getRoleName('user'),
+          this.formatTimestampSuffix(pair.question.timestamp, options.showMetaInfo),
+          COLOR.link
+        )
+      );
+      paragraphs.push(...this.renderBlocks(pair.question.blocks, levelMap));
+    }
 
     // Assistant heading
     pushDaySeparator(pair.answer.timestamp);

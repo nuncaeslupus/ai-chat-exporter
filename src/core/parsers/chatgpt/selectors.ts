@@ -1,6 +1,6 @@
 /**
  * ChatGPT DOM selectors
- * Based on real DOM capture from 2026-01-01
+ * Last live survey: chatgpt.com, 2026-11-13 (the 2026-11 app-shell rebuild)
  */
 
 import type { SelectorSet } from '../../types';
@@ -13,49 +13,70 @@ import type { SelectorSet } from '../../types';
 // without a `?? '<literal>'` fallback. Those fallbacks were a second copy of
 // every selector living in parser.ts -- exactly the drift this file exists to
 // prevent (docs/dev/parser-gotchas.md #2).
+// 2026-11: chatgpt.com shipped an app-shell rebuild that dropped EVERY hook
+// below -- `data-message-author-role`, `data-turn`, `data-testid^=
+// "conversation-turn-"`, `.markdown.prose`, `data-message-model-slug`. The new
+// spelling comes first in each list, the pre-rebuild one stays second so the
+// DOM snapshots in tests/fixtures/dom-snapshots/chatgpt/ keep parsing
+// (docs/dev/parser-gotchas.md #1, last rule: keep two spellings per load-bearing
+// hook; #17 covers this rebuild in full).
 export const CHATGPT_SELECTORS = {
-  // Main conversation container
-  conversationContainer: 'main#main',
+  // Main conversation container (`main#main`'s id is React-generated and gone;
+  // bare `main` resolves the same node on both markups)
+  conversationContainer: 'main',
 
   // Individual message elements (both user and assistant)
-  messageElement: '[data-message-author-role]',
+  messageElement: '[data-content-search-unit-key], [data-message-author-role]',
 
   // User messages specifically
-  userMessage: '[data-message-author-role="user"]',
+  userMessage: '[data-user-message-bubble], [data-message-author-role="user"]',
 
   // Assistant messages specifically
-  assistantMessage: '[data-message-author-role="assistant"]',
+  assistantMessage: '[data-chatgpt-selection-message-id], [data-message-author-role="assistant"]',
 
   // Content within messages - assistant uses markdown, user uses whitespace-pre-wrap
-  messageContent: '.markdown.prose, .whitespace-pre-wrap',
+  messageContent: '[data-markdown-text-style], .markdown.prose, .whitespace-pre-wrap',
 
   // Conversation title in sidebar (active conversation)
   conversationTitle: 'a[data-active=""] .truncate span',
 
-  // Model indicator (attribute on assistant messages)
+  // Model indicator (attribute on assistant messages). The 2026-11 app shell
+  // exposes no model attribute at all, so this is pre-rebuild only and
+  // `getModel()` returns null on the new markup -- an absent field, not a
+  // wrong one. Optional, so selector-health never calls it drift.
   modelIndicator: '[data-message-model-slug]',
 
   // Custom selectors for ChatGPT-specific elements
   custom: {
     // Conversation turn containers (tag-agnostic: ChatGPT moved the turn
     // wrapper from <article> to <section> in 2026-07; data-testid survived)
-    conversationTurn: '[data-testid^="conversation-turn-"]',
+    conversationTurn: '[data-turn-key], [data-testid^="conversation-turn-"]',
     // The scroll box the turns are virtualized inside, for the scroll-to-load
     // pass (src/extension/content/scroll-to-load.ts). An inner element, not
     // `document.scrollingElement`. Measured live 2026-11-13: its class
     // attribute is `scrollContainer-fG6qEo thread-scroll-container pee` -- the
     // first token is a hashed CSS-module name that churns, so match the stable
-    // semantic one.
+    // semantic one. It survived the 2026-11 app-shell rebuild unchanged.
     scrollContainer: '.thread-scroll-container',
-    // User turn specifically (tag-agnostic, see above)
-    userTurn: '[data-turn="user"]',
-    // Assistant turn specifically (tag-agnostic, see above)
-    assistantTurn: '[data-turn="assistant"]',
+    // User turn specifically. The 2026-11 shell puts the role in the unit
+    // key's own value (`<turn>:<index>:<role>`), which is why this matches on
+    // a suffix rather than on a nearby role element: the `h4
+    // [data-conversation-role="user"]` label is a *sibling* of the user unit,
+    // not an ancestor or child of it, so `:has()` cannot reach it.
+    userTurn: '[data-content-search-unit-key$=":user"], [data-turn="user"]',
+    // Assistant turn specifically (see above)
+    assistantTurn: '[data-content-search-unit-key$=":assistant"], [data-turn="assistant"]',
     // User message content specifically
-    userMessageContent: '.user-message-bubble-color .whitespace-pre-wrap',
+    userMessageContent:
+      '[data-user-message-bubble] .whitespace-pre-wrap, .user-message-bubble-color .whitespace-pre-wrap',
     // Assistant message content specifically
-    assistantMessageContent: '.markdown.prose',
-    // Message ID attribute
+    assistantMessageContent: '[data-markdown-text-style], .markdown.prose',
+    // Message ID attribute. ponytail: pre-rebuild spelling only. The 2026-11
+    // shell moved the id to `data-chatgpt-selection-message-id` on a node
+    // *inside* the turn, and every read site already falls back to
+    // `generateId()`; no consumer reads the page's own id back, so chasing it
+    // through a descendant lookup would buy nothing. Add that lookup if an
+    // exporter ever needs ids stable across re-exports.
     messageIdAttr: 'data-message-id',
     // Model slug attribute
     modelSlugAttr: 'data-message-model-slug',
@@ -71,7 +92,15 @@ export const CHATGPT_SELECTORS = {
     // Code artifact content (CodeMirror 6 viewer, 2026-07+): <code> has no
     // class at all, so scope to the editor's own content pre specifically
     codeArtifactCodeMirrorCode: '.cm-content code, #code-block-viewer code',
-    // Web citation pill container
+    // Web citation pill container. Pre-rebuild spelling only, deliberately:
+    // the 2026-11 shell exposes no citation hook at all. `[data-dil-response]
+    // a[href^="http"]` looked like one and is NOT -- measured live on
+    // 2026-11-13, that block's anchors are the ordinary inline markdown links
+    // of the answer body ("Ver oferta y presentar candidatura"), so matching
+    // them would publish every inline link as a cited source in all six
+    // exporters, and would also drop any linked inline image via the
+    // image-exclusion list below. An absent Sources list beats a fabricated
+    // one; restore this when a real citation hook is found on a live page.
     citationPill: '[data-testid="webpage-citation-pill"]',
     // Web citation link
     citationLink: '[data-testid="webpage-citation-pill"] a',

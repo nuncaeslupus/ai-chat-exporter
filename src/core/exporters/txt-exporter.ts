@@ -196,12 +196,14 @@ export class TextExporter extends BaseExporter {
 
     // User message — indented two spaces, the plain-text equivalent of the
     // pdf's turn fill: it is what marks who is asking.
-    pushDaySeparator(pair.question.timestamp);
-    lines.push(
-      ...this.roleLabel(this.getRoleName('user'), pair.question.timestamp, options.showMetaInfo)
-    );
-    lines.push(...this.renderBlocks(pair.question.blocks, '  '));
-    lines.push('');
+    if (this.hasContent(pair.question)) {
+      pushDaySeparator(pair.question.timestamp);
+      lines.push(
+        ...this.roleLabel(this.getRoleName('user'), pair.question.timestamp, options.showMetaInfo)
+      );
+      lines.push(...this.renderBlocks(pair.question.blocks, '  '));
+      lines.push('');
+    }
 
     // Assistant message
     pushDaySeparator(pair.answer.timestamp);

@@ -367,26 +367,27 @@ export class PdfExporter extends BaseExporter {
       // Check if we need a new page
       y = this.ensureSpace(doc, y, lineHeight * 10, margins, pageHeight);
 
-      y = renderDaySeparator(pair.question.timestamp, y);
-
       // User message (blue). isQuestion=true: the design fills the
       // QUESTION's box (R-6 moved the turn fill off the answer, onto the
       // question, so the background says who is asking).
-      y = this.renderMessage(
-        doc,
-        `${this.getRoleName('user')}${this.formatTimestampSuffix(pair.question.timestamp, options.showMetaInfo)}`,
-        pair.question.blocks,
-        y,
-        margins,
-        contentWidth,
-        lineHeight,
-        pageHeight,
-        hexToRgbTuple(COLOR.link),
-        true
-      );
+      if (this.hasContent(pair.question)) {
+        y = renderDaySeparator(pair.question.timestamp, y);
+        y = this.renderMessage(
+          doc,
+          `${this.getRoleName('user')}${this.formatTimestampSuffix(pair.question.timestamp, options.showMetaInfo)}`,
+          pair.question.blocks,
+          y,
+          margins,
+          contentWidth,
+          lineHeight,
+          pageHeight,
+          hexToRgbTuple(COLOR.link),
+          true
+        );
 
-      // Add spacing between user and assistant
-      y += lineHeight * 0.5;
+        // Add spacing between user and assistant
+        y += lineHeight * 0.5;
+      }
 
       y = renderDaySeparator(pair.answer.timestamp, y);
 

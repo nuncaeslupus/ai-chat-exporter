@@ -99,6 +99,11 @@ bot-triggers = ["coderabbitai[bot]=@coderabbitai review"]
 
 review-bots = ["coderabbitai[bot]"]
 
+# Raised from 2 for fix/chatgpt-2026-11-dom: round 2 came back CLEAR and
+# prescribed a RISK fix, so implementing it moved the tree and left the receipt
+# bound to a tree that no longer exists. Round 3 reads only that delta.
+review-max-rounds = 3
+
 setup-interview = "2026-11-11"
 
 [models]

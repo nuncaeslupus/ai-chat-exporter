@@ -81,14 +81,21 @@ export class ConversationStructureService {
    */
   private static convertMessage(message: Message): StructuredMessage {
     // Parse HTML content for rich formatting when available; fall back to plain text.
+    // An empty message gets NO block, not a paragraph wrapping an empty string:
+    // the latter renders as nothing while still counting as content, so every
+    // exporter printed a role label with a blank body under it. ChatGPT's
+    // scheduled tasks are one assistant turn with no question anywhere on the
+    // page, which made that the normal shape rather than a corner case.
     const blocks: StructuredContentBlock[] = message.htmlContent
       ? HtmlContentParser.parse(message.htmlContent)
-      : [
-          {
-            type: 'paragraph' as const,
-            content: [{ type: 'text' as const, text: message.content }],
-          },
-        ];
+      : message.content.trim()
+        ? [
+            {
+              type: 'paragraph' as const,
+              content: [{ type: 'text' as const, text: message.content }],
+            },
+          ]
+        : [];
 
     // Web searches and artifacts don't live in htmlContent (they're rendered from
     // separate DOM elements), so append them as marker paragraphs rather than

@@ -10,6 +10,7 @@ import type {
   Conversation,
   MediaBlock,
   QAPair,
+  StructuredMessage,
 } from '../types';
 import {
   displayName,
@@ -253,6 +254,20 @@ export abstract class BaseExporter implements IExporter {
 
     // Fallback to generic role name
     return localizedRoleName(role);
+  }
+
+  /**
+   * Whether a side of a pair has anything to render.
+   *
+   * ChatGPT's scheduled tasks are a single assistant turn with no question
+   * anywhere on the page, so the parser pairs the answer with an empty
+   * question rather than dropping the turn. Every human-readable exporter
+   * checks this before emitting a role label, or such an export opens with a
+   * "User" heading and nothing under it. JSON is exempt: an empty question is
+   * honest data there.
+   */
+  protected hasContent(message: StructuredMessage): boolean {
+    return message.blocks.length > 0;
   }
 
   /**

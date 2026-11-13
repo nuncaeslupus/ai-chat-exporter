@@ -111,6 +111,14 @@ function pairKey(pair: QAPair): string {
   return `${pair.question.content}\u0000${pair.answer.content}`;
 }
 
+/** The same exchange, seen twice -- whole in both windows, or whole in one. */
+function matches(pair: QAPair, other: QAPair | undefined): boolean {
+  if (other === undefined) {
+    return false;
+  }
+  return pairKey(pair) === pairKey(other) || subsumes(pair, other) || subsumes(other, pair);
+}
+
 /**
  * How many of `incoming`'s trailing pairs are already the leading pairs of
  * `collected` -- i.e. where the two overlapping windows join.
@@ -119,31 +127,60 @@ function pairKey(pair: QAPair): string {
  * genuinely distinct exchanges that happen to have identical text ("thanks" /
  * "you're welcome", twice in one chat) from collapsing into one: they are told
  * apart by their position in the sequence, not by their content.
+ *
+ * A pair matches its own partial copy as well, since a boundary can fall inside
+ * one grouped answer. Keying strictly on the answer text failed the join
+ * *outright* there -- the whole run stopped matching, so both copies survived
+ * and so did the pairs around them, which the export then printed twice.
  */
 function overlapLength(incoming: QAPair[], collected: QAPair[]): number {
-  const keys = (list: QAPair[]): string => list.map(pairKey).join('\u0001');
   for (let length = Math.min(incoming.length, collected.length); length > 0; length -= 1) {
-    if (keys(incoming.slice(incoming.length - length)) === keys(collected.slice(0, length))) {
+    const tail = incoming.slice(incoming.length - length);
+    if (tail.every((pair, index) => matches(pair, collected[index]))) {
       return length;
     }
   }
   return 0;
 }
 
-/** Whether `haystack` holds at least as many of each pair as `needles` does. */
+/**
+ * Whether `whole` is the same exchange as `part`, seen with more of its answer.
+ *
+ * One turn can deliver several assistant units and units unmount
+ * independently, so a window boundary can fall *inside* one answer: the same
+ * exchange is harvested once as `(Q, A1)` and again as `(Q, A1 + A2)`.
+ * Identity is the pair id -- ChatGPT reads it off the turn's own
+ * `data-turn-key`, so it repeats across windows. Content alone would fold two
+ * *distinct* exchanges together whenever one answer happens to contain the
+ * other ("Continue" -> "Done." beside "Continue" -> "Done. Next step."), and
+ * the one with less of its answer would be the copy thrown away. A parser that
+ * leaves the id regenerated per parse never subsumes, which costs it only the
+ * duplicate this fold removes.
+ */
+function subsumes(whole: QAPair, part: QAPair): boolean {
+  return (
+    whole.id === part.id &&
+    whole.question.content === part.question.content &&
+    whole.answer.content.length > part.answer.content.length &&
+    whole.answer.content.includes(part.answer.content)
+  );
+}
+
+/**
+ * Whether `haystack` holds at least as many of each pair as `needles` does.
+ *
+ * A pair the walk completed counts as holding the partial copy the plain parse
+ * saw, or the contract would reject the very result that fixed it.
+ */
 function containsAll(haystack: QAPair[], needles: QAPair[]): boolean {
-  const available = new Map<string, number>();
-  for (const pair of haystack) {
-    const key = pairKey(pair);
-    available.set(key, (available.get(key) ?? 0) + 1);
-  }
-  for (const pair of needles) {
-    const key = pairKey(pair);
-    const left = available.get(key) ?? 0;
-    if (left === 0) {
+  const left = [...haystack];
+  for (const needle of needles) {
+    const exact = left.findIndex((pair) => pairKey(pair) === pairKey(needle));
+    const at = exact >= 0 ? exact : left.findIndex((pair) => subsumes(pair, needle));
+    if (at < 0) {
       return false;
     }
-    available.set(key, left - 1);
+    left.splice(at, 1);
   }
   return true;
 }
@@ -168,7 +205,17 @@ async function walk(parser: IParser, doc: Document): Promise<ParseResult> {
     const result = parser.parse();
     const incoming = result.conversation?.pairs ?? [];
     warnings.push(...(result.warnings ?? []));
-    pairs = [...incoming.slice(0, incoming.length - overlapLength(incoming, pairs)), ...pairs];
+    const overlap = overlapLength(incoming, pairs);
+    // Across the join, keep whichever copy of the exchange has more of its
+    // answer: one turn can deliver several assistant units and they unmount
+    // independently, so a window can hold only the first of them.
+    const joined = pairs.slice(0, overlap).map((collected, index) => {
+      const seen = incoming[incoming.length - overlap + index];
+      return seen !== undefined && seen.answer.content.length > collected.answer.content.length
+        ? seen
+        : collected;
+    });
+    pairs = [...incoming.slice(0, incoming.length - overlap), ...joined, ...pairs.slice(overlap)];
   };
 
   try {
@@ -187,11 +234,11 @@ async function walk(parser: IParser, doc: Document): Promise<ParseResult> {
 
   // The "never worse than the plain parse" contract. A walk that resolved the
   // wrong element, or that ran out of steps before reaching the user's own
-  // position, can hold *fewer* exchanges than they already had on screen.
-  if (
-    pairs.length <= base.conversation.pairs.length ||
-    !containsAll(pairs, base.conversation.pairs)
-  ) {
+  // position, can hold *fewer* exchanges than they already had on screen --
+  // which is what `containsAll` catches. Counting as well would discard a walk
+  // that gained no pair but completed one: a lone deep-research exchange taller
+  // than the viewport has one pair either way, and only the walk has all of it.
+  if (!containsAll(pairs, base.conversation.pairs)) {
     return base;
   }
 

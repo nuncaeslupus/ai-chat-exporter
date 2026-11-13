@@ -54,9 +54,6 @@ describe('ChatGPT Selectors', () => {
     const NO_FIXTURE_COVERAGE: Record<string, string> = {
       canvasContainer: 'no fixture contains a canvas/textdoc turn',
       generatedImageContainer: 'no fixture contains an image-generation turn',
-      scrollContainer:
-        'every committed snapshot predates the 2026-11 app shell, which is ' +
-        'where the scroller got its stable `thread-scroll-container` class',
     };
 
     const documents = readdirSync(FIXTURE_DIR)
@@ -404,12 +401,20 @@ describe('ChatGPTParser implementation', () => {
       expect(pairs[2]?.answer.content).toBe('Third answer');
     });
 
-    it('signals turns-dropped when a leading orphan assistant turn is silently skipped (PAR-1)', () => {
+    it('keeps a leading orphan assistant turn instead of dropping it (PAR-1)', () => {
       // A custom-GPT greeting opens the conversation with an assistant turn
-      // before any question -- extractQAPairs has nothing to pair it with and
-      // drops it. Before the turns-dropped rule this produced success:true,
-      // warnings:undefined, drift:undefined with the greeting gone and no
-      // signal anywhere.
+      // before any question. PAR-1 originally made that drop non-silent by
+      // firing turns-dropped; it is now not dropped at all -- it is paired
+      // with an empty question, the mirror of the orphan-user branch. The
+      // reversal is deliberate: a scheduled-task conversation on the 2026-11
+      // shell is a single assistant-only turn (measured live 2026-11-13), so
+      // dropping orphans exported those as nothing at all. Keeping the turn
+      // serves PAR-1's actual complaint -- that the content went missing.
+      //
+      // Only the OPENING turn, though. This is pre-rebuild markup, which
+      // carries no sub-turn unit index, so `conversation-turn-1` is the only
+      // evidence available that nothing precedes this answer; an orphan at any
+      // later ordinal is a scroll window's top edge and drops.
       const html = `
         <html><body><main>
           <article data-testid="conversation-turn-1" data-turn="assistant">
@@ -433,10 +438,13 @@ describe('ChatGPTParser implementation', () => {
       const result = new ChatGPTParser(dom.window.document).parse();
 
       const pairs = result.conversation?.pairs ?? [];
-      expect(pairs).toHaveLength(1);
-      expect(pairs[0]?.question.content).toBe('question two');
-      expect(pairs[0]?.answer.content).toBe('answer two');
-      expect(result.drift?.sanityFindings?.map((f) => f.rule)).toContain('turns-dropped');
+      expect(pairs).toHaveLength(2);
+      expect(pairs[0]?.question.content).toBe('');
+      expect(pairs[0]?.answer.content).toBe('GREETING FROM A CUSTOM GPT');
+      expect(pairs[1]?.question.content).toBe('question two');
+      expect(pairs[1]?.answer.content).toBe('answer two');
+      // Nothing was dropped, so the rule that reports drops must stay quiet.
+      expect(result.drift?.sanityFindings?.map((f) => f.rule) ?? []).not.toContain('turns-dropped');
     });
 
     it('signals content-shortfall when the answer is a sliver of the turn text (PAR-1)', () => {
@@ -992,5 +1000,230 @@ describe('ChatGPT Parser - screenreader labels on the user side', () => {
 
     const result = new ChatGPTParser(dom.window.document).parse();
     expect(result.conversation?.pairs[0]?.question.content).toBe('[Uploaded images: a tide pond]');
+  });
+});
+
+// The 2026-11 app-shell rebuild. Every selector this parser relied on went to
+// zero matches at once, so `canParse()` (URL-only) still claimed the page while
+// `extractQAPairs` returned nothing -- the popup's "no conversation" state on
+// every chatgpt.com chat. The liveness sweep above could not catch it: it sums
+// matches across fixtures, and the pre-rebuild captures kept every count above
+// zero. Only parsing new-shell markup end to end does.
+describe('ChatGPT Parser - app-shell markup (2026-11)', () => {
+  let parser: ChatGPTParser;
+
+  beforeEach(() => {
+    const fixturePath = join(
+      __dirname,
+      '../../../fixtures/dom-snapshots/chatgpt/app-shell-2026-11.html'
+    );
+    const html = readFileSync(fixturePath, 'utf-8');
+    const dom = new JSDOM(html, { url: 'https://chatgpt.com/c/app-shell' });
+    parser = new ChatGPTParser(dom.window.document);
+  });
+
+  it('pairs every exchange in the new markup', () => {
+    const pairs = parser.parse().conversation?.pairs ?? [];
+
+    expect(pairs).toHaveLength(2);
+    expect(pairs[0]?.question.content).toContain('What should we plan for Q3?');
+    expect(pairs[0]?.answer.content).toContain('Three themes carry Q3.');
+    expect(pairs[1]?.question.content).toContain('Which one ships first?');
+    expect(pairs[1]?.answer.content).toContain('Reliability first');
+  });
+
+  it('reports no required-selector drift', () => {
+    const missing = (parser.parse().drift?.selectorFindings ?? []).filter(
+      (f) => f.required && f.matched === 0
+    );
+
+    expect(missing.map((f) => f.key)).toEqual([]);
+  });
+
+  it('fires no sanity rule', () => {
+    expect(parser.parse().drift?.sanityFindings?.map((f) => f.rule) ?? []).toEqual([]);
+  });
+
+  it('keeps the screenreader role label out of the question (lo-f132)', () => {
+    // `h4[data-conversation-role="user"]` holds "You said:" and is a SIBLING
+    // placed before the user unit, not a child of it -- so it stays out by
+    // structure here. Asserted anyway: the pre-rebuild markup put the same
+    // label inside the turn, and a future shell could again.
+    const pairs = parser.parse().conversation?.pairs ?? [];
+
+    expect(pairs[0]?.question.content).not.toContain('You said:');
+    expect(pairs[0]?.answer.content).not.toContain('ChatGPT said:');
+  });
+
+  it('carries assistant tables through', () => {
+    const answer = parser.parse().conversation?.pairs[1]?.answer;
+
+    expect(answer?.content).toContain('Reliability');
+    expect(answer?.content).toContain('Q4');
+  });
+
+  it('returns no model, the shell having dropped the attribute', () => {
+    // An absent field, not a wrong one: nothing in the new markup names the
+    // model. `modelIndicator` is optional, so this is not drift.
+    expect(parser.getModel()).toBeNull();
+  });
+});
+
+describe('ChatGPT Parser - scheduled-task conversation (2026-11)', () => {
+  let parser: ChatGPTParser;
+  let doc: Document;
+
+  beforeEach(() => {
+    const fixturePath = join(
+      __dirname,
+      '../../../fixtures/dom-snapshots/chatgpt/scheduled-task-2026-11.html'
+    );
+    const html = readFileSync(fixturePath, 'utf-8');
+    const dom = new JSDOM(html, { url: 'https://chatgpt.com/c/scheduled' });
+    doc = dom.window.document;
+    parser = new ChatGPTParser(doc);
+  });
+
+  it('exports an assistant-only conversation instead of nothing', () => {
+    // The whole conversation is one orphan assistant turn. Dropping orphans
+    // made this yield zero pairs, which the popup renders as "no conversation
+    // found" -- indistinguishable, to the user, from the parser being broken.
+    const pairs = parser.parse().conversation?.pairs ?? [];
+
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0]?.question.content).toBe('');
+    expect(pairs[0]?.answer.content).toContain('Three new roles matched');
+    expect(pairs[0]?.answer.content).toContain('Developer experience lead');
+  });
+
+  it('raises no drift at all on an assistant-only conversation', () => {
+    // The whole report, not just its sanity findings: there are three paths to
+    // the popup's "your export may be incomplete" banner and a page the parser
+    // read perfectly must take none of them. The third is the required-selector
+    // check -- `userMessage` and `custom.userTurn` match zero units here, which
+    // built a report with an EMPTY `sanityFindings` and still showed the banner,
+    // under an invitation to file a selector-drift issue about nothing.
+    expect(parser.parse().drift).toBeUndefined();
+  });
+
+  it('raises no "could not be read" warning for the absent question', () => {
+    // The warning and the sanity rule are separate paths to the same banner:
+    // either one alone tells the user the export is incomplete when it is not.
+    expect(parser.parse().warnings ?? []).toEqual([]);
+  });
+
+  it('does not invent a question for an answer whose own question is unmounted', () => {
+    // The other cause of an orphan answer, and the reason the rule is read per
+    // unit. This answer sits at index 2 of its turn, so its question exists and
+    // is simply above the mounted window. Pairing it with an empty question
+    // would fabricate an exchange that `scroll-to-load.ts` cannot stitch onto
+    // the window above -- `pairKey` sees `(EMPTY, A)` and `(Q, A)` as different
+    // pairs, both survive the merge, and the export carries that answer twice.
+    const cut = doc.createElement('div');
+    cut.setAttribute('data-turn-key', 'cut-turn');
+    cut.innerHTML = `
+      <div data-content-search-unit-key="cut-turn:2:assistant">
+        <div data-chatgpt-selection-message-id="cut">
+          <div data-markdown-text-style=""><p>An answer from above the window.</p></div>
+        </div>
+      </div>`;
+    doc.querySelector('[data-turn-key]')?.parentElement?.appendChild(cut);
+
+    const pairs = new ChatGPTParser(doc).parse().conversation?.pairs ?? [];
+
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0]?.answer.content).toContain('Three new roles matched');
+  });
+
+  it('still reports a question that was asked but could not be read', () => {
+    // The allowance names the pairs the walk invented, so it cannot be spent on
+    // anything else. Grafting an exchange whose question element is present but
+    // empty is a genuine read failure sitting next to a genuine question-less
+    // turn, and it has to stay loud even though the page also earns an excuse.
+    const parent = doc.querySelector('[data-turn-key]')?.parentElement;
+    const graft = doc.createElement('div');
+    graft.setAttribute('data-turn-key', 'graft');
+    graft.innerHTML = `
+      <div data-content-search-unit-key="graft:0:user">
+        <div data-user-message-bubble=""><div class="whitespace-pre-wrap"></div></div>
+      </div>
+      <div data-content-search-unit-key="graft:2:assistant">
+        <div data-chatgpt-selection-message-id="g">
+          <div data-markdown-text-style=""><p>An answer to the unreadable question.</p></div>
+        </div>
+      </div>`;
+    parent?.appendChild(graft);
+
+    const result = new ChatGPTParser(doc).parse();
+
+    expect(result.drift?.sanityFindings?.map((f) => f.rule)).toContain('no-question');
+    expect(result.drift?.sanityFindings?.filter((f) => f.rule === 'no-question')).toHaveLength(1);
+    expect(result.warnings).toContain('Turn 2: the question could not be read');
+    expect(result.warnings).not.toContain('Turn 1: the question could not be read');
+  });
+
+  it('keeps every part of a question-less turn that reports in two units', () => {
+    // A scheduled task can report in more than one unit. Pairing only the
+    // index-0 one exported PART ONE and silently dropped the rest: nothing
+    // notices, because `turns-dropped` counts message UNITS (two of them
+    // against one pair, so it cannot fire) and a question-less turn also
+    // suppresses the required-selector path.
+    const parent = doc.querySelector('[data-turn-key]')?.parentElement;
+    const twoPart = doc.createElement('div');
+    twoPart.setAttribute('data-turn-key', 'two-part');
+    twoPart.innerHTML = `
+      <div data-content-search-unit-key="two-part:0:assistant">
+        <div data-chatgpt-selection-message-id="p1">
+          <div data-markdown-text-style=""><p>PART ONE of the report.</p></div>
+        </div>
+      </div>
+      <div data-content-search-unit-key="two-part:1:assistant">
+        <div data-chatgpt-selection-message-id="p2">
+          <div data-markdown-text-style=""><p>PART TWO of the report.</p></div>
+        </div>
+      </div>`;
+    parent?.appendChild(twoPart);
+
+    const result = new ChatGPTParser(doc).parse();
+    const pairs = result.conversation?.pairs ?? [];
+
+    expect(pairs).toHaveLength(2);
+    expect(pairs[1]?.answer.content).toContain('PART ONE');
+    expect(pairs[1]?.answer.content).toContain('PART TWO');
+    expect(result.drift).toBeUndefined();
+  });
+
+  it('keeps a second assistant unit that follows a question in the same turn', () => {
+    // The unit index is not an alternating 0/2: this turn numbers its answer
+    // units 1 and 2, the shape the synthetic fixture does not carry. Reading
+    // only the first assistant unit exported half the answer, silently.
+    const parent = doc.querySelector('[data-turn-key]')?.parentElement;
+    const graft = doc.createElement('div');
+    graft.setAttribute('data-turn-key', 'sequential');
+    graft.innerHTML = `
+      <div data-content-search-unit-key="sequential:0:user">
+        <div data-user-message-bubble="">
+          <div class="whitespace-pre-wrap">Report in two parts, please.</div>
+        </div>
+      </div>
+      <div data-content-search-unit-key="sequential:1:assistant">
+        <div data-chatgpt-selection-message-id="s1">
+          <div data-markdown-text-style=""><p>FIRST half of the answer.</p></div>
+        </div>
+      </div>
+      <div data-content-search-unit-key="sequential:2:assistant">
+        <div data-chatgpt-selection-message-id="s2">
+          <div data-markdown-text-style=""><p>SECOND half of the answer.</p></div>
+        </div>
+      </div>`;
+    parent?.appendChild(graft);
+
+    const result = new ChatGPTParser(doc).parse();
+    const pairs = result.conversation?.pairs ?? [];
+
+    expect(pairs).toHaveLength(2);
+    expect(pairs[1]?.question.content).toBe('Report in two parts, please.');
+    expect(pairs[1]?.answer.content).toContain('FIRST half');
+    expect(pairs[1]?.answer.content).toContain('SECOND half');
   });
 });

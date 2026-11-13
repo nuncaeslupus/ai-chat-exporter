@@ -15,6 +15,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { ClaudeParser } from '../../../../src/core/parsers/claude';
+import { ChatGPTParser } from '../../../../src/core/parsers/chatgpt';
+import type { IParser, QAPair } from '../../../../src/core/types';
 import {
   parseAllTurns,
   MAX_SCROLL_STEPS,
@@ -26,8 +28,13 @@ const VIEWPORT = 1000;
 /** Height of one turn, so a viewport holds three of them (and two pairs). */
 const TURN_HEIGHT = 400;
 
+// One scroller carrying both platforms' `custom.scrollContainer` classes, and a
+// `<main>` so ChatGPT's `conversationContainer` resolves. `findScroller` reads
+// the selector off the parser it is given, so neither platform sees the other's.
 const PAGE = `<!DOCTYPE html><html><body>
-  <div class="overflow-y-auto overflow-x-hidden pt-6 flex-1" id="scroller"><div id="inner"></div></div>
+  <div class="overflow-y-auto overflow-x-hidden pt-6 flex-1 thread-scroll-container" id="scroller">
+    <main><div id="inner"></div></main>
+  </div>
 </body></html>`;
 
 function turnHtml(index: number): string {
@@ -37,6 +44,25 @@ function turnHtml(index: number): string {
          <p class="whitespace-pre-wrap break-words">question ${pair}</p></div></div></div>`
     : `<div data-test-render-count="1"><div data-is-streaming="false"><div class="font-claude-response">
          <div class="standard-markdown"><p>answer ${pair}</p></div></div></div></div>`;
+}
+
+/**
+ * One ChatGPT message unit, mountable on its own.
+ *
+ * ChatGPT unmounts message UNITS, not whole `[data-turn-key]` exchanges (4 of 6
+ * units in the DOM at rest, measured live), so a window's top edge lands
+ * between a question and its answer rather than between exchanges. Two units
+ * of the same exchange carry the same turn key, as the live page does.
+ */
+function chatgptUnitHtml(index: number): string {
+  const pair = Math.floor(index / 2);
+  return index % 2 === 0
+    ? `<div data-turn-key="t-${pair}"><div data-content-search-unit-key="t-${pair}:0:user">
+         <div data-user-message-bubble=""><div class="whitespace-pre-wrap">question ${pair}</div>
+       </div></div></div>`
+    : `<div data-turn-key="t-${pair}"><div data-content-search-unit-key="t-${pair}:2:assistant">
+         <div data-chatgpt-selection-message-id="a${pair}"><div data-markdown-text-style="">
+         <p>answer ${pair}</p></div></div></div></div>`;
 }
 
 /**
@@ -77,26 +103,46 @@ function buildScroller(
 }
 
 /** The virtualized conversation: `total` turns, only the visible ones mounted. */
-function buildVirtualized(total: number): { doc: Document; scroller: HTMLElement } {
-  return buildScroller({
-    contentHeight: total * TURN_HEIGHT,
-    mount: (scrollTop) => {
-      const first = Math.floor(scrollTop / TURN_HEIGHT);
-      const last = Math.floor((scrollTop + VIEWPORT - 1) / TURN_HEIGHT);
-      return Array.from({ length: total }, (_, index) => index)
-        .filter((index) => index >= first && index <= last)
-        .map(turnHtml)
-        .join('');
+function buildVirtualized(
+  total: number,
+  html: (index: number) => string = turnHtml,
+  url?: string
+): { doc: Document; scroller: HTMLElement } {
+  return buildScroller(
+    {
+      contentHeight: total * TURN_HEIGHT,
+      mount: (scrollTop) => {
+        const first = Math.floor(scrollTop / TURN_HEIGHT);
+        const last = Math.floor((scrollTop + VIEWPORT - 1) / TURN_HEIGHT);
+        return Array.from({ length: total }, (_, index) => index)
+          .filter((index) => index >= first && index <= last)
+          .map(html)
+          .join('');
+      },
     },
-  });
+    url
+  );
 }
 
 /** Drive the pass to completion under fake timers. */
-async function run(parser: ClaudeParser, doc: Document) {
+async function run(parser: IParser, doc: Document) {
   const pending = parseAllTurns(parser, doc);
   await vi.advanceTimersByTimeAsync(SETTLE_MS * (MAX_SCROLL_STEPS + 5));
   return pending;
 }
+
+/**
+ * A pair as a parser hands it over: `id` is the exchange's identity across
+ * windows (ChatGPT's own `data-turn-key`), which is what tells one exchange
+ * seen twice from two exchanges that read alike.
+ */
+const pair = (id: string, question: string, answer: string): QAPair =>
+  ({
+    id,
+    index: 0,
+    question: { id: `q-${id}`, role: 'user', content: question, timestamp: new Date(0) },
+    answer: { id: `a-${id}`, role: 'assistant', content: answer, timestamp: new Date(0) },
+  }) as QAPair;
 
 describe('scroll-to-load', () => {
   afterEach(() => {
@@ -267,6 +313,147 @@ describe('scroll-to-load', () => {
     const result = await run(parser, doc);
 
     expect(result.warnings).toContain('a turn failed to read');
+  });
+
+  it('stitches ChatGPT windows that cut between a question and its answer', async () => {
+    vi.useFakeTimers();
+    // ChatGPT keeps an assistant unit that has no question before it -- that is
+    // what makes a scheduled task export at all. But at a window's LEADING edge
+    // that orphan is half of an exchange the next window up produces whole, and
+    // the two cannot be stitched: `pairKey` sees ("", answer) against
+    // (question, answer), the join fails, and both survive. Three exchanges came
+    // out as five pairs with two answers printed twice.
+    const { doc } = buildVirtualized(6, chatgptUnitHtml, 'https://chatgpt.com/c/abc123');
+    const parser = new ChatGPTParser(doc);
+
+    expect(parser.parse().conversation?.pairs.length).toBeLessThan(3);
+
+    const result = await run(parser, doc);
+
+    expect(result.conversation?.pairs.map((pair) => pair.question.content)).toEqual([
+      'question 0',
+      'question 1',
+      'question 2',
+    ]);
+    expect(result.conversation?.pairs.map((pair) => pair.answer.content)).toEqual([
+      'answer 0',
+      'answer 1',
+      'answer 2',
+    ]);
+  });
+
+  it('folds a partial grouped answer into the window that saw all of it', async () => {
+    vi.useFakeTimers();
+    // One turn can deliver SEVERAL assistant units, and units unmount
+    // independently (4 of 6 in the DOM at rest, measured live), so a window
+    // boundary can fall INSIDE one answer: one window mounts `question 1` with
+    // only PART ONE, the window above it mounts both parts. `pairKey` carries
+    // the whole answer text, so the two copies did not join and the export
+    // printed that question twice, once truncated.
+    const user = (key: string, text: string): string =>
+      `<div data-content-search-unit-key="${key}"><div data-user-message-bubble="">
+         <div class="whitespace-pre-wrap">${text}</div></div></div>`;
+    const assistant = (key: string, text: string): string =>
+      `<div data-content-search-unit-key="${key}"><div data-chatgpt-selection-message-id="${key}">
+         <div data-markdown-text-style=""><p>${text}</p></div></div></div>`;
+    // Five unit-height slots: question 0, answer 0, question 1, and answer 1 in
+    // two units. The units of one turn share a single `[data-turn-key]`
+    // wrapper, as they do live -- that wrapper is what groups them.
+    const { doc } = buildScroller(
+      {
+        contentHeight: 5 * TURN_HEIGHT,
+        mount: (scrollTop) => {
+          const first = Math.floor(scrollTop / TURN_HEIGHT);
+          const last = Math.floor((scrollTop + VIEWPORT - 1) / TURN_HEIGHT);
+          const on = (slot: number, html: string): string =>
+            slot >= first && slot <= last ? html : '';
+          const wrap = (key: string, units: string): string =>
+            units ? `<div data-turn-key="${key}">${units}</div>` : '';
+          return (
+            wrap(
+              't-0',
+              on(0, user('t-0:0:user', 'question 0')) +
+                on(1, assistant('t-0:2:assistant', 'answer 0'))
+            ) +
+            wrap(
+              't-1',
+              on(2, user('t-1:0:user', 'question 1')) +
+                on(3, assistant('t-1:1:assistant', 'PART ONE of answer 1.')) +
+                on(4, assistant('t-1:2:assistant', 'PART TWO of answer 1.'))
+            )
+          );
+        },
+      },
+      'https://chatgpt.com/c/abc123'
+    );
+    const parser = new ChatGPTParser(doc);
+
+    const result = await run(parser, doc);
+    const pairs = result.conversation?.pairs ?? [];
+
+    expect(pairs.map((pair) => pair.question.content)).toEqual(['question 0', 'question 1']);
+    expect(pairs[1]?.answer.content).toContain('PART ONE');
+    expect(pairs[1]?.answer.content).toContain('PART TWO');
+  });
+
+  it('reconciles a partial grouped answer wherever the windows join', async () => {
+    vi.useFakeTimers();
+    // The partial copy and the complete one need not be adjacent. Scripted
+    // windows, because the arrangement is the point and not the geometry:
+    // `[P, (Q, A1)]` coming in against `[P, (Q, A1 + A2)]` already collected
+    // failed the run match outright on a whole-answer key, so the export
+    // carried P twice AND both copies of Q. The plain parse at rest is the
+    // partial window here too, so the walk gains no pair and must still win.
+    const partial = [pair('t-p', 'P', 'the P answer'), pair('t-q', 'Q', 'PART ONE.')];
+    const complete = [pair('t-p', 'P', 'the P answer'), pair('t-q', 'Q', 'PART ONE. PART TWO.')];
+    const { doc } = buildVirtualized(6);
+    const parser = new ClaudeParser(doc);
+    const real = parser.parse();
+    // The plain parse, then the bottom window, then the windows above it.
+    const windows = [partial, complete, partial, partial];
+    let call = -1;
+    vi.spyOn(parser, 'parse').mockImplementation(() => {
+      call += 1;
+      return {
+        ...real,
+        conversation: { ...real.conversation, pairs: windows[Math.min(call, windows.length - 1)] },
+      } as typeof real;
+    });
+
+    const result = await run(parser, doc);
+    const pairs = result.conversation?.pairs ?? [];
+
+    expect(pairs.map((item) => item.question.content)).toEqual(['P', 'Q']);
+    expect(pairs[1]?.answer.content).toBe('PART ONE. PART TWO.');
+  });
+
+  it('keeps two exchanges whose question repeats and whose answers nest', async () => {
+    vi.useFakeTimers();
+    // "Continue" -> "Done." sits above "Continue" -> "Done. Next step.": one
+    // answer contains the other, so folding on content alone would read them as
+    // one exchange seen twice and keep only the longer copy -- and the contract
+    // would wave it through, the plain parse at rest holding only the shorter
+    // one. Their turn keys differ, which is the whole of what tells them apart.
+    const above = [pair('t-1', 'Continue', 'Done.')];
+    const below = [pair('t-2', 'Continue', 'Done. Next step.')];
+    const { doc } = buildVirtualized(6);
+    const parser = new ClaudeParser(doc);
+    const real = parser.parse();
+    // The plain parse, then the bottom window, then the windows above it.
+    const windows = [above, below, above, above];
+    let call = -1;
+    vi.spyOn(parser, 'parse').mockImplementation(() => {
+      call += 1;
+      return {
+        ...real,
+        conversation: { ...real.conversation, pairs: windows[Math.min(call, windows.length - 1)] },
+      } as typeof real;
+    });
+
+    const result = await run(parser, doc);
+    const pairs = result.conversation?.pairs ?? [];
+
+    expect(pairs.map((item) => item.answer.content)).toEqual(['Done.', 'Done. Next step.']);
   });
 
   it('leaves a streaming conversation alone', async () => {

@@ -4,7 +4,8 @@ Field notes from capturing real chatbot DOM. Written for whoever adds or repairs
 platform parser next — and for the parser-generator skill. Every item here cost a
 debugging session or was caught only by looking at a live page.
 
-Last live survey: **chatgpt.com, 2026-07-28** (Free tier, `gpt-5-5`).
+Last live survey: **chatgpt.com, 2026-11-13** (the 2026-11 app-shell rebuild; see #17).
+Previous: chatgpt.com, 2026-07-28 (Free tier, `gpt-5-5`).
 
 ---
 
@@ -28,6 +29,10 @@ from 2026-01 that still had `<article>`.
   turn selector matches zero nodes on a page the URL pattern claims to support.
 - Prefer the most semantically stable attribute available. `data-message-author-role`
   and `data-turn` survived the migration; the *tag name* and Tailwind classes did not.
+- When a rename lands, keep **both spellings** in the load-bearing selector — new
+  one first, pre-rename one second (`'[data-user-message-bubble], [data-message-author-role="user"]'`).
+  The committed fixtures are snapshots of the old DOM, so a selector list is what
+  keeps them parsing without re-capturing every fixture; it costs one comma.
 
 ## 2. Selectors defined in `selectors.ts` but hardcoded in the parser
 
@@ -387,6 +392,104 @@ the same field.
   the subset that happens to pass.
 - Pinning a known gap as an assertion is better than a silent hole, but only if
   the assertion is flipped when the gap closes — the failing test is the point.
+
+## 17. A conversation does not have to contain a question (2026-11, chatgpt.com)
+
+The 2026-11 app-shell rebuild dropped *every* ChatGPT hook at once —
+`data-message-author-role`, `data-turn`, `data-testid^="conversation-turn-"`,
+`.markdown.prose`, `data-message-model-slug` — and replaced the turn wrapper with
+`[data-turn-key]` holding `[data-content-search-unit-key="<turn>:<i>:<role>"]`.
+The role now lives in the unit key's own *value*, so the role is matched by suffix
+rather than by a nearby element: the `h4[data-conversation-role]` label is a
+**sibling** of the unit, not an ancestor or child, so `:has()` cannot reach it.
+
+The expensive part was not the rename. A **scheduled task** renders as one
+assistant turn with no user turn anywhere on the page. Both the parser and the
+drift net assumed every pair has two sides:
+
+- the parser dropped orphan assistant turns, so the whole conversation extracted
+  to zero pairs and the popup showed "no conversation found" — indistinguishable,
+  to the user, from the parser being broken;
+- once the turn was kept, the empty question tripped `no-question` *and*
+  `collectWarnings`, so a perfectly-read page showed "your export may be
+  incomplete".
+
+**Rules:**
+
+- A half-empty pair is only a failure to *read* when the conversation had a message
+  for that side, and **only the parser's own walk knows which questions it invented**.
+  `BaseParser.synthesizedQuestions()` is where it says so; it returns the empty
+  list, so `no-question` keeps full strength on every platform that cannot tell the
+  two apart. Do not infer it from `pairs * 2 - turnCount` instead: Gemini emits
+  exactly one pair per turn container, so that expression always covers every
+  finding the rule could raise and silently disables it platform-wide.
+- **Pair indexes, never a count.** A count is fungible, so the scheduled task's
+  genuine question-less pair would buy silence for the *next* pair — a question
+  that really was asked and really was missed. Both `checkOutputSanity` and
+  `collectWarnings` skip only the pairs the walk named.
+- **An unmounted turn is indistinguishable from one that was never there**, so the
+  distinction cannot be drawn at page level at all. Keying it off "the DOM holds no
+  user turn" looks safe and is not: a single scroll window can legitimately hold
+  nothing but assistant units (one answer taller than the viewport), which makes
+  that window read as a scheduled task.
+  `ChatGPTParser.turnNeverHadQuestion()` reads the **unit key's own index**
+  instead. An ordinary exchange puts its question at `:0:` and its answer at `:2:`,
+  so an *assistant* unit at index 0 is a turn nobody asked anything in — true
+  wherever that turn sits in the thread, and false for an answer whose question the
+  virtualizer unmounted. That one is dropped rather than paired, which also keeps
+  `scroll-to-load.ts` able to stitch it: a fabricated `(EMPTY, A)` and the real
+  `(Q, A)` have different `pairKey`s, so both survive the merge and the export
+  carries that answer twice. The pre-rebuild shell has no sub-turn index, so there
+  the opening turn (`data-testid="conversation-turn-1"`) is the nearest available
+  fact and a greeting mid-thread drops with `turns-dropped` to report it.
+- **One turn can deliver several assistant units**, and the index is not an
+  alternating 0/2: deep research and a two-part scheduled report number theirs
+  `:0:`/`:1:` or `:1:`/`:2:`. Walking units one at a time pairs only the first and
+  drops the rest in silence — `turns-dropped` counts message *units*
+  (`BaseParser.countTurnContainers` reads `selectors.messageElement`, which for
+  ChatGPT is the unit), so two units against one pair cannot fire it, and a
+  question-less turn also suppresses the required-selector path. `extractQAPairs`
+  groups a unit's siblings by their shared `[data-turn-key]` wrapper, builds the
+  answer from all of them, and skips the ones already read. Extracting from the
+  wrapper needs no new combining code — `extractAssistantMessageFromTurn` already
+  combines every `assistantMessage` element beneath whatever it is handed, and that
+  selector is role-scoped, so the question sharing the wrapper cannot leak in. Feed
+  `turnLengths` the *units'* length, though, never the wrapper's: the wrapper holds
+  the question too, and a long question with a short answer then reads as a
+  `content-shortfall`. Grouping also lets a scroll window's edge fall *inside* one
+  answer: the window that mounted only the first unit harvests `(Q, A1)` while the
+  one above it harvests `(Q, A1 + A2)`. Different `pairKey`s, so in
+  `scroll-to-load.ts` the *whole run* stopped matching and the export printed the
+  exchanges on both sides of it twice over. The join therefore matches an exchange
+  against its own partial copy (`subsumes`) and keeps whichever copy has more of
+  the answer; reconciling adjacent pairs afterwards instead is not enough, since
+  the two copies need not end up adjacent. `containsAll` reads a completed pair as
+  holding the partial one for the same reason, and the contract is content alone —
+  a walk that gains no pair but completes one is still better than the plain
+  parse, which may itself be the partial window. `subsumes` is gated on the pair
+  *id*, which is why `createQAPair` here is handed the turn's `data-turn-key`:
+  folding on text alone would read "Continue" → "Done." and "Continue" →
+  "Done. Next step." as one exchange seen twice and keep only the longer copy,
+  and `containsAll` would wave that loss through.
+- Only a *question* is ever synthesised. A user turn still waiting for its reply is
+  skipped as pending by `extractQAPairs`, so an empty **answer** is always a read
+  failure and must stay reportable.
+- **Required selectors are the third path to the same banner.** `userMessage` and
+  `custom.userTurn` match zero units on a scheduled task, and
+  `hasFailingRequiredSelector` alone builds a report — empty `sanityFindings` and
+  all — which the popup renders as "your export may be incomplete" above an
+  invitation to file a selector-drift issue about nothing. ChatGPT drops both keys
+  when *every* pair came from a question-less turn. Do not key that off the user
+  selectors themselves: that measures the suppression with the very thing it
+  vouches for, and one rename would read every conversation as assistant-only.
+- Never render a role label without checking the side has blocks. An empty message
+  gets no block at all (`ConversationStructureService.convertMessage`), so
+  `hasContent()` on `BaseExporter` is the single check all five readable exporters
+  share.
+- Not every attribute that looks like a citation hook is one. `[data-dil-response]
+  a[href^="http"]` is the answer body's ordinary inline markdown links; matching it
+  would publish every inline link as a cited source. An absent Sources list beats a
+  fabricated one.
 
 ## Diagnosing selector drift without a browser
 
