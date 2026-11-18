@@ -132,10 +132,12 @@ export class StructuredMarkdownExporter extends BaseExporter {
     for (const [i, pair] of conversation.pairs.entries()) {
       // User question — quoted, which is what separates the voices now that the
       // role label is no longer a heading.
-      pushDaySeparator(pair.question.timestamp);
-      lines.push(roleLabel(this.getRoleName('user'), pair.question.timestamp));
-      lines.push('');
-      lines.push(...this.quote(this.renderBlocks(pair.question.blocks, levelMap)));
+      if (this.hasContent(pair.question)) {
+        pushDaySeparator(pair.question.timestamp);
+        lines.push(roleLabel(this.getRoleName('user'), pair.question.timestamp));
+        lines.push('');
+        lines.push(...this.quote(this.renderBlocks(pair.question.blocks, levelMap)));
+      }
 
       // Assistant answer
       pushDaySeparator(pair.answer.timestamp);

@@ -8,7 +8,10 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createTestQAPair, createTestConversation } from '../../../utils/exporter-helpers';
-import { EMBEDDED_FRAME_REPORT_ATTR } from '../../../../src/core/parsers/chatgpt/selectors';
+import {
+  CHATGPT_SELECTORS,
+  EMBEDDED_FRAME_REPORT_ATTR,
+} from '../../../../src/core/parsers/chatgpt/selectors';
 import { WARNING_KEYS, ERROR_KEYS } from '../../../../src/shared/constants';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
@@ -22,6 +25,9 @@ const mockEnrich = vi.fn();
 vi.mock('../../../../src/core/parsers', () => ({
   detectParser: () => ({
     platformInfo: { id: 'chatgpt', name: 'ChatGPT', urlPatterns: [] },
+    // A real parser always carries its selector set, and the scroll-to-load
+    // pass reads it (`custom.scrollContainer`) before parsing.
+    selectors: CHATGPT_SELECTORS,
     parse: mockParse,
   }),
 }));
@@ -890,6 +896,25 @@ describe('content-script get_conversation response strips htmlContent', () => {
     // The rest of the message survives -- this is a strip, not a truncation.
     expect(response.data.pairs[0]?.question.content).toBe('Q');
   });
+
+  it('stops answering with the previous chat once a re-parse finds nothing (SPA navigation)', async () => {
+    mockParse.mockReturnValue({
+      success: true,
+      conversation: createTestConversation([createTestQAPair(0, 'Q', 'A')]),
+    });
+    const listener = await loadMessageListener();
+    const ask = async (): Promise<{ data?: unknown }> => {
+      const sendResponse = vi.fn();
+      listener({ type: 'get_conversation' }, {}, sendResponse);
+      await vi.waitFor(() => expect(sendResponse).toHaveBeenCalled());
+      return sendResponse.mock.calls[0]?.[0] as { data?: unknown };
+    };
+
+    expect((await ask()).data).toBeTruthy();
+
+    mockParse.mockReturnValue({ success: false, error: 'no container' });
+    expect((await ask()).data).toBeFalsy();
+  });
 });
 
 // lo-9001: the sandboxed Deep Research frame's own content script relays its
@@ -1006,12 +1031,12 @@ describe('content-script export language', () => {
   });
 
   /**
-   * Answers every `storage.sync.get` with this one key. Harmless for the other
+   * Answers every `storage.local.get` with this one key. Harmless for the other
    * reads in this path: `getUserPreferences` looks up `user_preferences`, finds
    * nothing, and falls back to its defaults exactly as it does elsewhere here.
    */
   function storedLanguage(value: string | undefined): void {
-    (chrome.storage.sync.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (chrome.storage.local.get as ReturnType<typeof vi.fn>).mockResolvedValue({
       language_preference: value,
     });
   }
@@ -1077,5 +1102,72 @@ describe('content-script export language', () => {
     );
 
     expect(await roleNameSeenByExporter('print_conversation')).toBe('Benutzer');
+  });
+});
+
+describe('content-script scroll-to-load wiring', () => {
+  beforeEach(() => {
+    mockParse.mockReset();
+    mockExport.mockReset();
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  /**
+   * A scroller the scroll-to-load pass will accept, plus a count of how many
+   * times anything wrote to its `scrollTop` -- which is the user-visible side
+   * effect this wiring is about.
+   */
+  function mountScroller(): { scrolls: () => number } {
+    const scroller = document.createElement('div');
+    scroller.className = 'thread-scroll-container';
+    Object.defineProperty(scroller, 'clientHeight', { value: 1000, configurable: true });
+    Object.defineProperty(scroller, 'scrollHeight', { value: 5000, configurable: true });
+    let scrollTop = 0;
+    let writes = 0;
+    Object.defineProperty(scroller, 'scrollTop', {
+      configurable: true,
+      get: () => scrollTop,
+      set: (next: number) => {
+        writes += 1;
+        scrollTop = Math.min(Math.max(next, 0), 4000);
+      },
+    });
+    document.body.appendChild(scroller);
+    return { scrolls: () => writes };
+  }
+
+  it('does not scroll the page on the load-time parse', async () => {
+    // The parse that runs when the content script loads is only a warm cache.
+    // Walking the conversation there would hijack the scroll of every chat
+    // page the user opens, for an export nobody has asked for yet.
+    const { scrolls } = mountScroller();
+    mockParse.mockReturnValue({
+      success: true,
+      conversation: createTestConversation([createTestQAPair(0, 'Q', 'A')]),
+    });
+
+    await loadMessageListener();
+
+    expect(scrolls()).toBe(0);
+  });
+
+  it('scrolls when the popup actually asks for the conversation', async () => {
+    const { scrolls } = mountScroller();
+    mockParse.mockReturnValue({
+      success: true,
+      conversation: createTestConversation([createTestQAPair(0, 'Q', 'A')]),
+    });
+
+    const listener = await loadMessageListener();
+    const sendResponse = vi.fn();
+    listener({ type: 'get_conversation' }, {}, sendResponse);
+
+    await vi.waitFor(() => {
+      expect(sendResponse).toHaveBeenCalled();
+    });
+    expect(scrolls()).toBeGreaterThan(0);
   });
 });

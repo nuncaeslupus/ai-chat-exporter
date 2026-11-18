@@ -1,95 +1,127 @@
 # Acceptance gates — what makes one real
 
 Read this when writing a gate, when a gate passed and should not have, or when a
-numeric threshold has no number behind it yet.
+numeric threshold has no number behind it yet. For making a gate faster, read
+`references/performance-tuning.md` § Making the gate faster.
 
 ## Contents
 
 - [The fence is what makes a gate mechanical](#the-fence-is-what-makes-a-gate-mechanical)
 - [Gate blocks run verbatim](#gate-blocks-run-verbatim)
-- [The gate is fixed for the life of the task](#the-gate-is-fixed-for-the-life-of-the-task)
+- [The gate is fixed for the life of the task](#the-gate-is-fixed-for-the-life-of-the-task) — and the placeholder exception
+- [The task gate measures the pre-archive tree](#the-task-gate-measures-the-pre-archive-tree)
+- [Asking whether the gates would run, without running them](#asking-whether-the-gates-would-run-without-running-them) — `--preflight`
 - [Evidence gates (numeric acceptance)](#evidence-gates-numeric-acceptance)
 - [Unmeasured — the third outcome](#unmeasured--the-third-outcome)
-- [The placeholder, and the first PR that replaces it](#the-placeholder-and-the-first-pr-that-replaces-it)
+- [Would the number move if the thing it measures broke?](#would-the-number-move-if-the-thing-it-measures-broke)
+- [How often to run the whole gate](#how-often-to-run-the-whole-gate) — and why the gate never caches outcomes
 
 ---
 
 ## The fence is what makes a gate mechanical
 
-Prose, and inline `single-backtick` commands, are NOT executed — a payload
-without a fenced ` ```bash ` block runs nothing, and `gate_run.sh` then prints
-`gate: prose-only` (or `gate: none`) with a stderr warning instead of the
-`gate: passed` it prints when a block really ran. Check that line before
-trusting a gate: one consumer audit found 0 of 70 payloads carried a fenced
-block, so its entire gate layer had been inert. Set
-`ARSENAL_GATE_REQUIRE_BLOCK=1` to turn "nothing ran" into a hard failure
-when every task in a repo is meant to carry a mechanical gate.
-
-`query_status.py` and `task_select.py` both report a task with no block, because
-an entire gate layer can go inert without anyone noticing.
+Only a fenced ` ```bash ` block runs. Prose and inline `single-backtick`
+commands run nothing, and `gate_run.sh` then prints `gate: prose-only` (or
+`gate: none`) with a stderr warning instead of `gate: passed`, so read that line
+before trusting a gate. `query_status.py` and `task_select.py` both report a task
+with no block, because a whole gate layer can go inert unnoticed. Set
+`ARSENAL_GATE_REQUIRE_BLOCK=1` to make "nothing ran" a hard failure when every
+task in a repo is meant to carry a mechanical gate.
 
 ## Gate blocks run verbatim
 
-`gate_run.sh` executes the bash block as code in the worker's tree (hardened by
-default: throwaway HOME + a PATH without `$HOME` shims, except the dirs holding
-the package manager / language runtime, which stay reachable so a `pnpm …` gate
-runs instead of dying at exit 127; `ARSENAL_GATE_INHERIT_ENV=1` opts out
-entirely). Treat a gate block from an untrusted plan/payload as you would any
-code to run — review it. A gate that could not run exits **3**, never 0 or 1,
-and a worker treats it as "could not run" rather than reading it as a verdict.
+`gate_run.sh` executes the block as code in the worker's tree. By default it is
+hardened: a throwaway `HOME` and a `PATH` without `$HOME` shims, except that the
+package manager or language runtime itself is symlinked in so a `pnpm …` gate
+runs. `ARSENAL_GATE_INHERIT_ENV=1` opts out. Review a gate block from an
+untrusted plan or payload as you would any code you run. A gate that could not
+run exits **3**, and a worker reads that as "could not run", not as a verdict.
 
 ## The gate is fixed for the life of the task
 
 `open_task_pr.sh` runs the gate with `ARSENAL_GATE_FROM_DEFAULT=1`, so
-`gate_run.sh` reads the task file **from the default branch** and not from the
-branch under test. A worker whose own branch supplies the gate it is being held
-to is certifying itself, so this is not a setting to relax.
+`gate_run.sh` reads the task file from the **default branch**, not from the
+branch under test, because a branch that supplies its own gate is certifying
+itself. So a task's own PR cannot amend a gate that is already real: not the
+assertions, the test names it calls, or a symbol it renames. The edit is not
+rejected, it is never read, and the failure that follows names a missing test
+rather than the cause. `gate_run.sh` says which file it read on every run, and
+when a working-copy gate existed and was not used; read that line before hunting
+for a bug in the implementation.
 
-The consequence is the part that costs a session if it is not said out loud:
-**a task's own PR can never amend an acceptance gate that is already real.** Not
-the assertions, not the test names it calls, not a symbol it renamed. The edit is
-not rejected — it is simply never read, and the failure that follows names a
-missing test rather than the reason for it.
+Write task text accordingly. A task must not say "an implementation choosing
+another name updates this block in the same diff". An implementation that cannot
+meet the gate as written needs a board-side edit merged to the default branch
+first, or a new task. When a branch has already diverged, restore the block
+byte-for-byte from the default branch.
 
-**The one exception is the placeholder, and it is not a relaxation.** A task
-seeded from a plan ships with the placeholder command (`# arsenal:gate-placeholder`),
-which asserts nothing: there is no criterion yet for a branch to weaken. So when
-the default branch still carries the placeholder and the working copy supplies a
-real command, `gate_run.sh` runs the working copy's — and says so on stderr. That
-is how a task defines its first gate, in its own PR, and it is the intended
-bootstrap. The gate *block* around it — metric, operator, threshold, evidence
-path — is still read from the default branch, so the threshold is the board's
-either way. Once the default branch carries a real command the exception is
-closed for good, and the paragraph above is the whole of the rule.
+**The placeholder is the one exception.** Every task is filed with a command
+that fails on purpose:
 
-Two things follow for a worker. Replacing a placeholder in a task's own PR is
-correct work, not self-certification — do not preserve the placeholder to look
-compliant. And a `gate_run` line saying it ran the working copy's command is that
-bootstrap, not a bug to chase.
+````markdown
+```bash
+# arsenal:gate-placeholder — replace with the real check; it may land in this task's own PR
+false
+```
+````
 
-So a task text must not invite the amendment. This sentence, from a real task,
-describes something the toolkit refuses:
+It asserts nothing, so there is no criterion for a branch to weaken. While the
+default branch still carries it (the marker on the block's first line, or a lone
+`false` from an earlier template), `gate_run.sh` runs the **working copy's**
+command and says so on stderr. The `gate` block around it (metric, operator,
+threshold, evidence path) is still read from the default branch, so the
+threshold stays the board's. Replacing the placeholder in the task's own PR is
+correct work, and that stderr line is this bootstrap, not a bug. Once a real
+command has merged, the working copy is no longer consulted.
 
-> `build_list_requests` is the name this task gives that seam; an implementation
-> choosing another name **updates this block in the same diff**.
+## The task gate measures the pre-archive tree
 
-Write the constraint instead: the gate is a precondition the board sets, and an
-implementation that cannot satisfy it as written needs a **board-side edit merged
-to the default branch first**, or a new task. Restoring the block byte-for-byte
-from the default branch is the correct recovery when a branch has already
-diverged.
+`open_task_pr.sh` runs the task's own gate **before** archiving the task file
+into `tasks/_history/`, and the repo's `host-gate` **after**. The host gate runs
+last because the archived tree is the one the PR ships; the task gate runs first
+because `gate_run.sh` needs the working copy of the task file to resolve which
+copy to read.
 
-`gate_run.sh` says which file it read on every run, and says explicitly when a
-working-copy gate exists and was not used. Read that line before looking for a
-bug in the implementation.
+So a task gate must not depend on state the archive produces. A gate asserting
+"every merged task is archived", or one that reuses `host-gate`, fails on a
+correct tree and is reported as `the task gate failed`. A check that needs the
+final tree belongs in `host-gate`.
 
----
+## Asking whether the gates would run, without running them
+
+```bash
+bash claude-arsenal/bin/open_task_pr.sh <task-id> --preflight
+```
+
+It runs the cheap half of the real run in the real order (review receipt, task
+gate, shared-checkout guard, issue handle, archive), puts the tree back, and
+prints `preflight:ok` with exit 0. It needs no `<title>` and opens nothing: no
+branch, commit, issue edit or PR. It stops at the first refusal, since each
+refusal names its own cause and fix; fix it and re-run. A signal during the run,
+such as `Ctrl-C`, restores the task file before exiting.
+
+It cannot tell you whether `host-gate` passes, because running that is the cost
+being avoided. It only notes whether the gate's first word resolves on this
+machine, which catches a gate naming a tool a fresh worktree lacks. For more, a
+repo declares its own fast check:
+
+```toml
+# arsenal/config.toml
+host-gate = "make lint test"
+preflight-gate = "make verify-gates"
+```
+
+`preflight-gate` runs under `--preflight` after the archive, on the same side as
+`host-gate`, so a check over the repo's task files sees the tree the PR ships.
+Name something that takes seconds. It is also the fast gate every review round
+after the first runs on the delta through `bin/fast_gate.sh`; see
+`references/ci-minutes.md` § Two gate levels.
 
 ## Evidence gates (numeric acceptance)
 
-A numeric gate — a Sharpe floor, a coverage floor, a latency ceiling — must be
-backed by a **committed measurement**, not a worker's word. Declare it in the
-payload's `## Acceptance gate` section as a fenced `gate` block:
+A numeric gate (a coverage floor, a latency ceiling, a score threshold) is backed
+by a **committed measurement**, not a worker's word. Declare it in the payload's
+`## Acceptance gate` section as a fenced `gate` block:
 
 ````markdown
 ```gate
@@ -99,43 +131,31 @@ key: totals.percent_covered
 ```
 ````
 
-Line 1 is the gate in `<metric> <op> <threshold>` grammar (the same grammar the
-`gate-check` skill uses); `evidence` is a committed JSON file; `key` is a dotted
-path to the measured number inside it. `gate_run.sh` asserts `measured <op>
-threshold` over that file: a declared evidence gate with **no** evidence file, or
-evidence that **violates** the threshold, is a hard failure — it can never pass
-vacuously. This is the machine-checkable half of "`done` means the gate passed"
-(closes the false-`done` hole for `[LAPTOP]`/science gates). The release-side
-half is enforced at the choke point: a worker opens no PR unless
-the PR is opened (not a bare `branch:` ref) and not closed-without-merge; the
-payload's mechanical gate passes (`open_task_pr.sh` runs `gate_run.sh` itself, so
-the evidence/bash gate is a hard precondition, and so is the host's own
-`host-gate` when the repo declares one); and — for a task tagged **`laptop`** — the session
-is not a cloud session. A cloud worker (`CLAUDE_CODE_REMOTE=true`) physically
-cannot satisfy a `[LAPTOP]`-only gate (model training, CPCV Sharpe, soak,
-paper-trade), so tag such tasks `laptop` (`create_task.py --tag laptop`) and the
-laptop session records `done`; a cloud session is refused.
+Line 1 is `<metric> <op> <threshold>`, the grammar the `gate-check` skill uses;
+`evidence` is a committed JSON file and `key` a dotted path to the number in it.
+`gate_run.sh` asserts `measured <op> threshold`. A missing evidence file, or
+evidence that violates the threshold, is a hard failure, so the gate cannot pass
+vacuously.
 
-Evidence files are build products, and that shows up in git: every branch
-rewrites them, so every rebase onto a moved base conflicts on them. Do not
-hand-merge one — the right content is neither side, it is what the code measures
-on the resulting tree. `bin/rebase_stack.sh` handles this: an evidence-only
-conflict is regenerated with the repo's `host-gate` and the rebase continues; a
-conflict anywhere else stops it.
+`open_task_pr.sh` runs `gate_run.sh` itself, plus `host-gate` when the repo
+declares one, so both are preconditions of opening the PR. `done` additionally
+needs an opened PR (not a bare `branch:` ref) that was not closed without merge.
+A gate only a local machine can satisfy (model training, a long soak, anything
+needing local hardware) belongs on a task tagged `laptop`
+(`create_task.py --tag laptop`); a cloud session (`CLAUDE_CODE_REMOTE=true`) is
+refused on it and the laptop session records `done`.
 
----
+Evidence files are build products, so every rebase onto a moved base conflicts on
+them. Do not hand-merge one; the right content is what the code measures on the
+resulting tree. `bin/rebase_stack.sh` regenerates an evidence-only conflict with
+`host-gate` and continues, and stops on a conflict anywhere else.
 
 ## Unmeasured — the third outcome
 
-A numeric gate is routinely in a state that is neither pass nor fail: the check
-ran, and what it found is that this cannot be scored yet — the prerequisite data
-has not arrived. Without somewhere to put that, the honest evidence (a `null`)
-lands in the non-numeric branch and reads as a hard failure, which pressures the
-author into weakening the gate to something measurable — exactly the pressure
-these gates exist to remove.
-
-Declare it with an optional `status-key`, a dotted path to a string that may read
-`unmeasured`:
+A numeric gate can be neither pass nor fail: the check ran and found that the
+prerequisite data has not arrived. Without a place for that, an honest `null`
+reads as a hard failure and pushes the author to weaken the gate. Declare a
+`status-key`, a dotted path to a string that may read `unmeasured`:
 
 ````markdown
 ```gate
@@ -146,35 +166,34 @@ status-key: extraction.status
 ```
 ````
 
-`gate_evidence.py` then exits **3**, which `gate_run.sh` already treats as "could
-not run" rather than as a verdict. It must be **positively asserted** in the
-evidence file: treating any missing or null value as unmeasured would let a gate
-stop checking by omission, which is the vacuous-pass hole these gates were added
-to close, reopened somewhere new.
+`gate_evidence.py` then exits **3**, which `gate_run.sh` treats as "could not
+run". The status must be asserted positively in the evidence file, because
+treating a missing or null value as unmeasured would let a gate stop checking by
+omission.
 
----
+## Would the number move if the thing it measures broke?
 
-## The placeholder, and the first PR that replaces it
+A gate that cannot move passes forever. Checking that takes one deliberate revert
+per claim: the `pin-check` skill (in the `python` section) changes the line a case
+claims to pin, runs only that case, restores it, and reports `PINNED` /
+`NOT PINNED` / `NOT MUTATED`. Run it on the claim rather than the module; it
+takes seconds where a whole-module mutation score takes hours.
 
-Every task is filed with a gate command that fails on purpose:
+## How often to run the whole gate
 
-````markdown
-```bash
-# arsenal:gate-placeholder — replace with the real check; it may land in this task's own PR
-false
-```
-````
+Run the full gate **once, before opening the PR**, and while editing run only the
+suite covering what changed. The pre-PR run is the one that decides, so this
+costs nothing and weakens nothing, and it usually saves more time than any
+parallelism change.
 
-`open_task_pr.sh` resolves the gate from the **default branch**, because a worker
-whose own branch supplies the gate it is held to is certifying itself. Those two
-rules used to collide: the placeholder on the default branch failed, so no PR
-opened — and the only change that could replace the placeholder was the one that
-PR carried.
+Keep that selectivity in the editing loop, where a wrong choice costs a re-run and
+certifies nothing. Do not make the gate itself skip suites based on what changed:
+a gate that verifies a subset verifies nothing in particular, and its selection
+logic becomes the least-tested code with the most authority.
 
-The command is now the one part that defers. When the default branch's `bash`
-block is still the placeholder — the marker above on the block's first line,
-or a lone `false` from an earlier template — `gate_run.sh` runs the **working copy's** command instead and
-says so on stderr. The `gate` block is unaffected: the metric, operator,
-threshold and evidence path are still read from the default branch, every time,
-so the assertion a worker is measured against is always the board's. Once a real
-command has merged, the working copy stops being consulted.
+For the same reason `host-gate` never caches **outcomes**. Tooling that skips
+tests it believes a change could not affect (`pytest --lf`, `testmon`, a
+"no relevant files changed" branch in CI) turns *this tree passes* into *nothing
+I chose to run failed*, with no signal that the check narrowed. Use it in the
+edit loop only. Caching **inputs** is safe;
+`references/performance-tuning.md` § Caching inputs says how to key them.
