@@ -122,7 +122,8 @@ async function setToggle(id: string, checked: boolean): Promise<void> {
 }
 
 beforeEach(() => {
-  localStorage.clear(); // the popup module is shared across the file; its persisted format is not
+  // The shared controller keeps selectedFormat in memory; pin it explicitly.
+  localStorage.setItem('lastExportFormat', 'md');
   mockTabsQuery.mockReset();
   mockTabsSendMessage.mockReset();
   mockStatefulSyncStorage();

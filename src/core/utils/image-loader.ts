@@ -75,9 +75,8 @@ export async function loadImageAsDataUrl(
     ctx.drawImage(img, 0, 0, width, height);
 
     // Ask the canvas for the format the URL suggests, then label the result by
-    // what the browser actually produced: canvas.toDataURL silently answers
-    // PNG for a type it cannot encode (image/gif everywhere, webp on Firefox),
-    // and jsPDF reads the label, not the bytes.
+    // what the browser actually produced: toDataURL falls back to PNG for a
+    // type it cannot encode (image/gif), and `data:,` means an empty canvas.
     const urlLower = url.toLowerCase();
     const wanted =
       urlLower.includes('.jpg') || urlLower.includes('.jpeg')
@@ -86,9 +85,17 @@ export async function loadImageAsDataUrl(
           ? 'webp'
           : 'png';
     const dataUrl = canvas.toDataURL(`image/${wanted}`, 0.9);
-    const produced = /^data:image\/(\w+)/.exec(dataUrl)?.[1];
-    const format: LoadedImage['format'] =
-      produced === 'jpeg' ? 'JPEG' : produced === 'webp' ? 'WEBP' : 'PNG';
+    const FORMATS: Record<string, LoadedImage['format']> = {
+      png: 'PNG',
+      jpeg: 'JPEG',
+      webp: 'WEBP',
+    };
+    const format = FORMATS[/^data:image\/(\w+)/.exec(dataUrl)?.[1] ?? ''];
+    if (!format) {
+      // e.g. a zero-height canvas: no image data to embed, take the placeholder path.
+      console.error('Canvas produced no encodable image data');
+      return null;
+    }
 
     return {
       dataUrl,

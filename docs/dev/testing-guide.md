@@ -208,7 +208,7 @@ pnpm test -- exporters
 
 **CI/CD:** Tests run in GitHub Actions on pull requests and main branch pushes (`.github/workflows/ci.yml`) — there is no pre-commit hook. A PR runs the tests without coverage (coverage and its thresholds run on pushes to main), and a PR that changes only docs, `arsenal/`, `claude-arsenal/`, `.claude/` or `*.md` skips the lint/test/build job (the cheap release checks still run).
 
-**Popup tests:** import the popup module once per file and re-dispatch `DOMContentLoaded` against a fresh body in each test; reset what the module persists (`localStorage`) in `beforeEach`. Only reset modules per test when a test needs a pristine controller (`popup-pair-chooser`, `popup-format-menu`).
+**Popup tests:** import the popup module once per file and re-dispatch `DOMContentLoaded` against a fresh body in each test; `localStorage.clear()` in `beforeEach` stops a persisted format leaking between tests, but the controller keeps its in-memory `selectedFormat`, so a test that needs a specific format must set it explicitly (as `popup-ready` does) rather than rely on the default. Only reset modules per test when a test needs a pristine controller (`popup-pair-chooser`, `popup-format-menu`).
 
 ## Coverage
 

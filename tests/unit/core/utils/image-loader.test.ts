@@ -104,6 +104,14 @@ describe('image-loader', () => {
       expect(toDataURL).toHaveBeenLastCalledWith('image/png', 0.9);
     });
 
+    it('resolves to null when the canvas yields no image data (empty canvas)', async () => {
+      // @ts-expect-error -- minimal test double, not a full Image implementation
+      global.Image = SucceedingImage;
+      vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:,');
+
+      expect(await loadImageAsDataUrl('https://example.com/a.png')).toBeNull();
+    });
+
     it('resolves to null when the image element fires onerror', async () => {
       // @ts-expect-error -- minimal test double, not a full Image implementation
       global.Image = FailingImage;
