@@ -5,14 +5,55 @@ on:
     branches: [main]
   pull_request:
 
-# A newer push to the same PR supersedes a run still in flight (main pushes always finish).
+# Least privilege: nothing here writes to the repository.
+permissions:
+  contents: read
+
+# A newer push to the same PR supersedes a run still in flight (every main push gets its own group, so none is cancelled or replaced while pending).
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  validate:
+  # Cheap checks that read docs, READMEs and manifests: they run on every push
+  # and PR, so a docs-only change still gets them. Also decides whether the
+  # expensive job below has anything to look at.
+  release-checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      code: ${{ steps.changes.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - id: changes
+        # On a PR, HEAD is the merge commit, so HEAD^1 is the base: the diff is
+        # exactly what the PR changes. A push to main always counts as code.
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          elif git diff --no-renames --name-only HEAD^1 HEAD | grep -qvE '^(docs/|arsenal/|claude-arsenal/|\.claude/)|\.md$'; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+      - run: node build/check-release.cjs version
+      - run: node build/check-release.cjs node
+      - run: node build/check-release.cjs pipeline
+      - run: node build/check-release.cjs permissions
+      - run: node build/check-release.cjs keywords
+
+  # A job-level `if` (not a workflow-level paths-ignore): when it skips, the
+  # check still reports, as skipped. `validate` below is the one to require.
+  checks:
+    needs: release-checks
+    if: needs.release-checks.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: pnpm/action-setup@v6
@@ -21,15 +62,15 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: node build/check-release.cjs version
-      - run: node build/check-release.cjs node
-      - run: node build/check-release.cjs pipeline
-      - run: node build/check-release.cjs permissions
-      - run: node build/check-release.cjs keywords
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck
+      # Coverage instrumentation (and its thresholds, a slow ratchet) only on
+      # main; a PR runs the same tests without it.
+      - run: pnpm test:run
+        if: github.event_name == 'pull_request'
       - run: pnpm test:coverage
+        if: github.event_name != 'pull_request'
       - run: pnpm build
       - run: node build/check-release.cjs manifest
       # Report-only: a hard fail on a transitive advisory would block every PR
@@ -39,8 +80,23 @@ jobs:
         continue-on-error: true
       # The build above already produced dist/; `pnpm package:all` would build again.
       - run: node build/package-all.cjs
+        if: github.event_name != 'pull_request'
       - uses: actions/upload-artifact@v7
+        if: github.event_name != 'pull_request'
         with:
           name: extension-zips
           path: dist/*.zip
           retention-days: 14
+
+  # The single required check. A skipped job counts as success, so this
+  # aggregates explicitly: it fails when the release checks or the heavy job
+  # failed, and passes when the heavy job was skipped for a docs-only PR.
+  validate:
+    needs: [release-checks, checks]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: |
+          [ "${{ needs.release-checks.result }}" = "success" ] || exit 1
+          case "${{ needs.checks.result }}" in success|skipped) ;; *) exit 1 ;; esac

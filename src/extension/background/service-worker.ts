@@ -3,7 +3,7 @@
  * Handles background tasks and extension lifecycle events
  */
 
-import { EXTENSION_NAME, DEFAULT_PREFERENCES } from '../../shared/constants';
+import { EXTENSION_NAME, FALLBACK_EXPORT_FORMAT } from '../../shared/constants';
 import { StorageService } from '../../shared/storage';
 import {
   createMessage,
@@ -451,7 +451,7 @@ chrome.commands.onCommand.addListener((command) => {
       }
       // No dialog exists to ask which format to use, so export in the last
       // format the user picked (same format the content script persists
-      // after every export), falling back to the configured default.
+      // after every export), falling back to FALLBACK_EXPORT_FORMAT.
       StorageService.getLastExportFormat()
         .then((format) => {
           sendMessageToTab(
@@ -459,7 +459,7 @@ chrome.commands.onCommand.addListener((command) => {
             createMessage<ExportConversationMessage>('export_conversation', {
               // Safe cast: persisted by this extension from a previous export,
               // so it is always a valid ExportFormat when present.
-              format: (format ?? DEFAULT_PREFERENCES.defaultFormat) as ExportFormat,
+              format: (format ?? FALLBACK_EXPORT_FORMAT) as ExportFormat,
             })
           );
         })

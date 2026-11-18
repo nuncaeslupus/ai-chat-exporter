@@ -83,7 +83,6 @@ function mockStatefulSyncStorage(): void {
 
 async function loadPopup(): Promise<void> {
   document.body.innerHTML = POPUP_HTML;
-  vi.resetModules();
   await import('../../../../src/extension/popup/popup');
   document.dispatchEvent(new Event('DOMContentLoaded'));
   await vi.waitFor(() => {
@@ -123,6 +122,8 @@ async function setToggle(id: string, checked: boolean): Promise<void> {
 }
 
 beforeEach(() => {
+  // The shared controller keeps selectedFormat in memory; pin it explicitly.
+  localStorage.setItem('lastExportFormat', 'md');
   mockTabsQuery.mockReset();
   mockTabsSendMessage.mockReset();
   mockStatefulSyncStorage();

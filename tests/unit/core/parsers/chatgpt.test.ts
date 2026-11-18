@@ -184,20 +184,27 @@ describe('ChatGPT Parser', () => {
   });
 });
 
+/** A fresh DOM of the committed real capture (parsing it is the expensive part). */
+function loadFixtureDocument(): Document {
+  const html = readFileSync(
+    join(__dirname, '../../../fixtures/dom-snapshots/chatgpt/real-capture.html'),
+    'utf-8'
+  );
+  return new JSDOM(html, { url: 'https://chatgpt.com/c/test-conversation' }).window.document;
+}
+
 describe('ChatGPTParser implementation', () => {
   let parser: ChatGPTParser;
-  let dom: JSDOM;
-  let document: Document;
+  let parsed: ReturnType<ChatGPTParser['parse']>;
+  let parsedWithHtml: ReturnType<ChatGPTParser['parse']>;
 
-  beforeEach(() => {
-    const fixturePath = join(
-      __dirname,
-      '../../../fixtures/dom-snapshots/chatgpt/real-capture.html'
-    );
-    const html = readFileSync(fixturePath, 'utf-8');
-    dom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-conversation' });
-    document = dom.window.document;
-    parser = new ChatGPTParser(document);
+  // One pristine parse of the 260KB capture, shared by every test that only
+  // reads it (parse() does not mutate the document). The drift tests below
+  // mutate the DOM, so they build their own copy.
+  beforeAll(() => {
+    parser = new ChatGPTParser(loadFixtureDocument());
+    parsed = parser.parse();
+    parsedWithHtml = parser.parse({ preserveHtml: true });
   });
 
   describe('canParse()', () => {
@@ -214,30 +221,30 @@ describe('ChatGPTParser implementation', () => {
 
   describe('parse()', () => {
     it('returns success with valid conversation', () => {
-      const result = parser.parse();
+      const result = parsed;
       expect(result.success).toBe(true);
       expect(result.conversation).toBeDefined();
     });
 
     it('extracts platform as chatgpt', () => {
-      const result = parser.parse();
+      const result = parsed;
       expect(result.conversation?.platform).toBe('chatgpt');
     });
 
     it('extracts messages into Q&A pairs', () => {
-      const result = parser.parse();
+      const result = parsed;
       expect(result.conversation?.pairs.length).toBeGreaterThan(0);
     });
 
     it('pairs have user question and assistant answer', () => {
-      const result = parser.parse();
+      const result = parsed;
       const pair = result.conversation?.pairs[0];
       expect(pair?.question.role).toBe('user');
       expect(pair?.answer.role).toBe('assistant');
     });
 
     it('extracts message content correctly', () => {
-      const result = parser.parse();
+      const result = parsed;
       const pair = result.conversation?.pairs[0];
       expect(pair?.question.content).toBe(
         'Yes You can point the TESSERA command line Client At a verdant gateway AS long?'
@@ -255,20 +262,20 @@ describe('ChatGPTParser implementation', () => {
     });
 
     it('preserves HTML content when configured', () => {
-      const result = parser.parse({ preserveHtml: true });
+      const result = parsedWithHtml;
       const pair = result.conversation?.pairs[0];
       expect(pair?.answer.htmlContent).toBeDefined();
     });
 
     it('sets selected to true by default for all pairs', () => {
-      const result = parser.parse();
+      const result = parsed;
       result.conversation?.pairs.forEach((pair) => {
         expect(pair.selected).toBe(true);
       });
     });
 
     it('generates unique IDs for messages and pairs', () => {
-      const result = parser.parse();
+      const result = parsed;
       const ids = new Set<string>();
       result.conversation?.pairs.forEach((pair) => {
         ids.add(pair.id);
@@ -279,7 +286,7 @@ describe('ChatGPTParser implementation', () => {
     });
 
     it('sets correct index for each pair', () => {
-      const result = parser.parse();
+      const result = parsed;
       result.conversation?.pairs.forEach((pair, index) => {
         expect(pair.index).toBe(index);
       });
@@ -479,19 +486,18 @@ describe('ChatGPTParser implementation', () => {
   // malformed HTML, but the likelier real-world failure is the target site
   // renaming a class or moving an attribute -- a *plausible near-miss*, not
   // garbage HTML. Each test here mutates a fresh copy of the real fixture
-  // (loaded by the outer beforeEach) the way a redesign plausibly would, and
+  // (loaded by this block's beforeEach) the way a redesign plausibly would, and
   // asserts on the resulting failure SIGNAL rather than merely on "did not
   // throw" -- a silently empty or half-parsed conversation is worse than an
   // exception (lo-b59b).
   describe('DOM drift resilience (plausible near-miss selector breakage)', () => {
-    function freshParser(): ChatGPTParser {
-      const html = readFileSync(
-        join(__dirname, '../../../fixtures/dom-snapshots/chatgpt/real-capture.html'),
-        'utf-8'
-      );
-      const freshDom = new JSDOM(html, { url: 'https://chatgpt.com/c/test-conversation' });
-      return new ChatGPTParser(freshDom.window.document);
-    }
+    let document: Document;
+    let parser: ChatGPTParser;
+
+    beforeEach(() => {
+      document = loadFixtureDocument();
+      parser = new ChatGPTParser(document);
+    });
 
     it('reports failure when the message-role attribute is renamed', () => {
       document.querySelectorAll('[data-message-author-role]').forEach((el) => {
@@ -500,7 +506,7 @@ describe('ChatGPTParser implementation', () => {
         el.setAttribute('data-msg-role', role ?? '');
       });
 
-      const baseline = freshParser().parse().conversation?.pairs.length ?? 0;
+      const baseline = parsed.conversation?.pairs.length ?? 0;
       const result = parser.parse();
 
       // CURRENT BEHAVIOR (documented, not a bug to fix here): this does NOT
@@ -517,7 +523,7 @@ describe('ChatGPTParser implementation', () => {
     });
 
     it('does not mis-pair turns when a wrapper div is removed', () => {
-      const baseline = freshParser().parse().conversation?.pairs ?? [];
+      const baseline = parsed.conversation?.pairs ?? [];
 
       // Gut one middle user turn's content entirely -- as a redesign that
       // collapsed its inner wrapper divs plausibly would -- and leave every

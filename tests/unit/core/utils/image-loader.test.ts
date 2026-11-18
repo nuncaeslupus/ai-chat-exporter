@@ -80,10 +80,36 @@ describe('image-loader', () => {
 
       expect(result).toEqual({
         dataUrl: 'data:image/png;base64,mockdata',
-        format: 'JPEG',
+        // Labelled by what the canvas produced (PNG here), not by the URL.
+        format: 'PNG',
         width: 500,
         height: 250, // scaled down proportionally from 1000x500
       });
+    });
+
+    it('labels the image by the data the canvas produced, not by a substring of the URL', async () => {
+      // @ts-expect-error -- minimal test double, not a full Image implementation
+      global.Image = SucceedingImage;
+      const toDataURL = vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL');
+
+      // A .jpg URL the canvas really encodes as JPEG is a JPEG...
+      toDataURL.mockReturnValueOnce('data:image/jpeg;base64,x');
+      expect((await loadImageAsDataUrl('https://example.com/a.jpg'))?.format).toBe('JPEG');
+
+      // ...while a .gif URL gets PNG bytes back (canvas cannot encode GIF), so
+      // it must not reach jsPDF labelled GIF.
+      toDataURL.mockReturnValueOnce('data:image/png;base64,x');
+      const gif = await loadImageAsDataUrl('https://example.com/a.gif');
+      expect(gif?.format).toBe('PNG');
+      expect(toDataURL).toHaveBeenLastCalledWith('image/png', 0.9);
+    });
+
+    it('resolves to null when the canvas yields no image data (empty canvas)', async () => {
+      // @ts-expect-error -- minimal test double, not a full Image implementation
+      global.Image = SucceedingImage;
+      vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:,');
+
+      expect(await loadImageAsDataUrl('https://example.com/a.png')).toBeNull();
     });
 
     it('resolves to null when the image element fires onerror', async () => {

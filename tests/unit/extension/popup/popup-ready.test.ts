@@ -97,7 +97,6 @@ async function loadPopup(conversation: unknown) {
       ? Promise.resolve({ success: true, data: conversation })
       : Promise.resolve({ success: true })
   );
-  vi.resetModules();
   await import('../../../../src/extension/popup/popup');
   document.dispatchEvent(new Event('DOMContentLoaded'));
   await vi.waitFor(() => {
@@ -107,6 +106,7 @@ async function loadPopup(conversation: unknown) {
 
 describe('popup ready view — conversation meta line', () => {
   beforeEach(() => {
+    localStorage.clear(); // the popup module is shared across the file; its persisted format is not
     mockTabsQuery.mockReset();
     mockTabsSendMessage.mockReset();
     Object.assign(chrome, {
