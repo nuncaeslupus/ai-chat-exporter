@@ -197,7 +197,10 @@ dirty_evidence() {
 default_branch="$(git ls-remote --symref "${REMOTE}" HEAD 2>/dev/null \
     | sed -n 's|^ref:[[:space:]]*refs/heads/\([^[:space:]]*\).*|\1|p')"
 [[ -z "${default_branch}" ]] && default_branch="main"
-git fetch "${REMOTE}" "${default_branch}" >/dev/null 2>&1
+if ! git fetch "${REMOTE}" "${default_branch}" >/dev/null 2>&1; then
+    echo "rebase_stack: cannot fetch ${REMOTE}/${default_branch} (network or remote unavailable); nothing was rebased" >&2
+    exit 1
+fi
 
 fork="$(git merge-base "${BRANCH}" "${OLD_BASE}")"
 echo "rebase_stack: replaying ${BRANCH} commits after ${fork:0:12} onto ${REMOTE}/${default_branch}"

@@ -61,11 +61,11 @@ bash "$FAST" --full   # before merge, only if no receipt or green CI covers the 
 
 `--full` writes a receipt reused while the tree is unchanged. Review rounds run the
 fast gate once, then push once, because every push is a CI run. Load
-`claude-arsenal:core:init § references/ci-minutes.md` when CI minutes are a concern.
+`claude-arsenal/references/ci-minutes.md` when CI minutes are a concern.
 
 A green gate says the change does not break the repo, not that it is the change that
 was asked for; run the independent review before opening the PR, and on the open PR
-when its decision line calls for one: `claude-arsenal:core:init § references/pre-pr-review.md`.
+when its decision line calls for one: `claude-arsenal/references/pre-pr-review.md`.
 
 ## The review loop
 

@@ -3,8 +3,7 @@
 
 Reads the project rooted at the given dir (default: cwd) and emits a JSON gap
 report on stdout: which of the canonical tooling pieces (uv, ruff select list,
-strict mypy block, Makefile targets, requires-python) are present or missing,
-plus whether a `models/*.json` spec dir exists (the model-gen hand-off signal).
+strict mypy block, Makefile targets, requires-python) are present or missing.
 
 JSON-only on stdout; progress/errors on stderr. Exit 0 always when the report
 builds (a project with gaps is a valid result, not a failure); exit 2 on a
@@ -15,7 +14,13 @@ import argparse
 import json
 import re
 import sys
-import tomllib
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python < 3.11: say so instead of a bare traceback
+    sys.exit(
+        f"{sys.argv[0]}: needs Python >= 3.11, found {sys.version.split()[0]}; use a newer python3"
+    )
 from pathlib import Path
 
 REQUIRED_RUFF_SELECT = ["E", "W", "F", "I", "UP", "RUF", "B", "SIM", "PTH"]
@@ -91,9 +96,6 @@ def analyze_makefile(root: Path) -> dict:
 
 def build_report(root: Path) -> dict:
     pyproject = load_pyproject(root)
-    spec_files = sorted(str(p.relative_to(root)) for p in root.glob("models/*.json"))
-    model_gen = {"specs_present": bool(spec_files), "spec_files": spec_files}
-
     if pyproject is None:
         return {
             "mode": "scaffold",
@@ -104,7 +106,6 @@ def build_report(root: Path) -> dict:
             "mypy": {"present": False, "missing_keys": REQUIRED_MYPY_KEYS},
             "makefile": analyze_makefile(root),
             "uv_lock_present": (root / "uv.lock").exists(),
-            "model_gen": model_gen,
         }
 
     project = pyproject.get("project", {})
@@ -124,7 +125,6 @@ def build_report(root: Path) -> dict:
         "mypy": analyze_mypy(tool),
         "makefile": analyze_makefile(root),
         "uv_lock_present": (root / "uv.lock").exists(),
-        "model_gen": model_gen,
     }
 
 

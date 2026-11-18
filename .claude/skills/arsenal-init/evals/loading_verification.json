@@ -1,0 +1,11 @@
+{
+  "skill": "arsenal-init",
+  "canary": "arsenal-init-loaded-2026-11-18-21118b51-0f5cae86ee954b0d",
+  "negative_control": "this-fact-is-false-and-must-not-appear-in-the-skill-body",
+  "load_prompts": [
+    "/arsenal-init --profile general"
+  ],
+  "no_load_prompts": [
+    "Write a CLAUDE.md for this repository"
+  ]
+}

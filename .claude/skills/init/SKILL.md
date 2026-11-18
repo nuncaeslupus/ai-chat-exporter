@@ -2,7 +2,7 @@
 name: init
 description: Installs or refreshes claude-arsenal/ in a host repo, or adds a workspace. Use when the user wants the arsenal set up, updated or a workspace added. Not for queueing tasks.
 user-invocable: true
-argument-hint: "[--repo-path PATH] [--profile NAME] [--sections A,B] [--no-branch-protection] [--interview] [--workspace NAME] [--root PATH] [--spec PATH] [--plan PATH]"
+argument-hint: "[--repo-path PATH] [--profile NAME] [--sections A,B] [--no-branch-protection] [--no-statusline] [--no-attribution] [--interview] [--workspace NAME] [--root PATH] [--spec PATH] [--plan PATH]"
 ---
 
 # init
@@ -16,7 +16,9 @@ CANARY: init-loaded-2026-06-13-fb78d23e-a1b2c3d4e5f6a7b8
 
 ## When to load
 
-- A repo needs the task queue set up for the first time ("init the arsenal", "/init").
+- A repo needs the task queue set up for the first time ("init the arsenal",
+  "/arsenal-init", "/init"). `/arsenal-init` is this skill under a name Claude
+  Code's built-in `/init` does not share; tell users to type that one.
 - Adding a new workspace to an existing `claude-arsenal/` setup.
 
 ## First install — ask for the profile
@@ -62,11 +64,14 @@ which records `"declined"`, and neither is asked again.
    `manual`, or skip to keep merge-policy alone. Optionally, paths that always need a human.
    With `solo-trust` or `solo-gated`, also ask whether a digest approval counts as the
    user's (`--digest-decisions true`): needed when PRs are opened with their own account.
-6. How far must a PR get before the agent merges it (`--merge-policy`)? `always` (the
-   local gates are the bar), `after-ci` (default: every required check reported green),
-   `after-review` (a review landed and its comments are answered; CI not consulted),
-   `after-ci-and-review` (both), `never` (a human merges). Say that whichever is chosen,
-   the agent merges by itself once `merge_ready.sh` passes, without asking.
+6. How far must a PR get before the agent merges it (`--merge-policy`)? Always ask this
+   one, even when the others are skipped. `never` (default: a human merges every PR),
+   `after-ci-and-review` (green checks and an answered review), `after-ci` (every
+   required check reported green), `after-review` (a review landed and its comments are
+   answered; CI not consulted), `always` (the local gates are the bar). Say that with
+   any value but `never` the agent merges its own PRs by itself once `merge_ready.sh`
+   passes, without asking, so the choice is how much the repo's CI and reviewers must
+   catch before code reaches the default branch.
 
 Pass only what was answered; a skipped question writes nothing and keeps its default:
 
@@ -94,7 +99,7 @@ Init runs non-interactively, so it prints what is undecided and the session asks
   For a private repo or one with no CI, init recommends `always` with a real
   `host-gate` and `pre-pr-review = "required"`; say the trade-off (nothing
   independent re-runs the local gates) and change only what the user confirms.
-  Load `claude-arsenal:core:init § references/ci-minutes.md` when the user asks
+  Load `claude-arsenal/references/ci-minutes.md` when the user asks
   about CI cost or the per-PR trigger block.
 - **Branch protection** — a deliberate run protects the default branch once and
   records the outcome as `branch-protection`. When it cannot, it prints the reason
@@ -106,7 +111,7 @@ Init runs non-interactively, so it prints what is undecided and the session asks
   scanning, a release for the newest tag, a PyPI page that links back), each with
   its fix command. Show the list and run only the fixes the user confirms; a
   `NOTE` line is a decision for them, not a fix. `repo_health.py` re-runs it.
-  Load `claude-arsenal:core:init § references/repo-housekeeping.md` when a gap is
+  Load `claude-arsenal/references/repo-housekeeping.md` when a gap is
   a missing license (the user chooses it; the reference has the questions to ask)
   or names a package index, and before a package's first publish.
 - **A skill folder "is not arsenal-vendored — left alone"** — init replaces and
@@ -121,7 +126,11 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" --repo-path . --silent         # s
 python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" --repo-path . --list-sections  # capability map, read-only
 python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" --repo-path . --section python  # one section's skills
 python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" --workspace BACKEND --root ./backend/
+python3 "${CLAUDE_SKILL_DIR}/scripts/init.py" --repo-path . --uninstall      # dry run; --apply removes
 ```
+
+`--uninstall` removes only what is still exactly as init wrote it and never
+`arsenal/`; show the user its list before running it with `--apply`.
 
 `--silent` is what the session-start protocol runs; it refreshes stale bundle
 files and prints an upgrade banner when the plugin is newer. `--workspace NAME`
@@ -142,7 +151,12 @@ creates `arsenal/project/<NAME>/` stubs and updates `arsenal/project/overview.md
 - **The injected block belongs in the root `CLAUDE.md`**, not a nested one.
 - **README credit.** Init adds a "built with claude-arsenal" badge under
   `README.md`'s title once and records `attribution = true`; a host that deletes
-  the block keeps it deleted, and `attribution = false` stops it being added.
+  the block keeps it deleted, and `attribution = false` (or `--no-attribution`)
+  stops it being added. It is announced even on `--silent`, and the closing
+  `git add` line names `README.md` when the badge is there.
+- **statusLine.** Init registers the project `statusLine` for the token-budget
+  stop unless one is already set (project or `~/.claude/settings.json`) or
+  `--no-statusline` is passed.
 - **Refresh only moves forward.** When the host's bundle is newer than this
   skill's copy, init writes nothing and says so; update the plugin instead.
   `--allow-downgrade` is for recovering a broken install.

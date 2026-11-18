@@ -31,8 +31,8 @@ lost when the trigger is deleted.
 
 ## The tick, in order
 
-1. **Fetch.** `git fetch --quiet origin`, then re-read the board per `AGENTS.md`
-   § Session-start protocol steps 2–3. Decide everything against the remote now,
+1. **Fetch.** `git fetch --quiet origin`, then re-read the board with
+   `bash claude-arsenal/bin/session_start.sh` (`AGENTS.md` § Session-start protocol). Decide everything against the remote now,
    not against what the last tick remembered.
 2. **Open a PR for any pushed worker branch that has none**, with
    `Closes #<issue>` naming the task's issue (`references/worker-loop.md` step 5,

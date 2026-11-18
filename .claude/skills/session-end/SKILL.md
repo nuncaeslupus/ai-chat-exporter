@@ -70,7 +70,7 @@ append each accepted proposal to:
 ## Step 3 — PR audit (when a queue exists)
 
 Before the audit, render the review digest and hand it over in this reply
-(`claude-arsenal:core:init § references/digest.md` § 2), so what waits on the user
+(`claude-arsenal/references/digest.md` § 2), so what waits on the user
 reaches them even after a long unattended run.
 
 This step reports and repairs nothing: merged task PRs already closed their tasks,

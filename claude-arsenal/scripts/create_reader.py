@@ -18,6 +18,11 @@ single input's directory, or docs/spec-reader/ in workspace mode):
                         that has body text (none on a bare heading); notes auto-save
                         in the browser and the Export button saves a Markdown file
   <name>-annotated.md   same document as Markdown with the same note slots
+  <name>-reader.md      the copy GitHub renders: the document, its pictures as files in
+  <name>-img/           <name>-img/ (JPEG, downscaled to --picture-width when Pillow is
+                        importable) and every seeded note as a GitHub alert under its
+                        section. With --bake it is <name>-reviewed.md. This is the
+                        link to give out; --no-markdown skips it.
 --output FILE names the HTML explicitly instead (the Markdown goes beside it).
 Earlier generated readers of the same document in that directory are removed, and
 so is an earlier annotated file whose slots are all still empty.
@@ -249,7 +254,8 @@ DARK_MEDIA_RE = re.compile(
 )
 
 
-def render_md(text: str, where: str = "") -> str:
+def render_md(text: str, where: str = "", svgs: list[str] | None = None) -> str:
+    """Markdown to HTML, drawspec fences drawn inline; each SVG is also appended to `svgs`."""
     text, diagrams = extract_drawspec(text)
     _md.reset()
     html = escape_swallowing_tags(_md.convert(normalize_list_indent(break_field_lines(text))))
@@ -259,6 +265,8 @@ def render_md(text: str, where: str = "") -> str:
         svg = run_drawspec("render", source, label).strip()
         if not svg.startswith("<svg"):
             raise DrawspecError(f"{label}: drawspec render produced no SVG")
+        if svgs is not None:
+            svgs.append(svg)
         figure = f'<figure class="drawspec">{DARK_MEDIA_RE.sub("", svg)}</figure>'
         html = html.replace(f"<p>{token}</p>", figure).replace(token, figure)
     return html
@@ -407,6 +415,7 @@ def build_part(file_md: str, code: str, part_label: str, title: str, source: str
 
     if intro_md.strip():
         domid = mk(f"{code}-intro")
+        svgs: list[str] = []
         items.append(
             {
                 "domid": domid,
@@ -415,9 +424,13 @@ def build_part(file_md: str, code: str, part_label: str, title: str, source: str
                 "title_html": "Preamble &amp; scope",
                 "label": "Preamble & scope",
                 "level": 2,
-                "body_html": inline_images(render_md(intro_md, f"{where} § preamble"), base, where),
+                "body_html": inline_images(
+                    render_md(intro_md, f"{where} § preamble", svgs), base, where
+                ),
                 "toc": "Preamble & scope",
                 "raw_body": intro_md,
+                "svgs": svgs,
+                "base": base,
             }
         )
     for s in sections:
@@ -439,6 +452,7 @@ def build_part(file_md: str, code: str, part_label: str, title: str, source: str
             label = plain
             toc = plain
             domid = mk(f"{code}-{slug(plain)[:32]}")
+        svgs = []
         items.append(
             {
                 "domid": domid,
@@ -448,10 +462,14 @@ def build_part(file_md: str, code: str, part_label: str, title: str, source: str
                 "label": label,
                 "level": s["level"],
                 "body_html": inline_images(
-                    render_md(s["body_md"], f"{where} § {strip_inline_md(heading)}"), base, where
+                    render_md(s["body_md"], f"{where} § {strip_inline_md(heading)}", svgs),
+                    base,
+                    where,
                 ),
                 "toc": toc,
                 "raw_body": s["body_md"],
+                "svgs": svgs,
+                "base": base,
             }
         )
     return {
@@ -534,7 +552,7 @@ def output_stem(repo: str, doc: str, version: int, stamp: str) -> str:
     return f"{slug(repo)}-{slug(doc)}-v{version}-{stamp}"
 
 
-GENERATED_SUFFIXES = ("-reader.html", "-annotated.md")
+GENERATED_SUFFIXES = ("-reader.html", "-annotated.md", "-reader.md")
 NOTE_SLOT_RE = re.compile(r"^> \*\*✎ Notes\*\*", re.MULTILINE)
 EMPTY_SLOT = "> _(your notes here — replace this line)_"
 
@@ -545,7 +563,7 @@ def superseded(out_dir: Path, prefix: str, legacy: str, keep: set[Path]) -> list
     `<legacy>-reader.html` / `-annotated.md` names used before that."""
     dated = re.compile(
         rf"^{re.escape(prefix)}-v\d+-\d{{4}}-\d{{2}}-\d{{2}}(?:-\d{{4}})?"
-        r"-(?:reader\.html|annotated\.md)$"
+        r"-(?:reader\.html|reader\.md|annotated\.md)$"
     )
     found = {f for f in out_dir.glob(f"{prefix}-v*") if dated.match(f.name)}
     found |= {
@@ -564,7 +582,14 @@ def remove_superseded(paths: list[Path]) -> None:
     still the placeholder.
     """
     for f in paths:
-        if f.suffix == ".md":
+        if f.name.endswith("-reader.md"):
+            # The GitHub copy is pure output too; its pictures go with it unless a
+            # committed reviewed copy of the same run still links them.
+            stem = f.name.removesuffix("-reader.md")
+            img = f.parent / f"{stem}-img"
+            if img.is_dir() and not (f.parent / f"{stem}-reviewed.md").exists():
+                shutil.rmtree(img)
+        elif f.suffix == ".md":
             text = f.read_text(encoding="utf-8", errors="replace")
             slots = len(NOTE_SLOT_RE.findall(text))
             if not slots or text.count(EMPTY_SLOT) != slots:
@@ -944,6 +969,183 @@ def block_notes(notes: dict, domid: str) -> list[tuple[str, str, str]]:
             continue
         rows.append((key, notes.get(key + "~q", "").strip(), note.strip()))
     return sorted(rows)
+
+
+# ---------------------------------------------------------------- GitHub Markdown copy
+
+# The reader and the reviewed copy are HTML, which GitHub shows as source, with
+# every picture base64 inside the page. So each run also writes a Markdown copy
+# GitHub renders at its link: the document, its pictures as files beside it, and
+# every note as an alert under the section it is about. The HTML stays the tool;
+# the `.md` is the link to give out.
+MD_IMAGE_RE = re.compile(r"(!\[[^\]]*\]\()(<[^>]+>|[^)\s]+)((?:\s+\"[^\"]*\")?\))")
+REMOTE_RE = re.compile(r"^(?:[a-z][a-z0-9+.-]*:|//|#)", re.I)
+RASTER_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
+PICTURE_WIDTH = 1400
+PICTURE_QUALITY = 82
+
+
+class Pictures:
+    """Writes each picture once into `<stem>-img/` and hands back its relative path.
+
+    Raster images are downscaled to `width` and saved as JPEG when Pillow is
+    importable — a 35-screen record is a few MB instead of tens; without it they
+    are copied as they are. SVG and anything else is copied unchanged.
+    """
+
+    def __init__(self, img_dir: Path, width: int, quality: int) -> None:
+        self.dir, self.width, self.quality = img_dir, width, quality
+        self.done: dict[Path, str] = {}
+        self.count = 0
+        self.warned = False
+
+    def _name(self, label: str, ext: str) -> Path:
+        self.count += 1
+        base = f"{self.count:02d}-{slug(label)[:48].rstrip('-')}"
+        self.dir.mkdir(parents=True, exist_ok=True)
+        return self.dir / f"{base}{ext}"
+
+    def rel(self, f: Path) -> str:
+        return f"{self.dir.name}/{f.name}"
+
+    def svg(self, svg: str, label: str) -> str:
+        out = self._name(label, ".svg")
+        out.write_text(svg if svg.endswith("\n") else svg + "\n", encoding="utf-8")
+        return self.rel(out)
+
+    def file(self, src: Path, label: str) -> str:
+        key = src.resolve()
+        if key in self.done:
+            return self.done[key]
+        ext = src.suffix.lower()
+        out = None
+        if ext in RASTER_EXTS:
+            try:
+                from PIL import Image  # type: ignore[import-not-found]
+            except ImportError:
+                if not self.warned:
+                    print(
+                        "⚠  Pillow not installed: pictures copied at full size "
+                        "(run with `--with pillow` to downscale them)",
+                        file=sys.stderr,
+                    )
+                    self.warned = True
+            else:
+                out = self._name(label, ".jpg")
+                with Image.open(src) as im:
+                    if im.width > self.width:
+                        size = (self.width, round(im.height * self.width / im.width))
+                        im = im.resize(size, Image.Resampling.LANCZOS)
+                    if im.mode in ("RGBA", "LA", "P"):
+                        im = im.convert("RGBA")
+                        flat = Image.new("RGB", im.size, "white")
+                        flat.paste(im, mask=im.getchannel("A"))
+                        im = flat
+                    im.convert("RGB").save(out, "JPEG", quality=self.quality, optimize=True)
+        if out is None:
+            out = self._name(label, ext)
+            shutil.copyfile(src, out)
+        self.done[key] = self.rel(out)
+        return self.done[key]
+
+
+def github_body(it: dict, pics: Pictures) -> str:
+    """A section's Markdown with drawspec fences and local pictures swapped for files."""
+    text, diagrams = extract_drawspec(it["raw_body"])
+    base: Path = it.get("base", Path.cwd())
+
+    def local(src: str) -> str | None:
+        src = src.strip("<>")
+        if REMOTE_RE.match(src):
+            return None
+        f = base / src.replace("%20", " ")
+        return pics.file(f, it["label"]) if f.is_file() else None
+
+    def md_img(m: re.Match[str]) -> str:
+        new = local(m.group(2))
+        return f"{m.group(1)}{new}{m.group(3)}" if new else m.group(0)
+
+    def html_img(m: re.Match[str]) -> str:
+        new = local(m.group(2))
+        return f"{m.group(1)}{new}{m.group(3)}" if new else m.group(0)
+
+    text = IMG_SRC_RE.sub(html_img, MD_IMAGE_RE.sub(md_img, text))
+    # After the pictures, so a diagram's own file is not taken for one of them.
+    for (token, _), svg in zip(diagrams, it.get("svgs", []), strict=False):
+        text = text.replace(token, f"![diagram]({pics.svg(svg, it['label'] + ' diagram')})")
+    return text
+
+
+def note_alert(label: str, quote: str | None, text: str) -> str:
+    """One note as a GitHub alert; an anchored note says which passage it is on."""
+    if quote is None:
+        head = f"**Review note** · {label}"
+    elif quote:
+        head = f"**Review note** on _“{' '.join(quote.split())}”_"
+    else:
+        head = f"**Review note** · {label} _(its passage changed since)_"
+    lines = ["[!NOTE]", head, ""] + [ln.rstrip() for ln in text.strip().split("\n")]
+    return "\n".join(("> " + ln).rstrip() for ln in lines)
+
+
+def section_notes(notes: dict, domid: str) -> list[tuple[str | None, str]]:
+    """(quote or None for the section note, text), the section note first."""
+    rows: list[tuple[str | None, str]] = []
+    if notes.get(domid, "").strip():
+        rows.append((None, notes[domid]))
+    rows += [(quote, note) for _key, quote, note in block_notes(notes, domid)]
+    return rows
+
+
+def build_github_markdown(
+    parts: list[tuple[str, dict]],
+    title: str,
+    gen_date: str,
+    notes: dict,
+    single_label: str,
+    html_name: str,
+    pics: Pictures,
+    reviewed: bool,
+) -> tuple[str, int]:
+    """The Markdown copy GitHub renders; returns (text, notes placed)."""
+    known = {it["domid"] for _, p in parts for it in p["items"]}
+    placed = sum(len(section_notes(notes, d)) for d in known)
+    if reviewed:
+        lead = (
+            f"> Reviewed copy of the {single_label.lower()}: the document as reviewed, with {placed} "
+            f"note{'' if placed == 1 else 's'} under the sections they are about. "
+        )
+    else:
+        lead = f"> Readable copy of the {single_label.lower()}: the document and its pictures. "
+    out = [
+        f"# {title} — {single_label}",
+        "",
+        lead + f"Generated {gen_date}. The annotatable version is [`{html_name}`]({html_name}).",
+        "",
+    ]
+    single = len(parts) == 1
+    for _, p in parts:
+        if not single:
+            head = (
+                p["title"]
+                if p["part_label"] == single_label
+                else f"{p['part_label']} — {p['title']}"
+            )
+            out += [f"## {head}", ""]
+        for it in p["items"]:
+            depth = (2 if it["level"] == 2 else 3) + (0 if single else 1)
+            out += [f"{'#' * depth} {it['label']}", ""]
+            body = github_body(it, pics).strip()
+            if body:
+                out += [body, ""]
+            for quote, text in section_notes(notes, it["domid"]):
+                out += [note_alert(it["label"], quote, text), ""]
+    lost = sorted({k.split("~")[0] for k in notes if not k.endswith("~q")} - known)
+    rows = [(d, q, t) for d in lost for q, t in section_notes(notes, d)]
+    if rows:
+        out += ["## Unplaced notes — their section changed", ""]
+        out += [note_alert(d, q, t) + "\n" for d, q, t in rows]
+    return "\n".join(out).rstrip() + "\n", placed
 
 
 # ---------------------------------------------------------------- CSS / JS / HTML template
@@ -1619,7 +1821,32 @@ def _main() -> int:
         "in place — the reviewed copy committed beside the export",
     )
     parser.add_argument(
+        "--no-markdown",
+        action="store_true",
+        help="skip the GitHub-readable copy (<name>-reader.md / -reviewed.md + <name>-img/)",
+    )
+    parser.add_argument(
+        "--picture-width",
+        type=int,
+        default=PICTURE_WIDTH,
+        metavar="PX",
+        help=f"widest picture in the Markdown copy (default {PICTURE_WIDTH}; needs Pillow)",
+    )
+    parser.add_argument(
+        "--picture-quality",
+        type=int,
+        default=PICTURE_QUALITY,
+        metavar="Q",
+        help=f"JPEG quality of those pictures (default {PICTURE_QUALITY})",
+    )
+    parser.add_argument(
         "--name", metavar="TEXT", help="project name for the reader title (default: git repo name)"
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="print the written paths as one JSON object on stdout "
+        '({"html", "annotated", "markdown"}), so a wrapper need not guess the generated names',
     )
     args = parser.parse_args()
     if args.bake and not args.notes:
@@ -1755,6 +1982,9 @@ def _main() -> int:
             file=sys.stderr,
         )
         print(f"  {html_file}", file=sys.stderr)
+        if not args.no_markdown:
+            write_copy(parts, title, gen_date, seed_notes, single_label, html_file, args, True)
+        _print_paths(args, html_file, None)
         return 0
 
     html_out = build_html(
@@ -1772,7 +2002,7 @@ def _main() -> int:
     html_file.write_text(html_out, encoding="utf-8")
     md_file.write_text(md_out, encoding="utf-8")
     if not args.output:
-        keep = {html_file, md_file, notes_path}
+        keep = {html_file, md_file, notes_path, html_file.with_suffix(".md")}
         remove_superseded(superseded(out_dir, f"{slug(repo)}-{slug(doc)}", doc, keep))
 
     n_parts = len(parts)
@@ -1781,7 +2011,41 @@ def _main() -> int:
     print(f"✓ {n_parts} part(s), {n_secs} section(s), {n_notes} note field(s)", file=sys.stderr)
     print(f"  {html_file}", file=sys.stderr)
     print(f"  {md_file}", file=sys.stderr)
+    if not args.no_markdown:
+        write_copy(parts, title, gen_date, seed_notes, single_label, html_file, args, False)
+    _print_paths(args, html_file, md_file)
     return 0
+
+
+def _print_paths(args: argparse.Namespace, html_file: Path, md_file: Path | None) -> None:
+    """With --json: the written paths on stdout, the one stable part of the output."""
+    if args.json:
+        copy = None if args.no_markdown else html_file.with_suffix(".md")
+        paths = {"html": html_file, "annotated": md_file, "markdown": copy}
+        print(json.dumps({k: str(v) if v else None for k, v in paths.items()}))
+
+
+def write_copy(
+    parts: list[tuple[str, dict]],
+    title: str,
+    gen_date: str,
+    notes: dict,
+    single_label: str,
+    html_file: Path,
+    args: argparse.Namespace,
+    reviewed: bool,
+) -> None:
+    """`<html stem>.md` + `<stem>-img/` beside the HTML: the copy a link should point at."""
+    md_file = html_file.with_suffix(".md")
+    stem = re.sub(r"-(?:reader|reviewed)$", "", html_file.stem)
+    pics = Pictures(html_file.parent / f"{stem}-img", args.picture_width, args.picture_quality)
+    text, placed = build_github_markdown(
+        parts, title, gen_date, notes, single_label, html_file.name, pics, reviewed
+    )
+    md_file.write_text(text, encoding="utf-8")
+    where = f" in {pics.dir.name}/" if pics.count else ""
+    print(f"✓ GitHub copy, {placed} note(s), {pics.count} picture(s){where}", file=sys.stderr)
+    print(f"  {md_file}", file=sys.stderr)
 
 
 if __name__ == "__main__":
