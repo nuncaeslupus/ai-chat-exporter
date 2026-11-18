@@ -102,3 +102,9 @@ arsenal/session/host_branch
 arsenal/session/rescue_refs
 
 arsenal/session/worktree_isolation.why
+
+.claude/skills/*/findings.md
+
+tmp/*-notes.md
+
+tmp/.arsenal-sessions/

@@ -1,6 +1,6 @@
 ---
 name: review
-description: When the user is reviewing a PR, diff, design doc, or proposal — risks, tech debt, standards compliance. Do NOT use for implementation (see execution), design (see design), or release sign-off (see ship).
+description: Reviews a PR, diff, design doc or proposal for risks and standards. Use when the user wants something reviewed. Not for release sign-off (ship).
 metadata:
   section: workflow
   type: workflow
@@ -10,7 +10,9 @@ metadata:
 
 CANARY: review-loaded-2026-05-19-da60b2aa44b817de
 
-Reads `status/specification.md` (the canonical statement of intent) and audits the diff against it. Surfaces drift between spec and implementation.
+Reads `status/specification.md` (the statement of intent) and audits the diff against it, surfacing drift between spec and implementation.
+
+Record every finding with a severity and a confidence, including low ones; deciding which findings block or get dropped is a separate step at the verdict, so nothing is filtered out before it is seen.
 
 ## Steps
 
@@ -21,7 +23,7 @@ If the intention is unclear, ask before reviewing code.
 
 ### Step 2: Check engineering standards compliance
 
-If engineering standards exist in the host repo (a project-level `engineering-core` skill or equivalent), verify:
+If engineering standards exist in the host repo (a project-level engineering-standards skill or equivalent), verify:
 
 - [ ] Code structure follows repo conventions
 - [ ] Tech stack follows the approved stack
@@ -45,14 +47,11 @@ If engineering standards exist in the host repo (a project-level `engineering-co
 - Are error conditions tested?
 - Do tests actually assert meaningful behavior (not just "it doesn't crash")?
 - If no tests exist and the change is non-trivial → flag as blocker
+- Do added tests earn their cost? Flag ones that grep prose, re-run a measurement a gate already runs, pin constants or glue, duplicate another test, or rebuild an expensive fixture per test — load `claude-arsenal:core:execution § references/test-cost.md` when the diff adds tests.
 
-**Gate evidence**: for a plan with task Gates (`status/plan.md`), verify each task's gate is recorded and met — the Evidence log row is complete (measured value, command, commit SHA, environment provenance) and the measured value satisfies the gate. The `gate-check` skill audits this mechanically; its script lives in that skill, so name it from here rather than assuming a bare `run_gate.py` is on `PATH`:
+**Gate evidence**: for a plan with task Gates, every Evidence log row must be complete and meet its gate — the `gate-check` skill's `run_gate.py --input status/plan.md` answers it.
 
-```bash
-python3 "${CLAUDE_SKILL_DIR}/../gate-check/scripts/run_gate.py" --input status/plan.md
-```
-
-Exit 0 means every gated task passes with complete evidence; exit 1 means a gate failed or lacks evidence, which is a blocker on a gated task. Exit 2 means no Gate column was found, or a usage error (missing file, bad `--id`) — confirm the correct plan file exists and the invocation uses `--input`, and treat exit 2 as a should-flag rather than a blocker only after confirming the plan genuinely predates the gate convention.
+Exit 1 (a gate failed or lacks evidence) is a blocker. Exit 2 means no Gate column or a usage error: confirm the plan path first, then treat it as a should-flag only for a plan that predates gates.
 
 **Hard blocker rule**: production code changes with zero test companions in the diff are Request Changes — except config-only, docs-only, or refactor with existing green tests covering the touched paths. When waiving on the refactor exception, the reviewer states the exception applied and asserts the green-test evidence explicitly (CI link or local test run).
 
@@ -63,12 +62,12 @@ Exit 0 means every gated task passes with complete evidence; exit 1 means a gate
 - Is the change backwards compatible with running instances during deploy?
 - Is rollback straightforward?
 
-### Step 6: Produce review output
+### Step 6: Filter and produce the output
 
-Load `references/template.md` when producing the review output document.
+Now sort the findings: blockers, recommendations, and anything dropped as a false positive (say why). Load `references/template.md` when writing the review document.
 
 ---
 
 ## Abbreviation
 
-**Abbreviated review** = Step 1 + quick diff scan + verdict. Whether abbreviation is allowed depends on project conventions documented in the host repo's `CLAUDE.md`.
+**Abbreviated review** = Step 1 + quick diff scan + verdict, where the host repo's `CLAUDE.md` allows it.

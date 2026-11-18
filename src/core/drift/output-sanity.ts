@@ -22,11 +22,28 @@ export interface SanityInput {
   turnTextLengths: number[];
   /** Platform UI labels that must never be answer content. */
   chromeStrings: readonly string[];
+  /**
+   * Pairs whose QUESTION the parser synthesised because the conversation
+   * genuinely had no message for it, rather than because reading one failed.
+   * Each listed pair spends its own `no-question` finding and nobody else's.
+   *
+   * Pair indexes rather than a count, because a count is fungible: a
+   * synthesised question early in the list would buy silence for a genuine
+   * read failure later on, which is the one thing this allowance must never
+   * do. Only answers are never listed -- a user turn still awaiting its reply
+   * is skipped as pending, so an empty answer is always a read failure.
+   *
+   * Only the parser knows the difference, so only the parser may claim it;
+   * this defaults to empty, which keeps the rule at full strength everywhere
+   * that does not override `BaseParser.synthesizedQuestions`.
+   */
+  synthesizedQuestions?: readonly number[];
 }
 
 export function checkOutputSanity(input: SanityInput): SanityFinding[] {
   const findings: SanityFinding[] = [];
   const { pairs, turnCount, turnTextLengths, chromeStrings } = input;
+  const synthesized = input.synthesizedQuestions ?? [];
 
   // The DOM had turns and we produced nothing: the extractor is broken, not
   // the page. An empty page (turnCount 0) is just an empty page.
@@ -79,10 +96,15 @@ export function checkOutputSanity(input: SanityInput): SanityFinding[] {
     }
 
     if ((answer.length === 0) !== (question.length === 0)) {
-      findings.push({
-        rule: 'no-question',
-        detail: question.length === 0 ? `pair ${i}: no question` : `pair ${i}: no answer`,
-      });
+      // The allowance covers this pair's question and nothing else: an empty
+      // answer never spends it, and neither does another pair's missing
+      // question.
+      if (question.length > 0 || !synthesized.includes(i)) {
+        findings.push({
+          rule: 'no-question',
+          detail: question.length === 0 ? `pair ${i}: no question` : `pair ${i}: no answer`,
+        });
+      }
     }
   });
 

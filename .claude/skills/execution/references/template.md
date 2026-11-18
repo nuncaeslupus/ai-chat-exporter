@@ -10,6 +10,17 @@
 
 ---
 
+## Resume
+
+> What a session needs to continue this task after context compaction. The
+> `compact_resume.sh` hook re-injects this section, so keep it short and current:
+> refresh it after RED, after GREEN, and after each decision — not every turn.
+> Changed files are deliberately absent: `git status` is the truth.
+
+- **Decided** (do not reopen): <choice> — <why>
+- **Ruled out**: <approach> — <why it failed>
+- **Next step**: `<the single next command>`
+
 ## Gate & failing check (RED)
 
 - Gate (from `status/plan.md`): `<metric> <op> <threshold>`
@@ -27,15 +38,9 @@ Copy into `status/plan.md`'s Evidence log once green:
 - Environment provenance: <ci / local / project tag>
 - Gate met (`run_gate.py --input status/plan.md --id <task> <measured>` → PASS): yes / no
 
-## Decisions & deviations
-
-| Decision | Reason |
-|----------|--------|
-| <deviation from the plan or spec> | <why> |
-
 ## Scratch
 
-- <findings, dead ends, commands worth remembering while working>
+- <findings and commands worth remembering while working>
 
 ## Before opening the PR
 

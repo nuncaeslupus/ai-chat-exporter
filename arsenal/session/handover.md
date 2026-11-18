@@ -1,56 +1,55 @@
-# Handover — 2026-09-06 (overnight session)
+# Session handover
 
-## State
+_Written 2026-11-13, end of the ChatGPT 2026-11 / v1.3.1 release session._
 
-`main` @ `2fae0e7`. Version **1.3.0**, packaged and ready to upload, **not yet
-submitted to either store**.
+## What this session did
 
-**The `v1.3.0` tag is stale.** It points at `88e0234`; main is 3 commits ahead.
-Moving it needs a force-push, which the permission classifier blocked:
+1. **Diagnosed the "chat not detected" reports.** chatgpt.com rebuilt its app shell in
+   November 2026: the conversation lives in `[data-turn-key]` turns whose messages are
+   `[data-content-search-unit-key]` units. The old selectors matched nothing, so the popup
+   said "no conversation" and exports came out empty. Probed live in the user's browser.
+2. **Scheduled tasks** (ChatGPT's own answer with no question from the user) parsed to
+   nothing; empty questions are now carried through every exporter.
+3. **Virtualization.** Both chatgpt.com and claude.ai mount and unmount turns on scroll, so
+   a parse only ever sees one window. `src/extension/content/scroll-to-load.ts` walks the
+   scroller bottom-to-top and stitches the windows, falling back to the plain parse unless
+   the walk contains everything the plain parse held.
+4. **Released v1.3.1** — merged #292, #294, #296, #299.
 
-```
-git tag -f v1.3.0 && git push -f origin v1.3.0
-```
+## Where things stand
 
-Nothing has consumed the tag (release still a draft, nothing in either store),
-so re-pointing it is safe. Until then the tag marks the release commit, not the
-build in `dist/upload-v1.3.0/`.
-
-## Shipped this session
-
-| PR | What |
+| Thing | State |
 |---|---|
-| #257 | release v1.3.0 — version bump, changelog, store listings, the two hard-won rules written into `docs/dev/releasing.md` |
-| #259 | `innerHTML` → `DOMParser` in `code-highlight.ts` and `chatgpt/parser.ts` (AMO warnings 13 → 10) |
-| #260 | changelog entry for the above |
-| #262 | archived the stale v1.2.0 release task (closed #251) |
-| #263 | popup: format menu showed 4½ of 6 formats (JSON invisible); submenu titles sat on a third left edge |
-| #238 #239 #241 #242 #261 | five dependabot PRs, a month stale, all merged. #239 (`@eslint/js` 10) needed two dead initializers removed; #241 (prettier 3.9.6) needed three files reformatted |
+| PR #292 (ChatGPT 2026-11 DOM) | merged, `a4553e3` |
+| PR #299 (release v1.3.1) | merged, `e0f19c9` |
+| Firefox Add-ons | v1.3.1 **submitted** (version 6706086), source package included; awaiting Mozilla review |
+| AMO listing text | updated to the v1.3.1 "What's New" and version history |
+| Chrome Web Store | **not done** — see below |
+| Tag `v1.3.1` + GitHub release | done — tagged at `e0f19c9`, release carries the three zips |
 
-Also closed #252 (the `vi.waitFor` flake — it kept a 1000ms budget in a suite
-whose config sets 15s for CPU starvation; defaulted in the setup file, guarded
-by `waitfor-timeout.test.ts`).
+## Blocked, needs the user
 
-## Open, with everything needed to act
+- **Chrome Web Store.** Neither browser can drive it: Chrome refuses to script
+  `chrome.google.com` (extensions gallery), and the in-app pane cannot load it at all. The
+  upload and the listing text are a manual job, or the CWS publishing API
+  (`googleapis.com/chromewebstore/v1.1`) can upload and publish the zip — it cannot edit
+  listing text or screenshots.
+  Package: `dist/ai-chat-exporter-v1.3.1-chrome.zip`. Copy: `docs/store-listings/chrome-web-store-v1.3.1.txt`.
 
-- **#253 EXP-6** — attempted and stopped deliberately. A file-only user turn
-  exports blank, and neither path handles it (the DOM parser has no attachment
-  handling at all, so it is not an API-path regression). Blocked on evidence: no
-  captured payload containing `files` and no DOM snapshot with a file chip exist
-  in the repo, and the task forbids guessing the shape. Needs a HAR or a snapshot
-  from a logged-in page. Claim attempt 1 is dead — a later session needs
-  `ARSENAL_CLAIM_STALE_OK=1`.
-- **#264** — two popup UX judgement calls: the filename setting does nothing when
-  printing (`filename: ''`), and "Show meta-info" names an implementation detail
-  in seven locales. Both need a product decision, so neither was guessed at.
-- **#258** — AMO's remaining 10 warnings, every one deliberate. **Do not** strip
-  jsPDF/jszip/highlight.js internals to quiet a scanner; that is what raised the
-  Chrome Web Store "Red Titanium" flag. See `docs/dev/releasing.md`.
-- **#250** (ChatGPT timestamps), **#254** (Google Drive export) — untouched; both
-  need a logged-in page or decisions about OAuth scopes and host permissions.
+## Queued follow-ups (filed as `arsenal:queue`, import them next session)
 
-## Worth knowing
+- #300 — the stitched result keeps `base.drift` from a partial window.
+- #301 — `countTurnContainers` counts units, not turns, so `turns-dropped` can fire falsely
+  (CodeRabbit Minor on #292, answered as declared-and-queued).
+- #302 — `deep-research-frame.test.ts` leaks a timer that throws after teardown.
 
-`.claude/launch.json` now serves the built extension (`popup-preview`), so the
-popup can be driven in a real browser. Both #263 defects were found by measuring
-a live render; neither is visible to jsdom, which computes no layout.
+## Notes for whoever picks this up
+
+- `docs/dev/parser-gotchas.md` §17 is the written-down version of the ChatGPT DOM work;
+  read it before touching the ChatGPT selectors again.
+- `subsumes()` in `scroll-to-load.ts` is gated on the **pair id**, and the ChatGPT parser
+  feeds that id from the turn's own `data-turn-key`. On text alone it folds two distinct
+  exchanges whose answers nest. Do not relax that gate.
+- CodeRabbit allows roughly one review an hour on this plan. Two of this session's
+  afternoon hours went to waiting on it. `CLAUDE.md` permits a recorded self-review
+  instead — use it rather than waiting.

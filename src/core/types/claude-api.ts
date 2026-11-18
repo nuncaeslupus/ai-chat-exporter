@@ -81,6 +81,8 @@ export interface ClaudeApiChatMessage {
   sender: 'human' | 'assistant';
   /** Message index in conversation */
   index: number;
+  /** Parent message UUID; links the branches of a `tree=True` response */
+  parent_message_uuid?: string;
   /** Created timestamp */
   created_at: string;
   /** Updated timestamp */
@@ -105,8 +107,10 @@ export interface ClaudeApiConversationResponse {
   created_at: string;
   /** Updated timestamp */
   updated_at: string;
-  /** All chat messages in the conversation */
+  /** All chat messages in the conversation (every branch when fetched with `tree=True`) */
   chat_messages: ClaudeApiChatMessage[];
+  /** UUID of the last message of the branch the page is showing */
+  current_leaf_message_uuid?: string;
   /** Project UUID if conversation is in a project */
   project_uuid?: string | null;
 }

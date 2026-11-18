@@ -6,6 +6,28 @@ import { describe, it, expect } from 'vitest';
 import { sanitizeHtml, safeUrl } from '../../../../src/core/utils/sanitize-html';
 
 describe('sanitizeHtml', () => {
+  it('keeps what markdown renders: list start, task checkboxes, table spans', () => {
+    const out = sanitizeHtml(
+      '<ol start="3"><li>c</li></ol><ul><li><input checked="" disabled="" type="checkbox"> done</li></ul>' +
+        '<table><tr><td colspan="2" align="right" onclick="x()">x</td></tr></table>'
+    );
+    expect(out).toContain('<ol start="3">');
+    expect(out).toMatch(/<input[^>]*type="checkbox"/);
+    expect(out).toContain('colspan="2"');
+    expect(out).toContain('align="right"');
+    expect(out).not.toContain('onclick');
+  });
+
+  it('drops a non-checkbox <input> but unwraps unknown elements instead of deleting their text', () => {
+    const out = sanitizeHtml(
+      '<p>a <font color="red">kept <b>bold</b></font> <input type="text" value="x"> <script>evil()</script></p>'
+    );
+    expect(out).toContain('kept <b>bold</b>');
+    expect(out).not.toContain('<font');
+    expect(out).not.toContain('<input');
+    expect(out).not.toContain('evil()');
+  });
+
   it('does not execute inline event handlers from scraped content', () => {
     const result = sanitizeHtml('<p>hi</p><img src="x" onerror="alert(1)">');
     const div = document.createElement('div');

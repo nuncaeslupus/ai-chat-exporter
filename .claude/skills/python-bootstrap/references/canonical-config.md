@@ -95,6 +95,17 @@ clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +
 ```
 
+## Tests and CI
+
+`make test` is the fast tier and runs in parallel once the suite is more than a
+few seconds: `uv add --dev pytest-xdist`, then `uv run pytest -n auto -m "not slow"`
+with a `slow` marker registered under `[tool.pytest.ini_options]` and a
+`test-all` target that runs everything. CI runs **one** Python version on pull
+requests — the `requires-python` floor — on Linux, with `concurrency`
+cancel-in-progress and a `timeout-minutes` per job; the full version range runs
+on the default branch or nightly. These are defaults with named overrides:
+`claude-arsenal/references/ci-minutes.md` § CI defaults.
+
 ## uv
 
 Use `uv` for dependency management. `uv sync` installs; `uv add PKG` adds a

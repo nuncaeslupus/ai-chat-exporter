@@ -88,7 +88,11 @@ api() {
 
     case "${channel}" in
         gh)
-            local args=(api -X "${method}" "${path}" -H "Accept: application/vnd.github+json")
+            # `gh` accepts the endpoint with or without a leading slash; Git Bash
+            # rewrites any leading-slash argument into a Windows path and `gh` then
+            # rejects it. Strip it for `gh` only — the curl branch below builds
+            # `https://api.github.com${path}` and still needs it.
+            local args=(api -X "${method}" "${path#/}" -H "Accept: application/vnd.github+json")
             [[ -n "${body}" ]] && args+=(--input -)
             local out status
             if [[ -n "${body}" ]]; then

@@ -75,7 +75,7 @@ fetch the caller would actually make.
 
 ```bash
 uv run --with playwright python3 capture_har.py --url URL --output capture.har \
-    --ua-suffix " integral-job-search/0.1 (+https://example.com/bot)"
+    --ua-suffix " yourproject/0.1 (+https://example.com/bot)"
 ```
 
 `--ua-suffix ""` appends nothing, for a page whose rendering branches on a

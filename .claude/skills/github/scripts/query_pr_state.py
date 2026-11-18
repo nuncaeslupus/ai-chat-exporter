@@ -10,9 +10,18 @@ Returns one of:
   - ci_failed     — at least one CI check failed
   - bot_approved  — watched bot approved, quiet window not elapsed yet
   - ready_to_merge — bot approved + CI green + quiet window elapsed
+  - bot_skipped / bot_rate_limited / bot_absent — no watched bot will review
+    this head (a skip notice, a limit notice, or silence past bot-wait-min and
+    one trigger). The payload's `decision` names the local review to run
+    instead; with --local-review-done (that review has a CLEAR verdict) or a
+    decision of `none`, CI green and mergeable, the state is ready_to_merge.
+
+Bot states come from review_sources.py (the bundle's scripts/ folder), the one
+classifier the rest of the bundle uses. Without it the bot half stays as before.
 
 Exit codes:
-  0 — bot_commented (unaddressed) OR ready_to_merge (actionable)
+  0 — bot_commented (unaddressed) / bot_skipped / bot_rate_limited / bot_absent /
+      ready_to_merge (actionable)
   1 — waiting / bot_eyeing / ci_running / bot_approved (loop continues)
   2 — conflicts / ci_failed (Claude action) or error (surface to user)
 """
@@ -20,14 +29,133 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
+import re
 import shutil
 import subprocess
 import sys
 from datetime import UTC, datetime
+from pathlib import Path
+from types import ModuleType
 from typing import Any
 
-DEFAULT_BOTS = ["gemini-code-assist[bot]", "coderabbitai[bot]", "claude[bot]"]
+# Empty: a repo lists its own review bots in `review-bots` (none = CI-only).
+DEFAULT_BOTS: list[str] = []
+
+
+def _resolve_watch_bots(flag: str | None, repo_root: Path | None = None) -> list[str]:
+    """Bot usernames to watch. Precedence: flag, arsenal config, shipped default.
+
+    `--watch-bots ""` and `review-bots = []` both mean the same thing and are
+    both honoured: no bot is watched, so the loop is CI-only. That is why the
+    flag defaults to None rather than to the list — empty has to stay
+    distinguishable from absent.
+
+    Read out of the file directly rather than through arsenal_config.py: this
+    script vendors to `.claude/skills/github/scripts/`, which has no import
+    path to the bundle's `scripts/` folder.
+    """
+    if flag is not None:
+        return [b.strip() for b in flag.split(",") if b.strip()]
+
+    config = (repo_root or Path.cwd()) / "arsenal" / "config.toml"
+    if config.is_file():
+        try:
+            import tomllib
+
+            value = tomllib.loads(config.read_text(encoding="utf-8")).get("review-bots")
+            if isinstance(value, list) and all(isinstance(b, str) for b in value):
+                return [b.strip() for b in value if b.strip()]
+        except (OSError, ValueError):
+            pass
+
+    return list(DEFAULT_BOTS)
+
+
+def _load_review_sources() -> ModuleType | None:
+    """Import the bundle's review_sources.py, wherever this copy runs from.
+
+    Upstream and as a plugin, this file sits at skills/github/scripts/ and the
+    bundle's scripts at skills/init/assets/scripts/. Vendored, it sits at
+    .claude/skills/github/scripts/ and the bundle at claude-arsenal/scripts/.
+    """
+    here = Path(__file__).resolve().parent
+    candidates = [
+        here.parent.parent / "init" / "assets" / "scripts",
+        Path.cwd() / "claude-arsenal" / "scripts",
+    ]
+    if len(here.parents) > 3:
+        candidates.insert(1, here.parents[3] / "claude-arsenal" / "scripts")
+    for folder in candidates:
+        if (folder / "review_sources.py").is_file():
+            if str(folder) not in sys.path:
+                sys.path.insert(0, str(folder))
+            try:
+                return importlib.import_module("review_sources")
+            except ImportError:
+                return None
+    return None
+
+
+# review_sources.py reports a bot that said it will not review as `unavailable`
+# and names why in `extra.reason`; this loop keeps its finer states, in this
+# order of precedence when several bots are out at once.
+_BOT_STATES = {
+    "rate-limited": "bot_rate_limited",
+    "skipped": "bot_skipped",
+    "paused": "bot_skipped",
+    "absent": "bot_absent",
+}
+
+
+def _bot_reason(verdict: Any) -> str:
+    """`rate-limited` / `skipped` / `paused` for an unavailable bot, else its state."""
+    if verdict.state == "unavailable":
+        return str((verdict.extra or {}).get("reason") or "skipped")
+    return str(verdict.state)
+
+
+def _bot_fallback(args: argparse.Namespace, result: dict, repo: str) -> dict:
+    """Replace an open-ended `waiting` / `bot_eyeing` when no bot will review.
+
+    Asks review_sources.py what each watched bot did on this head. While any is
+    `ok` or `pending` the state stands; that pending is bounded by bot-wait-min
+    (plus one more wait after a --trigger). Once every watched bot is skipped,
+    rate-limited or absent, the state names that and carries the decision line;
+    it is ready_to_merge when the decision needs no local review, or when the
+    caller says the local review is recorded (--local-review-done).
+    """
+    if result["state"] not in ("waiting", "bot_eyeing") or not args.watch_bots:
+        return result
+    if result["bot_reviews"]["changes_requested"]:
+        return result
+    rs = _load_review_sources()
+    if rs is None:
+        result["bot_sources"] = "unavailable: review_sources.py not found"
+        return result
+    try:
+        report = rs.run(args.pr, repo, trigger=args.trigger, watch_bots=args.watch_bots)
+    except rs.SourceError as exc:
+        sys.stderr.write(f"review_sources: {exc}\n")
+        sys.exit(2)
+    states = [_bot_reason(v) for v in report.bots]
+    result["bot_sources"] = [
+        {"login": v.login, "state": v.state, "detail": v.detail} for v in report.bots
+    ]
+    result["decision"] = report.decision
+    if report.triggers_posted:
+        result["triggers_posted"] = report.triggers_posted
+    if not states or any(s in ("ok", "pending") for s in states):
+        return result
+    for raw, name in _BOT_STATES.items():
+        if raw in states:
+            result["state"], result["exit_code"] = name, 0
+            break
+    local_done = args.local_review_done or report.decision["local_review"] == "none"
+    if local_done and result["ci"] == "success" and result["mergeable"] == "MERGEABLE":
+        result["state"], result["exit_code"] = "ready_to_merge", 0
+    return result
 
 
 def _norm_user(name: str | None) -> str:
@@ -40,16 +168,36 @@ def _norm_user(name: str | None) -> str:
 
 def _gh(*args: str) -> Any:
     """Run a gh subcommand and parse JSON output. Exits 2 on failure."""
+    ok, data = _gh_try(*args)
+    if not ok:
+        sys.stderr.write(f"gh failed: gh {' '.join(args)}\nstderr: {data}\n")
+        sys.exit(2)
+    return data
+
+
+def _gh_try(*args: str) -> tuple[bool, Any]:
+    """Like `_gh`, but returns (False, stderr) when GraphQL is refused (403);
+    any other failure still exits 2.
+
+    Used for the GraphQL-backed calls (`gh repo view`, `gh pr view`, `gh api
+    graphql`): some sandboxed sessions get a 403 on GraphQL while REST works,
+    and each of those calls has a REST fallback below.
+    """
     if shutil.which("gh") is None:
         sys.stderr.write("gh CLI not found in PATH\n")
         sys.exit(2)
     try:
         out = subprocess.check_output(["gh", *args], text=True, stderr=subprocess.PIPE)
     except subprocess.CalledProcessError as exc:
-        sys.stderr.write(f"gh failed: gh {' '.join(args)}\nstderr: {exc.stderr or ''}\n")
-        sys.exit(2)
+        err = exc.stderr or ""
+        if "graphql" not in err.lower() or "403" not in err:
+            # Only a refused GraphQL call has a REST fallback; anything else
+            # (network, rate limit, auth) is the permanent failure `_gh` reports.
+            sys.stderr.write(f"gh failed: gh {' '.join(args)}\nstderr: {err}\n")
+            sys.exit(2)
+        return False, err
     out = out.strip()
-    return json.loads(out) if out else None
+    return True, (json.loads(out) if out else None)
 
 
 def _gh_paginated(*args: str) -> list[Any]:
@@ -99,8 +247,96 @@ def _gh_paginated(*args: str) -> list[Any]:
 
 
 def _default_repo() -> str:
-    data = _gh("repo", "view", "--json", "nameWithOwner")
-    return str(data["nameWithOwner"])
+    ok, data = _gh_try("repo", "view", "--json", "nameWithOwner")
+    if ok and data:
+        return str(data["nameWithOwner"])
+    # GraphQL refused: read owner/name from the origin remote's URL instead.
+    try:
+        url = subprocess.check_output(
+            ["git", "remote", "get-url", "origin"], text=True, stderr=subprocess.DEVNULL
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        url = ""
+    parts = [p for p in re.split(r"[/:]", url.removesuffix(".git")) if p]
+    if len(parts) >= 2:
+        return f"{parts[-2]}/{parts[-1]}"
+    sys.stderr.write(f"could not determine the repo; pass --repo owner/name\nstderr: {data}\n")
+    sys.exit(2)
+
+
+def _pr_view_rest(repo: str, pr_number: int) -> dict:
+    """The `gh pr view --json` fields main() reads, built from REST endpoints.
+
+    Field names and enum casing match `gh pr view` so the classifier sees one
+    shape whichever path produced it.
+    """
+    pr = _gh("api", f"repos/{repo}/pulls/{pr_number}")
+    if not pr:
+        return {}
+    state = "MERGED" if pr.get("merged_at") else str(pr.get("state") or "").upper()
+    mergeable = {True: "MERGEABLE", False: "CONFLICTING"}.get(pr.get("mergeable"), "UNKNOWN")
+    sha = (pr.get("head") or {}).get("sha") or ""
+    commits = [
+        {"committedDate": ((c.get("commit") or {}).get("committer") or {}).get("date")}
+        for c in _gh_paginated(f"repos/{repo}/pulls/{pr_number}/commits")
+    ]
+    checks: list[dict] = []
+    if sha:
+        for page in _gh_paginated(f"repos/{repo}/commits/{sha}/check-runs"):
+            for run in page.get("check_runs") or []:
+                checks.append(
+                    {
+                        "status": str(run.get("status") or "").upper(),
+                        "conclusion": str(run.get("conclusion") or "").upper(),
+                    }
+                )
+        combined = _gh("api", f"repos/{repo}/commits/{sha}/status") or {}
+        checks += [
+            {"state": str(st.get("state") or "").upper()} for st in combined.get("statuses") or []
+        ]
+    reviews = [
+        {
+            "author": r.get("user") or {},
+            "state": r.get("state"),
+            "submittedAt": r.get("submitted_at"),
+        }
+        for r in _gh_paginated(f"repos/{repo}/pulls/{pr_number}/reviews")
+    ]
+    return {
+        "state": state,
+        "mergedAt": pr.get("merged_at"),
+        "closedAt": pr.get("closed_at"),
+        "mergeable": mergeable,
+        "statusCheckRollup": checks,
+        "headRefOid": sha,
+        "reviews": reviews,
+        "commits": commits,
+    }
+
+
+def _threads_from_rest(line_comments: list[dict]) -> list[dict]:
+    """Review threads in the GraphQL shape, rebuilt from REST line comments.
+
+    REST groups replies under `in_reply_to_id` but does not expose whether a
+    thread is resolved, so a resolved thread with no human reply stays in the
+    loop: the safe side, as in `_addressed_comment_ids`.
+    """
+    threads: dict[int, list[dict]] = {}
+    for c in line_comments:
+        root = int(c.get("in_reply_to_id") or c.get("id") or 0)
+        threads.setdefault(root, []).append(c)
+    out = []
+    for comments in threads.values():
+        comments.sort(key=lambda c: c.get("created_at") or "")
+        latest_type = (comments[-1].get("user") or {}).get("type")
+        out.append(
+            {
+                "isResolved": False,
+                "all_comments": {"nodes": [{"databaseId": c.get("id")} for c in comments]},
+                "latest_comment": {"nodes": [{"author": {"__typename": latest_type}}]},
+            }
+        )
+    return out
 
 
 def _parse_ts(s: str | None) -> datetime | None:
@@ -132,8 +368,9 @@ def _aggregate_ci(checks: list[dict]) -> str:
     return "success"
 
 
-def _fetch_review_threads(owner: str, name: str, pr_number: int) -> list[dict]:
-    """Fetch PR review threads via GraphQL. Returns the threads list (possibly empty).
+def _fetch_review_threads(owner: str, name: str, pr_number: int) -> list[dict] | None:
+    """Fetch PR review threads via GraphQL. Returns the threads list (possibly empty),
+    or None when GraphQL is refused.
 
     Each thread has `isResolved` plus two aliased comment slices:
       - `all_comments` (first: 100) — used to collect `databaseId`s (the REST API
@@ -159,7 +396,7 @@ def _fetch_review_threads(owner: str, name: str, pr_number: int) -> list[dict]:
         "  }"
         "}"
     )
-    data = _gh(
+    ok, data = _gh_try(
         "api",
         "graphql",
         "-f",
@@ -171,6 +408,8 @@ def _fetch_review_threads(owner: str, name: str, pr_number: int) -> list[dict]:
         "-F",
         f"pr={pr_number}",
     )
+    if not ok:
+        return None
     if not data:
         return []
     return (((data.get("data") or {}).get("repository") or {}).get("pullRequest") or {}).get(
@@ -350,14 +589,44 @@ def _classify(
     }
 
 
+# What the /loop does next, per state. Printed with the state so the loop prompt
+# stays one line instead of carrying this whole rubric into every tick.
+_REPLY = "gh api repos/{repo}/pulls/{pr}/comments/<id>/replies"
+NEXT_ACTION = {
+    "bot_commented": (
+        "Address each comment: agree -> fix; after the round's last fix run fast_gate.sh "
+        "once, push once, reply 'addressed in <sha>' via " + _REPLY + "; disagree -> reply "
+        "with rationale there; ambiguous -> reply asking + ping the user. Every fix or "
+        "dismissal gets a reply: --unresolved-only filters on it next tick."
+    ),
+    "bot_skipped": "Follow `decision`: local-review none -> continue; diff or full -> run one "
+    "pre-PR review round, then add --local-review-done.",
+    "conflicts": "Rebase onto (or merge) the base branch, resolve, push.",
+    "ci_failed": "Fetch the failing job log, fix, commit, push; reply on related comments.",
+    "ready_to_merge": "Stop: CronDelete the loop and hand back to the user.",
+    "merged": "Stop: CronDelete the loop and hand back to the user.",
+    "closed": "Stop: CronDelete the loop and hand back to the user.",
+}
+NEXT_ACTION["bot_rate_limited"] = NEXT_ACTION["bot_absent"] = NEXT_ACTION["bot_skipped"]
+
+
+def _emit(result: dict[str, Any], repo: str, pr: object) -> None:
+    action = NEXT_ACTION.get(str(result.get("state")), "Wait for the next tick.")
+    result["next"] = action.format(repo=repo, pr=pr)
+    json.dump(result, sys.stdout, indent=2)
+    sys.stdout.write("\n")
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--pr", required=True, type=int, help="PR number")
     p.add_argument("--repo", help="owner/name (defaults to current repo)")
     p.add_argument(
         "--watch-bots",
-        default=",".join(DEFAULT_BOTS),
-        help="comma-separated bot usernames; empty disables bot tracking",
+        help=(
+            "comma-separated bot usernames; empty disables bot tracking. "
+            "Defaults to `review-bots` in arsenal/config.toml, else none (CI-only)"
+        ),
     )
     p.add_argument(
         "--min-quiet-seconds",
@@ -375,13 +644,29 @@ def main() -> int:
             "already-addressed comments."
         ),
     )
+    p.add_argument(
+        "--trigger",
+        action="store_true",
+        help=(
+            "post a skipped or silent bot's `bot-triggers` command, once per head "
+            "(review_sources.py --trigger)"
+        ),
+    )
+    p.add_argument(
+        "--local-review-done",
+        action="store_true",
+        help=(
+            "the local review the decision asks for has a CLEAR verdict "
+            "(adversarial_review.sh check exits 0); bot_* states may then merge"
+        ),
+    )
     args = p.parse_args()
-    args.watch_bots = [b.strip() for b in args.watch_bots.split(",") if b.strip()]
+    args.watch_bots = _resolve_watch_bots(args.watch_bots)
 
     repo = args.repo or _default_repo()
     owner, name = repo.split("/", 1)
 
-    pr = _gh(
+    ok, pr = _gh_try(
         "pr",
         "view",
         str(args.pr),
@@ -390,6 +675,8 @@ def main() -> int:
         "--json",
         "state,mergedAt,closedAt,mergeable,statusCheckRollup,headRefOid,reviews,commits",
     )
+    if not ok:
+        pr = _pr_view_rest(repo, args.pr)
     if not pr:
         sys.stderr.write(f"PR #{args.pr} not found in {repo}\n")
         return 2
@@ -400,13 +687,11 @@ def main() -> int:
     pr_state = (pr.get("state") or "").upper()
     if pr_state == "MERGED":
         result = {"state": "merged", "exit_code": 0, "merged_at": pr.get("mergedAt")}
-        json.dump(result, sys.stdout, indent=2)
-        sys.stdout.write("\n")
+        _emit(result, f"{owner}/{name}", args.pr)
         return 0
     if pr_state == "CLOSED":
         result = {"state": "closed", "exit_code": 0, "closed_at": pr.get("closedAt")}
-        json.dump(result, sys.stdout, indent=2)
-        sys.stdout.write("\n")
+        _emit(result, f"{owner}/{name}", args.pr)
         return 0
 
     commits = pr.get("commits") or []
@@ -428,6 +713,8 @@ def main() -> int:
 
     if args.unresolved_only:
         threads = _fetch_review_threads(owner, name, args.pr)
+        if threads is None:
+            threads = _threads_from_rest(line_comments)
         addressed = _addressed_comment_ids(threads)
         # Count only watched-bot comments toward "everything addressed" — a thread between
         # two humans being resolved should NOT trigger the bot-stale-eyes override.
@@ -446,10 +733,15 @@ def main() -> int:
     result = _classify(
         args, head_ts, ci, reactions, reviews, line_comments, addressed_count, mergeable
     )
-    json.dump(result, sys.stdout, indent=2)
-    sys.stdout.write("\n")
+    result = _bot_fallback(args, result, repo)
+    _emit(result, f"{owner}/{name}", args.pr)
     return int(result["exit_code"])
 
 
 if __name__ == "__main__":
+    # Windows consoles default to a legacy codepage (cp1252 and friends);
+    # a non-ASCII line must degrade to "?", never take the process down.
+    for _stream in (sys.stdout, sys.stderr):
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(encoding="utf-8", errors="replace")
     sys.exit(main())

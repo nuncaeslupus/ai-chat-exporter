@@ -405,9 +405,7 @@ def overview(rows: Iterable[dict[str, Any]]) -> list[str]:
 # Insight modes
 # --------------------------------------------------------------------------
 
-_ID_SEGMENT = re.compile(
-    r"^(\d+|[0-9a-f]{8,}|[0-9a-f-]{32,}|[A-Za-z0-9_-]{22,})$", re.IGNORECASE
-)
+_ID_SEGMENT = re.compile(r"^(\d+|[0-9a-f]{8,}|[0-9a-f-]{32,}|[A-Za-z0-9_-]{22,})$", re.IGNORECASE)
 
 
 def path_template(path: str) -> str:
@@ -457,9 +455,7 @@ def endpoints(rows: Iterable[dict[str, Any]], limit: int) -> list[str]:
                 lines.append(f"    {name} = {elide(distinct[0], 40)}  (constant)")
             else:
                 span = (
-                    f"{distinct[0]}..{distinct[-1]}"
-                    if len(distinct) > 3
-                    else ", ".join(distinct)
+                    f"{distinct[0]}..{distinct[-1]}" if len(distinct) > 3 else ", ".join(distinct)
                 )
                 lines.append(f"    {name} varies over {len(distinct)}: {elide(span, 46)}")
     return lines or ["no entries"]
@@ -609,9 +605,7 @@ def redirects(rows: Iterable[dict[str, Any]], limit: int) -> list[str]:
     return lines or ["no redirects in this capture"]
 
 
-def websockets(
-    rows: Iterable[dict[str, Any]], read_entry_by_index: Any, limit: int
-) -> list[str]:
+def websockets(rows: Iterable[dict[str, Any]], read_entry_by_index: Any, limit: int) -> list[str]:
     """Per-socket frame counts, direction and the first frames.
 
     Sites that stream their data over a socket have no HTTP response body to
@@ -698,16 +692,19 @@ def main(argv: list[str] | None = None) -> int:
 
     modes = parser.add_argument_group("insight", "pick one; the default is the overview")
     modes.add_argument(
-        "--stats", metavar="FIELD",
+        "--stats",
+        metavar="FIELD",
         help="histogram over status, host, mime, type, method, size or time",
     )
     modes.add_argument("--errors", action="store_true", help="every non-2xx, with a body snippet")
     modes.add_argument(
-        "--endpoints", action="store_true",
+        "--endpoints",
+        action="store_true",
         help="URL paths collapsed to templates, with which parameters vary — the pagination finder",
     )
     modes.add_argument(
-        "--headers", action="store_true",
+        "--headers",
+        action="store_true",
         help="request headers by host, constant across requests versus varying",
     )
     modes.add_argument("--cookies", action="store_true", help="cookies sent and set, with flags")
@@ -739,10 +736,14 @@ def main(argv: list[str] | None = None) -> int:
             if args.as_json:
                 print(json.dumps({"index": str(path), "entries": count, "problems": problems}))
             else:
-                print(f"index: {path.name} — {count} entries" + (
-                    f", {len(problems)} offset problem(s)" if problems else
-                    (", offsets verified" if args.verify_offsets else "")
-                ))
+                print(
+                    f"index: {path.name} — {count} entries"
+                    + (
+                        f", {len(problems)} offset problem(s)"
+                        if problems
+                        else (", offsets verified" if args.verify_offsets else "")
+                    )
+                )
             return 1 if problems else 0
 
         rows: Iterable[dict[str, Any]]
@@ -796,8 +797,15 @@ def main(argv: list[str] | None = None) -> int:
 
 def _mode_name(args: argparse.Namespace) -> str:
     for name in (
-        "stats", "errors", "endpoints", "headers", "cookies",
-        "redirects", "slowest", "largest", "websockets",
+        "stats",
+        "errors",
+        "endpoints",
+        "headers",
+        "cookies",
+        "redirects",
+        "slowest",
+        "largest",
+        "websockets",
     ):
         if getattr(args, name):
             return name
@@ -831,4 +839,9 @@ def _run_mode(
 
 
 if __name__ == "__main__":
+    # Windows consoles default to a legacy codepage (cp1252 and friends);
+    # a non-ASCII line must degrade to "?", never take the process down.
+    for _stream in (sys.stdout, sys.stderr):
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(encoding="utf-8", errors="replace")
     raise SystemExit(main())
