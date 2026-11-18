@@ -36,8 +36,14 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   showMetaInfo: true,
   fontScale: 'normal',
   filenameTemplate: '{title}_{date}',
-  defaultFormat: 'pdf' as const,
 };
+
+/**
+ * Format the keyboard shortcut exports in before the user has ever exported
+ * (afterwards it uses the last format picked). Not a stored preference: no UI
+ * sets one, and the shortcut is documented as "the format you last used".
+ */
+export const FALLBACK_EXPORT_FORMAT = 'pdf' as const;
 
 /**
  * Default popup theme preference. Stored separately from `UserPreferences`

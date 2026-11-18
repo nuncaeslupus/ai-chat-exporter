@@ -9,7 +9,7 @@ import { TOAST_DURATION } from '../../shared/constants';
  */
 export interface LoadedImage {
   dataUrl: string;
-  format: 'PNG' | 'JPEG' | 'WEBP' | 'GIF';
+  format: 'PNG' | 'JPEG' | 'WEBP';
   width: number;
   height: number;
 }
@@ -74,20 +74,21 @@ export async function loadImageAsDataUrl(
     // Draw the image on the canvas
     ctx.drawImage(img, 0, 0, width, height);
 
-    // Determine image format from URL or use PNG as default
-    let format: LoadedImage['format'] = 'PNG';
+    // Ask the canvas for the format the URL suggests, then label the result by
+    // what the browser actually produced: canvas.toDataURL silently answers
+    // PNG for a type it cannot encode (image/gif everywhere, webp on Firefox),
+    // and jsPDF reads the label, not the bytes.
     const urlLower = url.toLowerCase();
-    if (urlLower.includes('.jpg') || urlLower.includes('.jpeg')) {
-      format = 'JPEG';
-    } else if (urlLower.includes('.webp')) {
-      format = 'WEBP';
-    } else if (urlLower.includes('.gif')) {
-      format = 'GIF';
-    }
-
-    // Convert to data URL
-    const mimeType = `image/${format.toLowerCase()}`;
-    const dataUrl = canvas.toDataURL(mimeType, 0.9);
+    const wanted =
+      urlLower.includes('.jpg') || urlLower.includes('.jpeg')
+        ? 'jpeg'
+        : urlLower.includes('.webp')
+          ? 'webp'
+          : 'png';
+    const dataUrl = canvas.toDataURL(`image/${wanted}`, 0.9);
+    const produced = /^data:image\/(\w+)/.exec(dataUrl)?.[1];
+    const format: LoadedImage['format'] =
+      produced === 'jpeg' ? 'JPEG' : produced === 'webp' ? 'WEBP' : 'PNG';
 
     return {
       dataUrl,

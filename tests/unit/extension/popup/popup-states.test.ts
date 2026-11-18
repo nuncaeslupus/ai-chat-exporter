@@ -123,15 +123,15 @@ function uiState(): string | null {
 }
 
 /**
- * Boot the popup against the real markup. `beforeImport` runs after the module
- * registry is reset but before popup.ts loads, which is the only window where
- * a fake parser can be registered into the very `parserRegistry` instance the
- * popup will import.
+ * Boot the popup against the real markup. The module is imported once per file
+ * (the import is cached after the first call) and each call re-dispatches
+ * DOMContentLoaded against a fresh body: the controller re-initialises itself
+ * and binds its document-level listeners only once, the same as popup-router.
+ * Re-importing the module graph per test cost ~0.3s each and left one extra
+ * controller listening on the document per test.
  */
-async function loadPopup(beforeImport?: () => Promise<void>): Promise<void> {
+async function loadPopup(): Promise<void> {
   document.body.innerHTML = POPUP_HTML;
-  vi.resetModules();
-  if (beforeImport) await beforeImport();
   await import('../../../../src/extension/popup/popup');
   document.dispatchEvent(new Event('DOMContentLoaded'));
 }
@@ -227,15 +227,18 @@ describe('popup secondary states — unsupported page', () => {
 
   it('picks up a fourth platform the moment its parser is registered', async () => {
     mockTabsQuery.mockResolvedValue([{ id: 1, url: 'https://example.com/' }]);
-    await loadPopup(async () => {
-      const { parserRegistry } = await import('../../../../src/core/parsers');
-      // The popup only reads the keys, so the factory never has to build one.
-      parserRegistry.set('mistral', (() => null) as never);
-    });
+    const { parserRegistry } = await import('../../../../src/core/parsers');
+    // The popup only reads the keys, so the factory never has to build one.
+    parserRegistry.set('mistral', (() => null) as never);
+    try {
+      await loadPopup();
 
-    await vi.waitFor(() => {
-      expect(document.querySelectorAll('#platform-links .platform-link')).toHaveLength(4);
-    });
+      await vi.waitFor(() => {
+        expect(document.querySelectorAll('#platform-links .platform-link')).toHaveLength(4);
+      });
+    } finally {
+      parserRegistry.delete('mistral');
+    }
   });
 
   it('opens a platform link in a new tab instead of navigating the popup', async () => {

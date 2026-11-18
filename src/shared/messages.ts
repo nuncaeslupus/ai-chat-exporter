@@ -65,7 +65,6 @@ export interface UserPreferences extends FilenamePreferences {
   showMetaInfo: boolean;
   /** Type-size step applied to pdf/docx/html exports. */
   fontScale: FontScale;
-  defaultFormat: ExportFormat;
 }
 
 /**

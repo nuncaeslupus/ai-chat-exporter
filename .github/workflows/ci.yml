@@ -5,13 +5,53 @@ on:
     branches: [main]
   pull_request:
 
+# Least privilege: nothing here writes to the repository.
+permissions:
+  contents: read
+
 # A newer push to the same PR supersedes a run still in flight (main pushes always finish).
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Cheap checks that read docs, READMEs and manifests: they run on every push
+  # and PR, so a docs-only change still gets them. Also decides whether the
+  # expensive job below has anything to look at.
+  release-checks:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.changes.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - id: changes
+        # On a PR, HEAD is the merge commit, so HEAD^1 is the base: the diff is
+        # exactly what the PR changes. A push to main always counts as code.
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only HEAD^1 HEAD | grep -qvE '^(docs/|arsenal/|claude-arsenal/|\.claude/)|\.md$'; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+      - run: node build/check-release.cjs version
+      - run: node build/check-release.cjs node
+      - run: node build/check-release.cjs pipeline
+      - run: node build/check-release.cjs permissions
+      - run: node build/check-release.cjs keywords
+
+  # A job-level `if` (not a workflow-level paths-ignore): when it skips, the
+  # check still reports, as skipped, so a required `validate` never hangs on a
+  # docs-only PR.
   validate:
+    needs: release-checks
+    if: needs.release-checks.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
@@ -21,15 +61,15 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: node build/check-release.cjs version
-      - run: node build/check-release.cjs node
-      - run: node build/check-release.cjs pipeline
-      - run: node build/check-release.cjs permissions
-      - run: node build/check-release.cjs keywords
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck
+      # Coverage instrumentation (and its thresholds, a slow ratchet) only on
+      # main; a PR runs the same tests without it.
+      - run: pnpm test:run
+        if: github.event_name == 'pull_request'
       - run: pnpm test:coverage
+        if: github.event_name != 'pull_request'
       - run: pnpm build
       - run: node build/check-release.cjs manifest
       # Report-only: a hard fail on a transitive advisory would block every PR

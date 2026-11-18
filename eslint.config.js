@@ -60,6 +60,39 @@ export default tseslint.config(
     },
   },
   {
+    // Parsing runs a console call per message, per node and per artifact, so a
+    // `console.log` on these paths costs CPU in a hot loop and pins the logged
+    // object (parsed conversation content) in devtools history for as long as
+    // it stays open. warn/error on genuine failure paths fire once, off the hot
+    // path, so they stay allowed. (Replaces tests/unit/core/no-debug-logging.)
+    files: [
+      "src/core/services/html-content-parser.ts",
+      "src/core/services/claude-api-service.ts",
+      "src/core/parsers/base-parser.ts",
+      "src/core/parsers/claude/parser.ts",
+    ],
+    rules: { "no-console": ["error", { allow: ["warn", "error"] }] },
+  },
+  {
+    // The log prefix comes from EXTENSION_NAME, as in service-worker.ts: a
+    // rebrand that edits the constant must not split console output across two
+    // product names. (Replaces tests/unit/extension/content/content-script-log-prefix.)
+    files: ["src/extension/content/content-script.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "Literal[value=/\\[AI Chat Exporter\\]/]",
+          message: "Use `[${EXTENSION_NAME}]` from shared/constants, not a hardcoded prefix.",
+        },
+        {
+          selector: "TemplateElement[value.raw=/\\[AI Chat Exporter\\]/]",
+          message: "Use `[${EXTENSION_NAME}]` from shared/constants, not a hardcoded prefix.",
+        },
+      ],
+    },
+  },
+  {
     // Build-time Node scripts (scripts/selector-probe.mjs) are not part of any
     // tsconfig, so type-aware linting cannot parse them -- `project: true`
     // fails outright with "file was not found in any of the provided
