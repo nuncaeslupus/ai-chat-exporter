@@ -12,6 +12,8 @@ CANARY: specify-loaded-2026-06-01-7f9501625b833979
 
 Owns sections 1–4 of `status/specification.md`: problem statement, affected systems, options, recommendation. Creates the file if it does not exist; appends/updates these sections if it does. Per-task scratch goes in `tmp/` (not committed); never in `status/`.
 
+**Workspace-aware path.** When `arsenal/project/<WORKSPACE>/` exists, the spec is `arsenal/project/<WORKSPACE>/spec.md` instead of `status/specification.md`, the same switch `design` makes, so the spec never splits across two files. Every `status/specification.md` below means whichever file applies.
+
 ## Steps
 
 ### Step 1: Understand the problem
@@ -106,7 +108,7 @@ Then self-review the spec before the reader is generated, and fix what fails:
 - **Scope fits one plan** — independent subsystems become separate specs.
 - **Nothing dropped** — every decision and constraint from the source conversation, the decisions log included, is still in the spec; diff a rewrite against the conversation, not the previous draft.
 
-Draw any picture as a fenced `drawspec` block: `claude-arsenal:core:init § references/diagrams.md`.
+Draw any picture as a fenced diagram spec rather than hand-drawn SVG or ASCII art; load `claude-arsenal/references/diagrams.md` before the first one.
 
 ## Annotatable reader — before the spec is merged or built on
 
@@ -120,7 +122,7 @@ create_reader.py   # in claude-arsenal/scripts/; run via `uv run --with markdown
 
 It finds the spec (`arsenal/project/*/spec.md` or `status/specification.md`), writes
 `<repo>-spec-v<N>-<date>-reader.html` and `…-annotated.md` beside it, and prints both paths; commit
-them. Load `claude-arsenal:core:init § references/annotatable-reader.md` when a
+them. Load `claude-arsenal/references/annotatable-reader.md` when a
 returned notes export arrives, when recording approval, or when another document
 needs a reader.
 

@@ -227,10 +227,17 @@ def nothing_ran(kind, detail):
 
 def gate_section(text):
     """The ## Acceptance gate section (up to the next ## heading or EOF)."""
-    m = re.search(
-        r'##\s+Acceptance gate\s*\n(.*?)(?=\n##\s|\Z)', text, re.DOTALL | re.IGNORECASE
-    )
-    return m.group(1) if m else None
+    m = re.search(r'##\s+Acceptance gate\s*\n', text, re.IGNORECASE)
+    if not m:
+        return None
+    out, fenced = [], False
+    for line in text[m.end():].split('\n'):
+        if line.lstrip().startswith('```'):
+            fenced = not fenced
+        elif not fenced and re.match(r'##\s', line):
+            break  # a '## ' line inside a fenced block is a bash comment, not a heading
+        out.append(line)
+    return '\n'.join(out)
 
 
 def gate_command(section):

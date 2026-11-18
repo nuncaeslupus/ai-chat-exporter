@@ -47,7 +47,7 @@ is the evidence — run the full suite only when neither covers the tree.
 
 Reuse the verdict on record when it covers the merge-ready tree; run a new round
 only if commits landed after the last reviewed tree. Protocol and exits:
-`claude-arsenal:core:init § references/pre-pr-review.md`.
+`claude-arsenal/references/pre-pr-review.md`.
 
 - **CLEAR** (reused or new) → record it in the ship output (§ 3 Adversarial
   review row) and proceed to Step 8.

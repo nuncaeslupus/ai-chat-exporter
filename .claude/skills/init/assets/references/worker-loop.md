@@ -71,8 +71,8 @@ dispatches that many workers at once. Run when the queue has open tasks:
      `ARSENAL_MAX_ITERATIONS` rounds (the always-available cap). **Stop the
      loop**, write `handover.md`, and report the reason (remaining % + reset
      time, or the round cap). Do not dispatch.
-3. Fetch the `arsenal:task` issues over the channel from step 1 of the
-   session-start protocol (`AGENTS.md`), save them, and ask for the batch:
+3. Fetch the `arsenal:task` issues over the channel `bin/session_start.sh`
+   reported (re-run it, or `--board` after writing the files), and ask for the batch:
 
    ```bash
    python3 claude-arsenal/scripts/task_select.py \

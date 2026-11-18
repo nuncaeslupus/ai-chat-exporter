@@ -102,7 +102,7 @@ anonymous, and `handle_sync.py` then proposes a second handle for the same task.
 
 ## Importing issues filed between sessions
 
-Step 4b of the session-start protocol runs `issue_import.py`, which writes a
+The import step of the session-start script runs `issue_import.py`, which writes a
 task file per labelled issue that is not already a handle and prints, per issue,
 the remote changes to apply:
 

@@ -52,6 +52,7 @@ import argparse
 import hashlib
 import html
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -105,6 +106,110 @@ Imported from {url}
 false
 ```
 """
+
+
+# What `normalise_body` reads a line as. All four follow CommonMark: a fence or
+# an ATX heading may be indented by at most three spaces, and four or more is
+# an indented code block — or a list continuation, which cannot be told apart
+# without parsing the list, so it is left alone like code.
+# A fence may sit inside block quotes (`> ```), and a backtick fence whose info
+# string holds a backtick is not a fence at all — it is an inline code span.
+_FENCE_RE = re.compile(r"^(?: {0,3}>)* {0,3}(`{3,}(?!.*`)|~{3,})")
+_HEADING_RE = re.compile(r"^( {0,3})(#{1,6})(?=[ \t]|$)")
+_INDENTED_RE = re.compile(r"^(?: {4}|\t)")
+_RULE_RE = re.compile(r"^ {0,3}(?:_[ \t]*){3,}$")
+# The stretches of a prose line an escape must not land in: an inline code span
+# (shown verbatim, so a backslash would be shown too), an autolink or HTML tag,
+# and a bare URL (where a backslash changes the address).
+_PROTECTED_RE = re.compile(r"(`+)(?!`).*?(?<!`)\1(?!`)|<[^<>\s][^<>]*>|https?://\S+")
+_UNDERSCORES_RE = re.compile(r"(?<!\\)_{2,}")
+
+
+def _escape_underscores(line: str) -> str:
+    out: list[str] = []
+    pos = 0
+    for m in _PROTECTED_RE.finditer(line):
+        out.append(_UNDERSCORES_RE.sub(lambda u: r"\_" * len(u.group()), line[pos : m.start()]))
+        out.append(m.group())
+        pos = m.end()
+    out.append(_UNDERSCORES_RE.sub(lambda u: r"\_" * len(u.group()), line[pos:]))
+    return "".join(out)
+
+
+def normalise_body(text: str) -> str:
+    """An issue body, reshaped so the task file passes common Markdown lint.
+
+    An issue body is written by a person or a tool for GitHub's renderer, which
+    forgives everything. The task file it is pasted into is committed to a
+    repository that may gate on a Markdown linter, and three defaults failed on
+    imported files in real use — the host had to hand-fix each one:
+
+    * a heading with text directly under it (blank lines around headings);
+    * a body opening at `###` with nothing above it (heading increment) — the
+      front-matter title is the document title, so the body's shallowest
+      heading becomes `##`, deeper ones keep their relative depth up to the
+      six levels Markdown has, and nothing in the body stays `#`;
+    * a `__dunder__` word in prose, which reads as underscore-bold (strong
+      style) and renders with its underscores gone. Each `_` of a `__` run is
+      escaped, so the word shows as written. Intended `__bold__` is escaped
+      too: the two cannot be told apart, and literal text loses nothing.
+
+    Deliberately small. Fenced code, indented code and inline code spans are
+    never altered, no line is dropped, and a second pass changes nothing — a
+    body normalised twice must not drift. Anything else a linter might flag is
+    left as the author wrote it: guessing at it risks changing what it says.
+    """
+    # GitHub stores a body typed in the web form with CRLF endings; the blank
+    # lines added below are LF, and a file with both fails a linter by itself.
+    lines = text.replace("\r\n", "\n").split("\n")
+    kinds: list[str] = []  # "code", "heading" or "prose", one per line
+    fence = ""
+    for line in lines:
+        m = _FENCE_RE.match(line)
+        if fence:
+            kinds.append("code")
+            # Closed only by the same character, at least as long, alone on its line.
+            if (
+                m
+                and m.group(1)[0] == fence[0]
+                and len(m.group(1)) >= len(fence)
+                and not line[m.end() :].strip()
+            ):
+                fence = ""
+        elif m:
+            fence = m.group(1)
+            kinds.append("code")
+        elif _HEADING_RE.match(line):
+            kinds.append("heading")
+        elif _INDENTED_RE.match(line) or _RULE_RE.match(line):
+            kinds.append("code")
+        else:
+            kinds.append("prose")
+
+    levels = [
+        len(m.group(2))
+        for line, kind in zip(lines, kinds, strict=True)
+        if kind == "heading" and (m := _HEADING_RE.match(line))
+    ]
+    shift = 2 - min(levels) if levels else 0
+
+    out: list[str] = []
+    for i, (line, kind) in enumerate(zip(lines, kinds, strict=True)):
+        if kind == "code":
+            out.append(line)
+            continue
+        if kind == "prose":
+            out.append(_escape_underscores(line))
+            continue
+        m = _HEADING_RE.match(line)
+        assert m is not None  # kind == "heading" is exactly this match
+        level = min(6, len(m.group(2)) + shift)
+        if out and out[-1].strip():
+            out.append("")
+        out.append(m.group(1) + "#" * level + _escape_underscores(line[m.end() :]))
+        if i + 1 < len(lines) and lines[i + 1].strip():
+            out.append("")
+    return "\n".join(out)
 
 
 def derive_task_id(issue: dict[str, Any]) -> str:
@@ -178,7 +283,7 @@ def render(issue: dict[str, Any], task_id: str) -> str:
     # tell a reader there is nothing here, never fires.
     raw_body = issue.get("body")
     text = html.unescape(raw_body if isinstance(raw_body, str) else "").strip()
-    body = text or "_(no issue body)_"
+    body = normalise_body(text) if text else "_(no issue body)_"
     return TEMPLATE.format(
         task_id=task_id,
         # Two spellings to undo before this lands in the repo, because a task

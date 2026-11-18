@@ -30,6 +30,7 @@ bin/record_isolation.sh
 bin/record_skill_load.sh
 bin/rescue_snapshot.sh
 bin/select_tests.py
+bin/session_start.sh
 bin/statusline_capture.sh
 bin/worker_postcheck.sh
 bin/workspace_list.sh

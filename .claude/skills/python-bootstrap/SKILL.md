@@ -25,7 +25,7 @@ to `dep-upgrade`.
 
 ## Step 1 — Report the gaps
 
-Run from the target project root, since the script reads the current directory:
+The script reads `project_dir` (default: the current directory):
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/analyze_project.py" [project_dir]
@@ -33,7 +33,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/analyze_project.py" [project_dir]
 
 The JSON gives `mode` (`scaffold` without `pyproject.toml`, else `retrofit`),
 `ruff.missing_select`, `mypy.missing_keys`, `makefile.missing_targets`,
-`requires_python_ok`, and `model_gen`.
+and `requires_python_ok`.
 
 ## Step 2 — Apply the canonical blocks
 
@@ -49,15 +49,8 @@ pyproject (ruff + mypy), Makefile and uv blocks. Apply only what the report flag
   `[[tool.mypy.overrides]]` rather than weakening the global block.
 
 When the retrofit writes or changes a CI workflow or the test target, load
-`claude-arsenal:core:init § references/ci-minutes.md` (§ CI defaults) first: one
+`claude-arsenal/references/ci-minutes.md` (§ CI defaults) first: one
 Python version and Linux only on pull requests, parallel pytest.
 
 Then run the project's `make lint` and `make test` (or `uv run ruff check .`
 and `uv run mypy .`) to confirm the new config is clean.
-
-## Step 3 — Hand off model specs
-
-If `model_gen.specs_present` is true, the project drives a JSON-spec backend
-generator; SQLAlchemy models, Pydantic schemas and FastAPI routes belong to the
-model-generator toolkit (`model-gen` / `model-val`). This skill sets up repo
-tooling only.

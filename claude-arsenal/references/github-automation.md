@@ -257,5 +257,5 @@ records `queue-automation = false` rather than reinstalling it.
 
 Without the workflow the merge path still works, but stale claims and unhandled
 task files must be fixed by hand (§ Ending a session is reporting, not repair).
-In a repo that has it, problems reported at session-start steps 3–4 signal that
+In a repo that has it, problems the session-start script reports from the board and handle checks signal that
 something is wrong, not the normal cost of starting.

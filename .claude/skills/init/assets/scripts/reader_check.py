@@ -69,7 +69,7 @@ def is_doc(rel: str) -> bool:
     name = p.name
     if (
         not name.endswith(".md")
-        or name.endswith(("-annotated.md", "-notes.md"))
+        or name.endswith(("-annotated.md", "-notes.md", "-reader.md", "-reviewed.md"))
         or "-notes-" in name
     ):
         return False

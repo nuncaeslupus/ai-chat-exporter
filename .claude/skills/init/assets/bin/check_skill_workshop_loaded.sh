@@ -75,6 +75,29 @@ marker_dir="${CLAUDE_PLUGIN_DATA:-${HOME}/.cache/claude-arsenal/skill-workshop}"
 marker="${marker_dir}/loaded-${session_id}"
 [[ -f "$marker" ]] && exit 0
 
+# Advisory where the key does not exist (#586). /init registers this hook in
+# every consumer's settings.json, but vendors only core's skills, so a session
+# that has no skill-workshop (or skill-creator) to load would be blocked behind
+# a skill it cannot invoke. Block only when one is reachable from this session:
+# beside this hook (it is running as the plugin's own hook), in the project
+# (vendored, or a marketplace checkout), in ~/.claude/skills, or among the
+# installed plugins. Otherwise allow: a gate nobody can open is not a gate, it is an outage.
+skill_reachable() {
+    local project="${CLAUDE_PROJECT_DIR:-$PWD}" name
+    for name in skill-workshop skill-creator; do
+        for f in "${here}/../skills/${name}/SKILL.md" \
+                 "${project}/.claude/skills/${name}/SKILL.md" \
+                 "${project}"/plugins/*/skills/"${name}"/SKILL.md \
+                 "${HOME}/.claude/skills/${name}/SKILL.md"; do
+            [[ -f "$f" ]] && return 0
+        done
+    done
+    # The installed-plugins registry, not the cache: the cache and the marketplace
+    # clone hold every plugin the marketplace ships, installed or not.
+    grep -qE '"(skill-workshop|skill-creator)@' "${HOME}/.claude/plugins/installed_plugins.json" 2>/dev/null
+}
+skill_reachable || exit 0
+
 cat >&2 <<EOF
 BLOCKED: about to modify '$file_path', which lives inside a skill folder, but
 the skill-workshop skill has not been loaded this session.

@@ -57,7 +57,7 @@ showing the current value misses the threshold. Cover new branches, endpoints an
 edge cases (null/empty, boundaries, error paths). Name tests
 `test_<what>_<condition>_<expected_result>`. Put a new test in a file that is not
 already the suite's slowest, since the longest file sets the parallel suite's wall
-clock; load `claude-arsenal:core:init § references/performance-tuning.md` (§ The
+clock; load `claude-arsenal/references/performance-tuning.md` (§ The
 long pole) when a test file needs splitting. With `<!-- test-discipline: test-after -->` in the host `CLAUDE.md`, write
 the test alongside the change instead.
 
@@ -68,13 +68,13 @@ constant or glue. Build an expensive fixture once per module, and give a test sl
 than about a second a stated reason or a slow tier that does not run on every push.
 Load `references/test-cost.md` when a task adds more than a handful of tests or one
 of them is slow. When a task writes or changes a CI workflow, load
-`claude-arsenal:core:init § references/ci-minutes.md` (§ CI defaults) first.
+`claude-arsenal/references/ci-minutes.md` (§ CI defaults) first.
 
 **GREEN.** Implement until the check passes:
 
 - Read the target code first and match its style, naming and structure.
 - Write the smallest change that passes the gate: needed at all → stdlib → already in
-  the repo → minimal new code (`claude-arsenal:core:init § references/lean-code.md`).
+  the repo → minimal new code (`claude-arsenal/references/lean-code.md`).
 - One concern per commit; type hints or strict types; handle errors explicitly;
   configuration through environment variables or constants.
 - Comments: match the file's density, default to none, and add one only for a *why*
@@ -87,7 +87,9 @@ of them is slow. When a task writes or changes a CI workflow, load
 **RECORD.** Add the gate evidence to the plan's **Evidence log**: measured value,
 exact command, commit SHA and environment provenance (`ci`, `local`, or a project
 tag). The `gate-check` skill's `run_gate.py --id <task> <measured>` reports PASS/FAIL. A task is done when its gate passes and the row is recorded; a
-plan with no Gate column predates the convention, so skip the record there.
+plan with no Gate column predates the convention, so skip the record there. A queue
+task's own gate (the fenced block in `arsenal/tasks/<id>.md`, run by `gate_run.sh`)
+is a separate mechanism and needs no Evidence-log row.
 
 ### Step 3: Check
 
@@ -105,7 +107,7 @@ why. Refactor with the green suite as the safety net, then confirm:
 
 Before opening the PR, run the pre-PR review: one cold reviewer subagent that sees
 only the packet. Protocol, exits and round cap:
-`claude-arsenal:core:init § references/pre-pr-review.md`.
+`claude-arsenal/references/pre-pr-review.md`.
 
 ### Step 5: Create the PR
 

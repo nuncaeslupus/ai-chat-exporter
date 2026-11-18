@@ -20,8 +20,9 @@
 #
 # Exit codes for --api:
 #   0   HTTP 2xx            — body on stdout
-#   3   HTTP 422            — kept distinct: for ref creation this means
-#                             "already exists", which is a lost race, not a fault
+#   3   HTTP 422 "already exists" — kept distinct: for ref creation this is a
+#                             lost race, not a fault. Any other 422 (bad sha,
+#                             invalid ref) is a fault and exits 4
 #   4   any other HTTP error — body on stdout, status on stderr
 #   5   no scriptable channel (`none`) — caller should hand the call to the model
 
@@ -35,16 +36,23 @@ usage: github_channel.sh --detect
 EOF
 }
 
-# owner/repo from the origin remote, tolerant of ssh and https forms.
+# owner/repo from the origin remote, for any host and any URL shape: https or
+# ssh, with or without userinfo (a token in the URL is dropped, never echoed),
+# an ssh host alias, a port, a trailing slash or `.git`. Anything that does not
+# end in a plain owner/repo fails, so no API path is built from a garbage slug.
 repo_slug() {
-    local url
+    local url slug
     url="$(git remote get-url "${ARSENAL_QUEUE_REMOTE:-origin}" 2>/dev/null)" || return 1
+    url="${url%/}"
     url="${url%.git}"
-    url="${url#git@github.com:}"
-    url="${url#ssh://git@github.com/}"
-    url="${url#https://github.com/}"
-    url="${url#http://github.com/}"
-    printf '%s' "${url}"
+    url="${url%/}"
+    if [[ "${url}" == *://* ]]; then
+        url="${url#*://}"; url="${url#*@}"; slug="${url#*/}"   # drop scheme, userinfo, host[:port]
+    else
+        url="${url#*@}"; slug="${url#*:}"                       # scp-like host:owner/repo
+    fi
+    [[ "${slug}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || return 1
+    printf '%s' "${slug}"
 }
 
 detect() {
@@ -102,7 +110,9 @@ api() {
             fi
             printf '%s\n' "${out}"
             [[ ${status} -eq 0 ]] && return 0
-            grep -qi 'already exists\|HTTP 422' <<<"${out}" && return 3
+            # 422 is "already exists" for a lost race but also "Object does not
+            # exist" / invalid ref: only the former is a lost claim.
+            grep -qi 'HTTP 422' <<<"${out}" && grep -qi 'already exists' <<<"${out}" && return 3
             # The same reasoning the `rest` branch below spells out, which this
             # one was missing: a write this channel is not permitted to make is
             # not a broken channel, it is the no-channel case the caller already
@@ -139,9 +149,9 @@ api() {
                 ${body:+-H "Content-Type: application/json"} \
                 ${body:+--data-raw "${body}"} \
                 "https://api.github.com${path}" 2>/dev/null || echo 000)"
-            cat "${tmp}"; rm -f "${tmp}"
+            local resp; resp="$(cat "${tmp}")"; printf '%s\n' "${resp}"; rm -f "${tmp}"
             [[ "${code}" =~ ^2 ]] && return 0
-            [[ "${code}" == "422" ]] && return 3
+            [[ "${code}" == "422" ]] && grep -qi 'already exists' <<<"${resp}" && return 3
             # A write this channel is not permitted to make is not a broken
             # channel — it is the same situation as having no channel at all,
             # and the caller already knows how to handle that: print the call
