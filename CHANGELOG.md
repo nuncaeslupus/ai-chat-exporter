@@ -2,12 +2,49 @@
 
 All notable changes to AI Chat Exporter are recorded here.
 
+## [Unreleased]
+
+## [1.3.1] — 2026-11-13
+
+### Fixed
+
+- **ChatGPT conversations export correctly again.** chatgpt.com's November 2026 app
+  shell moved the conversation into `[data-turn-key]` turns whose messages are
+  `[data-content-search-unit-key]` units, which the parser did not recognise: the
+  popup reported no conversation, or the export came out empty.
+- **A scheduled task's result exports too.** A chat whose only content is ChatGPT's
+  own answer, with no question from you, produced nothing at all.
+- **Long conversations export in full.** chatgpt.com and claude.ai mount and unmount
+  turns as you scroll, so an export saw only the rendered window and silently
+  dropped the older messages. The export now walks the conversation first, and falls
+  back to the plain parse whenever the walk would hold less than it already had.
+- **A chat title containing a dot no longer truncates the filename.** "Fix main.py
+  error" was saved as `Fix-main.pdf`, losing the rest of the title and the date.
+- **Titles containing `$` (such as `$&` or `$$`) are kept literally** in filenames;
+  control and bidi-override characters, trailing dots and Windows device names
+  (`CON`, `NUL`, ...) are now cleaned out of them.
+- **The popup no longer lists the previous chat** after you navigate in-app to a
+  page with no conversation.
+- **Claude artifacts and timestamps can survive an edited prompt or a regenerated
+  answer.** When Claude's response says which branch the page is showing, messages
+  are matched on that branch only; without that information nothing changes.
+- **Printing Markdown keeps list numbering, task checkboxes, table spans and
+  inline HTML such as `<mark>`/`<kbd>`/`<s>`.** Unknown elements are unwrapped
+  instead of deleted with their text.
+- **Preferences, theme and language now stay on the device** (`storage.local`), as
+  the privacy policy says. Values an earlier version synced to your browser
+  account are moved over once and removed from the account.
+- **A failed Claude organization lookup is retried** on the next export instead of
+  being remembered until the page reloads.
+- **Settings saved by an older version are filled in with defaults** for options
+  added since.
+
 ## [1.3.0] — 2026-09-05
 
 ### Added
 
 - **A language setting.** The extension only ever spoke the browser's language.
-  A new setting in the gear view pins one instead — for the popup *and* for the
+  A new setting in the gear view pins one instead — for the popup _and_ for the
   exported file — defaulting to "Browser language", which is what every install
   does today. An untranslated key falls back to English rather than showing a
   raw key.

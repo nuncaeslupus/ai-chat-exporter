@@ -7,7 +7,7 @@
 # Why: a worker is supposed to run in its own `isolation: worktree`. When that
 # isolation is silently unavailable (observed on some web sessions), the worker
 # runs in the orchestrator's shared tree instead: open_task_pr.sh checks out a
-# feature branch (moving the orchestrator's HEAD off the coordination branch),
+# feature branch (moving the orchestrator's HEAD off its host branch),
 # and a gate-failed worker can leave uncommitted edits sitting on the
 # orchestrator's own tree. Subsequent steps then run from the wrong branch (it guards on the recorded host
 # branch), and a stray `git commit -a` could sweep task code onto the queue
@@ -47,13 +47,34 @@
 #         no `branch:` and no `toplevel:` is refused (exit 4) instead of recorded.
 # Stderr: `worker_postcheck: rescued uncommitted changes to <ref> …` when a
 #         restore had work to save.
-# Exit:   0 invariant holds (possibly after restore); 2 could not restore;
+# Exit:   0 invariant holds (possibly after restore); 2 could not restore, or
+#           the call was not made from inside a git repository — in that case
+#           nothing ran and nothing was touched;
 #         3 the tree was dirty and could not be snapshotted, so NOTHING was
 #           discarded and the restore did not run.
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd 2>/dev/null || echo .)"
+
+# Anchor to the repository root before anything reads or writes a path.
+#
+# Everything below resolves from the CWD: `git reset --hard` and `git clean -fdq`
+# act on whichever tree the caller is standing in, and the isolation verdict is
+# measured from that same root and then written into the sentinel the selector
+# reads to decide how wide to fan out. A call from a subdirectory or a sibling
+# checkout got both wrong. open_task_pr.sh took this anchor after #239/#244;
+# this script kept the assumption its own restore comment concedes. Refusing
+# when there is no root is the only honest answer — there is no tree to restore.
+_repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+[[ -n "${_repo_root}" ]] || {
+    echo "worker_postcheck: not inside a git repository (git rev-parse --show-toplevel failed) — run this from the tree the worker returned to. Nothing was touched." >&2
+    exit 2
+}
+cd "${_repo_root}" || {
+    echo "worker_postcheck: cannot enter the repository root ${_repo_root} — nothing was touched." >&2
+    exit 2
+}
 
 # Snapshot the working tree to a rescue ref before a destructive restore, and
 # tell the operator where it went. The ref lands in RESCUED_REF for
@@ -160,9 +181,28 @@ if [[ "${ARSENAL_WORKER_OUTCOME:-}" == "done" ]]; then
     fi
 fi
 
+# A registered worktree nested inside this tree is a live checkout, not residue.
+# Without an ignore rule for it, `git status` reports `?? .claude/worktrees/`
+# and the restore below took the worker's own tree for something to clean;
+# only git's refusal to delete a nested repository kept `clean -fd` off it
+# (#485). Every status and clean below excludes those paths.
+_live_trees=()
+_own_real="$(pwd -P)"
+while IFS= read -r _wt; do
+    [[ -n "${_wt}" && -d "${_wt}" ]] || continue
+    _wt_real="$(cd "${_wt}" && pwd -P)"
+    case "${_wt_real}" in
+        "${_own_real}"/*) _live_trees+=(":(exclude)${_wt_real#"${_own_real}"/}") ;;
+    esac
+done < <(
+    git worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p'
+    [[ -n "${ARSENAL_WORKER_TOPLEVEL:-}" ]] && printf '%s\n' "${ARSENAL_WORKER_TOPLEVEL}"
+)
+_status() { git status --porcelain -- . "${_live_trees[@]+"${_live_trees[@]}"}" 2>/dev/null; }
+
 session_dir="${ARSENAL_SESSION_DIR:-${ARSENAL_HOME:-arsenal}/session}"
 current="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-dirty="$(git status --porcelain 2>/dev/null)"
+dirty="$(_status)"
 
 recorded_branch=""
 if [[ -f "${session_dir}/host_branch" ]]; then
@@ -228,13 +268,13 @@ if [[ -n "${dirty}" ]]; then
     fi
 fi
 git reset -q --hard >/dev/null 2>&1 || true
-git clean -fdq >/dev/null 2>&1 || true
+git clean -fdq -- . "${_live_trees[@]+"${_live_trees[@]}"}" >/dev/null 2>&1 || true
 if [[ "${current}" != "${host_branch}" ]]; then
     git checkout -f "${host_branch}" >/dev/null 2>&1 || true
 fi
 
 current="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-dirty="$(git status --porcelain 2>/dev/null)"
+dirty="$(_status)"
 if [[ "${current}" != "${host_branch}" || -n "${dirty}" ]]; then
     echo "worker_postcheck: could not restore HEAD to '${host_branch}' / clean tree (HEAD=${current:-unknown})" >&2
     exit 2

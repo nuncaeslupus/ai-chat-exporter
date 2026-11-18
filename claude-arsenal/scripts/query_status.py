@@ -33,11 +33,18 @@ from typing import Any
 # by hand.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from issue_for_task import issue_number_for
+from issue_for_task import issue_numbers_by_task
+
+# The labels themselves, from the modules that own them — both resolve through
+# arsenal/config.toml, so a repo that renamed either gets its own names here.
+from issue_import import DEFAULT_IMPORT_LABEL as IMPORT_LABEL
+from queue_hooks import TASK_LABEL
 from task_select import (
     TERMINAL,
+    default_tasks_dir,
     effective_state,
     load_tasks,
+    read_issue_payload,
     state_from_issues,
     task_id_from_issue,
     title_index,
@@ -50,7 +57,6 @@ SIZE_PRIORITIES = frozenset({10, 5, 1, 0})
 
 def blocking(task: dict[str, Any], state: dict[str, str]) -> list[str]:
     return [d for d in task["deps"] if state.get(d) not in TERMINAL]
-
 
 
 def _git(args: list[str], cwd: Path, timeout: float = 10.0) -> str | None:
@@ -134,10 +140,40 @@ def staleness_warning(tasks_dir: Path, remote: str = "origin") -> str | None:
         "a task file that is merely stale is indistinguishable from an open task"
     )
 
+
+def _report(
+    notes: list[str],
+    warnings: list[str],
+    problems: list[str],
+    *,
+    fail_on_problems: bool,
+) -> int:
+    """Print every finding on stderr and return the exit code.
+
+    Both output paths end here. The --json branch used to print `problems` and
+    return, while `warnings` and `notes` — a duplicate task id, malformed front
+    matter, a title collision, the mixed-priority-convention warning — were
+    rendered only after it. JSON is the documented cheap-fetch path, so the
+    automated caller, the one that cannot notice for itself, was the blind one:
+    `--json --fail-on-problems` never learned the board had two tasks sharing
+    an id.
+    """
+    for line in (*notes, *warnings, *problems):
+        print(f"query_status: {line}", file=sys.stderr)
+    return 1 if (problems and fail_on_problems) else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--tasks-dir", type=Path, default=Path("arsenal/tasks"))
+    parser.add_argument("--tasks-dir", type=Path, default=default_tasks_dir())
     parser.add_argument("--issues", type=Path, help="JSON array of arsenal:task issues")
+    parser.add_argument(
+        "--open-issues",
+        type=Path,
+        metavar="FILE",
+        help="JSON array of OPEN issues carrying neither the task nor the import label — "
+        "work that exists but is on no board. Omit it and the check is skipped, and says so.",
+    )
     parser.add_argument("--detail", action="store_true")
     parser.add_argument(
         "--json",
@@ -162,6 +198,11 @@ def main(argv: list[str] | None = None) -> int:
         help="a branch, not the default: an archived task whose issue is still open is the "
         "documented in-flight state, not drift",
     )
+    parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="stamp `status: merged` on archived task files whose issue closed as completed",
+    )
     args = parser.parse_args(argv)
 
     # "I did not ask GitHub" and "GitHub has no handle for this" are different
@@ -179,28 +220,11 @@ def main(argv: list[str] | None = None) -> int:
     handles_known = bool(args.issues)
     if handles_known:
         # Session-start step 3 runs this straight after the board fetch, so a
-        # truncated or unreadable fetch file is a realistic input. The sibling
-        # scripts (handle_sync, issue_for_task, issue_import) all return 2 here
-        # rather than letting a traceback escape a documented exit contract.
-        try:
-            payload = json.loads(args.issues.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            print(f"query_status: cannot read --issues — {exc}", file=sys.stderr)
+        # truncated or unreadable fetch file is a realistic input.
+        maybe = read_issue_payload(args.issues, "query_status")
+        if maybe is None:
             return 2
-        if isinstance(payload, dict):
-            payload = payload.get("issues")
-        # The shape is checked before it is iterated: `null`, a bare scalar, and
-        # `{"issues": null}` are all valid JSON that a truncated or wrong-shaped
-        # fetch produces, and each raised a TypeError out of the comprehension
-        # below rather than saying what was wrong with the file.
-        if not isinstance(payload, list):
-            print(
-                f"query_status: --issues {args.issues} is not an issue list — expected a "
-                'JSON array, or an object with an "issues" array',
-                file=sys.stderr,
-            )
-            return 2
-        issues = [i for i in payload if isinstance(i, dict)]
+        issues = maybe
 
     tasks, warnings = load_tasks(args.tasks_dir)
     # Both readings, deliberately. `effective_state` lets a task file's terminal
@@ -227,9 +251,46 @@ def main(argv: list[str] | None = None) -> int:
         if stale:
             print(f"query_status: {stale}", file=sys.stderr)
 
+    # Reviewer exports of this project's specs/plans left in a Downloads folder:
+    # review history that is one cleanup away from gone. Read-only, local, and
+    # silent when there is none — which is what makes it cheap enough for here.
+    try:
+        from reader_check import downloads_warnings
+
+        for line in downloads_warnings(Path.cwd()):
+            print(f"query_status: {line}", file=sys.stderr)
+    except Exception:
+        pass
+
+    # Resolved once, for the whole board. Both sites below used to rescan
+    # every issue per task.
+    handle_numbers = issue_numbers_by_task(issues, titles=titles)
+
     counts = {"open": 0, "claimed": 0, "done": 0, "cancelled": 0, "blocked": 0}
     problems: list[str] = []
     notes: list[str] = []
+    # Work that exists on GitHub and on no board. Every other issue read in this
+    # file is filtered to the task label, so an issue carrying neither that nor
+    # the import label was invisible to every check the queue has: the board
+    # could report `open 0` while real findings sat open, and it did. A note
+    # rather than a problem — an issue is allowed to live outside the queue —
+    # but never silence, because silence is what let three of them sit.
+    if args.open_issues:
+        stray = read_issue_payload(args.open_issues, "query_status")
+        if stray is None:
+            return 2
+        if stray:
+            listed = ", ".join(f"#{i['number']}" for i in stray if isinstance(i.get("number"), int))
+            notes.append(
+                f"{len(stray)} open issue(s) are on neither the board nor the import "
+                f"path: {listed} — label one `{IMPORT_LABEL}` to import it as a task, "
+                f"or `{TASK_LABEL}` if it already has a task file."
+            )
+    else:
+        notes.append(
+            "no --open-issues file — issues outside the board were not checked, so "
+            "`open 0` here does not mean nothing is outstanding"
+        )
     known_ids = {t["id"] for t in tasks}
     for task in tasks:
         current = state.get(task["id"], "open")
@@ -249,94 +310,6 @@ def main(argv: list[str] | None = None) -> int:
         for dep in task["deps"]:
             if dep not in known_ids:
                 problems.append(f"{task['id']}: depends on unknown task {dep}")
-
-    # Completion drift: the task file and its issue disagree about whether the
-    # work is finished. Each direction has one cause worth naming, because each
-    # is a merge that did half of what it was supposed to.
-    for task in tasks:
-        actual = issue_state.get(task["id"])
-        if actual is None:
-            continue
-        number = issue_number_for(task["id"], issues, titles=titles)
-        where = f"#{number}" if number else "its issue"
-        if task.get("status") in TERMINAL and actual in {"open", "claimed"}:
-            # `open_task_pr.sh` archives the task file in the SAME diff that
-            # closes its issue, so between opening a PR and merging it, every
-            # task that PR finishes reads archived-with-an-open-issue. On a
-            # branch that is the protocol working; only on the default branch
-            # does it mean a merge did half its job. Without the distinction
-            # the documented workflow cannot produce a green PR — the same
-            # shape as reporting a missing handle nobody looked for.
-            if args.pending_merge:
-                notes.append(
-                    f"{task['id']}: archived as {task['status']}, {where} still {actual} — "
-                    "expected until this branch merges"
-                )
-            else:
-                problems.append(
-                    f"{task['id']}: archived as {task['status']} but {where} is still {actual} — "
-                    "the PR merged without closing it; close it as completed"
-                )
-        elif task.get("status") not in TERMINAL and actual == "done":
-            problems.append(
-                f"{task['id']}: {where} is closed as completed but the task file is still live "
-                f"in {args.tasks_dir} — move it to _history/ with `status: merged`"
-            )
-
-    # The derived answer, for anything outside this repo that needs it.
-    #
-    # A host's gate verifier wants to know which tasks are finished, and the
-    # only thing it can see without this is the task file's `status:` — so it
-    # reads that field directly and is then wrong about every task whose issue
-    # closed without the file being stamped. Its gate count quietly shrinks and
-    # still exits 0, which is the same "second act nobody performed" the queue
-    # removed everywhere else. Terminality here is the union: a task is finished
-    # if its issue says so OR its file does, because either one is a fact and
-    # neither is always available (#171).
-    if args.as_json:
-        for task in sorted(tasks, key=lambda t: t["id"]):
-            current = state.get(task["id"], "open")
-            print(
-                json.dumps(
-                    {
-                        "id": task["id"],
-                        "title": task["title"],
-                        "path": task["path"],
-                        "state": current,
-                        "terminal": current in TERMINAL,
-                        "gate": task["gate"],
-                        "issue": issue_number_for(task["id"], issues, titles=titles),
-                        "blocked_by": blocking(task, state),
-                    },
-                    separators=(",", ":"),
-                )
-            )
-        for problem in problems:
-            print(f"query_status: {problem}", file=sys.stderr)
-        return 1 if (problems and args.fail_on_problems) else 0
-
-    for note in notes:
-        print(f"query_status: {note}", file=sys.stderr)
-    print(
-        f"tasks: {len(tasks)} — "
-        + ", ".join(f"{k} {v}" for k, v in counts.items() if v or k in {"open", "claimed", "done"})
-    )
-
-    if args.detail:
-        for task in sorted(tasks, key=lambda t: (-int(t["priority"]), t["id"])):
-            current = state.get(task["id"], "open")
-            blockers = blocking(task, state)
-            marks = []
-            if blockers:
-                marks.append("blocked-by " + ",".join(blockers))
-            if not task["gate"]:
-                marks.append("no-gate")
-            if not handles_known:
-                marks.append("handle?")
-            elif task["id"] not in handled:
-                marks.append("no-handle")
-            suffix = f"  [{'; '.join(marks)}]" if marks else ""
-            print(f"  {task['id']}  p{task['priority']:<3} {current:<9} {task['title']}{suffix}")
 
     # Mixed priority conventions. `priority` means size (S=10, M=5, L=1); a
     # board seeded from an ordered plan table often encodes build-order rank
@@ -359,15 +332,126 @@ def main(argv: list[str] | None = None) -> int:
             "Put ordering in `deps` and size in `priority`, or move the whole board to one scale."
         )
 
-    for warning in warnings:
-        print(f"query_status: {warning}", file=sys.stderr)
-    for problem in problems:
-        print(f"query_status: {problem}", file=sys.stderr)
+    # Completion drift: the task file and its issue disagree about whether the
+    # work is finished. Each direction has one cause worth naming, because each
+    # is a merge that did half of what it was supposed to.
+    for task in tasks:
+        actual = issue_state.get(task["id"])
+        if actual is None:
+            continue
+        number = handle_numbers.get(task["id"])
+        where = f"#{number}" if number else "its issue"
+        if task.get("status") in TERMINAL and actual in {"open", "claimed"}:
+            # `open_task_pr.sh` archives the task file in the SAME diff that
+            # closes its issue, so between opening a PR and merging it, every
+            # task that PR finishes reads archived-with-an-open-issue. On a
+            # branch that is the protocol working; only on the default branch
+            # does it mean a merge did half its job. Without the distinction
+            # the documented workflow cannot produce a green PR — the same
+            # shape as reporting a missing handle nobody looked for.
+            if args.pending_merge:
+                notes.append(
+                    f"{task['id']}: archived as {task['status']}, {where} still {actual} — "
+                    "expected until this branch merges"
+                )
+            else:
+                problems.append(
+                    f"{task['id']}: archived as {task['status']} but {where} is still {actual} — "
+                    "the PR merged without closing it; close it as completed"
+                )
+        elif task.get("status") not in TERMINAL and actual == "done":
+            # An archive written before `status:` was required is already where
+            # it belongs; telling it to move to _history/ names a no-op (#554).
+            path = Path(task["path"])
+            if "_history" in path.parts and args.fix:
+                text = path.read_text(encoding="utf-8")
+                path.write_text(text.replace("---\n", "---\nstatus: merged\n", 1), encoding="utf-8")
+                notes.append(f"{task['id']}: stamped `status: merged` on {path}")
+            elif "_history" in path.parts:
+                problems.append(
+                    f"{task['id']}: {where} is closed as completed but its archived file has "
+                    "no `status:` — add `status: merged` (or rerun with --fix)"
+                )
+            else:
+                problems.append(
+                    f"{task['id']}: {where} is closed as completed but the task file is still "
+                    f"live in {args.tasks_dir} — move it to _history/ with `status: merged`"
+                )
 
-    if problems and args.fail_on_problems:
+    # The derived answer, for anything outside this repo that needs it.
+    #
+    # A host's gate verifier wants to know which tasks are finished, and the
+    # only thing it can see without this is the task file's `status:` — so it
+    # reads that field directly and is then wrong about every task whose issue
+    # closed without the file being stamped. Its gate count quietly shrinks and
+    # still exits 0, which is the same "second act nobody performed" the queue
+    # removed everywhere else. Terminality here is the union: a task is finished
+    # if its issue says so OR its file does, because either one is a fact and
+    # neither is always available (#171).
+    if args.as_json:
+        for task in sorted(tasks, key=lambda t: t["id"]):
+            current = state.get(task["id"], "open")
+            print(
+                json.dumps(
+                    {
+                        "id": task["id"],
+                        "title": task["title"],
+                        "label": task["label"],
+                        "display": task["display"],
+                        "path": task["path"],
+                        "state": current,
+                        "terminal": current in TERMINAL,
+                        "gate": task["gate"],
+                        "issue": handle_numbers.get(task["id"]),
+                        "blocked_by": blocking(task, state),
+                    },
+                    separators=(",", ":"),
+                )
+            )
+        return _report(notes, warnings, problems, fail_on_problems=args.fail_on_problems)
+
+    print(
+        f"tasks: {len(tasks)} — "
+        + ", ".join(f"{k} {v}" for k, v in counts.items() if v or k in {"open", "claimed", "done"})
+    )
+
+    if args.detail:
+        for task in sorted(tasks, key=lambda t: (-int(t["priority"]), t["id"])):
+            current = state.get(task["id"], "open")
+            blockers = blocking(task, state)
+            marks = []
+            if blockers:
+                marks.append("blocked-by " + ",".join(blockers))
+            if not task["gate"]:
+                marks.append("no-gate")
+            if not handles_known:
+                marks.append("handle?")
+            elif task["id"] not in handled:
+                marks.append("no-handle")
+            suffix = f"  [{'; '.join(marks)}]" if marks else ""
+            print(f"  {task['id']}  p{task['priority']:<3} {current:<9} {task['display']}{suffix}")
+
+    # explore-idea's backlog, as one line — and nothing at all when the repo has
+    # none, since this runs at every session start. Ideas are not tasks; the line
+    # only says unspecified work is waiting there.
+    try:
+        from ideas_log import summary_line
+
+        ideas = summary_line(Path.cwd() / "status" / "ideas.md")
+        if ideas:
+            print(ideas)
+    except Exception:
+        pass
+
+    if _report(notes, warnings, problems, fail_on_problems=args.fail_on_problems):
         return 1
     return 0
 
 
 if __name__ == "__main__":
+    # Windows consoles default to a legacy codepage (cp1252 and friends);
+    # a non-ASCII line must degrade to "?", never take the process down.
+    for _stream in (sys.stdout, sys.stderr):
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(encoding="utf-8", errors="replace")
     raise SystemExit(main())

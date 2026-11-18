@@ -47,6 +47,22 @@
 # current surface, so every run keyed on the literal "default": one shared
 # counter across every session on the machine, which both over-counts a fresh
 # session and lets a long one reset by coincidence.
+#
+# Both guards above are PER SESSION. Nothing above them says how many other
+# sessions are dispatching against the same account-wide window right now — the
+# gap that let nine concurrent orchestrators each see a compliant per-session
+# budget and share one five-hour window between them. There is no API for "how
+# many sessions are live"; what exists is `~/.claude/projects/<project>/<session
+# id>.jsonl`, one transcript file per top-level session, written continuously
+# while that session runs. So this is a REPORT, not a gate: every call lists
+# sibling transcript files modified in the last ARSENAL_CONCURRENCY_WINDOW_MIN
+# minutes (default 15; 0 disables) and prints how many belong to a session id
+# other than this one. It cannot tell a live session from one that went idle
+# inside the window, it never changes the exit code, and on a cloud surface —
+# where each session's container is its own filesystem — it always finds zero,
+# silently, because there is nothing to compare against. Where it earns its keep
+# is the surface the incident actually happened on: several CLI sessions sharing
+# one `~/.claude/projects/`.
 
 set -uo pipefail
 
@@ -59,9 +75,12 @@ STOP_PCT="${ARSENAL_QUOTA_STOP_PCT:-90}"
 MAX_ITER="${ARSENAL_MAX_ITERATIONS:-50}"
 ITER_FILE="${ARSENAL_ITER_STATE_FILE:-${_SESSION_DIR}/budget_iterations.json}"
 SESSION_ID="${CLAUDE_CODE_REMOTE_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-default}}}"
+PROJECTS_DIR="${ARSENAL_PROJECTS_DIR:-${HOME}/.claude/projects}"
+CONCURRENCY_WINDOW_MIN="${ARSENAL_CONCURRENCY_WINDOW_MIN:-15}"
 
-python3 - "${FILE}" "${STOP_PCT}" "${MAX_ITER}" "${ITER_FILE}" "${SESSION_ID}" <<'PY'
-import sys, json, pathlib
+python3 - "${FILE}" "${STOP_PCT}" "${MAX_ITER}" "${ITER_FILE}" "${SESSION_ID}" \
+    "${PROJECTS_DIR}" "${CONCURRENCY_WINDOW_MIN}" <<'PY'
+import sys, json, pathlib, time
 
 file = pathlib.Path(sys.argv[1])
 try:
@@ -74,6 +93,42 @@ except ValueError:
     max_iter = 50
 iter_file = pathlib.Path(sys.argv[4])
 session_id = sys.argv[5]
+projects_dir = pathlib.Path(sys.argv[6])
+try:
+    concurrency_window_min = float(sys.argv[7])
+except ValueError:
+    concurrency_window_min = 15.0
+
+# Sibling-session report — see the block comment above this script for why this
+# exists and what it cannot promise. Purely informational: never touches the
+# exit code. One transcript file per top-level session, so a file modified
+# inside the window and stemmed to a session id other than ours counts as one
+# other session. Missing directory, unreadable file, a stat() race with a
+# session that just exited — all silently excluded, not reported as errors,
+# because this is a best-effort aside, not something anything downstream reads.
+if concurrency_window_min > 0 and projects_dir.is_dir():
+    cutoff = time.time() - concurrency_window_min * 60
+    others: set[str] = set()
+    try:
+        candidates = list(projects_dir.glob("*/*.jsonl"))
+    except OSError:
+        candidates = []
+    for f in candidates:
+        sid = f.stem
+        if sid == session_id:
+            continue
+        try:
+            if f.stat().st_mtime >= cutoff:
+                others.add(sid)
+        except OSError:
+            continue
+    if others:
+        print(
+            f"budget_check: {len(others)} other session(s) touched a transcript in "
+            f"the last {concurrency_window_min:g}m — this account's quota window is "
+            "shared across all of them",
+            file=sys.stderr,
+        )
 
 # Always-available dispatch-round cap (independent of rate_limits.json). Counts
 # one round per budget_check call, resetting when the session changes.
@@ -84,12 +139,20 @@ if max_iter > 0:
             state = {}
     except Exception:
         state = {}
-    count = (state.get("count", 0) if state.get("session") == session_id else 0) + 1
+    # Keyed by session rather than held in a single {session, count} slot. Two
+    # sessions resolving to the same state file — two of them in one clone —
+    # each read the other's id as "not mine" and reset to 1, so both stayed
+    # pinned there and ARSENAL_MAX_ITERATIONS never tripped for either. That is
+    # the one cap documented as not depending on observable state.
+    counts = state.get("counts")
+    if not isinstance(counts, dict):
+        counts = {}
+    prior = counts.get(session_id)
+    count = (prior if isinstance(prior, int) else 0) + 1
+    counts[session_id] = count
     try:
         iter_file.parent.mkdir(parents=True, exist_ok=True)
-        iter_file.write_text(
-            json.dumps({"session": session_id, "count": count}), encoding="utf-8"
-        )
+        iter_file.write_text(json.dumps({"counts": counts}), encoding="utf-8")
     except Exception as exc:
         # Said out loud rather than swallowed. The count lives only in this
         # file, so a write that fails means every later call recomputes `count`
@@ -198,6 +261,18 @@ for window in ("five_hour", "seven_day"):
         worst = v if worst is None else max(worst, v)
         if v >= stop:
             over.append((window, v, _resets(w)))
+
+# The same read at the top level, because a surface may flatten both signals
+# there — the shape `_status_of(data)` above is already read from. Taking
+# `status` from the top level but not `used_percentage` meant a document
+# carrying {"status":"allowed","used_percentage":97} was reported as having "no
+# used_percentage on this surface" and the round proceeded at 97%: the guard
+# asserting the absence of a field the document in front of it contained.
+v = data.get("used_percentage")
+if isinstance(v, (int, float)):
+    worst = v if worst is None else max(worst, v)
+    if v >= stop:
+        over.append((data.get("rateLimitType") or "session", v, _resets(data)))
 
 if worst is None:
     if allowed:

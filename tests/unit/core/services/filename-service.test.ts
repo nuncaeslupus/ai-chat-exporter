@@ -8,6 +8,19 @@ import type { FilenameVariables } from '../../../../src/core/types/config';
 
 describe('FilenameService', () => {
   describe('generateFilename()', () => {
+    it('inserts a title containing $ sequences literally', () => {
+      const variables: FilenameVariables = {
+        platform: 'ChatGPT',
+        title: 'Earn $$ and $& more',
+        date: '2025-01-01',
+        time: '14-30',
+        datetime: '2025-01-01_14-30',
+      };
+      expect(FilenameService.generateFilename('{title}_{date}', variables)).toBe(
+        'Earn-$$-and-$&-more_2025-01-01'
+      );
+    });
+
     it('replaces all template variables', () => {
       const variables: FilenameVariables = {
         platform: 'ChatGPT',
@@ -190,6 +203,14 @@ describe('FilenameService', () => {
   });
 
   describe('sanitizeFilename()', () => {
+    it('drops control and bidi-override characters, trailing dots, and de-reserves device names', () => {
+      expect(FilenameService.sanitizeFilename('a\u202Eb\u0007c')).toBe('abc');
+      expect(FilenameService.sanitizeFilename('notes...')).toBe('notes');
+      expect(FilenameService.sanitizeFilename('CON')).toBe('_CON');
+      expect(FilenameService.sanitizeFilename('nul.txt')).toBe('_nul.txt');
+      expect(FilenameService.sanitizeFilename('console')).toBe('console');
+    });
+
     it('removes forbidden characters', () => {
       const filename = 'test/file\\name:with*special?chars<>"pipe|';
       const result = FilenameService.sanitizeFilename(filename);
@@ -345,14 +366,10 @@ describe('FilenameService', () => {
       expect(result).toBe('test-file.pdf');
     });
 
-    it('replaces existing extension', () => {
-      const result = FilenameService.addExtension('test-file.txt', 'pdf');
-      expect(result).toBe('test-file.pdf');
-    });
-
-    it('handles multiple dots in filename', () => {
-      const result = FilenameService.addExtension('test.file.name.txt', 'pdf');
-      expect(result).toBe('test.file.name.pdf');
+    it('keeps dots in the stem (a title like "Fix main.py error" is not an extension)', () => {
+      expect(FilenameService.addExtension('Fix-main.py-error_2026-11-11', 'pdf')).toBe(
+        'Fix-main.py-error_2026-11-11.pdf'
+      );
     });
 
     it('handles extension with dot', () => {
@@ -363,6 +380,19 @@ describe('FilenameService', () => {
     it('handles empty filename', () => {
       const result = FilenameService.addExtension('', 'pdf');
       expect(result).toBe('.pdf');
+    });
+
+    it('buildFilename keeps the whole title and date when the title contains a dot', () => {
+      const vars: FilenameVariables = {
+        platform: 'ChatGPT',
+        title: 'Fix main.py error',
+        date: '2026-11-11',
+        time: '10-00',
+        datetime: '2026-11-11_10-00',
+      };
+      expect(
+        FilenameService.buildFilename({ filenameTemplate: '{title}_{date}' }, vars, 'pdf')
+      ).toBe(`Fix-main.py-error_${vars.date}.pdf`);
     });
   });
 });
