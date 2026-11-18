@@ -28,9 +28,11 @@ its own (`timeout 30 python3 -c …`) hides the interpreter behind it; and a
 script file — or a module run with `-m` — is trusted to be what it says it is,
 since its contents are not read. This raises the cost of an accidental bypass; it is not a sandbox.
 """
+
 from __future__ import annotations
 
 import json
+import posixpath
 import re
 import shlex
 import sys
@@ -42,9 +44,7 @@ import sys
 # so the prefix is a real directory path and may contain anything a filesystem
 # allows — spaces included. Ending it at `/` keeps the match on a path
 # boundary, so `notplugins/core/skills/x` is not mistaken for a skill.
-SKILL_PATH = re.compile(
-    r"^(?:.*/)?(?:\.claude/skills|plugins/[^/]+/skills)/[^/]+(?:/.*)?$"
-)
+SKILL_PATH = re.compile(r"^(?:.*/)?(?:\.claude/skills|plugins/[^/]+/skills)/[^/]+(?:/.*)?$")
 
 # The same shape, found anywhere inside a larger string (an interpreter script).
 # Inside an interpreter argument the prefix is unknowable, so only the marker
@@ -64,11 +64,30 @@ SEPARATORS = {";", "&&", "||", "|", "&", "\n"}
 #   "last" — only the final path argument (cp: sources are reads)
 ALL, LAST = "all", "last"
 UTILITIES = {
-    "tee": ALL, "truncate": ALL, "touch": ALL, "chmod": ALL, "chown": ALL,
-    "patch": ALL, "ln": ALL, "install": ALL, "shred": ALL,
+    "tee": ALL,
+    "truncate": ALL,
+    "touch": ALL,
+    "chmod": ALL,
+    "chown": ALL,
+    "patch": ALL,
+    "ln": ALL,
+    "install": ALL,
+    "shred": ALL,
     # mv and rm remove their sources, which mutates the skill just as much.
-    "mv": ALL, "rm": ALL, "rmdir": ALL,
+    "mv": ALL,
+    "rm": ALL,
+    "rmdir": ALL,
     "cp": LAST,
+    # rsync's last argument is its destination, the same shape as cp's.
+    "rsync": LAST,
+}
+
+# Utilities whose destination arrives as a flag's value rather than as a
+# positional argument, so nothing about where it sits says it is written.
+# `curl -o SKILL.md …` reached a skill file without this.
+FLAG_DESTINATIONS = {
+    "curl": ("-o", "--output"),
+    "wget": ("-O", "--output-document"),
 }
 
 # Interpreter write calls, for the heredoc-into-python route.
@@ -108,9 +127,7 @@ WRITERS = re.compile(
 # mention of it sits inside a construct that can only read. The ways to write a
 # file are unbounded; the ways to read one that are worth allowing are not, and
 # under-listing a read only ever blocks more, never less.
-INTERPRETERS = re.compile(
-    r"^(?:python[\d.]*|node|nodejs|deno|bun|perl|ruby|php|sh|bash|zsh|dash)$"
-)
+INTERPRETERS = re.compile(r"^(?:python[\d.]*|node|nodejs|deno|bun|perl|ruby|php|sh|bash|zsh|dash)$")
 
 # Flags that mean "the program is right here, or on stdin".
 #
@@ -127,8 +144,20 @@ INLINE_SOURCE_FLAGS = frozenset({"-c", "-e", "--eval", "--exec", "-"})
 # A quoted path with a skill folder in it, as it appears inside interpreter
 # source. Quoted, because an unquoted or interpolated path is one this file
 # cannot resolve — and an unresolvable path must not qualify as a read.
-_QUOTED_SKILL_PATH = (
-    r"""['"][^'"]*(?:\.claude/skills|plugins/[^/'"]+/skills)/[^'"]*['"]"""
+_QUOTED_SKILL_PATH = r"""['"][^'"]*(?:\.claude/skills|plugins/[^/'"]+/skills)/[^'"]*['"]"""
+
+# A skill *script* (by extension) and the interpreters that run one, for the
+# "source runs a skill script as a program" arms below (#500): a heredoc that
+# calls `subprocess.run(["python3", ".claude/skills/x/scripts/y.py", …])`
+# executes that file, the same read a bare `python3 <script>` on the command
+# line already is.
+_SKILL_SCRIPT = (
+    r"""[^'"\s]*(?:\.claude/skills|plugins/[^/'"\s]+/skills)/[^'"\s]*"""
+    r"\.(?:py|pyw|js|mjs|cjs|ts|pl|pm|rb|php|sh|bash|zsh)"
+)
+_RUNNER = (
+    r"(?:(?:uv|poetry|pdm)\s+run\s+)?(?:[\w./-]*/)?"
+    r"(?:python[\d.]*|node|nodejs|deno|bun|perl|ruby|php|sh|bash|zsh|dash)"
 )
 
 # The closed set of read-only uses. Each is removed from the source before it is
@@ -147,6 +176,30 @@ READ_ONLY_USES = re.compile(
               | resolve | glob | rglob | iterdir )  \s* \(
       | Path \s* \( \s* {_QUOTED_SKILL_PATH} \s* \) \s* \. \s*
             open \s* \( \s* (?: ['"][rbtU]+['"] \s* )? \)
+      # The os/glob spellings of the three Path arms above. A tree scan --
+      # "open every file under this folder and look at it" -- is the most
+      # common read-only reason to name a skill folder at all, and `os.walk`
+      # was the one spelling of it with no entry here, so it was refused.
+      # Only terminal forms: `os.path.join` and friends RETURN a path, so
+      # allowing them would erase the skill path from a write that is still
+      # coming. `walk`/`listdir`/`scandir`/`glob` yield paths the same way the
+      # already-listed `rglob`/`iterdir` do, and are no weaker than those.
+      | (?: os \s* \. \s* (?: walk | listdir | scandir )
+          | (?: glob \s* \. \s* )? (?: glob | iglob )
+          | os \s* \. \s* path \s* \. \s*
+                (?: exists | isfile | isdir | islink | getsize | getmtime )
+        ) \s* \( \s* {_QUOTED_SKILL_PATH}
+      # A skill script run as a program from inside the source (#500), as an
+      # argv list -- `["python3", "<script>"` or `[sys.executable, "<script>"`
+      # -- or as a shell string -- `"python3 <script> …"`. Only the runner and
+      # the script path are removed: anything else in that string, a redirect
+      # into a skill folder included, is still searched. The interpreter has to
+      # be named; a bare `["<script>"]` is too easily a list of paths to write.
+      | \[ \s* (?: ['"] (?: uv | poetry | pdm | run ) ['"] \s* , \s* )*
+            (?: ['"] {_RUNNER} ['"] | sys \s* \. \s* executable ) \s* , \s*
+            (?: ['"] -[A-Za-z]+ ['"] \s* , \s* )* ['"] {_SKILL_SCRIPT} ['"]
+      | (?<=['"]) \s* {_RUNNER} (?: \s+ -[A-Za-z]+ )* \s+ {_SKILL_SCRIPT}
+            (?= [\s'"] )
     )""",
     re.VERBOSE,
 )
@@ -165,10 +218,15 @@ INTERPRETER_HEREDOC = re.compile(
 # Prefixes that stand in front of the real command. The `run` pair matters here:
 # this repo's own scripts are launched as `uv run python3 …`, which read as the
 # utility `uv` and went to the fallback branch instead of being seen as python.
-WRAPPERS = frozenset({"sudo", "command", "env", "time", "nice", "stdbuf",
-                      "npx", "uvx", "bunx"})
-WRAPPER_SUBCOMMANDS = {"uv": "run", "poetry": "run", "pipenv": "run",
-                       "pdm": "run", "hatch": "run", "rye": "run"}
+WRAPPERS = frozenset({"sudo", "command", "env", "time", "nice", "stdbuf", "npx", "uvx", "bunx"})
+WRAPPER_SUBCOMMANDS = {
+    "uv": "run",
+    "poetry": "run",
+    "pipenv": "run",
+    "pdm": "run",
+    "hatch": "run",
+    "rye": "run",
+}
 
 
 # The interpreters for which an uppercase `-E` carries the program. Perl only:
@@ -243,6 +301,28 @@ def _reads_stdin_source(util: str, rest: list[str]) -> bool:
         if not tok.startswith("-") and SCRIPT_FILE.search(tok):
             return False
     return True
+
+
+# An interpreter running a skill script as its program, at the start of a
+# command: `python3 .claude/skills/x/scripts/validate.py`. The whole-text scan
+# below reads every line of a command that has a heredoc in it, and without this
+# the NEXT line's `python3 <skill script>` — executed, never written — read as a
+# write (#467). Only the program path is dropped, and only where it stands as a
+# command: quoted inside source (`os.system("python3 …")`) it stays, and a
+# redirect on the same line is still judged by the per-command pass.
+SCRIPT_PROGRAM = re.compile(
+    r"(?m)((?:^|[;&|(])[ \t]*"
+    r"(?:(?:sudo|command|env|time|nice|uv\s+run|poetry\s+run|pdm\s+run)\s+)*"
+    r"(?:[\w./-]*/)?(?:python[\d.]*|node|nodejs|deno|bun|perl|ruby|php|sh|bash|zsh|dash)"
+    r"(?:[ \t]+-[A-Za-z]+)*[ \t]+)"
+    r"(?:[^\s'\";&|<>()]*/)?(?:\.claude/skills|plugins/[^/\s'\"]+/skills)/[^\s'\";&|<>()]+"
+    r"(?=[\s;&|)]|$)"
+)
+
+
+def _strip_script_programs(text: str) -> str:
+    """`text` with every skill script that is executed as a program removed."""
+    return SCRIPT_PROGRAM.sub(r"\1", text)
 
 
 def _inline_source_targets(text: str) -> list[str]:
@@ -346,7 +426,7 @@ def _git_destinations(rest: list[str]) -> list[str]:
     # Everything after the subcommand that is not a flag or the `--` separator.
     # A tree-ish (`git checkout HEAD~1 -- path`) or a branch name lands here too
     # and is harmless: it is not shaped like a skill path, so it never matches.
-    return [a for a in rest[i + 1:] if a != "--" and not a.startswith("-")]
+    return [a for a in rest[i + 1 :] if a != "--" and not a.startswith("-")]
 
 
 def _redirect_targets(cmd: list[str]) -> tuple[list[str], list[str]]:
@@ -383,7 +463,51 @@ def _command_head(args: list[str]) -> tuple[str, list[str]]:
             break
     if pos >= len(args):
         return "", []
-    return args[pos].rsplit("/", 1)[-1], args[pos + 1:]
+    return args[pos].rsplit("/", 1)[-1], args[pos + 1 :]
+
+
+def _flag_values(args: list[str], flags: tuple[str, ...]) -> list[str]:
+    """Values passed to any of `flags`, in all three spellings a tool accepts.
+
+    `-o FILE`, `-oFILE` and `--output=FILE` name the same destination. Reading
+    only the spaced form would repeat, one level down, the mistake of matching
+    a single spelling of a path.
+    """
+    out: list[str] = []
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        for flag in flags:
+            if arg == flag and i + 1 < len(args):
+                out.append(args[i + 1])
+                i += 1
+                break
+            if arg.startswith(f"{flag}="):
+                out.append(arg.split("=", 1)[1])
+                break
+            if len(flag) == 2 and len(arg) > 2 and arg.startswith(flag):
+                out.append(arg[2:])
+                break
+        i += 1
+    return out
+
+
+def _names_skill_path(dest: str, cwd: str = "") -> str:
+    """The skill path `dest` names, normalised, or "" when it names none.
+
+    `plugins//core/skills/x`, `plugins/core/./skills/x` and
+    `plugins/core/tmp/../skills/x` are all the same file, and a gate that
+    recognises one spelling is not a gate: a doubled slash walked straight
+    through the check whose whole job is noticing that write. Normalising is
+    purely lexical on purpose — a PreToolUse hook must not touch the filesystem
+    to answer, and resolving symlinks would make the answer depend on state the
+    command has not created yet.
+
+    A relative `dest` is resolved against the session's `cwd`: after
+    `cd plugins/core/skills/init`, a bare `SKILL.md` is that skill's file.
+    """
+    candidate = posixpath.normpath(posixpath.join(cwd, dest.strip("'\"")))
+    return candidate if SKILL_PATH.match(candidate) else ""
 
 
 def _destinations(cmd: list[str]) -> list[str]:
@@ -404,14 +528,20 @@ def _destinations(cmd: list[str]) -> list[str]:
             dests.extend(files[1:] if len(files) > 1 else files)
     elif util == "dd":
         dests.extend(a.split("=", 1)[1] for a in rest if a.startswith("of="))
+    elif util in FLAG_DESTINATIONS:
+        dests.extend(_flag_values(rest, FLAG_DESTINATIONS[util]))
     elif util in UTILITIES:
         mode = UTILITIES[util]
         if mode == ALL:
             dests.extend(files)
         elif files:
             dests.append(files[-1])
-    elif INTERPRETERS.match(util) and _runs_inline_source(util, rest):
-        dests.extend(_inline_source_targets(" ".join(cmd)))
+    elif INTERPRETERS.match(util):
+        # A script file or module is trusted to be what it says it is, and its
+        # arguments are its own: `--title 'fix write_text(…) in <skill path>'`
+        # is text handed to the script, not source to scan for writes (#500).
+        if _runs_inline_source(util, rest):
+            dests.extend(_inline_source_targets(" ".join(cmd)))
     elif WRITERS.search(" ".join(cmd)):
         # An interpreter gets its script as one argument, so the path is inside
         # a token rather than being one. Scan the text for skill-shaped paths.
@@ -419,7 +549,7 @@ def _destinations(cmd: list[str]) -> list[str]:
     return dests
 
 
-def bash_target(command: str) -> str:
+def bash_target(command: str, cwd: str = "") -> str:
     cmds = _simple_commands(_tokenise(command))
     # An interpreter whose program arrives on stdin — a heredoc, or the right of
     # a pipe — never has that program beside it: the tokeniser separates on both
@@ -430,13 +560,15 @@ def bash_target(command: str) -> str:
     if INTERPRETER_HEREDOC.search(command) or any(
         _reads_stdin_source(*_command_head(_redirect_targets(c)[1])) for c in cmds
     ):
-        for dest in _inline_source_targets(command):
-            if SKILL_PATH.match(dest.strip("'\"")):
-                return dest
+        for dest in _inline_source_targets(_strip_script_programs(command)):
+            named = _names_skill_path(dest, cwd)
+            if named:
+                return named
     for cmd in cmds:
         for dest in _destinations(cmd):
-            if SKILL_PATH.match(dest.strip("'\"")):
-                return dest
+            named = _names_skill_path(dest, cwd)
+            if named:
+                return named
     return ""
 
 
@@ -448,11 +580,16 @@ def main() -> int:
     tool = payload.get("tool_name", "")
     ti = payload.get("tool_input", {}) or {}
     if tool == "Bash":
-        print(bash_target(ti.get("command", "") or ""))
+        print(bash_target(ti.get("command", "") or "", str(payload.get("cwd") or "")))
     else:
         print(ti.get("file_path", "") or "")
     return 0
 
 
 if __name__ == "__main__":
+    # Windows consoles default to a legacy codepage (cp1252 and friends);
+    # a non-ASCII line must degrade to "?", never take the process down.
+    for _stream in (sys.stdout, sys.stderr):
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(encoding="utf-8", errors="replace")
     sys.exit(main())

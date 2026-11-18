@@ -26,7 +26,7 @@ Format: `<file> §<section or anchor>` — <one-line explanation of why this mat
 ## Failure notes
 
 <!-- This section is appended by the orchestrator after each failed worker attempt.
-     The next worker MUST read all Attempt N failure entries before implementing. -->
+     The next worker reads every Attempt N failure entry before implementing, so it does not repeat a failed approach. -->
 
 <!-- Example of accumulated entries:
 

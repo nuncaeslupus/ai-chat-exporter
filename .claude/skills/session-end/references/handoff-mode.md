@@ -51,13 +51,13 @@ Template (rendered by `create_handoff.py`):
 ```
 ````
 
-The `create_handoff.py` script writes the template to `status/handoff.md` with placeholders intact; Claude fills in the placeholders from conversation context before staging. The script will not overwrite a non-template handoff.md unless `--force` is passed; Claude prefers a `--merge` mode (load existing, surface diffs, merge) for partial sessions but the default is full rewrite.
+The `create_handoff.py` script writes the template to `status/handoff.md` with placeholders intact; Claude fills in the placeholders from conversation context before staging. The script will not overwrite a non-template handoff.md unless `--force` is passed; for a partial session, re-run with `--force` and merge the earlier content back by hand.
 
 The handoff file is **part of the next PR**, not a separate commit. The github skill's PR-creation step picks up the staged `status/handoff.md` along with the rest of the diff.
 
 ## `handoff=ticket` — one ticket per session
 
-Some projects work in tight ticket-per-session loops (e.g. `aworkers:triage-issues` patterns where one bug = one PR = one closed ticket). The PR description itself plus the closed-ticket trail are sufficient continuation — a handoff.md would just duplicate the PR body.
+Some projects work in tight ticket-per-session loops (one bug = one PR = one closed ticket). The PR description itself plus the closed-ticket trail are sufficient continuation — a handoff.md would just duplicate the PR body.
 
 In ticket mode, session-end's Step 1 is a no-op. Step 2 (retrospective) still runs.
 

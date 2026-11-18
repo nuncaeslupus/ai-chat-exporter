@@ -84,7 +84,7 @@ const CONVERSATION = {
 
 function mockStatefulSyncStorage(): void {
   const store: Record<string, unknown> = {};
-  Object.assign(chrome.storage.sync, {
+  Object.assign(chrome.storage.local, {
     get: (key: string) => Promise.resolve({ [key]: store[key] }),
     set: (items: Record<string, unknown>) => {
       Object.assign(store, items);
@@ -120,7 +120,7 @@ function previewName(): string {
 }
 
 async function storedPieces(): Promise<unknown> {
-  const stored = await chrome.storage.sync.get('user_preferences');
+  const stored = await chrome.storage.local.get('user_preferences');
   return (stored.user_preferences as Record<string, unknown> | undefined)?.filenamePieces;
 }
 

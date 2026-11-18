@@ -27,6 +27,13 @@ difference between the two cases:
   right workspace.
 - **Solo / single-workspace** — read `status/plan.md` and omit `--workspace`.
 
+Only an approved plan is seeded:
+`python3 .claude/skills/design/scripts/validate_plan.py --input <plan> --require-approved`
+must exit 0 first. A plan whose `**Status**` is still `draft` goes back to the
+reviewer as its reader (`references/annotatable-reader.md`), not onto the board.
+A plan with no `**Status**` line at all predates the review record — ask once
+whether it is approved and record the answer in its header.
+
 Everything below is the same either way. The table columns are:
 `T# | Description | Location | Size | Depends | Gate | Tests`
 
@@ -42,14 +49,10 @@ Everything below is the same either way. The table columns are:
    # → prints e.g. t-3f8a91c2, and the issue handle to open on stderr
    ```
 
-   > **Ordering goes in `deps`; size goes in `priority`.** Transcribing an
-   > ordered `T1 … T50` table tempts you to encode rank here — T1 gets 100, T2
-   > gets 95 — and nothing rejects it. But a rank scale's floor sits above the
-   > size scale's ceiling, so once both are on one board every rank-encoded task
-   > outranks every sized one unconditionally, and dispatch order comes to
-   > reflect when a row was written rather than anything anyone chose. `deps` is
-   > the DAG the selector actually runs on and the thing that survives
-   > re-planning; use it. `query_status.py` reports a board carrying both.
+   Encode table order in `deps`, not in `priority`, which holds size only. A
+   rank scale (T1 = 100, T2 = 95) sits above the size scale, so rank-encoded
+   tasks outrank every sized one and dispatch follows row order rather than the
+   dependency graph. `query_status.py` reports a board carrying both.
 
 2. Add tasks whose deps are now in the queue:
    ```bash
@@ -81,11 +84,10 @@ Everything below is the same either way. The table columns are:
    <Location column content>
    ````
 
-   `gate_run.sh` executes that block, and a worker opens no PR when it fails —
-   so a task cannot reach `done` on a gate that failed or never ran. **The fence
-   is what makes a gate mechanical**, and a numeric threshold needs a committed
-   measurement behind it: see `claude-arsenal/references/evidence-gates.md`
-   before writing either kind.
+   `gate_run.sh` executes that block, and a worker opens no PR when it fails.
+   Only the fenced block runs, and a numeric threshold needs a committed
+   measurement; read `claude-arsenal/references/evidence-gates.md` before
+   writing either kind.
 
 4. Proceed to the **worker loop** (`claude-arsenal/references/worker-loop.md`).
 
@@ -93,43 +95,28 @@ Everything below is the same either way. The table columns are:
 
 ## The handle marker must be visible text
 
-`handle_sync.py` proposes an issue per task file, and that issue carries a
-`` `arsenal-task: <id>` `` line identifying which task it is a handle for.
-
-**Write it as visible text, never as an HTML comment.** Some GitHub tools strip
-angle-bracketed content from issue bodies. An id that is stripped leaves the
-issue anonymous: nothing can resolve it back to its task, `handle_sync.py`
-proposes a *second* handle for the same task file next session, and the board
-reads as stateless while looking fine.
-
-The same rule applies to the marker `issue_import.py` writes back into an
-imported issue, for the same reason.
+The `` `arsenal-task: <id>` `` line that `handle_sync.py` and `issue_import.py`
+put in an issue body is written as visible text, not an HTML comment, because
+some GitHub tools strip angle-bracketed content. A stripped id leaves the issue
+anonymous, and `handle_sync.py` then proposes a second handle for the same task.
 
 ## Importing issues filed between sessions
 
-Step 4b of the session-start protocol runs `issue_import.py`. It writes a task
-file per labelled issue that is not already a handle, and prints, per issue,
-three remote changes for you to apply:
+Step 4b of the session-start protocol runs `issue_import.py`, which writes a
+task file per labelled issue that is not already a handle and prints, per issue,
+the remote changes to apply:
 
 | Key | What to do with it |
 |---|---|
 | `add_to_issue_body` | append the `` `arsenal-task: <id>` `` line to that issue's body — visible text, never an HTML comment |
 | `add_label` | add `arsenal:task` to the issue |
+| `add_id_label` | add `arsenal-id:<id>` — what keeps the issue paired to its task after either is renamed, and the only exact marker a body-less fetch can see |
 | `remove_label` | drop the import label |
 
-The first turns the existing issue into the task's handle rather than opening a
-second one. **The two labels matter as much as the marker**: step 2 fetches the
-board by `arsenal:task` specifically, so an issue left carrying only the import
-label is invisible to it — `handle_sync.py` then reports the task as having no
-handle and proposes a *second* issue for it, which is how you end up with two
-issues for one task, both resolving to the same id.
-
-Apply all three, and commit the new task files.
-
-Why the step exists: issues get filed between sessions, from a phone, with no
-session open to seed a task, and until it existed nothing read them. The
-selector sees only task files, so an empty selection was reported as "no work"
-in a repo carrying a dozen open issues.
+Apply every row and commit the new task files. The body line makes the existing
+issue the task's handle; the labels matter as much, because step 2 fetches the
+board by `arsenal:task`, so an issue left with only the import label is invisible
+and `handle_sync.py` proposes a second issue for the same task.
 
 An imported task carries `requires: [human:gate]` and is therefore **visible but
 never dispatched** — its gate is the issue's prose, and a gate that runs nothing
@@ -144,15 +131,12 @@ The import label defaults to `arsenal:queue`; set `import-label` in
 ## Divergence handling
 
 A **spec divergence** is code that contradicts what `spec.md` / `plan.md`
-require — wrong labels, wrong scope, a missing step, a wrong constant. Noting one
-in `handover.md` prose is **insufficient**: the handover is a snapshot the next
-session overwrites, so a prose-only divergence never shows up in `queue-status`,
-is never ordered or blocked against other tasks, and silently persists across
-context compactions while workers keep building on the wrong inputs.
-
-**Rule: any blocking spec divergence found during a session MUST be seeded as a
-queue task before the session ends.** The queue is the source of truth, not the
-handover.
+require: wrong labels, wrong scope, a missing step, a wrong constant. Seed every
+blocking divergence as a queue task before the session ends. A note in
+`handover.md` is not enough, because the handover is a snapshot the next session
+overwrites; a divergence that lives only there never appears in `queue-status`,
+is never ordered against other tasks, and lets workers keep building on the
+wrong inputs.
 
 Minimum task — title it `D-N` (the Nth divergence this session):
 
@@ -169,6 +153,6 @@ what the spec requires, what the code does, and the fix location.
 This applies to workers and solo sessions alike. A worker that spots a divergence
 outside its own task's scope flags it in its returned outcome; the orchestrator —
 the single queue writer — seeds the task (it never lets a worker push to the
-coordination branch). A solo session seeds the task directly.
+default branch). A solo session seeds the task directly.
 
 ---
