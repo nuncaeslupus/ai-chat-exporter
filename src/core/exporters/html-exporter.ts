@@ -205,16 +205,24 @@ export class HtmlExporter extends BaseExporter {
 
     return pairs
       .map(
-        (pair) => `${this.renderDaySeparator(daySeparator(pair.question.timestamp))}
+        (pair) => `${
+          this.hasContent(pair.question)
+            ? `${this.renderDaySeparator(daySeparator(pair.question.timestamp))}`
+            : ''
+        }
             <div class="qa-pair">
-                <div class="message user-message">
+                ${
+                  this.hasContent(pair.question)
+                    ? `<div class="message user-message">
                     <div class="message-header">
                         <p class="message-role">${this.getRoleName('user')}</p>${this.renderTimestampSpan(pair.question.timestamp, options.showMetaInfo)}
                     </div>
                     <div class="message-content">
                         ${this.renderBlocks(pair.question.blocks, levelMap)}
                     </div>
-                </div>
+                </div>`
+                    : ''
+                }
                 ${this.renderDaySeparator(daySeparator(pair.answer.timestamp))}
                 <div class="message assistant-message" data-platform="${platform}">
                     <div class="message-header">

@@ -204,9 +204,9 @@ export class ClaudeApiService {
    * DOM scrape (`findOrganizationId`) when neither resolves — strictly
    * additive, so a page where scraping still works is unaffected.
    *
-   * Cached per document/session: a failed resolution (`null`) is cached too,
-   * so it costs at most one cookie read + one network call per page session,
-   * not one per export.
+   * Cached per document/session once the API has answered (even with no match),
+   * so a successful lookup costs at most one cookie read + one network call per
+   * page session. A failed call is retried on the next export.
    *
    * The API response shape is unverified against the live service from this
    * environment. Confirmed live: `uuid` (string) is the conversation-API
@@ -226,6 +226,9 @@ export class ClaudeApiService {
     }
 
     let resolved: string | null = null;
+    // Only an answer is cached, never a failure: one service-worker restart or
+    // network blip must not disable API resolution until the page reloads.
+    let answered = false;
     try {
       const response = await chrome.runtime.sendMessage<unknown, MessageResponse<unknown>>({
         type: 'fetch_claude_organizations',
@@ -233,12 +236,13 @@ export class ClaudeApiService {
 
       if (response.success && response.data) {
         resolved = this.pickOrganizationId(this.parseOrganizations(response.data), document);
+        answered = true;
       }
     } catch (error) {
       console.warn('[Claude API Service] Failed to fetch organizations from API:', error);
     }
 
-    this.apiOrganizationIdCache.set(document, resolved);
+    if (answered) this.apiOrganizationIdCache.set(document, resolved);
     return resolved;
   }
 
@@ -637,6 +641,35 @@ export class ClaudeApiService {
   }
 
   /**
+   * Restrict a `tree=True` response to the branch the page is showing: walk
+   * from `current_leaf_message_uuid` up through `parent_message_uuid`. The DOM
+   * only ever holds that branch, so counting every branch's messages (an
+   * edited prompt, a regenerated answer) made the positional match fail.
+   * Without a usable leaf or parent links the response is returned as-is.
+   */
+  private static activeBranch(
+    apiData: ClaudeApiConversationResponse
+  ): ClaudeApiConversationResponse {
+    const leaf = apiData.current_leaf_message_uuid;
+    if (!leaf) return apiData;
+    const byUuid = new Map(apiData.chat_messages.map((m) => [m.uuid, m]));
+    const branch: ClaudeApiChatMessage[] = [];
+    const seen = new Set<string>();
+    let current = byUuid.get(leaf);
+    while (current && !seen.has(current.uuid)) {
+      seen.add(current.uuid);
+      branch.push(current);
+      current = current.parent_message_uuid ? byUuid.get(current.parent_message_uuid) : undefined;
+    }
+    // A leaf with no parent links yields a one-message "branch": that is not a
+    // branch, it is missing data, so leave the response untouched.
+    if (branch.length === 0 || (branch.length === 1 && apiData.chat_messages.length > 1)) {
+      return apiData;
+    }
+    return { ...apiData, chat_messages: branch.reverse() };
+  }
+
+  /**
    * Enrich conversation with artifact content and per-message timestamps
    * from the API.
    *
@@ -661,8 +694,9 @@ export class ClaudeApiService {
    */
   static enrichConversation(
     conversation: Conversation,
-    apiData: ClaudeApiConversationResponse
+    fullApiData: ClaudeApiConversationResponse
   ): EnrichmentResult {
+    const apiData = this.activeBranch(fullApiData);
     const artifactsByMessageUuid = this.extractArtifacts(apiData);
 
     // PAR-2: claude.ai's virtual-scroll DOM can capture far fewer turns than

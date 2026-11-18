@@ -8,10 +8,16 @@
  * vitest's own 1000ms default has to pass.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 describe('vi.waitFor default timeout', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('outlasts vitest’s own 1000ms default', async () => {
+    // Fake clock: waitFor advances it itself, so the 1.5s costs no wall time.
+    vi.useFakeTimers();
     const readyAt = Date.now() + 1500;
     await vi.waitFor(() => {
       expect(Date.now()).toBeGreaterThanOrEqual(readyAt);

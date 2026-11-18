@@ -63,24 +63,36 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--url", required=True, help="the page to load")
     parser.add_argument("--output", type=Path, required=True, help="destination .har")
     parser.add_argument(
-        "--browser", default="chrome", choices=("chrome", "chromium", "msedge"),
+        "--browser",
+        default="chrome",
+        choices=("chrome", "chromium", "msedge"),
         help="'chrome' uses the installed browser and downloads nothing (default)",
     )
     parser.add_argument(
-        "--wait", type=float, default=6.0, metavar="S",
+        "--wait",
+        type=float,
+        default=6.0,
+        metavar="S",
         help="seconds to keep recording after load, for XHR that fires late (default 6)",
     )
     parser.add_argument(
-        "--timeout", type=float, default=60.0, metavar="S",
+        "--timeout",
+        type=float,
+        default=60.0,
+        metavar="S",
         help="navigation timeout (default 60); a timeout still writes what was recorded",
     )
     parser.add_argument(
-        "--executable", type=Path, metavar="PATH",
+        "--executable",
+        type=Path,
+        metavar="PATH",
         help="launch this browser binary directly — for an environment that provisions "
         "one whose build number playwright does not recognise",
     )
     parser.add_argument(
-        "--ua-suffix", default=UA_SUFFIX, metavar="TOKEN",
+        "--ua-suffix",
+        default=UA_SUFFIX,
+        metavar="TOKEN",
         help="appended to the browser's real user agent, so the site is told who is "
         "asking (default: %(default)r). Pass an empty string to append nothing",
     )
@@ -116,9 +128,7 @@ def main(argv: list[str] | None = None) -> int:
                 # `args.ua_suffix`, never the constant: an empty string is a
                 # real answer ("append nothing"), so this must not fall back to
                 # the default on a falsy value.
-                user_agent = (
-                    probe.new_page().evaluate("navigator.userAgent") + args.ua_suffix
-                )
+                user_agent = probe.new_page().evaluate("navigator.userAgent") + args.ua_suffix
             finally:
                 probe.close()
             context = browser.new_context(
@@ -166,4 +176,9 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    # Windows consoles default to a legacy codepage (cp1252 and friends);
+    # a non-ASCII line must degrade to "?", never take the process down.
+    for _stream in (sys.stdout, sys.stderr):
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(encoding="utf-8", errors="replace")
     raise SystemExit(main())

@@ -1,0 +1,18 @@
+{
+  "skill": "pin-check",
+  "canary": "pin-check-loaded-2026-09-15-1c4de0b7-9a2f61d08e4b7c35",
+  "negative_control": "the pin-check skill generates mutants across a module and scores how many survived",
+  "load_prompts": [
+    "Does this test actually catch that behaviour changing, or is it just asserting something true?",
+    "Verify that the fixture really pins the schedule_flexibility wording",
+    "Revert that one line and check whether the scoped test goes red",
+    "Is this claim pinned by a test?",
+    "/pin-check --source config.yaml --replace asynchronous --with async --test tests/test_cue.py"
+  ],
+  "no_load_prompts": [
+    "Run mutmut against this project and show me the survivors",
+    "Which lines of the parser are not covered by tests?",
+    "Write a new test for the schedule module",
+    "Why is CI failing on this PR?"
+  ]
+}
