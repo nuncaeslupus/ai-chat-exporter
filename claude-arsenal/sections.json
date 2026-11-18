@@ -9,6 +9,10 @@
       "blurb": "the bundle itself — installer, queue engine, and the skills the protocol names",
       "skills": [
         {
+          "name": "arsenal-init",
+          "description": "Runs the claude-arsenal installer (the init skill) under a name that does not collide with Claude Code's built-in /init. Use when the user types /arsenal-init. Not for writing a CLAUDE.md."
+        },
+        {
           "name": "github",
           "description": "Applies commit and PR conventions, then polls review bots and CI until the PR can merge. Use when the user commits, opens a PR or handles review feedback. Not for judging a diff."
         },
@@ -22,7 +26,7 @@
         },
         {
           "name": "queue-next",
-          "description": "Claims the next unblocked queue task and runs the worker loop, optionally scoped by tag, workspace or title. Use when the user wants to resume work. Not for adding tasks."
+          "description": "Claims the next unblocked queue task and runs the worker loop, optionally scoped by tag, workspace or title. Use when the user asks for the next queue task. Not for adding tasks, or a plain \"continue\"."
         },
         {
           "name": "queue-status",
@@ -110,7 +114,7 @@
         },
         {
           "name": "gate-check",
-          "description": "Reports PASS/FAIL with measured numbers on a plan task's acceptance gate, or audits all gates. Use when the user asks whether a gate passed. Not for writing code."
+          "description": "Reports PASS/FAIL with measured numbers on a plan task's acceptance gate, or audits all gates. Use when the user asks whether a gate passed. Not for writing code or queue task gates."
         },
         {
           "name": "review",

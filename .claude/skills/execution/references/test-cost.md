@@ -71,5 +71,16 @@ job, nothing run twice) are in `claude-arsenal/references/ci-minutes.md`
 python3 claude-arsenal/scripts/ci_shape.py
 ```
 
+## Prune now and then
+
+Nothing above removes a test that was already written, so the suite only grows.
+When the fast tier passes its budget, or at a release, spend one pass on it:
+list the slowest tests (`--durations=20`), and for each candidate in the "Not
+owed" table run the `pin-check` skill (revert the line it claims to pin, run the
+scoped test). A test that stays green pins nothing: delete it, and say in the
+commit what protection goes with it. Never delete the only test of a behaviour.
+`mutmut-report` names the opposite problem (behaviour with no test): read both
+before cutting.
+
 None of this is a licence to skip tests on logic that branches, parses or can
 lose data, or to delete a test without saying what protection goes with it.

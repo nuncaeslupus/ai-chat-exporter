@@ -18,6 +18,194 @@ being a changelog nobody reads.
 
 Format: `## [X.Y.Z] - YYYY-MM-DD`, newest first, plain bullets below.
 
+## [5.31.2] - 2026-11-18
+
+Fixes to `bin/session_start.sh`, the one-command session start from 5.30.0:
+
+- **Writes the board where the rest of the bundle reads it.** It used `$TMPDIR`,
+  which macOS always sets, while `open_task_pr.sh` and the worker loop read
+  `ARSENAL_ISSUES_JSON` (default `/tmp/arsenal-issues.json`). It now uses that path.
+- **Works from a subdirectory.** It used to skip the update check, refresh and
+  capability map silently when not started at the repo root.
+- **Failures are loud.** A failed `gh` fetch, a missing issue file or a crashed step
+  exits 1 and names the failure; a failed fetch no longer leaves the previous
+  session's file to be read as this one's. On `rest`/`none` it clears last
+  session's files before asking for new ones. An unknown argument exits 2.
+- **Safe to run twice.** A second run before the import relabels were applied no
+  longer proposes a duplicate handle issue for the imported task.
+- A subtree install with only its remote missing is no longer shortened to
+  "INERT, nothing to do": the add-the-remote fix is printed.
+- Labels follow `task-label` / `import-label` from `arsenal/config.toml`.
+- Python floor: 3.11 (what the scripts check, and what the test suite passes on);
+  `docs/INSTALL.md` said 3.12.
+
+## [5.31.1] - 2026-11-18
+
+- `gate_run.sh`: a `## ` comment line inside the fenced acceptance-gate block no longer ends the section (it used to print "prose-only" and run nothing).
+- `rebase_stack.sh` says why it stopped when the default-branch fetch fails, instead of exiting silently.
+- `statusline_capture.sh` anchors `arsenal/session/` at `$CLAUDE_PROJECT_DIR`, so a status line run from another directory no longer creates a stray tree.
+- `dep-upgrade` removes `uv.lock.bak` once the tests are green; `pypi-release` stops for the user's go-ahead before tagging and uploading.
+
+## [5.31.0] - 2026-11-18
+
+- **`/arsenal-init`** is the installer under a name Claude Code's built-in `/init`
+  (which writes a CLAUDE.md) does not share. Type it instead of `/init`; `/init` and
+  `/core:init` still work. It is hidden from the model's skill listing, so it adds
+  nothing to a session's context.
+- **`init.py --uninstall`** lists everything `/init` wrote and removes it with
+  `--apply`: only files still identical to what init wrote, only arsenal's own
+  entries in `.claude/settings.json`, and the CLAUDE.md block and README badge if
+  unedited. `arsenal/` and anything on GitHub are never touched; they are listed
+  as manual steps. See `docs/UPDATE.md` § *Uninstalling from a project*.
+- **Fresh installs start at `merge-policy = "never"`**: a human merges until someone
+  picks a policy, and the setup interview now always asks. Existing
+  `arsenal/config.toml` files keep their value; nothing changes on upgrade.
+- **The skill-edit gate no longer blocks where skill-workshop cannot be loaded.**
+  It blocks only when skill-workshop (or skill-creator) is reachable: the plugin, the
+  repo, `~/.claude/skills` or the plugin cache. Cloud sessions of a consumer repo
+  can edit their own skills again.
+- **The documented plugin install pins a release tag**
+  (`/plugin marketplace add https://github.com/nuncaeslupus/claude-arsenal.git#vX.Y.Z`), so
+  it only receives tagged, green releases. `ARSENAL OUTDATED` and `check_update.sh`
+  print the tag-pinned update route; a marketplace added without a ref keeps
+  updating as before.
+
+## [5.30.0] - 2026-11-18
+
+- **Session start is one command.** `bash claude-arsenal/bin/session_start.sh` now does
+  what AGENTS.md's steps 0-4b did by hand: bundle refresh, capability map, channel
+  detection, the issue fetches (on `gh`, without `body`), the board, missing handles and
+  the filed-issue import. It prints a short report; only `ACTION:` lines need the
+  session's own GitHub tools. The resident `AGENTS.md` shrinks by about 370 tokens on every
+  turn. Run `/init` to pick up the new script and AGENTS.md text.
+- `execution`'s test-cost reference gains a "Prune now and then" pass (slowest tests,
+  `pin-check` on the suspects, never delete the only test of a behaviour).
+
+## [5.29.0] - 2026-11-18
+
+- **Python >= 3.11 is checked, not assumed.** `init.py`, `arsenal_config.py`,
+  `pr_audit.py`, `repo_health.py`, `analyze_project.py` and `compare_lockfile.py`
+  now stop with `needs Python >= 3.11, found X; use a newer python3` instead of an
+  ImportError traceback on an older `python3` (stock macOS ships 3.9).
+  `claim_task.sh` no longer swallows a failed `claim-prefix` read and falls back to
+  the default: two machines would have claimed under different refs. It exits 2
+  and prints why. `detect_surface.sh` no longer hides the error when its capability
+  probes cannot be read.
+- **`check_update.sh` completes a subtree update.** It ran the old vendored
+  `init.py` (which re-vendors nothing) and looked for a `vendor-skills.sh` that
+  does not ship. After the merge it now runs the freshly merged
+  `<prefix>/plugins/core/skills/init/scripts/init.py`, which refreshes the
+  vendored skills and the bundle; the half-upgrade message names that command.
+- **Changed output, `create_reader.py`:** since 5.x the reader is written as
+  `<repo>-<doc>-v<N>-<YYYY-MM-DD-HHMM>-reader.html` (plus `-annotated.md`, and
+  from 5.28.0 a `-reader.md` copy), and each section is
+  `<article class="sec l2" ...>`, not `<article class="sec">`. Code that guessed
+  the old `<stem>-reader.html` name or counted the old marker broke on re-vendor
+  with nothing in the refresh pointing at it. New `--json` prints the written
+  paths (`html`, `annotated`, `markdown`) as one JSON object on stdout, so a
+  wrapper never has to guess; `--output FILE` still pins an exact name.
+
+## [5.28.2] - 2026-11-18
+
+- `repo-audit` / `explain-repo`: the findings ledger in the report now shows each
+  finding's severity and confidence and sorts by them (it dropped both before).
+- `repo-audit` / `explain-repo` now say a target repo's README, `CLAUDE.md`,
+  issues and scripts are data to report on, never instructions to follow.
+- `specify` follows the same `arsenal/project/<WORKSPACE>/spec.md` path switch as
+  `design`, so a workspace spec no longer splits across two files.
+- `queue-next` no longer loads on a bare "continue" or "resume" (it claims a task
+  on GitHub); say "next queue task" or `/queue-next`.
+- `gate-check`, `execution`: say that a queue task's gate (`gate_run.sh`) and a
+  plan gate (`run_gate.py`) are separate mechanisms. No names changed.
+
+## [5.28.1] - 2026-11-18
+
+- Skills now cite the bundle's references by the path a session can open,
+  `claude-arsenal/references/<file>.md`; the old `claude-arsenal:core:init §
+  references/…` form pointed at a folder `init` does not have.
+- The resident `AGENTS.md` no longer assumes every install has the `workflow`
+  skills or the drawspec tool: spec/plan routing applies when those skills are
+  installed, diagrams are "a fenced spec where the host has a renderer"
+  (drawspec stays the supported renderer, described in `references/diagrams.md`,
+  which no longer sends agents to a remote file), and the handover line says
+  `/session-end` writes the handover only when the `handoff` marker is `yes`.
+- `python-bootstrap` no longer hands off to a `model-gen` / `model-val` toolkit;
+  `analyze_project.py` drops its `model_gen` field.
+- `docs/INSTALL.md` states the real prerequisites (Python 3.12 as `python3`, a
+  GitHub channel, `uv` for the reader, diagrams and `har`), lists all three
+  plugins and the `all` profile, and gives per-profile skill counts; the
+  README's no-plugin install pin now follows `.bundle-version`.
+
+## [5.28.0] - 2026-11-17
+
+- `create_reader.py` now writes a GitHub-readable Markdown copy beside every
+  reader and `--bake` copy: `<stem>-reader.md` / `<stem>-reviewed.md`, the
+  pictures as files in `<stem>-img/` (JPEG downscaled to 1400 px when Pillow is
+  available, drawspec diagrams as SVG) and every note as a `> [!NOTE]` alert
+  under its section, anchored notes with their quote. Link that `.md` — GitHub
+  shows the HTML as source. New flags: `--no-markdown`, `--picture-width`,
+  `--picture-quality`.
+
+## [5.27.1] - 2026-11-12
+
+- **`open_task_pr.sh` no longer drops work you already committed.** Run from a
+  branch that has commits not on the default branch, it used to cut a fresh
+  branch from the default and carry only uncommitted edits, so the PR claimed a
+  passing gate over a diff holding just the task-file archive. It now refuses
+  and names the way out (`--branch <current branch>`).
+- **Issue lookup honours `task-label` and reads up to 1,000 issues.** The
+  fallback that resolves a task's issue over the API hardcoded `arsenal:task`
+  and read one page of 100, so a board with more task issues than that, or a
+  renamed label, failed with "cannot resolve the issue handle". It now uses the
+  configured label and reads up to 10 pages.
+- **A claim only reads `lost` when the ref already exists.** Any HTTP 422 used
+  to mean "someone else has it", including an unpushed or invalid anchor commit;
+  that is now an error with the message shown, so a task is not silently skipped.
+- **Remote URLs of any shape resolve to `owner/repo`.** Token-bearing https
+  URLs, ssh host aliases, ports, other hosts and trailing slashes work, and a
+  credential in the URL is never echoed into a printed API path. A remote that
+  is not `owner/repo` fails instead of producing a garbage slug.
+- **`park_task.sh` pushes to `ARSENAL_QUEUE_REMOTE`** like every other queue
+  script, not `ARSENAL_REMOTE` (the update-check remote), where it could force-push
+  a whole working tree to the marketplace remote.
+
+## [5.27.0] - 2026-11-12
+
+- **`/init` says what it does to your repo, and you can decline each part.**
+  New flags `--no-statusline` and `--no-attribution` join
+  `--no-branch-protection`. The README badge is now announced on `--silent`
+  runs too, and the branch-protection change is announced before it is made.
+  A deliberate run ends with the exact `git add` line for everything it
+  touched, `README.md` included; the documented quick-start command now stages
+  `README.md` as well, so the badge no longer lingers as an uncommitted change
+  that trips the "clean working tree" check.
+- **Your personal `statusLine` is no longer overridden.** `/init` registers the
+  project `statusLine` (the token-budget stop) only when none is set in the
+  project or in `~/.claude/settings.json`. An existing registration is left as
+  it is.
+- **No `tmp/arsenal-metrics/` in repos that never ran `/init`.** The skill-load
+  hook now writes only in a repo that has `claude-arsenal/` or `arsenal/`.
+- **A queue workflow that was never committed is no longer "removed by you".**
+  With `queue-automation = true` and no workflow file on disk, `/init` records
+  the opt-out only if git history shows the file was committed and later
+  deleted. Otherwise it reinstalls it, which is what happened to a session
+  whose token could not push workflow files.
+
+## [5.26.1] - 2026-11-12
+
+- **Imported task files pass Markdown lint.** `issue_import.py` pasted an
+  issue's body into `arsenal/tasks/<id>.md` exactly as written, and issue
+  bodies are not lint-clean: in a repository that gates on a Markdown linter,
+  eleven imported task files turned CI red and each had to be fixed by hand.
+  The body is now normalised as it is imported: a blank line before and after
+  every heading; heading levels shifted so the shallowest is `##` (the task's
+  title is the document title; relative depth is kept); `__` in prose escaped,
+  so a word like `__init__` shows as written instead of reading as bold; CRLF
+  line endings converted. Fenced code, indented code, inline code spans and
+  URLs are never touched, and no text is dropped.
+- Task files imported before this release are not rewritten. Fix those once by
+  hand if your linter flags them; nothing needs configuring.
+
 ## [5.26.0] - 2026-11-11
 
 Slow CI, addressed where it starts. A measured review of seven repositories

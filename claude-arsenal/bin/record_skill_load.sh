@@ -10,6 +10,10 @@ name="$(printf '%s' "$payload" | sed -n 's/.*"skill"[[:space:]]*:[[:space:]]*"\(
 [[ -n "$name" ]] || exit 0
 
 root="$(git rev-parse --show-toplevel 2>/dev/null)" || root="${CLAUDE_PROJECT_DIR:-$PWD}"
+# Only in a repo that has the arsenal installed: this hook belongs to a plugin
+# that is enabled everywhere, and an untracked tmp/ in an unrelated repo is
+# swept up by `git add -A`.
+[[ -d "${root}/claude-arsenal" || -d "${root}/arsenal" ]] || exit 0
 # The repo controls these paths, so a symlink at any of them could redirect the
 # append to any file the session can write. Skip the row instead, and create each
 # directory one level at a time so mkdir never follows a link.

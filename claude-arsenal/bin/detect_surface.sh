@@ -61,7 +61,7 @@ main() {
                 bash -c "${cmd}" </dev/null &>/dev/null || continue
             fi
             caps+=("\"${name}\"")
-        done < <(python3 "${config_py}" --repo-root . --probes 2>/dev/null)
+        done < <(python3 "${config_py}" --repo-root . --probes)
     fi
 
     local caps_json

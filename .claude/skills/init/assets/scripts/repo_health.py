@@ -43,7 +43,13 @@ import os
 import re
 import shutil
 import sys
-import tomllib
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python < 3.11: say so instead of a bare traceback
+    sys.exit(
+        f"{sys.argv[0]}: needs Python >= 3.11, found {sys.version.split()[0]}; use a newer python3"
+    )
 import urllib.error
 import urllib.request
 from pathlib import Path

@@ -272,7 +272,7 @@ _source_url() {
 _url="$(_source_url || true)"
 _url_hint="${_url:-<marketplace-url>}"
 
-_nonsubtree_route="if you have the CLI plugin, /plugin update claude-arsenal then /init; if you do not (cloud-only, CI, a fresh container), re-clone upstream (${_url_hint}) at the newer tag and run its plugins/core/skills/init/scripts/init.py --repo-path . — see docs/INSTALL.md. Either way, finish with: python3 .claude/skills/init/scripts/init.py --repo-path . --silent"
+_nonsubtree_route="if you have the CLI plugin, re-add the marketplace at the newer tag (claude plugin marketplace add <url>.git#v<version>, see docs/UPDATE.md) then /arsenal-init; if you do not (cloud-only, CI, a fresh container), re-clone upstream (${_url_hint}) at the newer tag and run its plugins/core/skills/init/scripts/init.py --repo-path . — see docs/INSTALL.md. Either way, finish with: python3 .claude/skills/init/scripts/init.py --repo-path . --silent"
 
 if ! git remote get-url "${REMOTE}" >/dev/null 2>&1; then
     if _is_subtree; then
@@ -394,14 +394,15 @@ fi
 # nothing has refreshed them. Re-vendoring first is what makes the upgrade
 # complete rather than a merge followed by a faithful rebuild of the old
 # version.
-vendor_sh="$(find "${PREFIX}/scripts" .claude/skills -name 'vendor-skills.sh' 2>/dev/null | head -1 || true)"
-if [[ "${BUNDLE_DIR}" != "${PREFIX}" && -n "${vendor_sh}" ]]; then
-    bash "${vendor_sh}" --src "${PREFIX}" --dest .claude/skills --plugins all >/dev/null 2>&1 \
-        || _warn "re-vendoring skills from ${PREFIX} failed; the bundle may still be on the old version"
-fi
-
-# Re-run init.py --silent so any new bundle scripts are propagated
-init_py="$(find .claude/skills -name 'init.py' -path '*/init/scripts/init.py' 2>/dev/null | head -1 || true)"
+#
+# Tags are full-repo commits, so the merge just put the NEW init.py at
+# ${PREFIX}/plugins/core/skills/init/scripts/. That is the copy to run: it vendors
+# the new skills and bundle files from its own tree. The one already in
+# .claude/skills is the OLD version, whose source and destination are the same
+# directory, so it re-vendors nothing and the update would end half-done.
+init_py="${PREFIX}/plugins/core/skills/init/scripts/init.py"
+[[ -f "${init_py}" ]] \
+    || init_py="$(find .claude/skills -name 'init.py' -path '*/init/scripts/init.py' 2>/dev/null | head -1 || true)"
 if [[ -n "${init_py}" ]]; then
     # A refusal from init.py (a downgrade guard, a malformed config) is a
     # warning here, not an abort: aborting skips the version verification just
@@ -416,16 +417,10 @@ fi
 # one, and nothing fails.
 now_installed="$(cat "${VERSION_FILE}" 2>/dev/null || echo "0.0.0")"
 if [[ "${now_installed}" != "${latest}" ]]; then
-    # The remedy has to match the layout. `vendor-skills.sh` was the separate
-    # vendoring step before v2.0.0 and is not shipped any more — printing it
-    # unconditionally sent every modern install after a file that is not there,
-    # and the real remedy (init.py, which vendors) read like an afterthought to
-    # it. So name it only where the find above actually located one.
-    _revendor=""
-    [[ -n "${vendor_sh}" ]] && _revendor="
-    bash ${vendor_sh} --src ${PREFIX} --dest .claude/skills --plugins all"
-    _warn "subtree merged to v${latest} but ${VERSION_FILE} still reads ${now_installed} — the bundle was NOT upgraded. Re-vendor the skills and re-run init.py:${_revendor}
-    python3 .claude/skills/init/scripts/init.py --repo-path . --silent"
+    # The remedy names only what exists: the init.py the merge just brought in
+    # (it vendors the skills itself; `vendor-skills.sh` has not shipped since v2.0.0).
+    _warn "subtree merged to v${latest} but ${VERSION_FILE} still reads ${now_installed} — the bundle was NOT upgraded. Run the merged init.py, which re-vendors the skills:
+    python3 ${PREFIX}/plugins/core/skills/init/scripts/init.py --repo-path . --silent"
     exit 0
 fi
 

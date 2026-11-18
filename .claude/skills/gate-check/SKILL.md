@@ -1,6 +1,6 @@
 ---
 name: gate-check
-description: Reports PASS/FAIL with measured numbers on a plan task's acceptance gate, or audits all gates. Use when the user asks whether a gate passed. Not for writing code.
+description: Reports PASS/FAIL with measured numbers on a plan task's acceptance gate, or audits all gates. Use when the user asks whether a gate passed. Not for writing code or queue task gates.
 user-invocable: true
 metadata:
   section: workflow
@@ -18,6 +18,11 @@ CANARY: gate-check-loaded-2026-06-06-fb78d23e-e26f5d00ce664711
 Load when a plan already carries a `Gate` column and the question is whether a
 finished task met it, with the measured number. `execution` writes the evidence;
 this skill verifies it, and `review` / `ship` run it.
+
+This is the **plan gate** (`status/plan.md` rows, `run_gate.py`). A queue task's
+gate is a different mechanism: a fenced `bash` block in `arsenal/tasks/<id>.md`,
+run by `claude-arsenal/bin/gate_run.sh`. For "did task t-… pass its gate", run that
+script; this skill does not read task files.
 
 ## The gate contract
 

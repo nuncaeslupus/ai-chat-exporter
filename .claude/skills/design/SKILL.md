@@ -14,7 +14,8 @@ Owns sections 5–6 of `status/specification.md` (contracts, risks) and creates 
 
 **Before Step 1 — the spec must be approved.** The `specify` skill's validator
 answers it: `validate_spec.py --input status/specification.md --require-approved`
-(in that skill's `scripts/`).
+(in that skill's `scripts/`). In a workspace, point `--input` at
+`arsenal/project/<WORKSPACE>/spec.md` (see Workspace-aware paths below).
 
 Anything but exit 0 means stop and hand the spec back for approval, because a plan
 written before approval is built on a draft.
@@ -84,7 +85,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/validate_plan.py" --input status/plan.md
 
 The graph is generated, never hand-drawn; rerun `sync_plan_graph.py --apply` after any change to **Depends**. The validator checks shape — the required sections and task-table columns, Gate included — and that every Depends edge is in the graph (a path counts: the graph leaves out edges a longer path implies, and past drawspec's one-flow budget it is split into a phase overview plus one graph per phase). A graph that is not a drawspec fence (an older plan's ASCII art) only warns, with the `--apply` fix. `gate-check`'s `run_gate.py --strict` audits the gate values.
 
-Draw any picture as a fenced `drawspec` block: `claude-arsenal:core:init § references/diagrams.md`.
+Draw any picture as a fenced diagram spec rather than hand-drawn SVG or ASCII art; load `claude-arsenal/references/diagrams.md` before the first one.
 
 ### Step 6: Publish the annotatable plan
 
@@ -101,7 +102,7 @@ It writes `<repo>-plan-v<N>-<date>-reader.html` and `…-annotated.md` and print
 keeps the spec's review record (`**Revision**`, `**Status**`, `**Revision log**`);
 seeding tasks or starting `execution` waits for
 `validate_plan.py --input <plan> --require-approved`. Load
-`claude-arsenal:core:init § references/annotatable-reader.md` when a returned notes
+`claude-arsenal/references/annotatable-reader.md` when a returned notes
 export arrives or when recording approval.
 
 ---

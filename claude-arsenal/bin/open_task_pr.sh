@@ -634,12 +634,25 @@ _resolve_issue() {
     # with no scriptable channel the model holds the number, not the script.
     local slug
     slug="$(bash "${SCRIPT_DIR}/github_channel.sh" --slug 2>/dev/null)" || return 1
-    if out="$(bash "${SCRIPT_DIR}/github_channel.sh" --api GET \
-                "/repos/${slug}/issues?labels=arsenal:task&state=all&per_page=100" 2>/dev/null)"; then
-        if out="$(printf '%s' "${out}" | python3 "${resolver}" --task "${TASK_ID}" --issues - 2>/dev/null)"; then
-            printf '%s' "${out}"
-            return 0
-        fi
+    # The label is the host's `task-label` setting (queue_hooks.py reads the same
+    # one), and the listing is paged: a board that has ever held more than 100
+    # task issues (state=all) otherwise loses the handle past page 1.
+    local label page n pages="[]" body
+    label="$(python3 "${BUNDLE_SCRIPTS}/arsenal_config.py" --get task-label 2>/dev/null)" || label=""
+    label="$(python3 -c 'import sys,urllib.parse as u; print(u.quote(sys.argv[1] or "arsenal:task", safe=""))' "${label}")"
+    for page in 1 2 3 4 5 6 7 8 9 10; do
+        body="$(bash "${SCRIPT_DIR}/github_channel.sh" --api GET \
+            "/repos/${slug}/issues?labels=${label}&state=all&per_page=100&page=${page}" 2>/dev/null)" || return 1
+        pages="$(printf '%s\n%s' "${pages}" "${body}" | python3 -c '
+import json, sys
+head, _, tail = sys.stdin.read().partition("\n")
+print(json.dumps(json.loads(head) + json.loads(tail)))' 2>/dev/null)" || return 1
+        n="$(printf '%s' "${body}" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' 2>/dev/null)" || return 1
+        (( n < 100 )) && break
+    done
+    if out="$(printf '%s' "${pages}" | python3 "${resolver}" --task "${TASK_ID}" --issues - 2>/dev/null)"; then
+        printf '%s' "${out}"
+        return 0
     fi
     return 1
 }
@@ -679,6 +692,24 @@ current="${_ENTRY_BRANCH}"
 if [[ -n "${PREFLIGHT}" ]]; then
     :
 elif [[ "${current}" != "${BRANCH}" ]]; then
+    # Only uncommitted edits ride onto a branch cut from the default branch. Work
+    # the session already COMMITTED on its own branch would be silently left
+    # behind, and the PR would claim a passing gate over a diff that is only the
+    # task-file archive. Refuse instead and name the way out.
+    # An existing destination branch is the base when there is one: switching to
+    # it only drops commits it does not already contain.
+    _base="${default_ref}"
+    git rev-parse --verify --quiet "${BRANCH}" >/dev/null 2>&1 && _base="${BRANCH}"
+    if ! _ahead="$(git rev-list --count "${_base}..HEAD" 2>/dev/null)"; then
+        echo "open_task_pr: cannot compare HEAD with '${_base}', so unpublished commits cannot be ruled out. Fetch the default branch and re-run." >&2
+        exit 1
+    fi
+    if [[ "${_ahead}" =~ ^[0-9]+$ ]] && (( _ahead > 0 )); then
+        echo "open_task_pr: HEAD (${current:-detached}) has ${_ahead} commit(s) not on ${_base}; switching to ${BRANCH} would drop them." >&2
+        echo "  To publish that work, re-run with  --branch ${current:-<name>}  (commit and push on the current branch)," >&2
+        echo "  or move the commits yourself first. Nothing has been committed." >&2
+        exit 1
+    fi
     if git rev-parse --verify --quiet "${BRANCH}" >/dev/null 2>&1; then
         git checkout "${BRANCH}" >/dev/null 2>&1 || { echo "open_task_pr: cannot switch to ${BRANCH}" >&2; exit 1; }
     elif ! git checkout -b "${BRANCH}" "${default_ref}" >/dev/null 2>&1; then

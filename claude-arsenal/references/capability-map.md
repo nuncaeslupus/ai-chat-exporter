@@ -3,7 +3,7 @@
 Read when a task looks like something a skill would do, or when deciding
 whether to mention a section this repo does not have.
 
-The session-start protocol runs `init.py --list-sections` (step 0c). This file
+The session-start protocol runs `init.py --list-sections` (`bin/session_start.sh`, step 0). This file
 says what to do with what it printed.
 
 ---

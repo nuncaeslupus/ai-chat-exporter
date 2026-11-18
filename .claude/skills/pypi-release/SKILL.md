@@ -67,6 +67,9 @@ The extra index supplies dependencies TestPyPI rarely hosts.
 Tag immediately before uploading, so a failed upload leaves at most a tag to
 move rather than a mismatch with PyPI:
 
+PyPI never accepts a re-upload and a pushed tag is public, so stop here and get
+the user's explicit go-ahead for this version, whatever `autonomy` says.
+
 ```bash
 git tag vX.Y.Z && git push origin vX.Y.Z
 uvx twine upload dist/*

@@ -1,11 +1,17 @@
-# Diagrams in specs, plans and docs — drawspec, not hand-drawn
+# Diagrams in specs, plans and docs — a fenced spec, not hand-drawn
 
 Loaded when a spec, plan or design document needs a picture. `specify` and
 `design` point here; so does anything else that writes one.
 
+The bundle's own renderer, `create_reader.py` and `render_diagrams.py`, understands
+one spec format, [drawspec](https://github.com/nuncaeslupus/drawspec). Nothing
+installs it for you: use it when the host can run it (see *Running drawspec*), and
+otherwise use whatever diagram-as-text format the host's renderer supports. What
+carries over either way is the rule below: describe the diagram, never draw it.
+
 ## Write what the diagram means, not where things go
 
-A diagram is a [drawspec](https://github.com/nuncaeslupus/drawspec) document:
+A drawspec diagram is a document:
 JSON naming the nodes, edges, labels and a semantic role for each. drawspec
 computes every coordinate and renders SVG that takes its colour from the page, so
 it reads in dark mode and in greyscale print.
@@ -17,10 +23,9 @@ violation with the JSON pointer of where it was written, so a broken diagram is
 an error message instead of a picture that looks wrong.
 
 The format — the kinds (`flow`, `tree`, `timeline`, `matrix`, …), the roles, the
-one rule — is drawspec's own
-[AGENTS.md](https://github.com/nuncaeslupus/drawspec/blob/main/AGENTS.md). Read it
-whole before the first diagram; `drawspec kinds` and `drawspec example <kind>`
-print the short version.
+one rule — is documented by the installed tool: `drawspec kinds` lists them and
+`drawspec example <kind>` prints a working one. Use those rather than a remote
+file, which can change under you.
 
 ## Where it goes: a fenced block in the Markdown
 

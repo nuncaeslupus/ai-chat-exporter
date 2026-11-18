@@ -21,14 +21,14 @@
 #         1 the tree had work and it could not be snapshotted;
 #         2 snapshotted but not pushed — the local ref is on stderr, and on a
 #           cloud surface it does not survive the container.
-# Env:    ARSENAL_REMOTE — remote to push to (default `origin`).
+# Env:    ARSENAL_QUEUE_REMOTE — remote to push to (default `origin`).
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TASK_ID="${1:-}"
 REASON="${2:-parked before the PR}"
-REMOTE="${ARSENAL_REMOTE:-origin}"
+REMOTE="${ARSENAL_QUEUE_REMOTE:-origin}"
 
 [[ -n "${TASK_ID}" ]] || { echo "usage: park_task.sh <task_id> [<reason>]" >&2; exit 1; }
 # A task id names a branch; refuse anything git would read as more than one.

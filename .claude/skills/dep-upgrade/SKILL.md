@@ -60,8 +60,9 @@ version as a risk.
 make test        # or: uv run pytest
 ```
 
-Green: report the upgrade with the direct/transitive breakdown and any CVE
-findings. Red: classify each failure as a behaviour change in a direct dep (read
+Green: `rm uv.lock.bak` (a `git add -A` would commit a second lockfile), then
+report the upgrade with the direct/transitive breakdown and any CVE findings.
+Red: classify each failure as a behaviour change in a direct dep (read
 its changelog), a transitive bump exposing a latent bug, or a real
 incompatibility. Pin the minimum necessary in `pyproject.toml`, re-lock and
 re-run; fix the code or the pin rather than the test.

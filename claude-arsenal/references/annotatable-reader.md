@@ -77,11 +77,22 @@ written on, read-only and full length, not only in a Markdown file:
 create_reader.py --input <doc> --output-dir <its dir> --notes <the export> --bake
 ```
 
-That writes `<repo>-<doc>-v<N>-<stamp>-reviewed.html` and nothing else; a rebuild
-does not remove it. Run it before the bump, while the text still matches the notes.
+That writes `<repo>-<doc>-v<N>-<stamp>-reviewed.html` and its GitHub copy
+`…-reviewed.md` (below), and nothing else; a rebuild does not remove them. Run it before the bump, while the text still matches the notes.
 Applying the export makes the next revision: bump `**Revision**`, add a
 `**Revision log**` line naming the export, regenerate the reader, and commit the
-export and the reviewed copy **in the same commit** as that revision.
+export, the reviewed copy and its `.md` + `-img/` **in the same commit** as that
+revision.
+
+**Link the `.md`, not the HTML.** GitHub shows an HTML file as source, with
+every picture base64 inside it. So every run also writes `<stem>-reader.md`
+(`-reviewed.md` with `--bake`) and the pictures as files in `<stem>-img/` —
+JPEG downscaled to `--picture-width` (1400 px) when Pillow is importable
+(`uv run --with markdown --with pillow …`), copied as-is otherwise; drawspec
+diagrams as SVG — with every note as a `> [!NOTE]` alert under its section,
+an anchored note quoting its passage. That `.md` is the public record to link
+from a README, a PR or anywhere else; the HTML stays the annotation tool.
+`--no-markdown` skips it.
 
 **Before that commit, read both for personal data, with the same weight as the
 commit itself.** Notes are free text from a private review; once committed they
