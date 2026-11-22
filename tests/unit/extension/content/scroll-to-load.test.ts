@@ -175,6 +175,35 @@ describe('scroll-to-load', () => {
     expect(result.conversation?.pairs.map((pair) => pair.index)).toEqual([0, 1, 2]);
   });
 
+  it("does not carry the partial window's drift report onto the stitched result", async () => {
+    vi.useFakeTimers();
+    const { doc } = buildVirtualized(6);
+    const parser = new ClaudeParser(doc);
+    const parse = parser.parse.bind(parser);
+    // Only the plain parse -- the first call -- saw the partial window and
+    // reported it; the walk disproves that by finding every turn.
+    const drift = {
+      fingerprint: 'abc',
+      platform: 'claude',
+      extensionVersion: '0',
+      buildTarget: 'chrome' as const,
+      detectedAt: '2026-11-22',
+      selectorFindings: [],
+      sanityFindings: [{ rule: 'turns-dropped' as const, detail: 'partial window' }],
+    };
+    let calls = 0;
+    vi.spyOn(parser, 'parse').mockImplementation(() => {
+      const result = parse();
+      calls += 1;
+      return calls === 1 ? { ...result, drift } : result;
+    });
+
+    const result = await run(parser, doc);
+
+    expect(result.conversation?.pairs).toHaveLength(3);
+    expect(result.drift).toBeUndefined();
+  });
+
   it('restores the scroll position the user was at', async () => {
     vi.useFakeTimers();
     const { doc, scroller } = buildVirtualized(6);
