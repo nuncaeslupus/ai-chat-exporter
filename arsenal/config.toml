@@ -101,7 +101,7 @@ review-bots = ["coderabbitai[bot]"]
 # prescribed a RISK fix, so implementing it moved the tree and left the receipt
 # bound to a tree that no longer exists. Round 3 reads only that delta.
 review-max-rounds = 3
-setup-interview = "2026-11-18"
+setup-interview = "2026-11-22"
 
 [models]
 orchestrator = ""

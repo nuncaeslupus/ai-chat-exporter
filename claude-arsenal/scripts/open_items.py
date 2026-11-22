@@ -1,0 +1,246 @@
+#!/usr/bin/env python3
+"""open_items.py — open review items that wait in the repository between PRs.
+
+Items a person still has to judge (a question, or a doubtful result with its
+evidence) are appended to `<ARSENAL_HOME>/evidence/open.jsonl`, one JSON object
+per line, so they merge with the PR that raised them and are not lost when a
+conversation ends. Answering one appends it to `decisions.jsonl` beside it (both files
+are append-only; "open" means open.jsonl minus decided ids) and
+regenerates `decisions.md`, a short readable log.
+
+    open_items.py add --what TEXT --where PLACE [--kind question|evidence]
+                      [--evidence PATH ...] [--severity S] [--confidence C]
+                      [--fix TEXT] [--pr N]          # prints the new id
+    open_items.py list [--json]                       # oldest first
+    open_items.py answer ID --verdict fine|fix|not-a-bug [--note TEXT] [--by NAME]
+    open_items.py apply EXPORT [--by NAME]            # answer every item with a verdict
+
+`ARSENAL_HOME` relocates the store as it does the rest of the host tree. The
+first write also adds `merge=union` for both JSONL files to `.gitattributes`, so
+two PRs that each append a line merge without a conflict.
+
+Exit: 0 ok, 1 a named item or export problem, 2 usage error.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import json
+import os
+import secrets
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from review_notes import VERDICTS, NotesError, parse_block
+
+KINDS = ("question", "evidence")
+UNION_FILES = ("open.jsonl", "decisions.jsonl", "decisions.md")
+
+
+class ItemError(Exception):
+    """A named item or export problem (exit 1)."""
+
+
+def evidence_dir() -> Path:
+    return Path(os.environ.get("ARSENAL_HOME", "").strip() or "arsenal") / "evidence"
+
+
+def _today() -> str:
+    return dt.date.today().isoformat()
+
+
+def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    rows = []
+    for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if line.strip():
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError as exc:
+                raise ItemError(f"{path}:{n} is not valid JSON — {exc}") from exc
+    return rows
+
+
+def _repo_root() -> Path:
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True, check=True
+        )
+        return Path(out.stdout.strip())
+    except (OSError, subprocess.CalledProcessError):
+        return Path.cwd()
+
+
+def ensure_union_merge(store: Path) -> None:
+    """Add `merge=union` for the store's files to the repo root's .gitattributes, once."""
+    root = _repo_root().resolve()
+    try:
+        rel = store.resolve().relative_to(root).as_posix()
+    except ValueError:
+        print(
+            f"open_items: warning: {store} is outside the repository; no merge rule",
+            file=sys.stderr,
+        )
+        return
+    attrs = root / ".gitattributes"
+    wanted = [f"{rel}/{name} merge=union" for name in UNION_FILES]
+    have = attrs.read_text(encoding="utf-8").splitlines() if attrs.exists() else []
+    missing = [w for w in wanted if w not in have]
+    if missing:
+        attrs.write_text("\n".join(have + missing) + "\n", encoding="utf-8")
+
+
+def _decided_ids(store: Path) -> set[str]:
+    return {str(r.get("id")) for r in read_jsonl(store / "decisions.jsonl")}
+
+
+def open_rows(store: Path) -> list[dict[str, Any]]:
+    """open.jsonl minus every id already decided, first line per id.
+
+    Both files are append-only: an answer never rewrites open.jsonl, so a union merge
+    of a branch that answered an item with one that appended next to it cannot bring
+    the answered item back.
+    """
+    decided, seen, rows = _decided_ids(store), set(), []
+    for r in read_jsonl(store / "open.jsonl"):
+        rid = r.get("id")
+        if rid not in decided and rid not in seen:
+            seen.add(rid)
+            rows.append(r)
+    return rows
+
+
+def add(args: argparse.Namespace) -> str:
+    store = evidence_dir()
+    item: dict[str, Any] = {
+        "id": "oi-" + secrets.token_hex(4),
+        "opened": _today(),
+        "kind": args.kind,
+        "what": args.what,
+        "where": args.where,
+        "evidence": args.evidence or [],
+    }
+    for key in ("severity", "confidence", "fix", "pr"):
+        if getattr(args, key) is not None:
+            item[key] = getattr(args, key)
+    path = store / "open.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(item, ensure_ascii=False, sort_keys=True) + "\n")
+    ensure_union_merge(store)
+    return str(item["id"])
+
+
+def render_decisions_md(rows: list[dict[str, Any]]) -> str:
+    out = [
+        "# Decisions",
+        "",
+        "Generated by `open_items.py` from `decisions.jsonl`; newest first.",
+        "",
+    ]
+    for r in sorted(rows, key=lambda r: (r.get("answered", ""), r.get("id", "")), reverse=True):
+        head = f"- **{r.get('answered', '?')}** · `{r.get('id')}` · **{r.get('verdict')}**"
+        extra = [f"{k}: {r[k]}" for k in ("where", "note", "by") if r.get(k)]
+        # One line per decision, so a union merge of two regenerations stays valid.
+        out.append(" · ".join([f"{head} — {r.get('what', '')}", *extra]))
+    return "\n".join(out) + "\n"
+
+
+def answer(item_id: str, verdict: str, note: str = "", by: str = "") -> dict[str, Any]:
+    if verdict not in VERDICTS:
+        raise ItemError(f"verdict {verdict!r} is not one of {', '.join(VERDICTS)}")
+    store = evidence_dir()
+    match = [r for r in open_rows(store) if r.get("id") == item_id]
+    if not match:
+        raise ItemError(f"no open item {item_id!r} in {store / 'open.jsonl'}")
+    decided = dict(match[0], verdict=verdict, note=note, answered=_today())
+    if by:
+        decided["by"] = by
+    with (store / "decisions.jsonl").open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(decided, ensure_ascii=False, sort_keys=True) + "\n")
+    decisions = read_jsonl(store / "decisions.jsonl")
+    (store / "decisions.md").write_text(render_decisions_md(decisions), encoding="utf-8")
+    ensure_union_merge(store)
+    return decided
+
+
+def task_line(decided: dict[str, Any]) -> str:
+    fix = decided.get("fix") or decided.get("note") or decided.get("what", "")
+    origin = f"{decided['id']} ({decided.get('where', '')})"
+    return f'create_task.py --title "Fix: {fix}" --size S  # from {origin}'
+
+
+def apply_export(path: Path, by: str) -> list[dict[str, Any]]:
+    try:
+        notes = parse_block(path.read_text(encoding="utf-8"))
+    except (OSError, NotesError) as exc:
+        raise ItemError(str(exc)) from exc
+    open_ids = {r.get("id") for r in open_rows(evidence_dir())}
+    done = []
+    for item_id, entry in notes["items"].items():
+        if entry.get("verdict") and item_id in open_ids:
+            done.append(answer(item_id, entry["verdict"], entry.get("note", ""), by))
+    return done
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    sub = parser.add_subparsers(dest="cmd", required=True)
+    a = sub.add_parser("add")
+    a.add_argument("--what", required=True)
+    a.add_argument("--where", required=True)
+    a.add_argument("--kind", choices=KINDS, default="question")
+    a.add_argument("--evidence", nargs="*")
+    a.add_argument("--severity")
+    a.add_argument("--confidence")
+    a.add_argument("--fix")
+    a.add_argument("--pr", type=int)
+    ls = sub.add_parser("list")
+    ls.add_argument("--json", action="store_true")
+    an = sub.add_parser("answer")
+    an.add_argument("id")
+    an.add_argument("--verdict", required=True, choices=VERDICTS)
+    an.add_argument("--note", default="")
+    an.add_argument("--by", default="")
+    ap = sub.add_parser("apply")
+    ap.add_argument("export", type=Path)
+    ap.add_argument("--by", default="")
+    args = parser.parse_args(argv)
+    try:
+        if args.cmd == "add":
+            print(add(args))
+        elif args.cmd == "list":
+            rows = sorted(open_rows(evidence_dir()), key=lambda r: r.get("opened", ""))
+            if args.json:
+                print(json.dumps(rows, ensure_ascii=False, indent=2))
+            else:
+                for r in rows:
+                    cols = (r.get("id"), r.get("opened"), r.get("kind"), r.get("where"))
+                    print("  ".join(str(c) for c in cols) + f" — {r.get('what')}")
+                print(f"open items: {len(rows)}")
+        elif args.cmd == "answer":
+            decided = answer(args.id, args.verdict, args.note, args.by)
+            print(f"{decided['id']}: {decided['verdict']}")
+            if decided["verdict"] == "fix":
+                print(task_line(decided))
+        else:
+            for decided in apply_export(args.export, args.by):
+                print(f"{decided['id']}: {decided['verdict']}")
+                if decided["verdict"] == "fix":
+                    print(task_line(decided))
+    except ItemError as exc:
+        print(f"open_items: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    for _stream in (sys.stdout, sys.stderr):
+        if hasattr(_stream, "reconfigure"):
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+    sys.exit(main())
