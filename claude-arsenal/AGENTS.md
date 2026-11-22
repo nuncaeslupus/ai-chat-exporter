@@ -1,6 +1,6 @@
 # Claude Arsenal
 
-<!-- claude-arsenal v5.31.2 — imported via @claude-arsenal/AGENTS.md -->
+<!-- claude-arsenal v5.33.1 — imported via @claude-arsenal/AGENTS.md -->
 
 This file is in context on every turn, so it holds only what a session needs before it
 knows what kind of session it is. The rest lives in `claude-arsenal/references/`: plain
@@ -13,6 +13,9 @@ them. `claude-arsenal/` is the vendored bundle and never moves.
 
 ## How to work
 
+- **Helmwork is the method.** The person decides; the AI builds, verifies, and brings what
+  is doubtful with evidence; every correction leaves a test, check or rule.
+  → `claude-arsenal/references/helmwork.md`
 - **Finish the task.** On an unattended run, carry the work through to its end; put status
   notes alongside the next tool call rather than ending the turn on them. Stop only when
   blocked or before a risky or irreversible action. When the request is a question or a
@@ -153,3 +156,4 @@ renders one, never hand-drawn SVG or ASCII art → `claude-arsenal/references/di
 | `references/repo-housekeeping.md` | Choosing a license, or publishing a package |
 | `references/annotatable-reader.md` | Handing over a spec or plan |
 | `references/capability-map.md` | A task looks like something a skill would do |
+| `references/helmwork.md` | Planning a milestone, building a tool, or after the person corrects something |

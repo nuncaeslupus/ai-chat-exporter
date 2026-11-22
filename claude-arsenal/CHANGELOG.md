@@ -18,6 +18,44 @@ being a changelog nobody reads.
 
 Format: `## [X.Y.Z] - YYYY-MM-DD`, newest first, plain bullets below.
 
+## [5.33.1] - 2026-11-22
+
+- **`references/ci-minutes.md` no longer tells you a dispatch unblocks a merge.** A
+  `workflow_dispatch` run's checks are not attached to the pull request, so required checks
+  stay "expected" however green it is; only a pull-request-event run on the head satisfies
+  them. The page now says what a dispatch is good for and that closing/reopening a PR to
+  get a run is not a fix.
+- `statusline_capture.sh` exits quietly if `$CLAUDE_PROJECT_DIR` cannot be entered instead
+  of writing `arsenal/session/` under the wrong directory.
+
+## [5.33.0] - 2026-11-19
+
+- **New script `scripts/open_items.py`** — open review items (questions, doubtful results
+  with evidence) now wait in the repository instead of in a conversation:
+  `arsenal/evidence/open.jsonl`, one line per item, appended by the PR that raises it.
+  `answer ID --verdict fine|fix|not-a-bug` records an item in `decisions.jsonl` (both files are
+  append-only, so an answer and a new item from parallel PRs never collide) and
+  regenerates `decisions.md`; a `fix` prints a ready-to-run `create_task.py` line.
+  `apply EXPORT` answers every item a review page's export decided. The first write adds
+  `merge=union` for the store to the repository root's `.gitattributes`.
+  `ARSENAL_HOME` relocates the store.
+
+## [5.32.1] - 2026-11-19
+
+- **New script `scripts/review_notes.py`** — the review-notes v1 format that review pages
+  will share: notes and per-item verdicts (`fine` / `fix` / `not-a-bug`) embedded in an
+  exported notes file as one `<!-- review-notes {...} -->` block.
+  `review_notes.py parse EXPORT` prints it as JSON. First step of the proofsheet plan;
+  nothing uses it yet.
+
+## [5.32.0] - 2026-11-19
+
+- **New reference: `references/helmwork.md`** — the working method behind the bundle:
+  the work cycle with a mandatory evidence-review step, rules for the person and the AI
+  (decide reversible defaults, decision log, learn from every correction), and rules for
+  software built for an AI to use. `AGENTS.md` gains a three-line summary and a row in the
+  references table; the file itself is read on demand.
+
 ## [5.31.2] - 2026-11-18
 
 Fixes to `bin/session_start.sh`, the one-command session start from 5.30.0:

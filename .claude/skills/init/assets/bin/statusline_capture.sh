@@ -20,7 +20,7 @@ set -uo pipefail
 # guard runs blind on every host that sets ARSENAL_HOME.
 # The default path is relative, so anchor it at the project: the status line can
 # be invoked from any cwd and must not create a stray arsenal/ tree there.
-[[ -n "${CLAUDE_PROJECT_DIR:-}" && -d "${CLAUDE_PROJECT_DIR}" ]] && cd "${CLAUDE_PROJECT_DIR}"
+[[ -n "${CLAUDE_PROJECT_DIR:-}" && -d "${CLAUDE_PROJECT_DIR}" ]] && { cd "${CLAUDE_PROJECT_DIR}" || exit 0; }
 OUT="${ARSENAL_RATE_LIMITS_FILE:-${ARSENAL_HOME:-arsenal}/session/rate_limits.json}"
 payload="$(cat || true)"
 

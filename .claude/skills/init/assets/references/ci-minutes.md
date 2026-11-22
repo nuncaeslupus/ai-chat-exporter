@@ -96,17 +96,20 @@ jobs:
 ```
 
 The trade-off, stated plainly: pushes after the PR opens get no CI run. The local
-gates carry those, which is the point. When a CI verdict on the final head is
-wanted — before merge, or because a required check now shows "expected" on a new
-head — dispatch it once on the branch:
+gates carry those, which is the point.
 
-```bash
-gh workflow run <ci-file>.yml --ref <branch>
-```
+A `workflow_dispatch` run (`gh workflow run <ci-file>.yml --ref <branch>`) is good
+for checking code on a branch, such as a verdict on the final head. It does **not**
+unblock a merge: a dispatched run's check suite is not associated with the pull
+request, so branch protection keeps showing the required checks as "expected"
+however green the dispatch is. Only a run triggered by a pull-request event on the
+head commit satisfies them.
 
-A check that is **required** by branch protection and triggered only on `opened`
-blocks every PR that was pushed to after opening, until someone dispatches it.
-Either dispatch before merge as above, or do not make that check required.
+So a check that is **required** by branch protection and triggered only on
+`opened` / `ready_for_review` blocks every PR that was pushed to after opening.
+Either add `synchronize` to the trigger (accepting a run per push), or do not make
+that check required. Closing and reopening the PR, or toggling draft, to force a
+run is not a fix: never do it.
 
 ## CI defaults
 
