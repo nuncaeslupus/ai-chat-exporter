@@ -4,6 +4,10 @@ All notable changes to AI Chat Exporter are recorded here.
 
 ## [Unreleased]
 
+### Changed
+
+- **Quieter service-worker console.** It no longer logs every incoming message or the Claude API URLs (which carry organization and conversation ids).
+
 ## [1.3.1] — 2026-11-13
 
 ### Fixed

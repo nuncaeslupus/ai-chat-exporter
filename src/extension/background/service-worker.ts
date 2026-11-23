@@ -48,8 +48,6 @@ chrome.runtime.onStartup.addListener(() => {
  * Message handler for communication between components
  */
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
-  console.log(`[${EXTENSION_NAME}] Background received message:`, message);
-
   // Handle Claude API data fetch
   if (isClaudeApiFetchMessage(message)) {
     handleClaudeApiFetch(message.data)
@@ -151,8 +149,6 @@ async function handleClaudeApiFetch(request: {
 
   const apiUrl = `https://claude.ai/api/organizations/${organizationId}/chat_conversations/${conversationId}?tree=True&rendering_mode=messages&render_all_tools=true&consistency=strong`;
 
-  console.log(`[${EXTENSION_NAME}] Fetching Claude API:`, apiUrl);
-
   try {
     const response = await fetch(apiUrl, {
       method: 'GET',
@@ -186,8 +182,6 @@ async function handleClaudeApiFetch(request: {
  */
 async function handleClaudeOrganizationsFetch(): Promise<unknown> {
   const apiUrl = 'https://claude.ai/api/organizations';
-
-  console.log(`[${EXTENSION_NAME}] Fetching Claude organizations:`, apiUrl);
 
   try {
     const response = await fetch(apiUrl, {
