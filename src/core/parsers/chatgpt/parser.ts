@@ -288,6 +288,39 @@ export class ChatGPTParser extends BaseParser {
     return article?.getAttribute('data-testid') === 'conversation-turn-1';
   }
 
+  /**
+   * Turns by role, not message units.
+   *
+   * `selectors.messageElement` matches every `[data-content-search-unit-key]`
+   * unit, and one `[data-turn-key]` turn can hold several of them -- a deep
+   * research or scheduled-task answer arrives in parts. Counting units read a
+   * turn delivering two assistant units as two turns, so `turns-dropped`
+   * ("more turns than two per pair") fired on exchanges that lost nothing.
+   * The same role in the same turn is one unit of that comparison; a question
+   * and its answer in one turn stay two, which is what "two per pair" assumes.
+   */
+  protected override countTurnContainers(): number {
+    try {
+      const turnOf = this.selectors.custom?.conversationTurn;
+      const groups = new Set<string>();
+      const ids = new Map<Element, number>();
+      this.document.querySelectorAll(this.selectors.messageElement).forEach((unit) => {
+        const turn = (turnOf ? unit.closest(turnOf) : null) ?? unit;
+        if (!ids.has(turn)) {
+          ids.set(turn, ids.size);
+        }
+        const role =
+          unit.getAttribute('data-content-search-unit-key')?.split(':').pop() ??
+          unit.getAttribute('data-message-author-role') ??
+          '';
+        groups.add(`${ids.get(turn)}:${role}`);
+      });
+      return groups.size;
+    } catch {
+      return 0;
+    }
+  }
+
   protected override turnTextLengthsFor(): number[] {
     return this.turnLengths;
   }

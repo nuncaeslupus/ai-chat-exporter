@@ -1199,6 +1199,32 @@ describe('ChatGPT Parser - scheduled-task conversation (2026-11)', () => {
     expect(result.drift).toBeUndefined();
   });
 
+  it('counts a turn that delivers several units once, so turns-dropped does not fire', () => {
+    // One `[data-turn-key]` holding three assistant units is ONE turn, not
+    // three: counted as units it read as 3 turn containers against 1 pair and
+    // reported a drop that never happened.
+    const grouped = new JSDOM(
+      `<main><div data-turn-key="t">
+        ${[0, 1, 2]
+          .map(
+            (i) => `<div data-content-search-unit-key="t:${i}:assistant">
+              <div data-chatgpt-selection-message-id="m${i}">
+                <div data-markdown-text-style=""><p>Part ${i} of the report.</p></div>
+              </div>
+            </div>`
+          )
+          .join('')}
+      </div></main>`,
+      { url: 'https://chatgpt.com/c/grouped' }
+    ).window.document;
+
+    const result = new ChatGPTParser(grouped).parse();
+
+    expect(result.conversation?.pairs).toHaveLength(1);
+    expect(grouped.querySelectorAll('[data-content-search-unit-key]')).toHaveLength(3);
+    expect(result.drift?.sanityFindings?.map((f) => f.rule) ?? []).not.toContain('turns-dropped');
+  });
+
   it('keeps a second assistant unit that follows a question in the same turn', () => {
     // The unit index is not an alternating 0/2: this turn numbers its answer
     // units 1 and 2, the shape the synthetic fixture does not carry. Reading
