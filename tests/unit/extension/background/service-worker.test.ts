@@ -363,6 +363,34 @@ describe('fetch_claude_organizations message', () => {
     });
   }
 
+  it('logs neither the message nor the API URLs (they carry account and conversation ids)', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      await send({ type: 'fetch_claude_organizations' });
+      await new Promise<void>((resolve) => {
+        onMessageHandler(
+          {
+            type: 'fetch_claude_api_data',
+            data: {
+              organizationId: '11111111-1111-4111-8111-111111111111',
+              conversationId: '22222222-2222-4222-8222-222222222222',
+            },
+          },
+          {},
+          () => {
+            resolve();
+          }
+        );
+      });
+      const logged = JSON.stringify(log.mock.calls);
+      expect(logged).not.toContain('11111111-1111-4111-8111-111111111111');
+      expect(logged).not.toContain('/api/organizations');
+      expect(logged).not.toContain('fetch_claude_organizations');
+    } finally {
+      log.mockRestore();
+    }
+  });
+
   it('fetches the organizations endpoint and returns the parsed response', async () => {
     const response = await send({ type: 'fetch_claude_organizations' });
 
