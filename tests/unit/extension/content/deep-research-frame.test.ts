@@ -49,12 +49,18 @@ describe('deep-research-frame relay', () => {
   let postMessageSpy: MockInstance;
 
   beforeEach(() => {
+    // Fake from the start: every `loadFrameScript()` arms real timers (the
+    // quiet-period relay, the MAX_OBSERVE_MS disconnect) that outlive the test
+    // and fire after jsdom is torn down -- `document is not defined`, reported
+    // by vitest as an unhandled error. Under fake timers they are ours to drop.
+    vi.useFakeTimers();
     document.body.innerHTML = '';
     postMessageSpy = vi.spyOn(window.parent, 'postMessage').mockImplementation(() => undefined);
   });
 
   afterEach(() => {
     postMessageSpy.mockRestore();
+    vi.clearAllTimers();
     vi.useRealTimers();
     // Each `loadFrameScript()` attaches a MutationObserver to `document.body`
     // that outlives the test (it disconnects only after MAX_OBSERVE_MS or a
