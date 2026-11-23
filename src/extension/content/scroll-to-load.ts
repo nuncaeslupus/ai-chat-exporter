@@ -241,6 +241,12 @@ async function walk(parser: IParser, doc: Document): Promise<ParseResult> {
   if (!containsAll(pairs, base.conversation.pairs)) {
     return base;
   }
+  // A walk that found nothing has disproved nothing: `containsAll` holds
+  // trivially when `base` has no pairs either, and `base.drift` is then the
+  // only report of the selector break.
+  if (pairs.length === 0) {
+    return base;
+  }
 
   // `drift` is a verdict on the one window `base` was parsed from -- a
   // `turns-dropped` or `content-shortfall` against a partial render. The walk

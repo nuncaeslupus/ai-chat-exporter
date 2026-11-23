@@ -204,6 +204,35 @@ describe('scroll-to-load', () => {
     expect(result.drift).toBeUndefined();
   });
 
+  it('keeps the drift report when the walk finds no exchange either', async () => {
+    vi.useFakeTimers();
+    const { doc } = buildVirtualized(6);
+    const parser = new ClaudeParser(doc);
+    const parse = parser.parse.bind(parser);
+    // A broken selector: every window, at rest and during the walk, parses to
+    // nothing. The walk has no evidence against the report, so it stays.
+    const drift = {
+      fingerprint: 'abc',
+      platform: 'claude',
+      extensionVersion: '0',
+      buildTarget: 'chrome' as const,
+      detectedAt: '2026-11-22',
+      selectorFindings: [],
+      sanityFindings: [{ rule: 'turns-dropped' as const, detail: 'selector broke' }],
+    };
+    vi.spyOn(parser, 'parse').mockImplementation(() => {
+      const result = parse();
+      return result.conversation === undefined
+        ? result
+        : { ...result, conversation: { ...result.conversation, pairs: [] }, drift };
+    });
+
+    const result = await run(parser, doc);
+
+    expect(result.conversation?.pairs).toHaveLength(0);
+    expect(result.drift).toEqual(drift);
+  });
+
   it('restores the scroll position the user was at', async () => {
     vi.useFakeTimers();
     const { doc, scroller } = buildVirtualized(6);

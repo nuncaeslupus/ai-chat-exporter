@@ -1218,10 +1218,17 @@ describe('ChatGPT Parser - scheduled-task conversation (2026-11)', () => {
       { url: 'https://chatgpt.com/c/grouped' }
     ).window.document;
 
+    class Probe extends ChatGPTParser {
+      turnCount(): number {
+        return this.countTurnContainers();
+      }
+    }
+
     const result = new ChatGPTParser(grouped).parse();
 
     expect(result.conversation?.pairs).toHaveLength(1);
     expect(grouped.querySelectorAll('[data-content-search-unit-key]')).toHaveLength(3);
+    expect(new Probe(grouped).turnCount()).toBe(1);
     expect(result.drift?.sanityFindings?.map((f) => f.rule) ?? []).not.toContain('turns-dropped');
   });
 
