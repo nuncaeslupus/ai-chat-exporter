@@ -1,0 +1,23 @@
+# AI Chats Exporter and Printer
+
+> Export or print your ChatGPT, Claude and Gemini conversations as Markdown, PDF, HTML, Word, plain text or JSON.
+
+A Chrome, Edge and Firefox extension that reads the open conversation, keeps its structure (code blocks, tables, math, citations, artifacts) and writes a clean file. Everything runs locally in your browser; there is no backend.
+
+- Website: https://nuncaeslupus.github.io/ai-chat-exporter/
+- Chrome / Edge: https://chromewebstore.google.com/detail/ai-chat-exporter/jnllafelflonllnhccgofcakopbpjahf
+- Firefox: https://addons.mozilla.org/en-US/firefox/addon/ai-chat-exporter-and-printer/
+
+## Docs
+
+- [README](https://github.com/nuncaeslupus/ai-chat-exporter/blob/main/README.md)
+- [Installation](https://github.com/nuncaeslupus/ai-chat-exporter/blob/main/docs/installation.md)
+- [Usage](https://github.com/nuncaeslupus/ai-chat-exporter/blob/main/docs/usage.md)
+- [Privacy](https://github.com/nuncaeslupus/ai-chat-exporter/blob/main/docs/PRIVACY.md)
+- [Changelog](https://github.com/nuncaeslupus/ai-chat-exporter/blob/main/CHANGELOG.md)
+
+## Optional
+
+- [Developer guide](https://github.com/nuncaeslupus/ai-chat-exporter/blob/main/docs/dev/README.md)
+- [Contributing](https://github.com/nuncaeslupus/ai-chat-exporter/blob/main/CONTRIBUTING.md)
+- [Security policy](https://github.com/nuncaeslupus/ai-chat-exporter/blob/main/SECURITY.md)
