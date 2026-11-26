@@ -211,3 +211,5 @@ Code layout: parsers in `src/core/parsers/<platform>/`, exporters in
 ## License
 
 MIT. See [LICENSE](./LICENSE). Not affiliated with or endorsed by OpenAI, Anthropic or Google.
+
+More tools by the same author: [github.com/nuncaeslupus](https://github.com/nuncaeslupus).
