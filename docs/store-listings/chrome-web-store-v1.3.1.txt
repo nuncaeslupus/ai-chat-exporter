@@ -16,7 +16,7 @@ Save ChatGPT, Claude and Gemini chats as PDF, Markdown, Word, HTML, text or JSON
 DETAILED DESCRIPTION
 ========================================
 
-Export ChatGPT to PDF, save Claude chats as Markdown, download Gemini conversations to Word. AI Chat Exporter turns any ChatGPT, Claude or Gemini conversation into a clean file in one click: PDF, Markdown, Word (.docx), HTML, plain text or JSON. It keeps code highlighting, LaTeX math, images, tables, ChatGPT web citations and Claude artifacts, and exports long chats in full. Everything runs in your browser: no account, no tracking, nothing uploaded.
+Export ChatGPT to PDF, save Claude chats as Markdown, download Gemini conversations to Word. AI Chat Exporter turns any ChatGPT, Claude or Gemini conversation into a clean file in one click, in any of six formats. It keeps code highlighting, LaTeX math, images, tables, ChatGPT web citations and Claude artifacts, and exports long chats in full. Everything runs in your browser: no account, no tracking, nothing uploaded.
 
 Website: https://nuncaeslupus.github.io/ai-chat-exporter/
 
