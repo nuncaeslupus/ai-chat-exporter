@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <title>Export ChatGPT, Claude and Gemini chats to PDF, Markdown or Word | AI Chat Exporter</title>
+    <meta
+      name="description"
+      content="Free browser extension for Chrome, Edge and Firefox. Export or print a ChatGPT, Claude or Gemini conversation as PDF, Markdown, HTML, Word, text or JSON, with code, tables and math kept. Runs locally; nothing is uploaded."
+    />
+    <link rel="canonical" href="https://nuncaeslupus.github.io/ai-chat-exporter/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="AI Chat Exporter and Printer" />
+    <meta property="og:title" content="Export ChatGPT, Claude and Gemini chats to PDF, Markdown or Word" />
+    <meta
+      property="og:description"
+      content="Free extension for Chrome, Edge and Firefox. Keeps code, tables, math and citations. Runs locally; nothing is uploaded."
+    />
+    <meta property="og:url" content="https://nuncaeslupus.github.io/ai-chat-exporter/" />
+    <meta property="og:image" content="https://nuncaeslupus.github.io/ai-chat-exporter/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="A ChatGPT, Claude or Gemini conversation exported as Markdown, PDF, HTML, Word, text or JSON"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "AI Chat Exporter and Printer",
+        "url": "https://nuncaeslupus.github.io/ai-chat-exporter/",
+        "description": "Browser extension that exports or prints ChatGPT, Claude and Gemini conversations as PDF, Markdown, HTML, Word, plain text or JSON, keeping code blocks, tables, math, citations and artifacts. Everything runs locally in the browser.",
+        "applicationCategory": "BrowserApplication",
+        "operatingSystem": "Chrome, Edge, Firefox",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "downloadUrl": [
+          "https://chromewebstore.google.com/detail/ai-chat-exporter/jnllafelflonllnhccgofcakopbpjahf",
+          "https://addons.mozilla.org/en-US/firefox/addon/ai-chat-exporter-and-printer/"
+        ],
+        "sameAs": ["https://github.com/nuncaeslupus/ai-chat-exporter"],
+        "license": "https://opensource.org/licenses/MIT"
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "How do I export a ChatGPT conversation to PDF?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Install the extension, open the conversation on chatgpt.com, click the extension icon, choose PDF and click Export. The PDF is paginated, with syntax-highlighted code and page numbers. Ctrl+Shift+E (Cmd+Shift+E on Mac) repeats the last format."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I export Claude and Gemini chats too?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. It works on claude.ai, including artifact contents, and on gemini.google.com, as well as chatgpt.com and chat.openai.com."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Are my conversations uploaded anywhere?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. The extension has no backend, analytics or telemetry. Reading the page and writing the file happen in your browser. Its only network requests go to the chat site you are already on."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is it free?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes, completely free and open source under the MIT license, with no subscription or limits."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I export only part of a conversation?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. You can pick which question-and-answer pairs to include instead of exporting everything."
+            }
+          }
+        ]
+      }
+    </script>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --fg: #15201c;
+        --muted: #4c5c56;
+        --card: #f2f6f4;
+        --line: #d9e3df;
+        --accent: #0a6b54;
+        --accent-fg: #ffffff;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0c1d18;
+          --fg: #e7efec;
+          --muted: #a3b5ae;
+          --card: #132a23;
+          --line: #23413a;
+          --accent: #3fbf98;
+          --accent-fg: #0c1d18;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font:
+          17px/1.6 system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+      }
+      main,
+      footer {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 0 16px;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding-top: 40px;
+      }
+      header img {
+        width: 48px;
+        height: 48px;
+      }
+      header span {
+        font-weight: 600;
+      }
+      h1 {
+        font-size: clamp(28px, 5vw, 42px);
+        line-height: 1.15;
+        margin: 28px 0 12px;
+      }
+      h2 {
+        margin: 48px 0 12px;
+        font-size: 24px;
+      }
+      h3 {
+        margin: 20px 0 4px;
+        font-size: 18px;
+      }
+      p,
+      li {
+        color: var(--muted);
+      }
+      strong {
+        color: var(--fg);
+      }
+      a {
+        color: var(--accent);
+      }
+      .lead {
+        font-size: 19px;
+      }
+      .buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin: 24px 0;
+      }
+      .buttons a {
+        background: var(--accent);
+        color: var(--accent-fg);
+        padding: 12px 20px;
+        border-radius: 10px;
+        text-decoration: none;
+        font-weight: 600;
+      }
+      .buttons a.secondary {
+        background: var(--card);
+        color: var(--fg);
+        border: 1px solid var(--line);
+      }
+      .hero {
+        width: 100%;
+        height: auto;
+        border-radius: 14px;
+        display: block;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 12px;
+        padding: 0;
+        list-style: none;
+      }
+      .grid li {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 14px 16px;
+      }
+      code,
+      kbd {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        padding: 0 5px;
+        font-size: 0.9em;
+      }
+      footer {
+        margin-top: 56px;
+        padding-bottom: 40px;
+        border-top: 1px solid var(--line);
+        font-size: 15px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="icon-128.png" alt="" width="48" height="48" />
+        <span>AI Chat Exporter and Printer</span>
+      </header>
+
+      <h1>Export ChatGPT, Claude and Gemini chats to PDF, Markdown or Word</h1>
+      <p class="lead">
+        A free browser extension for Chrome, Edge and Firefox. It reads the conversation you have
+        open and saves it as <strong>PDF, Markdown, HTML, Word (.docx), plain text or JSON</strong>,
+        or prints it, keeping code blocks, tables, math, citations and artifacts that copy-paste
+        loses. Everything runs in your browser; your chats are never uploaded.
+      </p>
+
+      <div class="buttons">
+        <a
+          href="https://chromewebstore.google.com/detail/ai-chat-exporter/jnllafelflonllnhccgofcakopbpjahf"
+          >Add to Chrome or Edge</a
+        >
+        <a href="https://addons.mozilla.org/en-US/firefox/addon/ai-chat-exporter-and-printer/"
+          >Add to Firefox</a
+        >
+        <a class="secondary" href="https://github.com/nuncaeslupus/ai-chat-exporter"
+          >Source code</a
+        >
+      </div>
+
+      <img
+        class="hero"
+        src="hero.jpg"
+        width="1280"
+        height="640"
+        alt="A conversation from ChatGPT, Claude or Gemini, with one question-and-answer pair selected and one left out, goes through the extension (Ctrl+Shift+E, the popup or a right-click) and comes out as Markdown, PDF, HTML, Word, plain text or JSON"
+      />
+
+      <h2>Six formats</h2>
+      <ul class="grid">
+        <li><strong>PDF</strong>: paginated, with syntax-highlighted code and page numbers.</li>
+        <li><strong>Markdown</strong>: for notes apps, docs and feeding to other AI tools.</li>
+        <li><strong>HTML</strong>: a standalone page, with a dark mode.</li>
+        <li><strong>Word (.docx)</strong>: to keep editing in Word or Google Docs.</li>
+        <li><strong>Plain text</strong>: the conversation and nothing else.</li>
+        <li>
+          <strong>JSON</strong>: platform, model, URL, timestamps and the ordered question/answer
+          pairs, for scripts and agents.
+        </li>
+      </ul>
+
+      <h2>What it keeps</h2>
+      <p>
+        Code blocks, tables, lists, headings, blockquotes, images, math (as its LaTeX source), web
+        search citations, ChatGPT canvas and Deep Research reports, and Claude artifacts. Each
+        export starts with the title, platform, model, date and URL.
+      </p>
+
+      <h2>How to use it</h2>
+      <ol>
+        <li>Open a conversation on chatgpt.com, claude.ai or gemini.google.com.</li>
+        <li>Click the extension icon, choose a format, then <strong>Export</strong> or <strong>Print</strong>.</li>
+        <li>
+          Or right-click the page and use the <strong>Export</strong> and <strong>Print</strong>
+          menus, or press <kbd>Ctrl+Shift+E</kbd> (<kbd>Cmd+Shift+E</kbd> on Mac) to export in the
+          format you last used.
+        </li>
+      </ol>
+      <p>
+        You can pick which question-and-answer pairs to include, set the text size, build the file
+        name, and switch the language: English, Spanish, French, German, Italian, Portuguese or
+        Catalan.
+      </p>
+
+      <h2>Private by design</h2>
+      <p>
+        No account, no backend, no analytics. The only network requests go to the chat site you are
+        already on: Claude's own API for artifact contents, and the conversation's images when a PDF
+        embeds them. Read the <a
+          href="https://github.com/nuncaeslupus/ai-chat-exporter/blob/main/docs/PRIVACY.md"
+          >privacy policy</a
+        >.
+      </p>
+
+      <h2>Questions</h2>
+      <h3>How do I export a ChatGPT conversation to PDF?</h3>
+      <p>
+        Open the conversation, click the extension icon, choose PDF and click Export. The same works
+        for Markdown, Word and the other formats.
+      </p>
+      <h3>Can I export Claude and Gemini chats too?</h3>
+      <p>Yes: claude.ai (with artifact contents), gemini.google.com and chatgpt.com.</p>
+      <h3>Can I export only part of a conversation?</h3>
+      <p>Yes. Select the question-and-answer pairs you want before exporting.</p>
+      <h3>Does it export all my chats at once?</h3>
+      <p>No. It exports the conversation you have open, one at a time.</p>
+      <h3>Is it free?</h3>
+      <p>Yes. Free and open source under the MIT license, with no limits.</p>
+
+      <h2>More tools by the same author</h2>
+      <ul>
+        <li>
+          <a href="https://nuncaeslupus.github.io/image-to-svg/">Image to SVG</a>: convert PNG, JPG
+          or WebP to SVG in the browser.
+        </li>
+        <li>
+          <a href="https://nuncaeslupus.github.io/nacho-viewer/">Nacho Viewer</a>: a desktop viewer
+          for Markdown files.
+        </li>
+        <li>
+          <a href="https://github.com/nuncaeslupus/research-buddy">research-buddy</a> and
+          <a href="https://github.com/nuncaeslupus/claude-arsenal">claude-arsenal</a>: tools for
+          working with AI agents.
+        </li>
+      </ul>
+    </main>
+    <footer>
+      <p>
+        MIT licensed. Not affiliated with or endorsed by OpenAI, Anthropic or Google.
+        <a href="https://github.com/nuncaeslupus">github.com/nuncaeslupus</a>
+      </p>
+    </footer>
+  </body>
+</html>

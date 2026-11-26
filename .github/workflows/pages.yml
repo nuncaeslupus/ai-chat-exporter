@@ -1,0 +1,37 @@
+name: pages
+
+# Copies site/ and llms.txt to the root of gh-pages, which GitHub Pages serves.
+on:
+  push:
+    branches: [main]
+    paths: ['site/**', 'llms.txt', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: gh-pages
+
+permissions:
+  contents: write
+
+jobs:
+  site:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: |
+          if git fetch --depth 1 origin gh-pages; then
+            git worktree add pages FETCH_HEAD
+            git -C pages switch -c gh-pages
+          else
+            git worktree add --orphan -b gh-pages pages
+          fi
+          cp -r site/. pages/
+          cp llms.txt pages/
+          # GitHub Pages serves the files as they are.
+          touch pages/.nojekyll
+          cd pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || { git commit -m "site: ${GITHUB_SHA::7}" && git push origin gh-pages; }
