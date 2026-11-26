@@ -221,17 +221,13 @@ some surfaces, recommended) and the 128x128 icon (taken from the package).
 
 ## Open decisions for the owner
 
-1. **Firefox add-on id.** `manifests/manifest.firefox.json` uses the placeholder
-   `ai-chat-exporter@example.com`. See `manifests/README.md`: an AMO listing with
-   slug `ai-chat-exporter` already exists under another author and guid
-   `claude-chat-exporter@example.com`. If this project has no AMO listing yet,
-   pick a real id (an email-style or `{uuid}` id you control) before the first
-   upload, because the id cannot change afterwards. If it does have one, use that
-   id verbatim. The slug `ai-chat-exporter` is taken: use
-   `ai-chats-exporter-and-printer`.
+None open.
 
 Decided:
 
+- **Firefox add-on id:** `ai-chats-exporter-and-printer@nuncaeslupus.github.io`
+  (fixed forever after the first AMO upload; see `manifests/README.md`). The
+  slug `ai-chat-exporter` is taken: use `ai-chats-exporter-and-printer`.
 - **Name:** "AI Chats Exporter and Printer" everywhere (manifest `extensionName`,
   both store listings, exported-file footers).
 - **Chrome data usage:** tick none of the categories (see above).
