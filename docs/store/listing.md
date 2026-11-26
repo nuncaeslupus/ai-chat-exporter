@@ -11,7 +11,7 @@ v1.3.0 was refused for it. Check with `node build/check-release.cjs keywords`.
 
 | Field | Value |
 |---|---|
-| Name | AI Chat Exporter and Printer (see "Name" under Open decisions: the manifest says `AI Chat Exporter`) |
+| Name | AI Chats Exporter and Printer |
 | Category (Chrome) | Productivity |
 | Category (AMO) | Productivity |
 | Language | English (the extension ships ca, de, en, es, fr, it, pt) |
@@ -40,7 +40,7 @@ Export and print ChatGPT, Claude and Gemini conversations to PDF, Markdown, Word
 ## Full description (both stores)
 
 ```
-Export your AI conversations with professional formatting - AI Chat Exporter makes it easy to save and share your conversations with ChatGPT, Claude and Gemini in multiple formats.
+Export your AI conversations with professional formatting - AI Chats Exporter and Printer makes it easy to save and share your conversations with ChatGPT, Claude and Gemini in multiple formats.
 
 🎯 Key Features
 
@@ -161,7 +161,7 @@ AMO has no per-permission form; reviewers read the "Notes to reviewer" below.
 
 ## Chrome privacy tab: data usage
 
-**Which user data do you collect?** Tick none of the categories. The extension
+**Which user data do you collect?** Tick none of the categories (owner's decision). The extension
 reads page content (the conversation) to build the file, but that content is
 processed on the device and never transmitted to the developer or any third
 party; the developer runs no server. Google's policy counts data that leaves the
@@ -227,9 +227,11 @@ some surfaces, recommended) and the 128x128 icon (taken from the package).
    `claude-chat-exporter@example.com`. If this project has no AMO listing yet,
    pick a real id (an email-style or `{uuid}` id you control) before the first
    upload, because the id cannot change afterwards. If it does have one, use that
-   id verbatim. Also expect the slug and name to be taken.
-2. **Name.** The installed name comes from the manifest (`extensionName` in
-   `_locales/*/messages.json`, currently "AI Chat Exporter"). The existing
-   listings call it "AI Chat Exporter and Printer". Chrome shows the manifest
-   name as the item name, so align one of them.
-3. **Chrome data usage** answer above (recommended: tick nothing).
+   id verbatim. The slug `ai-chat-exporter` is taken: use
+   `ai-chats-exporter-and-printer`.
+
+Decided:
+
+- **Name:** "AI Chats Exporter and Printer" everywhere (manifest `extensionName`,
+  both store listings, exported-file footers).
+- **Chrome data usage:** tick none of the categories (see above).

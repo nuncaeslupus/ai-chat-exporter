@@ -1,6 +1,6 @@
 {
   "extensionName": {
-    "message": "AI Chat Exporter",
+    "message": "AI Chats Exporter and Printer",
     "description": "Nombre de la extensión"
   },
   "extensionDescription": {
@@ -308,7 +308,7 @@
     }
   },
   "exportedWithChatExporter": {
-    "message": "Exportado con AI Chat Exporter",
+    "message": "Exportado con AI Chats Exporter and Printer",
     "description": "Mensaje de pie de página en exportaciones HTML"
   },
   "footerPrivacy": {

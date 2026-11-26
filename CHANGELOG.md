@@ -1,11 +1,12 @@
 # Changelog
 
-All notable changes to AI Chat Exporter are recorded here.
+All notable changes to AI Chats Exporter and Printer are recorded here.
 
 ## [Unreleased]
 
 ### Changed
 
+- **Renamed to "AI Chats Exporter and Printer"** in the browser, the popup, and the footer and metadata of exported files, to match the store listings.
 - **Quieter service-worker console.** It no longer logs every incoming message or the Claude API URLs (which carry organization and conversation ids).
 
 ## [1.3.1] — 2026-11-13

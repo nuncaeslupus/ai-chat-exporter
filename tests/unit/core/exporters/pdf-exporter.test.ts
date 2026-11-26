@@ -484,7 +484,7 @@ describe('R-2: page chrome and the R2 role label', () => {
   it('prints the exporter attribution in the footer alongside the page number', async () => {
     const instance = await render();
     const texts = instance.calls.filter((c) => c.method === 'text').map((c) => String(c.args[0]));
-    expect(texts.some((t) => t.includes('AI Chat Exporter'))).toBe(true);
+    expect(texts.some((t) => t.includes('AI Chats Exporter and Printer'))).toBe(true);
   });
 });
 

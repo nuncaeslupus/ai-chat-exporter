@@ -309,7 +309,7 @@ export class DocxExporter extends BaseExporter {
 
     return new Document({
       title: conversation.title,
-      creator: 'AI Chat Exporter',
+      creator: 'AI Chats Exporter and Printer',
       styles: {
         default: {
           document: {

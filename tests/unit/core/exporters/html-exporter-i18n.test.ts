@@ -28,7 +28,7 @@ const DE_MESSAGES: Record<string, string> = {
   roleClaude: 'Claude',
   roleGemini: 'Gemini',
   platformChatGPT: 'ChatGPT',
-  exportedWithChatExporter: 'Exportiert mit AI Chat Exporter',
+  exportedWithChatExporter: 'Exportiert mit AI Chats Exporter and Printer',
 };
 
 describe('HtmlExporter', () => {
@@ -70,7 +70,7 @@ describe('HtmlExporter', () => {
       expect(html).toContain('<html lang="de">');
       expect(html).toContain('Plattform');
       expect(html).toContain('Benutzer');
-      expect(html).toContain('Exportiert mit AI Chat Exporter');
+      expect(html).toContain('Exportiert mit AI Chats Exporter and Printer');
       expect(html).not.toContain('>Platform<');
       expect(html).not.toContain('>User<');
       // I18N-1: the metadata block is localised, but the section headings

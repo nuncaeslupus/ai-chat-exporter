@@ -5,7 +5,7 @@
 import type { UserPreferences } from './messages';
 import type { LanguagePreference, ThemePreference } from '../core/types/config';
 
-export const EXTENSION_NAME = 'AI Chat Exporter';
+export const EXTENSION_NAME = 'AI Chats Exporter and Printer';
 
 /**
  * Storage keys
