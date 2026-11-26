@@ -1,4 +1,4 @@
-# AI Chat Exporter
+# AI Chats Exporter and Printer
 
 > Export or print your ChatGPT, Claude and Gemini conversations as Markdown, PDF, HTML, Word, plain text or JSON.
 
