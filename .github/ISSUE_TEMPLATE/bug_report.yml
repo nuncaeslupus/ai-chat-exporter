@@ -1,0 +1,26 @@
+name: Bug report
+description: Something does not work as expected.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. …\n2. …"
+  - type: input
+    id: version
+    attributes:
+      label: Version and operating system
+      placeholder: "e.g. 1.2.0 on Ubuntu 24.04"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error output or screenshots
+      render: text
