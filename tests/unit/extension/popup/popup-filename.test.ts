@@ -230,9 +230,12 @@ describe('file name submenu — editing the pieces', () => {
   it('reorders a chip with Ctrl+ArrowRight and keeps focus on the moved chip (WCAG 2.1.1: dragging alone has no keyboard path)', async () => {
     await loadPopup();
     await expectName('Test-conversation_2026-07-29.md');
+    // Open the submenu: an element inside a `hidden` view is not focusable.
+    document.querySelector<HTMLButtonElement>('#view-options [data-nav="filename"]')!.click();
 
     const chips = () => document.querySelectorAll<HTMLElement>('#filename-pieces .filename-chip');
     chips()[0]!.focus();
+    expect(document.activeElement).toBe(chips()[0]);
     chips()[0]!.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'ArrowRight', ctrlKey: true, bubbles: true })
     );
