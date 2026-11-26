@@ -451,7 +451,11 @@ export class PdfExporter extends BaseExporter {
         doc.setTextColor(...hexToRgbTuple(COLOR.textFaint));
         // Attribution left, page number right — the design's footer. The
         // attribution is deliberately not localized: it is the product name.
-        doc.text('Exported with AI Chats Exporter and Printer', margins.left, pageHeight - margins.bottom / 2);
+        doc.text(
+          'Exported with AI Chats Exporter and Printer',
+          margins.left,
+          pageHeight - margins.bottom / 2
+        );
         doc.text(
           getMessageWithValues('pageNumberFormat', String(i), String(pageCount)),
           pageWidth - margins.right,
