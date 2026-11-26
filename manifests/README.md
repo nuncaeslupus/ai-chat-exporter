@@ -9,12 +9,15 @@ shadows the base value.
 
 ## Extension ID
 
-**Needs a human decision — do not change `manifests/manifest.firefox.json`'s
-`browser_specific_settings.gecko.id` without reading this first.**
+**Decided (owner, 2026-11-26):** the gecko id is
+`ai-chats-exporter-and-printer@nuncaeslupus.github.io`. It replaces the
+`ai-chat-exporter@example.com` placeholder, which was never submitted to AMO, so
+no installed base is orphaned. It is an email-shaped id, not a mailbox; it is on
+`nuncaeslupus.github.io`, a domain the project controls. **Never change it after
+the first AMO upload** — a new gecko id creates a new add-on and cuts existing
+users off from updates.
 
-`manifest.firefox.json` currently sets the gecko id to
-`ai-chat-exporter@example.com` (an `example.com` placeholder, present since the
-initial commit — never changed in this repo's history).
+Background, kept for the record:
 
 There **is** an AMO listing at the slug `ai-chat-exporter`
 (`https://addons.mozilla.org/api/v5/addons/addon/ai-chat-exporter/`), and its
@@ -23,7 +26,7 @@ listing metadata does **not** establish that it belongs to this project:
 
 | Field | Live AMO listing | This repo |
 | --- | --- | --- |
-| guid | `claude-chat-exporter@example.com` | `ai-chat-exporter@example.com` |
+| guid | `claude-chat-exporter@example.com` | `ai-chats-exporter-and-printer@nuncaeslupus.github.io` |
 | author | `Hamza` (AMO user 19601913) | `nuncaeslupus` |
 | version | 1.4.0 | 1.2.0 |
 | created | 2025-11-29 | — |
@@ -39,15 +42,5 @@ the same codebase has them.
 under a guid that belongs to someone else's add-on is not a merge — AMO would
 reject it, and if it did not, it would be a hijack of their listing.
 
-What a maintainer needs to confirm before the next Firefox submission:
-1. Does this project have its OWN AMO listing? If so, under which slug and guid?
-   (The answer is not discoverable from the public API without knowing the slug.)
-2. If it has never been submitted, then `ai-chat-exporter@example.com` has no
-   installed base to orphan — and it should be replaced with a real id on a
-   domain the project controls, because `example.com` is a reserved placeholder
-   (RFC 2606) and is poor practice in a shipped manifest.
-3. If it HAS been submitted under some other id, that id must be used verbatim —
-   changing a published gecko id creates a **new** add-on and orphans every
-   existing user.
-
-Until (1) is answered, leave the value alone.
+This project had no AMO listing of its own, so the placeholder was replaced
+rather than kept.

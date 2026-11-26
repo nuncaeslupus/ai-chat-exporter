@@ -3,6 +3,7 @@ id: t-e1a45a6e
 title: "review: Firefox add-on id is an example.com placeholder that does not match the published one"
 priority: 5
 requires: [human:gate]
+status: merged
 ---
 
 Imported from issue #285
