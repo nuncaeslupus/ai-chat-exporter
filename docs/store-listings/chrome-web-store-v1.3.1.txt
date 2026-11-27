@@ -10,15 +10,13 @@ AI Chat Exporter and Printer
 SHORT DESCRIPTION (132 characters max)
 ========================================
 
-Save ChatGPT, Claude and Gemini chats as PDF, Markdown, Word, HTML, text or JSON. Export, print or back up AI conversations. Free.
+Export and print ChatGPT, Claude and Gemini conversations to PDF, Markdown, Word and other formats with rich formatting.
 
 ========================================
 DETAILED DESCRIPTION
 ========================================
 
-Export ChatGPT to PDF, save Claude chats as Markdown, download Gemini conversations to Word. AI Chat Exporter turns any ChatGPT, Claude or Gemini conversation into a clean file in one click, in any of six formats. It keeps code highlighting, LaTeX math, images, tables, ChatGPT web citations and Claude artifacts, and exports long chats in full. Everything runs in your browser: no account, no tracking, nothing uploaded.
-
-Website: https://nuncaeslupus.github.io/ai-chat-exporter/
+Export your AI conversations with professional formatting - AI Chat Exporter makes it easy to save and share your conversations with ChatGPT, Claude and Gemini in multiple formats.
 
 ✨ What's New in v1.3.1
 
@@ -33,14 +31,14 @@ Fixes:
 
 Multiple Export Formats:
 
-• Six formats: PDF, Markdown, Word (.docx), HTML, plain text and JSON
+• Six formats to choose from, including PDF, Markdown and Word
 • Code highlighting, images, tables and math are kept in every one
 • Page numbers and print-ready pagination where the format supports it
 
 Multiple Access Methods:
 
 • Extension toolbar icon with popup interface
-• Right-click context menus for quick access
+• Right-click context menus for quick access ⚡ NEW!
 • Keyboard shortcut (Ctrl+Shift+E / Cmd+Shift+E)
 
 Print Support:
@@ -48,7 +46,7 @@ Print Support:
 • Opens the conversation in a new tab and raises the browser print dialog
 • Print-friendly formatting
 • Available for every format except Word
-• Quick access via context menu
+• Quick access via context menu ⚡ NEW!
 
 Rich Content Preservation:
 
@@ -87,7 +85,7 @@ Method 1: Extension Popup
 4. Click Export (or Print) - the whole conversation is exported
 5. Download your formatted conversation
 
-Method 2: Right-Click Menu
+Method 2: Right-Click Menu ⚡ NEW!
 1. Open any supported AI chat platform
 2. Right-click anywhere on the page
 3. Select "Export" or "Print" from the context menu
@@ -161,7 +159,7 @@ SCREENSHOTS
 ========================================
 
 1. Main export interface with format selection
-2. Right-click context menu showing Export and Print options
+2. Right-click context menu showing Export and Print options ⚡ NEW!
 3. An exported document with professional formatting
 4. Code highlighting in an exported file
 5. ChatGPT code artifacts in exported document
@@ -172,4 +170,4 @@ SCREENSHOTS
 TAGS
 ========================================
 
-chatgpt, claude, gemini, ai, export, pdf, markdown, conversation, chat, download, print, save, backup, archive, productivity, chatgpt to pdf, save chatgpt, claude export, gemini export, docx, json
+chatgpt, claude, gemini, ai, export, pdf, markdown, conversation, chat, download, print, save, backup, archive, productivity
